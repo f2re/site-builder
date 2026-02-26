@@ -6,8 +6,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from app.api.v1.products.schemas import (
     ProductPagination,
     ProductRead,
-    CategoryTreeRead,
-    ProductShortRead
+    CategoryTreeRead
 )
 from app.api.v1.products.repository import ProductRepository, get_product_repo
 

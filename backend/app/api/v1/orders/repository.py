@@ -1,12 +1,12 @@
 # Module: api/v1/orders/repository.py | Agent: backend-agent | Task: phase4_orders_logic
-from typing import List, Optional, Sequence
+from typing import Optional, Sequence
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db.models.order import Order, OrderItem
+from app.db.models.order import Order
 
 
 class OrderRepository:

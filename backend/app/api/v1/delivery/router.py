@@ -1,6 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
-from typing import Dict, Any
 from app.integrations.cdek import cdek_client
 from decimal import Decimal
 from app.core.logging import logger

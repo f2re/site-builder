@@ -16,8 +16,8 @@ Sections:
 from uuid import UUID
 import json
 import asyncio
-from fastapi import APIRouter, Depends, status, Query, WebSocket, WebSocketDisconnect, HTTPException
-from pydantic import BaseModel, EmailStr
+from fastapi import APIRouter, Depends, status, WebSocket, WebSocketDisconnect, HTTPException
+from pydantic import BaseModel
 from typing import Any, List
 from jose import jwt, JWTError
 

@@ -15,7 +15,7 @@ class IoTRepository:
         result = await self.session.execute(
             select(UserDevice).where(
                 UserDevice.device_uid == device_uid,
-                UserDevice.is_active == True
+                UserDevice.is_active
             )
         )
         return result.scalar_one_or_none()

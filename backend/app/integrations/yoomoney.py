@@ -1,9 +1,5 @@
-import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from app.core.config import settings
-from app.core.logging import logger
 from decimal import Decimal
-from typing import Dict, Any
 
 class YooMoneyClient:
     """
@@ -40,9 +36,6 @@ class YooMoneyClient:
             "label": label,
             "successURL": success_url
         }
-        
-        # In actual implementation, for HTTP POST flow:
-        # return f"https://yoomoney.ru/quickpay/confirm.xml?{httpx.QueryParams(params)}"
         
         # Simple redirect URL constructor
         query = "&".join([f"{k}={v}" for k, v in params.items()])

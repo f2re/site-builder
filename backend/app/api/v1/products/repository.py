@@ -1,5 +1,5 @@
 # Module: api/v1/products/repository.py | Agent: backend-agent | Task: phase4_backend_ecommerce
-from typing import List, Optional, Tuple, Any
+from typing import Optional, Tuple
 from uuid import UUID
 from decimal import Decimal
 
@@ -48,7 +48,7 @@ class ProductRepository:
         max_price: Optional[Decimal] = None,
         cursor: Optional[UUID] = None,
         per_page: int = 20,
-    ) -> Tuple[List[dict[str, Any]], Optional[str]]:
+    ) -> Tuple[list[dict], Optional[str]]:
         # Subqueries for prices and main images
         min_price_sq = (
             select(
@@ -64,7 +64,7 @@ class ProductRepository:
                 ProductImage.product_id,
                 ProductImage.url
             )
-            .where(ProductImage.is_main == True)
+            .where(ProductImage.is_main)
             .subquery()
         )
 
@@ -80,7 +80,7 @@ class ProductRepository:
             )
             .outerjoin(min_price_sq, Product.id == min_price_sq.c.product_id)
             .outerjoin(main_image_sq, Product.id == main_image_sq.c.product_id)
-            .where(Product.is_active == True)
+            .where(Product.is_active)
         )
 
         if category_id:
@@ -118,10 +118,10 @@ class ProductRepository:
             
         return items, next_cursor
 
-    async def get_categories_tree(self) -> List[Category]:
+    async def get_categories_tree(self) -> list[Category]:
         stmt = (
             select(Category)
-            .where(Category.parent_id == None)
+            .where(Category.parent_id.is_(None))
             .options(selectinload(Category.children))
         )
         result = await self.session.execute(stmt)
