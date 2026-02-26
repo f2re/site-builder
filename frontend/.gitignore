@@ -1,24 +1,69 @@
-# Nuxt dev/build outputs
-.output
-.data
-.nuxt
-.nitro
-.cache
-dist
+# ──────────────────────────────────────────
+# Nuxt build & dev outputs
+# ──────────────────────────────────────────
+.nuxt/
+.output/
+.data/
+.nitro/
+.cache/
+dist/
 
-# Node dependencies
-node_modules
+# ──────────────────────────────────────────
+# Node
+# ──────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
+# ──────────────────────────────────────────
 # Logs
-logs
+# ──────────────────────────────────────────
+logs/
 *.log
 
-# Misc
-.DS_Store
-.fleet
-.idea
-
-# Local env files
+# ──────────────────────────────────────────
+# Environment variables
+# ──────────────────────────────────────────
 .env
 .env.*
 !.env.example
+
+# ──────────────────────────────────────────
+# TypeScript / Nuxt generated
+# ──────────────────────────────────────────
+*.tsbuildinfo
+nuxt.d.ts
+
+# ──────────────────────────────────────────
+# OS
+# ──────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ──────────────────────────────────────────
+# Editors & IDEs
+# ──────────────────────────────────────────
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.fleet/
+*.swp
+*.swo
+*~
+
+# ──────────────────────────────────────────
+# Testing
+# ──────────────────────────────────────────
+coverage/
+.vitest-cache/
+
+# ──────────────────────────────────────────
+# Misc
+# ──────────────────────────────────────────
+*.local
+.vercel
+.netlify

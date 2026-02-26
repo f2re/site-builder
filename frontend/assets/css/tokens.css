@@ -40,7 +40,7 @@
   --radius-xl:   24px;
   --radius-full: 9999px;
 
-  /* Transitions */
+  /* Transitions — used per-component, NOT via wildcard */
   --transition-fast:   150ms cubic-bezier(.4, 0, .2, 1);
   --transition-normal: 250ms cubic-bezier(.4, 0, .2, 1);
   --transition-slow:   400ms cubic-bezier(.4, 0, .2, 1);
@@ -77,21 +77,21 @@
   color-scheme: dark;
 
   /* Backgrounds */
-  --color-bg:           #0a0a0f;   /* deep void black — page bg */
-  --color-bg-subtle:    #0d0d14;   /* slightly lighter bg */
-  --color-surface:      #111118;   /* card / panel surface */
-  --color-surface-2:    #18181f;   /* elevated (dropdown, modal bg) */
-  --color-surface-3:    #1e1e28;   /* highest elevation */
+  --color-bg:           #0a0a0f;
+  --color-bg-subtle:    #0d0d14;
+  --color-surface:      #111118;
+  --color-surface-2:    #18181f;
+  --color-surface-3:    #1e1e28;
 
   /* Borders */
-  --color-border:       #1e1e2e;   /* default separator */
-  --color-border-strong:#2a2a3e;   /* hover / active border */
+  --color-border:       #1e1e2e;
+  --color-border-strong:#2a2a3e;
 
   /* Text */
-  --color-text:         #f0f0f5;   /* primary text */
-  --color-text-2:       #b8b8c8;   /* secondary / captions */
-  --color-muted:        #6b7280;   /* placeholder / disabled */
-  --color-on-accent:    #ffffff;   /* text on accent-color bg */
+  --color-text:         #f0f0f5;
+  --color-text-2:       #b8b8c8;
+  --color-muted:        #6b7280;
+  --color-on-accent:    #ffffff;
 
   /* Shadows */
   --shadow-sm:           0 1px  4px rgba(0, 0, 0, .40);
@@ -114,21 +114,21 @@
   color-scheme: light;
 
   /* Backgrounds */
-  --color-bg:           #f8f8fc;   /* warm white — page bg */
-  --color-bg-subtle:    #f0f0f7;   /* subtle tinted bg */
-  --color-surface:      #ffffff;   /* card / panel surface */
-  --color-surface-2:    #f4f4f9;   /* elevated surface */
-  --color-surface-3:    #ebebf3;   /* highest elevation */
+  --color-bg:           #f8f8fc;
+  --color-bg-subtle:    #f0f0f7;
+  --color-surface:      #ffffff;
+  --color-surface-2:    #f4f4f9;
+  --color-surface-3:    #ebebf3;
 
   /* Borders */
-  --color-border:       #e2e2ec;   /* default separator */
-  --color-border-strong:#c8c8d8;   /* hover / active border */
+  --color-border:       #e2e2ec;
+  --color-border-strong:#c8c8d8;
 
   /* Text */
-  --color-text:         #111118;   /* primary text */
-  --color-text-2:       #3a3a4a;   /* secondary / captions */
-  --color-muted:        #8890a0;   /* placeholder / disabled */
-  --color-on-accent:    #ffffff;   /* text on accent-color bg */
+  --color-text:         #111118;
+  --color-text-2:       #3a3a4a;
+  --color-muted:        #8890a0;
+  --color-on-accent:    #ffffff;
 
   /* Shadows (softer in light mode) */
   --shadow-sm:           0 1px  4px rgba(0, 0, 0, .08);
@@ -170,19 +170,17 @@
 }
 
 /* ============================================================
-   GLOBAL THEME TRANSITION
-   Smooth animated switch between dark ↔ light
+   THEME TRANSITION — only on theme-sensitive properties
+   Applied to html element only to avoid performance issues
+   with wildcard (*) transition on interactive elements.
    ============================================================ */
-*,
-*::before,
-*::after {
+html[data-theme] body,
+html[data-theme] body *:not(.no-theme-transition):not(.no-theme-transition *) {
   transition:
     background-color var(--transition-theme),
     border-color     var(--transition-theme),
     color            var(--transition-theme),
-    box-shadow       var(--transition-theme),
-    fill             var(--transition-theme),
-    stroke           var(--transition-theme);
+    box-shadow       var(--transition-theme);
 }
 
 /* Suppress transition on initial page load to prevent FOUC */
@@ -207,7 +205,6 @@
 
 /* ============================================================
    SKELETON SHIMMER ANIMATION
-   Uses theme-aware tokens automatically
    ============================================================ */
 @keyframes skeleton-shimmer {
   0%   { background-position: -400px 0; }
@@ -227,7 +224,7 @@
 }
 
 /* ============================================================
-   SPIN ANIMATION (for loading spinners)
+   SPIN ANIMATION
    ============================================================ */
 @keyframes spin {
   to { transform: rotate(360deg); }
@@ -246,7 +243,7 @@
 .fade-slide-leave-to   { opacity: 0; transform: translateY(-8px); }
 
 /* ============================================================
-   LIST TRANSITION (dynamic lists with stagger)
+   LIST TRANSITION
    ============================================================ */
 .list-enter-active { transition: all var(--transition-normal); }
 .list-leave-active { transition: all var(--transition-fast);   }
