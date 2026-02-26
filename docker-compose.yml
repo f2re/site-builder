@@ -1,201 +1,237 @@
-version: '3.9'
+# docker-compose.yml — Development Environment
+# ALL services required for local development.
+# Use 'docker compose up -d' to start.
+# Production: see deploy/docker-compose.prod.yml
+
+version: "3.9"
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: shop_postgres
-    restart: always
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - backend_net
 
-  redis:
-    image: redis:7-alpine
-    container_name: shop_redis
-    restart: always
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - backend_net
-
-  meilisearch:
-    image: getmeili/meilisearch:v1.7
-    container_name: shop_meilisearch
-    restart: always
-    environment:
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
-      MEILI_ENV: development
-    volumes:
-      - meili_data:/meili_data
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:7700/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - backend_net
-
-  api:
+  # ── Backend ──────────────────────────────────────────────────────────────
+  backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: shop_api
-    restart: always
-    environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      REDIS_URL: redis://redis:6379/0
-      MEILI_URL: http://meilisearch:7700
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      target: development
+    container_name: sb_backend
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - backend_net
-
-  celery_worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: shop_celery_worker
-    command: celery -A app.tasks.celery_app worker -l info
-    restart: always
-    environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      REDIS_URL: redis://redis:6379/0
-    depends_on:
-      postgres:
+      meilisearch:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "celery -A app.tasks.celery_app inspect ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    networks:
-      - backend_net
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks: [sb_net]
 
-  celery_beat:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: shop_celery_beat
-    command: celery -A app.tasks.celery_app beat -l info
-    restart: always
-    environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      REDIS_URL: redis://redis:6379/0
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "ps aux | grep 'celery -A app.tasks.celery_app beat' | grep -v grep"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    networks:
-      - backend_net
-
+  # ── Frontend ─────────────────────────────────────────────────────────────
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: shop_frontend
-    restart: always
+      target: development
+    container_name: sb_frontend
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+    networks: [sb_net]
+
+  # ── PostgreSQL 16 + TimescaleDB ───────────────────────────────────────────
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: sb_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [sb_net]
+
+  # ── Redis 7 ───────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: sb_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks: [sb_net]
+
+  # ── Celery Worker ─────────────────────────────────────────────────────────
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: sb_celery_worker
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      - redis
+      - postgres
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
+    networks: [sb_net]
+
+  # ── Celery Beat ───────────────────────────────────────────────────────────
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: sb_celery_beat
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      - redis
+    command: celery -A app.tasks.celery_app beat --loglevel=info --scheduler redbeat.RedBeatScheduler
+    networks: [sb_net]
+
+  # ── Meilisearch ──────────────────────────────────────────────────────────
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    container_name: sb_meilisearch
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_ENV: development
+    ports:
+      - "7700:7700"
+    volumes:
+      - meili_data:/meili_data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:7700/health | grep -q 'available'"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - frontend_net
+    networks: [sb_net]
 
+  # ── MinIO (S3-compatible media storage) ──────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: sb_minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [sb_net]
+
+  # ── Nginx ─────────────────────────────────────────────────────────────────
   nginx:
-    image: nginx:stable-alpine
-    container_name: shop_nginx
-    restart: always
+    image: nginx:alpine
+    container_name: sb_nginx
+    restart: unless-stopped
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./deploy/nginx/certs:/etc/nginx/certs:ro
     depends_on:
-      api:
-        condition: service_healthy
-      frontend:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "nginx -t && wget --no-verbose --tries=1 --spider http://localhost:80/"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - backend_net
-      - frontend_net
+      - backend
+      - frontend
+    networks: [sb_net]
 
-  postgres_exporter:
-    image: prometheuscommunity/postgres-exporter
-    container_name: shop_postgres_exporter
-    environment:
-      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - backend_net
-
-  redis_exporter:
-    image: oliver006/redis_exporter
-    container_name: shop_redis_exporter
-    environment:
-      REDIS_ADDR: "redis://redis:6379"
-    depends_on:
-      redis:
-        condition: service_healthy
-    networks:
-      - backend_net
-
+  # ── Prometheus ────────────────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:latest
-    container_name: shop_prometheus
-    restart: always
+    container_name: sb_prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
     volumes:
-      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-    networks:
-      - backend_net
+    command: --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.retention.time=15d
+    networks: [sb_net]
 
-networks:
-  backend_net:
-  frontend_net:
+  # ── Grafana ───────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: sb_grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks: [sb_net]
+
+  # ── Loki (log aggregation) ────────────────────────────────────────────────
+  loki:
+    image: grafana/loki:latest
+    container_name: sb_loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./deploy/monitoring/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/loki.yml
+    networks: [sb_net]
+
+  # ── Promtail (log shipper) ────────────────────────────────────────────────
+  promtail:
+    image: grafana/promtail:latest
+    container_name: sb_promtail
+    restart: unless-stopped
+    volumes:
+      - ./deploy/monitoring/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/log:/var/log:ro
+    command: -config.file=/etc/promtail/promtail.yml
+    depends_on:
+      - loki
+    networks: [sb_net]
 
 volumes:
-  postgres_data:
+  pg_data:
+  redis_data:
   meili_data:
+  minio_data:
   prometheus_data:
+  grafana_data:
+  loki_data:
+
+networks:
+  sb_net:
+    driver: bridge
