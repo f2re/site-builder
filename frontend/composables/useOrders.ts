@@ -1,3 +1,5 @@
+import { useAuth } from './useAuth'
+
 export interface OrderItem {
   product_id: string
   slug: string
@@ -61,23 +63,31 @@ export interface PVZ {
 export const useOrders = () => {
   const config = useRuntimeConfig()
   const apiBase = config.public.apiBase
+  const { accessToken } = useAuth()
+
+  const getHeaders = () => ({
+    ...(accessToken.value ? { Authorization: `Bearer ${accessToken.value}` } : {})
+  })
 
   const createOrder = (body: CreateOrderRequest) => {
     return useFetch<CreateOrderResponse>(`${apiBase}/orders`, {
       method: 'POST',
-      body
+      body,
+      headers: getHeaders()
     })
   }
 
   const getOrders = (params?: { page_cursor?: string, per_page?: number }) => {
     return useFetch<{ items: Order[], next_cursor: string | null, total: number }>(`${apiBase}/orders`, {
       params,
+      headers: getHeaders(),
       key: `orders-${JSON.stringify(params)}`
     })
   }
 
   const getOrder = (orderId: string) => {
     return useFetch<Order>(`${apiBase}/orders/${orderId}`, {
+      headers: getHeaders(),
       key: `order-${orderId}`
     })
   }
@@ -85,13 +95,15 @@ export const useOrders = () => {
   const calculateDelivery = (body: DeliveryCalculateRequest) => {
     return useFetch<DeliveryCalculateResponse>(`${apiBase}/delivery/calculate`, {
       method: 'POST',
-      body
+      body,
+      headers: getHeaders()
     })
   }
 
   const getPVZs = (cityCode: string) => {
     return useFetch<{ items: PVZ[] }>(`${apiBase}/delivery/pvz`, {
       params: { city_code: cityCode },
+      headers: getHeaders(),
       key: `pvz-${cityCode}`
     })
   }

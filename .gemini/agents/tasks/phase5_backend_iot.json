@@ -1,0 +1,17 @@
+{
+  "task_id": "phase5_backend_iot",
+  "phase": 5,
+  "agent": "backend-agent",
+  "title": "IoT Data Pipeline",
+  "description": "Implement UserDevice models and IoT data ingestion via Redis Streams.",
+  "depends_on": ["phase4_backend_ecommerce"],
+  "priority": "high",
+  "contracts_required": [".gemini/agents/contracts/api_contracts.md"],
+  "acceptance_criteria": [
+    "UserDevice model with device_id and user_id association",
+    "POST /api/v1/iot/data endpoint for telemetry ingestion",
+    "Redis Stream implementation for processing telemetry",
+    "Background worker placeholder for stream processing",
+    "FastAPI router registration for IoT endpoints"
+  ]
+}

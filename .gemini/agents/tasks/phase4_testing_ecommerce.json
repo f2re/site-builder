@@ -1,0 +1,17 @@
+{
+  "task_id": "phase4_testing_ecommerce",
+  "phase": 4,
+  "agent": "testing-agent",
+  "title": "E-Commerce Integration Tests",
+  "description": "Integration tests for order flow, stock management, and payment links.",
+  "depends_on": ["phase4_backend_ecommerce"],
+  "priority": "medium",
+  "contracts_required": [".gemini/agents/contracts/api_contracts.md"],
+  "acceptance_criteria": [
+    "Integration test for order creation with stock reduction",
+    "Test for 409 Conflict when stock is insufficient",
+    "Test for YooMoney payment link generation",
+    "Tests passing on local environment",
+    "Coverage report for e-commerce logic"
+  ]
+}
