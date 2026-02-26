@@ -1,10 +1,11 @@
-# Module: db/models/order.py | Agent: backend-agent | Task: stage2_rbac
+# Module: db/models/order.py | Agent: backend-agent | Task: phase4_orders_logic
 import enum
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import List
 
-from sqlalchemy import String, DateTime, Numeric, ForeignKey, Enum as SAEnum
+from sqlalchemy import String, DateTime, Numeric, ForeignKey, Enum as SAEnum, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
@@ -48,3 +49,24 @@ class Order(Base):
 
     # Relationships
     user = relationship("User", back_populates="orders", lazy="selectin")
+    items: Mapped[List["OrderItem"]] = relationship(
+        "OrderItem", back_populates="order", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class OrderItem(Base):
+    __tablename__ = "order_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    order_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    product_variant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("product_variants.id", ondelete="RESTRICT"), nullable=False
+    )
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+
+    # Relationships
+    order: Mapped["Order"] = relationship("Order", back_populates="items")
+    product_variant = relationship("ProductVariant", lazy="selectin")

@@ -1,17 +1,22 @@
-# Module: core/dependencies.py | Agent: backend-agent | Task: stage2_rbac
+# Module: core/dependencies.py | Agent: backend-agent | Task: phase4_orders_logic
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
+from redis.asyncio import Redis
 
 from app.core.config import settings
 from app.db.session import get_db
+from app.db.redis import get_redis
 from app.db.models.user import User
 from app.api.v1.users.repository import UserRepository
 from app.api.v1.auth.service import AuthService
 from app.api.v1.auth.schemas import TokenPayload
+from app.api.v1.cart.service import CartService
+from app.api.v1.orders.repository import OrderRepository
+from app.api.v1.orders.service import OrderService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -30,6 +35,26 @@ async def get_auth_service(
     repo: UserRepository = Depends(get_user_repository),
 ) -> AuthService:
     return AuthService(repo)
+
+
+async def get_cart_service(
+    redis: Redis = Depends(get_redis),
+    session: AsyncSession = Depends(get_db),
+) -> CartService:
+    return CartService(redis, session)
+
+
+async def get_order_repository(
+    session: AsyncSession = Depends(get_db),
+) -> OrderRepository:
+    return OrderRepository(session)
+
+
+async def get_order_service(
+    order_repo: OrderRepository = Depends(get_order_repository),
+    cart_service: CartService = Depends(get_cart_service),
+) -> OrderService:
+    return OrderService(order_repo, cart_service)
 
 
 # ──────────────────────────────────────────────
