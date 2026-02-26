@@ -35,6 +35,7 @@ def upgrade() -> None:
             sa.Enum(*ORDER_STATUSES, name="orderstatus"),
             nullable=False,
             server_default="pending",
+            index=True,
         ),
         sa.Column("total_amount", sa.Numeric(12, 2), nullable=False),
         sa.Column("currency", sa.String(3), nullable=False, server_default="RUB"),
@@ -55,8 +56,6 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
     )
-    op.create_index("ix_orders_user_id", "orders", ["user_id"])
-    op.create_index("ix_orders_status", "orders", ["status"])
 
     # ── user_devices ──────────────────────────────────────────────────────────
     op.create_table(
@@ -69,7 +68,7 @@ def upgrade() -> None:
             nullable=False,
             index=True,
         ),
-        sa.Column("device_uid", sa.String(100), nullable=False, unique=True),
+        sa.Column("device_uid", sa.String(100), nullable=False, unique=True, index=True),
         sa.Column("name", sa.String(255), nullable=True),
         sa.Column("model", sa.String(100), nullable=True),
         sa.Column("firmware_version", sa.String(50), nullable=True),
@@ -82,16 +81,9 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
     )
-    op.create_index("ix_user_devices_user_id", "user_devices", ["user_id"])
-    op.create_index("ix_user_devices_device_uid", "user_devices", ["device_uid"], unique=True)
 
 
 def downgrade() -> None:
-    op.drop_index("ix_user_devices_device_uid", table_name="user_devices")
-    op.drop_index("ix_user_devices_user_id", table_name="user_devices")
     op.drop_table("user_devices")
-
-    op.drop_index("ix_orders_status", table_name="orders")
-    op.drop_index("ix_orders_user_id", table_name="orders")
     op.drop_table("orders")
     op.execute("DROP TYPE IF EXISTS orderstatus")
