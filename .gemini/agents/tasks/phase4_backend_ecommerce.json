@@ -1,0 +1,22 @@
+{
+  "task_id": "phase4_backend_ecommerce",
+  "phase": 4,
+  "agent": "backend-agent",
+  "title": "E-Commerce Core: Корзина и Заказы",
+  "description": "Реализовать логику корзины в Redis, создание заказов в PostgreSQL, интеграцию с API СДЭК (калькулятор) и YooMoney (платежные ссылки).",
+  "depends_on": ["phase3_backend_catalog"],
+  "priority": "high",
+  "target_paths": [
+    "backend/app/api/v1/cart/",
+    "backend/app/api/v1/orders/",
+    "backend/app/integrations/"
+  ],
+  "acceptance_criteria": [
+    "Корзина хранится в Redis (Hash: product_id -> quantity) с TTL",
+    "Создание заказа атомарно уменьшает остатки (или создает резерв)",
+    "Интеграция со СДЭК v2 возвращает стоимость и сроки доставки",
+    "Создание платежа в YooMoney возвращает confirmation_url",
+    "Миграции Alembic для новых статусов заказов (если нужно) применены"
+  ],
+  "status": "pending"
+}

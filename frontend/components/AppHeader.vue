@@ -2,6 +2,9 @@
 import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCartStore } from '~/stores/cartStore'
+import UButton from './U/UButton.vue'
+import UThemeToggle from './U/UThemeToggle.vue'
+import USearchModal from './U/USearchModal.vue'
 
 const route = useRoute()
 const cartStore = useCartStore()
@@ -25,8 +28,9 @@ const closeMenu = () => { isMenuOpen.value = false }
 
         <!-- Logo -->
         <div class="logo">
-          <NuxtLink to="/" @click="closeMenu">
-            <span class="logo-text">WifiOBD<span class="logo-accent">.shop</span></span>
+          <NuxtLink to="/" @click="closeMenu" class="logo-link">
+            <span class="logo-text">WIFI<span class="logo-accent">OBD</span></span>
+            <div class="logo-indicator"></div>
           </NuxtLink>
         </div>
 
@@ -45,55 +49,58 @@ const closeMenu = () => { isMenuOpen.value = false }
         <!-- Actions -->
         <div class="actions">
           <!-- Search -->
-          <button
-            class="btn btn-icon btn-ghost icon-btn"
+          <UButton
+            variant="ghost"
+            size="sm"
             aria-label="Поиск"
+            class="action-btn"
             @click="isSearchOpen = true"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-          </button>
+            <template #icon>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+            </template>
+          </UButton>
 
           <!-- Cart -->
-          <NuxtLink to="/cart" class="cart-btn btn btn-icon btn-ghost icon-btn" aria-label="Корзина">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-              <line x1="3" y1="6" x2="21" y2="6"/>
-              <path d="M16 10a4 4 0 0 1-8 0"/>
-            </svg>
-            <span v-if="cartCount > 0" class="cart-badge" aria-label="Товаров в корзине: {{ cartCount }}">
+          <UButton
+            variant="ghost"
+            size="sm"
+            to="/cart"
+            aria-label="Корзина"
+            class="action-btn cart-btn"
+          >
+            <template #icon>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+                <line x1="3" y1="6" x2="21" y2="6"/>
+                <path d="M16 10a4 4 0 0 1-8 0"/>
+              </svg>
+            </template>
+            <span v-if="cartCount > 0" class="cart-badge">
               {{ cartCount > 99 ? '99+' : cartCount }}
             </span>
-          </NuxtLink>
+          </UButton>
 
           <!-- Theme toggle -->
           <UThemeToggle />
 
           <!-- Burger (mobile) -->
           <button
-            class="burger btn btn-icon btn-ghost"
+            class="burger-btn"
+            :class="{ 'burger-btn--open': isMenuOpen }"
             :aria-expanded="isMenuOpen"
             aria-controls="mobile-menu"
             aria-label="Открыть меню"
             @click="isMenuOpen = !isMenuOpen"
           >
-            <svg v-if="!isMenuOpen" xmlns="http://www.w3.org/2000/svg" width="22" height="22"
-              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <line x1="3" y1="6"  x2="21" y2="6"/>
-              <line x1="3" y1="12" x2="21" y2="12"/>
-              <line x1="3" y1="18" x2="21" y2="18"/>
-            </svg>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" width="22" height="22"
-              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
+            <span></span>
+            <span></span>
+            <span></span>
           </button>
         </div>
       </div>
@@ -107,7 +114,7 @@ const closeMenu = () => { isMenuOpen.value = false }
         class="mobile-nav"
         aria-label="Мобильная навигация"
       >
-        <div class="container">
+        <div class="container mobile-nav-container">
           <NuxtLink
             v-for="link in navLinks"
             :key="link.to"
@@ -132,17 +139,17 @@ const closeMenu = () => { isMenuOpen.value = false }
 
 <style scoped>
 .header {
-  background-color: var(--color-surface);
+  background-color: var(--color-bg);
   border-bottom: 1px solid var(--color-border);
-  height: 64px;
+  height: 72px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   position: sticky;
   top: 0;
   z-index: var(--z-overlay);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .header-inner {
@@ -152,131 +159,173 @@ const closeMenu = () => { isMenuOpen.value = false }
 }
 
 /* Logo */
-.logo-text {
-  font-size: var(--text-xl);
-  font-weight: 800;
-  color: var(--color-text);
-  letter-spacing: -0.5px;
-  transition: opacity var(--transition-fast);
+.logo-link {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  position: relative;
 }
-.logo-text:hover { opacity: .8; }
-.logo-accent { color: var(--color-accent); }
+
+.logo-text {
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--color-text);
+  letter-spacing: -1px;
+  font-family: var(--font-sans);
+}
+
+.logo-accent {
+  color: var(--color-accent);
+  text-shadow: 0 0 10px var(--color-accent-glow);
+}
+
+.logo-indicator {
+  height: 3px;
+  width: 100%;
+  background: linear-gradient(90deg, var(--color-accent), var(--color-neon));
+  border-radius: var(--radius-full);
+  margin-top: -2px;
+  box-shadow: 0 2px 8px var(--color-accent-glow);
+}
 
 /* Desktop nav */
 .nav {
   display: flex;
-  gap: 4px;
+  gap: 8px;
+  background-color: var(--color-surface-2);
+  padding: 4px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
 }
 
 .nav-link {
   color: var(--color-text-2);
-  font-weight: 500;
-  padding: 6px 12px;
+  font-weight: 600;
+  padding: 8px 16px;
   border-radius: var(--radius-md);
-  transition:
-    color            var(--transition-fast),
-    background-color var(--transition-fast);
+  transition: all var(--transition-fast);
+  text-decoration: none;
+  font-size: var(--text-sm);
 }
 
 .nav-link:hover {
   color: var(--color-text);
-  background-color: var(--color-surface-2);
+  background-color: var(--color-surface-3);
 }
 
 .nav-link.router-link-active {
-  color: var(--color-accent);
-  background-color: var(--color-surface-2);
+  color: var(--color-on-accent);
+  background-color: var(--color-accent);
+  box-shadow: var(--shadow-glow-accent);
 }
 
 /* Actions */
 .actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
 }
 
-.icon-btn {
+.cart-btn {
   position: relative;
-  color: var(--color-text-2);
-  transition:
-    color            var(--transition-fast),
-    background-color var(--transition-fast);
 }
-.icon-btn:hover { color: var(--color-text); }
-
-/* Cart badge */
-.cart-btn { position: relative; }
 
 .cart-badge {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  top: -4px;
+  right: -4px;
   background-color: var(--color-accent);
   color: var(--color-on-accent);
   font-size: 10px;
-  font-weight: 700;
-  line-height: 1;
-  padding: 2px 4px;
+  font-weight: 800;
+  padding: 2px 5px;
   border-radius: var(--radius-full);
-  min-width: 16px;
-  text-align: center;
-  pointer-events: none;
+  min-width: 18px;
+  border: 2px solid var(--color-bg);
+  box-shadow: 0 0 10px var(--color-accent-glow);
 }
 
-/* Burger — visible only on mobile */
-.burger { display: none; }
+/* Burger Button */
+.burger-btn {
+  display: none;
+  flex-direction: column;
+  justify-content: space-around;
+  width: 32px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  z-index: 10;
+}
+
+.burger-btn span {
+  width: 32px;
+  height: 3px;
+  background: var(--color-text);
+  border-radius: 10px;
+  transition: all 0.3s linear;
+  position: relative;
+  transform-origin: 1px;
+}
+
+.burger-btn--open span:first-child { transform: rotate(45deg); }
+.burger-btn--open span:nth-child(2) { opacity: 0; transform: translateX(20px); }
+.burger-btn--open span:last-child { transform: rotate(-45deg); }
 
 /* Mobile nav */
 .mobile-nav {
-  background-color: var(--color-surface);
-  border-top: 1px solid var(--color-border);
-  padding: 12px 0 16px;
-  position: absolute;
-  top: 64px;
+  position: fixed;
+  top: 72px;
   left: 0;
   right: 0;
+  bottom: 0;
+  background-color: var(--color-bg);
   z-index: var(--z-overlay);
-  box-shadow: var(--shadow-card);
+  padding: 24px 0;
+}
+
+.mobile-nav-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .mobile-nav-link {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--color-text);
+  text-decoration: none;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 0;
-  color: var(--color-text);
-  font-weight: 500;
-  font-size: var(--text-lg);
-  border-bottom: 1px solid var(--color-border);
-  transition: color var(--transition-fast);
+  justify-content: space-between;
 }
 
-.mobile-nav-link:last-child { border-bottom: none; }
-.mobile-nav-link:hover { color: var(--color-accent); }
+.mobile-nav-link:hover {
+  color: var(--color-accent);
+}
 
 .cart-badge-inline {
   background-color: var(--color-accent);
   color: var(--color-on-accent);
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 6px;
+  padding: 4px 12px;
   border-radius: var(--radius-full);
+  font-size: var(--text-sm);
 }
 
-/* Mobile menu transition */
-.mobile-menu-enter-active,
-.mobile-menu-leave-active {
-  transition: opacity var(--transition-fast), transform var(--transition-fast);
+/* Transitions */
+.mobile-menu-enter-active, .mobile-menu-leave-active {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.mobile-menu-enter-from,
-.mobile-menu-leave-to {
+.mobile-menu-enter-from, .mobile-menu-leave-to {
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translateX(100%);
 }
 
-/* Responsive */
 @media (max-width: 768px) {
-  .nav  { display: none; }
-  .burger { display: flex; }
+  .nav { display: none; }
+  .burger-btn { display: flex; }
 }
 </style>
