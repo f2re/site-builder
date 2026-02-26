@@ -1,0 +1,3 @@
+name = "backend"
+description = "Specialized command for backend tasks"
+prompt = "Delegate backend task to backend-agent: $GEMINI_ARGUMENTS"

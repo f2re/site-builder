@@ -1,0 +1,32 @@
+name = "run"
+description = "Запустить задачу из очереди: /agents:run [task_id]"
+
+prompt = """
+Argument: $GEMINI_ARGUMENTS
+
+Step 1 — Find the task:
+- If argument is empty: read .gemini/agents/tasks/, find oldest file with status "pending"
+- If argument provided: read .gemini/agents/tasks/<argument>.json
+
+Step 2 — Update task status to "running" in the task JSON file.
+
+Step 3 — Load the agent's context by reading:
+  .gemini/extensions/<agent_name>/GEMINI.md
+
+Step 4 — Run the agent using shell:
+  gemini --yolo -p "$(cat .gemini/extensions/<agent_name>/GEMINI.md)
+
+Your current task ID: <task_id>
+Task description: <description>
+Write your report to: <report_path>
+
+Read project contracts first: .gemini/agents/contracts/api_contracts.md"
+
+Step 5 — After completion, read the report at <report_path>.
+  Verify it contains all required sections:
+  Status, Completed, Artifacts, Contracts Verified, Next, Blockers
+
+Step 6 — Update task status to "done" or "blocked" in the task JSON.
+
+Step 7 — Print summary to user.
+"""

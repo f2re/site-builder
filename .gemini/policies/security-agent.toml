@@ -1,0 +1,33 @@
+# Security-agent — только чтение, никогда не пишет production-файлы
+# Применяется когда агент работает в plan-режиме
+
+[[rules]]
+toolName = "write_file"
+decision = "ask_user"
+priority = 500
+modes = ["plan"]
+
+[[rules]]
+toolName = "replace"
+decision = "deny"
+priority = 500
+modes = ["plan"]
+
+# Разрешить инструменты аудита
+[[rules]]
+toolName = "run_shell_command"
+commandPrefix = "bandit"
+decision = "allow"
+priority = 300
+
+[[rules]]
+toolName = "run_shell_command"
+commandPrefix = "safety"
+decision = "allow"
+priority = 300
+
+[[rules]]
+toolName = "run_shell_command"
+commandPrefix = "grep -r"
+decision = "allow"
+priority = 300

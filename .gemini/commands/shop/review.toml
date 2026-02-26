@@ -1,0 +1,3 @@
+name = "review"
+description = "Run security review of all reports"
+prompt = "Invoke security-agent to review all reports in .gemini/agents/reports/ and provide a final audit summary."

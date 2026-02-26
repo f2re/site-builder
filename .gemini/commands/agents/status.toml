@@ -1,0 +1,28 @@
+name = "status"
+description = "Показать статус всех задач и агентов"
+
+prompt = """
+Generate a status dashboard:
+
+1. Read all .gemini/agents/tasks/*.json files
+2. Read all .gemini/agents/reports/**/*.md files (just first 5 lines each)
+3. Output:
+
+## 🤖 Agent System Status
+
+### Pending
+| Task ID | Agent | Description |
+|---------|-------|-------------|
+
+### Running
+| Task ID | Agent | Started |
+|---------|-------|---------|
+
+### Done (last 5)
+| Task ID | Agent | Artifacts Count |
+|---------|-------|-----------------|
+
+### Blocked (needs attention)
+| Task ID | Agent | Blocker |
+|---------|-------|---------|
+"""

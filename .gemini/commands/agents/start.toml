@@ -1,0 +1,35 @@
+name = "start"
+description = "Поставить задачу агенту: /agents:start <agent-name> <описание задачи>"
+
+prompt = """
+Parse the user arguments: $GEMINI_ARGUMENTS
+First token = agent name. Rest = task description.
+
+Valid agents: orchestrator, backend-agent, frontend-agent,
+              security-agent, testing-agent, cdek-agent, devops-agent
+
+1. Generate task_id in format: YYYYMMDD_HHMMSS_<agent-short-name>
+   Example: 20260226_143000_backend
+
+2. Determine report domain from agent name:
+   backend-agent/cdek-agent → "backend"
+   frontend-agent → "frontend"
+   security-agent → "security"
+   testing-agent → "testing"
+   devops-agent → "devops"
+   orchestrator → "orchestrator"
+
+3. Create JSON file at .gemini/agents/tasks/<task_id>.json:
+{
+  "task_id": "<task_id>",
+  "agent": "<agent_name>",
+  "status": "pending",
+  "priority": "normal",
+  "description": "<task description>",
+  "created_at": "<ISO 8601 timestamp>",
+  "dependencies": [],
+  "report_path": ".gemini/agents/reports/<domain>/<task_id>.md"
+}
+
+4. Confirm: "✅ Task <task_id> queued for <agent>: <description>"
+"""
