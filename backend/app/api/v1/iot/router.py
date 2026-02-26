@@ -1,9 +1,9 @@
-# Module: api/v1/iot/router.py | Agent: backend-agent | Task: phase5_backend_iot
+# Module: api/v1/iot/router.py | Agent: backend-agent | Task: phase5_backend_users_cabinet
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from redis.asyncio import Redis
 
-from app.db.session import get_async_session
+from app.db.session import get_db
 from app.db.redis import get_redis
 from app.api.v1.iot.repository import IoTRepository
 from app.api.v1.iot.service import IoTService
@@ -12,7 +12,7 @@ from app.api.v1.iot.schemas import TelemetryDataRequest, TelemetryDataResponse
 router = APIRouter(prefix="/iot", tags=["iot"])
 
 def get_iot_service(
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis)
 ) -> IoTService:
     repo = IoTRepository(session)

@@ -1,4 +1,4 @@
-# Module: core/dependencies.py | Agent: backend-agent | Task: phase4_orders_logic
+# Module: core/dependencies.py | Agent: backend-agent | Task: phase5_backend_users_cabinet
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
@@ -18,6 +18,7 @@ from app.api.v1.cart.service import CartService
 from app.api.v1.orders.repository import OrderRepository
 from app.api.v1.products.repository import ProductRepository, get_product_repo
 from app.api.v1.orders.service import OrderService
+from app.api.v1.iot.repository import IoTRepository
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -49,6 +50,12 @@ async def get_order_repository(
     session: AsyncSession = Depends(get_db),
 ) -> OrderRepository:
     return OrderRepository(session)
+
+
+async def get_iot_repository(
+    session: AsyncSession = Depends(get_db),
+) -> IoTRepository:
+    return IoTRepository(session)
 
 
 async def get_order_service(
