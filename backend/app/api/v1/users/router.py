@@ -14,7 +14,7 @@ Sections:
   WS   /users/me/devices/{id}/connect  — real-time WebSocket connection to device
 """
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, status, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from typing import Any
 

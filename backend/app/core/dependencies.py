@@ -1,5 +1,4 @@
 # Module: core/dependencies.py | Agent: backend-agent | Task: stage2_rbac
-from typing import AsyncGenerator
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status

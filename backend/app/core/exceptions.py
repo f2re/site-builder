@@ -1,7 +1,7 @@
 # Module: core/exceptions.py | Agent: backend-agent | Task: stage1_backend
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 class APIException(Exception):
     def __init__(

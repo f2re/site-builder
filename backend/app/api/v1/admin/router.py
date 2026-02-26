@@ -29,7 +29,7 @@ Sections:
   GET  /admin/iot/status         — Redis queue lengths & latency
 """
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, status, Query
 from pydantic import BaseModel
 from typing import Any
 

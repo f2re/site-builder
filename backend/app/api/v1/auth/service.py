@@ -1,6 +1,4 @@
 # Module: api/v1/auth/service.py | Agent: backend-agent | Task: stage2_rbac
-from datetime import timedelta
-from typing import Any
 from fastapi import HTTPException, status
 from app.api.v1.auth.schemas import LoginRequest, Token, UserCreate
 from app.api.v1.users.repository import UserRepository
