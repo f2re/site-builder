@@ -1,4 +1,4 @@
-# Module: api/v1/auth/service.py | Agent: backend-agent | Task: stage1_backend
+# Module: api/v1/auth/service.py | Agent: backend-agent | Task: stage2_rbac
 from datetime import timedelta
 from typing import Any
 from fastapi import HTTPException, status
@@ -11,6 +11,7 @@ from app.core.security import (
     verify_password,
 )
 from app.db.models.user import User
+
 
 class AuthService:
     def __init__(self, repo: UserRepository):
@@ -33,9 +34,9 @@ class AuthService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Inactive user",
             )
-        
+        # Pass role into token so every request can be authorized without extra DB hit
         return Token(
-            access_token=create_access_token(user.id),
+            access_token=create_access_token(user.id, role=user.role),
             refresh_token=create_refresh_token(user.id),
         )
 
@@ -46,7 +47,7 @@ class AuthService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="The user with this username already exists in the system.",
             )
-        
+
         user_db = User(
             email=user_in.email,
             hashed_password=get_password_hash(user_in.password),
