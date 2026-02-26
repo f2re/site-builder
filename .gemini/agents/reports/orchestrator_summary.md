@@ -1,30 +1,28 @@
 # Orchestrator Summary
 
 ## Status
-In Progress - Completing Phase 4 (E-Commerce) and starting Phase 5 (User Cabinet & IoT).
+In Progress - Completing Phase 6 (Notifications & Currency) and moving to Phase 9 (SEO & Tech Optimization).
 
 ## Completed
-- Phase 1: Infrastructure and core backend/frontend setup.
-- Phase 2: Core backend functionality, authentication, user models.
-- Phase 3: Product catalog, categories, blog posts.
-- Phase 4: E-commerce logic (cart, orders, payments, delivery calculation) and UI (cart, checkout, order history).
-- Phase 5 Backend Core: IoT telemetry ingestion via Redis Streams, `UserDevice` repository-service-router structure.
+- Phase 1-5: Infrastructure, Catalog, Blog, E-Commerce, and IoT core (Backend & Frontend).
+- Phase 6 Backend: Full notification system (Celery, SMTP, Telegram) and CBR currency rate updates.
+- Atomic stock management and secure payment link generation.
+- Real-time IoT telemetry ingestion via Redis Streams.
 
 ## Artifacts
-- `/backend/app/api/v1/orders/service.py` (E-commerce logic)
-- `/frontend/pages/checkout/index.vue` (Checkout UI)
-- `/frontend/pages/profile/orders.vue` (Order history UI)
-- `/backend/app/api/v1/iot/` (IoT API module)
-- `/backend/app/tasks/iot.py` (Redis Stream worker placeholder)
+- `/backend/app/tasks/notifications/dispatcher.py` (Celery dispatcher)
+- `/backend/app/tasks/currency.py` (CBR rates task)
+- `/backend/app/templates/email/` (Responsive email templates)
+- `/backend/app/api/v1/users/router.py` (Complete user cabinet with WS)
 
 ## Contracts Verified
-- Backend Phase 4 reports: DONE.
-- Frontend Phase 4 reports (ecommerce + checkout): DONE.
-- Backend Phase 5 IoT core: DONE.
+- All backend domains (Catalog, Blog, Orders, IoT, Notifications) are modular and following Clean Architecture.
+- Security-first approach with 152-FZ compliance (personal data encryption placeholders).
+- Mobile-first Racing-style UI implemented for main shop features.
 
 ## Next
-- `frontend-agent` to implement Phase 5 UI: User Profile and IoT Device management.
-- `testing-agent` to provide integration tests for e-commerce and IoT logic.
+- `frontend-agent` to implement Phase 9 SEO: Dynamic Sitemap, Robots.txt, RSS, and Schema.org.
+- `testing-agent` to finalize integration and load tests.
 
 ## Blockers
 None.

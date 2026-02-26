@@ -1,1 +1,28 @@
-from celery import Celery\ncelery_app = Celery('tasks')\ncelery_app.config_from_object('app.core.config', namespace='CELERY')
+# Module: tasks/celery_app.py | Agent: backend-agent | Task: phase6_notifications
+import os
+from celery import Celery
+from app.core.config import settings
+
+# CELERY_BROKER_URL, CELERY_RESULT_BACKEND will be picked up from settings automatically 
+# if we use config_from_object with the 'CELERY' namespace.
+celery_app = Celery("wifiobd")
+celery_app.conf.update(
+    broker_url=settings.CELERY_BROKER_URL,
+    result_backend=settings.CELERY_RESULT_BACKEND,
+    task_serializer="json",
+    accept_content=["json"],
+    result_serializer="json",
+    timezone="UTC",
+    enable_utc=True,
+    # Force Celery to import tasks on startup
+    include=[
+        "app.tasks.notifications.dispatcher",
+        "app.tasks.currency",
+    ]
+)
+
+# Optional: Configuration from environment variables
+# celery_app.config_from_object('app.core.config', namespace='CELERY')
+
+if __name__ == "__main__":
+    celery_app.start()

@@ -1,0 +1,28 @@
+{% extends "email/base.html" %}
+
+{% block content %}
+<h1>Заказ №{{ order_id }} принят!</h1>
+<p>Здравствуйте, {{ full_name }}!</p>
+<p>Благодарим за ваш выбор. Мы уже начали обработку вашего заказа. Ниже приведены детали:</p>
+
+<div class="order-info">
+    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+        <span>Сумма:</span>
+        <strong style="color: #f06474;">{{ total_amount }} ₽</strong>
+    </div>
+    <div style="display: flex; justify-content: space-between;">
+        <span>Адрес доставки:</span>
+        <span>{{ shipping_address or 'ПВЗ СДЭК' }}</span>
+    </div>
+</div>
+
+{% if payment_url %}
+<div style="text-align: center; margin-top: 32px;">
+    <a href="{{ payment_url }}" class="btn">Оплатить заказ</a>
+</div>
+{% endif %}
+
+<p style="margin-top: 32px; font-size: 14px; color: #9499b0;">
+    Вы получите следующее уведомление, как только статус вашего заказа изменится.
+</p>
+{% endblock %}

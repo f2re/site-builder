@@ -14,12 +14,21 @@ Sections:
   WS   /users/me/devices/{id}/connect  — real-time WebSocket connection to device
 """
 from uuid import UUID
-from fastapi import APIRouter, Depends, status, Query, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
-from typing import Any
+import json
+import asyncio
+from fastapi import APIRouter, Depends, status, Query, WebSocket, WebSocketDisconnect, HTTPException
+from pydantic import BaseModel, EmailStr
+from typing import Any, List
+from jose import jwt, JWTError
 
-from app.core.dependencies import require_customer
+from app.core.config import settings
+from app.core.dependencies import require_customer, get_user_repository, get_order_repository, get_iot_repository, get_redis
 from app.db.models.user import User
+from app.api.v1.users.repository import UserRepository
+from app.api.v1.orders.repository import OrderRepository
+from app.api.v1.iot.repository import IoTRepository
+from app.api.v1.orders.schemas import OrderRead
+from redis.asyncio import Redis
 
 router = APIRouter(prefix="/users", tags=["User Cabinet"])
 
@@ -37,6 +46,18 @@ class DeviceRegisterRequest(BaseModel):
     device_uid: str
     name: str | None = None
     model: str | None = None
+
+
+class DeviceResponse(BaseModel):
+    id: UUID
+    device_uid: str
+    name: str | None = None
+    model: str | None = None
+    is_active: bool
+    last_seen_at: Any | None = None
+
+    class Config:
+        from_attributes = True
 
 
 # ─── Profile ─────────────────────────────────────────────────────────────────
@@ -59,92 +80,72 @@ async def get_my_profile(
 async def update_my_profile(
     body: UserProfileUpdate,
     current_user: User = UserDep,
+    user_repo: UserRepository = Depends(get_user_repository)
 ) -> Any:
-    """Update current user profile. TODO: wire UserRepository update."""
+    """Update current user profile."""
+    updated_user = await user_repo.update(current_user.id, full_name=body.full_name)
     return {
-        "id": str(current_user.id),
-        "full_name": body.full_name or current_user.full_name,
+        "id": str(updated_user.id),
+        "full_name": updated_user.full_name,
     }
 
 
 # ─── Purchase history ────────────────────────────────────────────────────────
 
-@router.get("/me/orders")
+@router.get("/me/orders", response_model=List[OrderRead])
 async def get_my_orders(
-    page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
     current_user: User = UserDep,
+    order_repo: OrderRepository = Depends(get_order_repository)
 ) -> Any:
-    """
-    List orders for the current user.
-    TODO: wire OrderRepository filtered by user_id.
-    """
-    return {"items": [], "total": 0, "page": page, "per_page": per_page}
+    """List orders for the current user."""
+    orders = await order_repo.get_user_orders(current_user.id)
+    return orders
 
 
-@router.get("/me/orders/{order_id}")
+@router.get("/me/orders/{order_id}", response_model=OrderRead)
 async def get_my_order(
     order_id: UUID,
     current_user: User = UserDep,
+    order_repo: OrderRepository = Depends(get_order_repository)
 ) -> Any:
-    """
-    Get order detail for the current user.
-    TODO: wire OrderRepository, verify ownership.
-    """
-    return {"order_id": str(order_id), "user_id": str(current_user.id)}
+    """Get order detail for the current user."""
+    order = await order_repo.get_by_id(order_id)
+    if not order or order.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
 
 
 # ─── IoT / OBD2 Devices ──────────────────────────────────────────────────────
 
-@router.get("/me/devices")
+@router.get("/me/devices", response_model=List[DeviceResponse])
 async def get_my_devices(
     current_user: User = UserDep,
+    iot_repo: IoTRepository = Depends(get_iot_repository)
 ) -> Any:
-    """
-    List IoT/OBD2 devices owned by the current user.
-    TODO: wire DeviceRepository filtered by user_id.
-    """
-    return {"items": [], "total": 0}
+    """List IoT/OBD2 devices owned by the current user."""
+    devices = await iot_repo.get_user_devices(current_user.id)
+    return devices
 
 
-@router.post("/me/devices", status_code=status.HTTP_201_CREATED)
+@router.post("/me/devices", response_model=DeviceResponse, status_code=status.HTTP_201_CREATED)
 async def register_device(
     body: DeviceRegisterRequest,
     current_user: User = UserDep,
+    iot_repo: IoTRepository = Depends(get_iot_repository)
 ) -> Any:
-    """
-    Register a new IoT/OBD2 device to the current user account.
-    TODO: wire DeviceRepository + check device_uid uniqueness.
-    """
-    return {
-        "detail": "stub — device registration not yet implemented",
-        "device_uid": body.device_uid,
-        "user_id": str(current_user.id),
-    }
-
-
-@router.get("/me/devices/{device_id}")
-async def get_my_device(
-    device_id: UUID,
-    current_user: User = UserDep,
-) -> Any:
-    """
-    Get device detail.
-    TODO: wire DeviceRepository, verify ownership.
-    """
-    return {"device_id": str(device_id), "user_id": str(current_user.id)}
-
-
-@router.delete("/me/devices/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def unregister_device(
-    device_id: UUID,
-    current_user: User = UserDep,
-) -> None:
-    """
-    Unregister a device.
-    TODO: wire DeviceRepository, verify ownership.
-    """
-    return
+    """Register a new IoT/OBD2 device to the current user account."""
+    # Check if device_uid already exists
+    existing = await iot_repo.get_device_by_uid(body.device_uid)
+    if existing:
+        raise HTTPException(status_code=400, detail="Device UID already registered")
+        
+    device = await iot_repo.create_device(
+        user_id=current_user.id,
+        device_uid=body.device_uid,
+        name=body.name,
+        model=body.model
+    )
+    return device
 
 
 # ─── Real-time WebSocket connection to device ─────────────────────────────────
@@ -153,26 +154,71 @@ async def unregister_device(
 async def device_websocket(
     device_id: UUID,
     websocket: WebSocket,
+    redis: Redis = Depends(get_redis),
+    user_repo: UserRepository = Depends(get_user_repository),
+    iot_repo: IoTRepository = Depends(get_iot_repository)
 ) -> None:
     """
     WebSocket endpoint for real-time OBD2/IoT data stream.
     Client must pass JWT in query param ?token=<access_token>.
-    TODO:
-      1. Validate token via get_current_user (manual decode here — Depends not supported in WS).
-      2. Verify device ownership via DeviceRepository.
-      3. Subscribe to Redis Stream XREAD for device_id.
-      4. Forward events to client in real time.
     """
     await websocket.accept()
+    
+    # 1. Manual Token Validation
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+        
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+        user = await user_repo.get_by_id(UUID(user_id))
+        if not user:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+    except (JWTError, ValueError):
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    # 2. Verify device ownership
+    device = await iot_repo.get_device_by_id(device_id)
+    if not device or device.user_id != user.id:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    # 3. Subscribe to Redis Stream
+    last_id = "$"  # Start from the latest message
     try:
         await websocket.send_json({
             "event": "connected",
             "device_id": str(device_id),
-            "message": "WebSocket stub — real-time stream not yet wired to Redis.",
+            "message": "Real-time telemetry stream connected",
         })
+        
         while True:
-            data = await websocket.receive_text()
-            # Echo back until real IoT stream is wired
-            await websocket.send_json({"event": "echo", "data": data})
+            # Read from stream with blocking
+            streams = await redis.xread({"iot:telemetry": last_id}, count=1, block=5000)
+            if streams:
+                for stream_name, messages in streams:
+                    for msg_id, data in messages:
+                        # Filter by device_id in data
+                        if data.get("device_id") == str(device_id):
+                            await websocket.send_json({
+                                "event": "telemetry",
+                                "data": json.loads(data.get("payload", "{}")),
+                                "timestamp": msg_id.split("-")[0]
+                            })
+                        last_id = msg_id
+            
+            # Prevent busy loop and check for disconnects
+            await asyncio.sleep(0.1)
+            
     except WebSocketDisconnect:
         pass
+    except Exception as e:
+        await websocket.send_json({"event": "error", "message": str(e)})
+        await websocket.close()

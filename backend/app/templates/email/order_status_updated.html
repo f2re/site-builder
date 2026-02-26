@@ -1,0 +1,20 @@
+{% extends "email/base.html" %}
+
+{% block content %}
+<h1>Статус заказа изменен</h1>
+<p>Здравствуйте, {{ full_name }}!</p>
+<p>Статус вашего заказа <strong>№{{ order_id }}</strong> обновился.</p>
+
+<div class="order-info" style="text-align: center;">
+    <div style="font-size: 14px; color: #9499b0; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;">Новый статус</div>
+    <div style="font-size: 24px; font-weight: 900; color: #ffffff;">{{ status }}</div>
+</div>
+
+<div style="text-align: center; margin-top: 32px;">
+    <a href="https://wifiobd.shop/profile/orders/{{ order_id }}" class="btn">Детали заказа</a>
+</div>
+
+<p style="margin-top: 32px; font-size: 14px; color: #9499b0;">
+    Если у вас есть вопросы, свяжитесь с нашей поддержкой.
+</p>
+{% endblock %}
