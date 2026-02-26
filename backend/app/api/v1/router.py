@@ -1,4 +1,4 @@
-# Module: api/v1/router.py | Agent: backend-agent | Task: stage3_wiring
+# Module: api/v1/router.py | Agent: backend-agent | Task: phase5_backend_iot
 from fastapi import APIRouter
 
 from app.api.v1.auth.router import router as auth_router
@@ -9,6 +9,7 @@ from app.api.v1.blog.router import router as blog_router
 from app.api.v1.cart.router import router as cart_router
 from app.api.v1.orders.router import router as orders_router
 from app.api.v1.delivery.router import router as delivery_router
+from app.api.v1.iot.router import router as iot_router
 
 api_router = APIRouter()
 
@@ -33,3 +34,6 @@ api_router.include_router(admin_router)  # prefix="/admin" already set in router
 #    All routes under /api/v1/users/...
 #    Protected globally by require_customer dependency inside users/router.py
 api_router.include_router(users_router)  # prefix="/users" already set in router
+
+# ── IoT: Ingestion and real-time data ─────────────────────────────────────────
+api_router.include_router(iot_router)
