@@ -10,11 +10,8 @@ Step 1 — Find the task:
 
 Step 2 — Update task status to "running" in the task JSON file.
 
-Step 3 — Load the agent's context by reading:
-  .gemini/extensions/<agent_name>/GEMINI.md
-
-Step 4 — Run the agent using shell:
-  gemini --yolo -p "$(cat .gemini/extensions/<agent_name>/GEMINI.md)
+Step 3 — Run the agent using shell:
+  gemini --yolo -p "$(cat .gemini/agents/<agent_name>.md)"
 
 Your current task ID: <task_id>
 Task description: <description>
@@ -22,11 +19,11 @@ Write your report to: <report_path>
 
 Read project contracts first: .gemini/agents/contracts/api_contracts.md"
 
-Step 5 — After completion, read the report at <report_path>.
+Step 4 — After completion, read the report at <report_path>.
   Verify it contains all required sections:
   Status, Completed, Artifacts, Contracts Verified, Next, Blockers
 
-Step 6 — Update task status to "done" or "blocked" in the task JSON.
+Step 5 — Update task status to "done" or "blocked" in the task JSON.
 
-Step 7 — Print summary to user.
+Step 6 — Print summary to user.
 """
