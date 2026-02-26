@@ -8,6 +8,7 @@ from app.api.v1.products.router import router as products_router
 from app.api.v1.blog.router import router as blog_router
 from app.api.v1.cart.router import router as cart_router
 from app.api.v1.orders.router import router as orders_router
+from app.api.v1.delivery.router import router as delivery_router
 
 api_router = APIRouter()
 
@@ -15,9 +16,10 @@ api_router = APIRouter()
 api_router.include_router(products_router)
 api_router.include_router(blog_router)
 
-# ── E-Commerce: Cart & Orders ───────────────────────────────────────────────
+# ── E-Commerce: Cart, Orders & Delivery ──────────────────────────────────────
 api_router.include_router(cart_router)
 api_router.include_router(orders_router)
+api_router.include_router(delivery_router)
 
 # ── Public: authentication (register / login / refresh) ──────────────────────
 api_router.include_router(auth_router, prefix="/auth", tags=["Auth"])

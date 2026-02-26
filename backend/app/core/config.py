@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     EMAILS_FROM_EMAIL: str = "noreply@wifiobd.ru"
 
     # ── External APIs ─────────────────────────────────────────────────────────
+    YOOMONEY_SHOP_ID: str = ""
     YOOMONEY_SECRET: str = ""
     CDEK_CLIENT_ID: str = ""
     CDEK_CLIENT_SECRET: str = ""
