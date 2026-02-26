@@ -1,19 +1,19 @@
 #!/bin/bash
 # GitLab Runner Setup Script
-# This script installs Docker (if not present) and deploys a GitLab Runner as a container.
-# Supports new GitLab 16+ token format (glrt-...) via --token flag.
+# Supports GitLab 16+ new runner authentication token format (glrt-...).
+# Configuration (tags, locked, run-untagged) is managed on the GitLab server side.
 
 set -e
 
 # --- Configuration ---
 RUNNER_NAME=${RUNNER_NAME:-"site-builder-runner"}
 GITLAB_URL=${GITLAB_URL:-"https://gitlab.wifiobd.ru/"}
-# Registration Token should be provided as first argument
-REGISTRATION_TOKEN=$1
+# Authentication token (glrt-...) provided as first argument
+AUTH_TOKEN=$1
 
-if [ -z "$REGISTRATION_TOKEN" ]; then
-    echo "Usage: $0 <REGISTRATION_TOKEN>"
-    echo "You can find the registration token in GitLab -> Settings -> CI/CD -> Runners"
+if [ -z "$AUTH_TOKEN" ]; then
+    echo "Usage: $0 <AUTH_TOKEN>"
+    echo "Get your token in GitLab -> Settings -> CI/CD -> Runners -> New project runner"
     exit 1
 fi
 
@@ -22,6 +22,13 @@ if ! [ -x "$(command -v docker)" ]; then
     curl -fsSL https://get.docker.com -o get-docker.sh
     sudo sh get-docker.sh
     sudo usermod -aG docker $USER
+    echo "Docker installed. You may need to re-login for group changes to take effect."
+fi
+
+# Remove existing runner container if present
+if docker ps -a --format '{{.Names}}' | grep -q "^${RUNNER_NAME}$"; then
+    echo "--- Removing existing runner container ---"
+    docker rm -f "$RUNNER_NAME"
 fi
 
 echo "--- Deploying GitLab Runner Container ---"
@@ -32,18 +39,15 @@ docker run -d \
     -v gitlab-runner-config:/etc/gitlab-runner \
     gitlab/gitlab-runner:latest
 
-echo "--- Registering Runner (GitLab 16+ token format) ---"
+echo "--- Registering Runner ---"
 docker exec "$RUNNER_NAME" gitlab-runner register \
     --non-interactive \
     --url "$GITLAB_URL" \
-    --token "$REGISTRATION_TOKEN" \
+    --token "$AUTH_TOKEN" \
     --executor "docker" \
     --docker-image "docker:24" \
     --description "$RUNNER_NAME" \
-    --tag-list "docker,site-builder" \
-    --run-untagged="true" \
-    --locked="false" \
     --docker-volumes "/var/run/docker.sock:/var/run/docker.sock"
 
 echo "--- Runner $RUNNER_NAME is ready! ---"
-echo "Check status at: $GITLAB_URL -> Settings -> CI/CD -> Runners"
+echo "Check status at: ${GITLAB_URL}admin/runners"
