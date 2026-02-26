@@ -1,13 +1,14 @@
 #!/bin/bash
 # GitLab Runner Setup Script
 # This script installs Docker (if not present) and deploys a GitLab Runner as a container.
+# Supports new GitLab 16+ token format (glrt-...) via --token flag.
 
 set -e
 
 # --- Configuration ---
 RUNNER_NAME=${RUNNER_NAME:-"site-builder-runner"}
-GITLAB_URL=${GITLAB_URL:-"https://gitlab.com/"}
-# Registration Token should be provided as environment variable
+GITLAB_URL=${GITLAB_URL:-"https://gitlab.wifiobd.ru/"}
+# Registration Token should be provided as first argument
 REGISTRATION_TOKEN=$1
 
 if [ -z "$REGISTRATION_TOKEN" ]; then
@@ -24,23 +25,25 @@ if ! [ -x "$(command -v docker)" ]; then
 fi
 
 echo "--- Deploying GitLab Runner Container ---"
-docker run -d --name "$RUNNER_NAME" --restart always 
-    -v /var/run/docker.sock:/var/run/docker.sock 
-    -v gitlab-runner-config:/etc/gitlab-runner 
+docker run -d \
+    --name "$RUNNER_NAME" \
+    --restart always \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v gitlab-runner-config:/etc/gitlab-runner \
     gitlab/gitlab-runner:latest
 
-echo "--- Registering Runner ---"
-docker exec "$RUNNER_NAME" gitlab-runner register 
-    --non-interactive 
-    --url "$GITLAB_URL" 
-    --registration-token "$REGISTRATION_TOKEN" 
-    --executor "docker" 
-    --docker-image "docker:24" 
-    --description "$RUNNER_NAME" 
-    --tag-list "docker,site-builder" 
-    --run-untagged="true" 
-    --locked="false" 
-    --access-level="not_protected" 
+echo "--- Registering Runner (GitLab 16+ token format) ---"
+docker exec "$RUNNER_NAME" gitlab-runner register \
+    --non-interactive \
+    --url "$GITLAB_URL" \
+    --token "$REGISTRATION_TOKEN" \
+    --executor "docker" \
+    --docker-image "docker:24" \
+    --description "$RUNNER_NAME" \
+    --tag-list "docker,site-builder" \
+    --run-untagged="true" \
+    --locked="false" \
     --docker-volumes "/var/run/docker.sock:/var/run/docker.sock"
 
 echo "--- Runner $RUNNER_NAME is ready! ---"
+echo "Check status at: $GITLAB_URL -> Settings -> CI/CD -> Runners"
