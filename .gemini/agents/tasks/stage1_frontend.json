@@ -1,0 +1,9 @@
+{
+  "task_id": "stage1_frontend",
+  "agent": "frontend-agent",
+  "description": "Инициализировать проект Vue 3 + Nuxt 3 с использованием Pinia, Vite. Настроить базовую структуру директорий.",
+  "target_paths": [
+    "frontend/"
+  ],
+  "status": "pending"
+}
