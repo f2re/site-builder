@@ -1,0 +1,131 @@
+# Module: api/v1/products/repository.py | Agent: backend-agent | Task: phase3_backend_catalog
+from typing import List, Optional, Tuple, Any
+from uuid import UUID
+from decimal import Decimal
+
+from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
+from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Depends
+
+from app.db.models.product import Product, Category, ProductVariant, ProductImage
+from app.db.session import get_db
+
+class ProductRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get_by_id(self, product_id: UUID) -> Optional[Product]:
+        stmt = (
+            select(Product)
+            .where(Product.id == product_id)
+            .options(
+                selectinload(Product.category),
+                selectinload(Product.images),
+                selectinload(Product.variants)
+            )
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_by_slug(self, slug: str) -> Optional[Product]:
+        stmt = (
+            select(Product)
+            .where(Product.slug == slug)
+            .options(
+                selectinload(Product.category),
+                selectinload(Product.images),
+                selectinload(Product.variants)
+            )
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def list_products(
+        self,
+        category_id: Optional[UUID] = None,
+        min_price: Optional[Decimal] = None,
+        max_price: Optional[Decimal] = None,
+        cursor: Optional[UUID] = None,
+        per_page: int = 20,
+    ) -> Tuple[List[dict[str, Any]], Optional[str]]:
+        # Subqueries for prices and main images
+        min_price_sq = (
+            select(
+                ProductVariant.product_id,
+                func.min(ProductVariant.price).label("min_price")
+            )
+            .group_by(ProductVariant.product_id)
+            .subquery()
+        )
+        
+        main_image_sq = (
+            select(
+                ProductImage.product_id,
+                ProductImage.url
+            )
+            .where(ProductImage.is_main == True)
+            .subquery()
+        )
+
+        stmt = (
+            select(
+                Product.id,
+                Product.name,
+                Product.slug,
+                Product.category_id,
+                Product.is_active,
+                main_image_sq.c.url.label("main_image_url"),
+                min_price_sq.c.min_price
+            )
+            .outerjoin(min_price_sq, Product.id == min_price_sq.c.product_id)
+            .outerjoin(main_image_sq, Product.id == main_image_sq.c.product_id)
+            .where(Product.is_active == True)
+        )
+
+        if category_id:
+            stmt = stmt.where(Product.category_id == category_id)
+        
+        if min_price is not None:
+            stmt = stmt.where(min_price_sq.c.min_price >= min_price)
+        
+        if max_price is not None:
+            stmt = stmt.where(min_price_sq.c.min_price <= max_price)
+
+        if cursor:
+            stmt = stmt.where(Product.id > cursor)
+        
+        stmt = stmt.order_by(Product.id).limit(per_page + 1)
+        
+        result = await self.session.execute(stmt)
+        rows = result.all()
+        
+        items = []
+        for row in rows[:per_page]:
+            items.append({
+                "id": row.id,
+                "name": row.name,
+                "slug": row.slug,
+                "category_id": row.category_id,
+                "main_image_url": row.main_image_url,
+                "min_price": row.min_price if row.min_price is not None else Decimal(0),
+                "is_active": row.is_active
+            })
+            
+        next_cursor = None
+        if len(rows) > per_page:
+            next_cursor = str(items[-1]["id"])
+            
+        return items, next_cursor
+
+    async def get_categories_tree(self) -> List[Category]:
+        stmt = (
+            select(Category)
+            .where(Category.parent_id == None)
+            .options(selectinload(Category.children))
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+async def get_product_repo(session: AsyncSession = Depends(get_db)) -> ProductRepository:
+    return ProductRepository(session)
