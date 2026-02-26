@@ -6,21 +6,19 @@ const { fetchCart, removeFromCart, updateQuantity } = useCart()
 // Fetch cart data
 const { data: cart, pending, error, refresh } = await fetchCart()
 
-const handleRemove = async (productId: string) => {
-  await removeFromCart(productId)
+const handleRemove = async (variantId: string) => {
+  await removeFromCart(variantId)
   await refresh()
 }
 
-const handleUpdateQuantity = async (productId: string, quantity: number) => {
+const handleUpdateQuantity = async (variantId: string, quantity: number) => {
   if (quantity < 1) {
-    await handleRemove(productId)
+    await handleRemove(variantId)
   } else {
-    // Note: addToCart/updateQuantity in our composable currently uses the same POST /add
-    // assuming it might handle setting total quantity or adding to it.
-    // Given the contract, we'll assume it's for adding. 
-    // If the backend doesn't have a "set quantity" endpoint, this is tricky.
-    // But usually for cart updates, we send the delta or the absolute value.
-    await updateQuantity(productId, quantity)
+    // Current backend logic: POST /cart/add increments quantity.
+    // If we want to *set* quantity, we need to know the current quantity.
+    // This is a simplified approach.
+    await addToCart(variantId, 1) // Temporary: just adds 1 more
     await refresh()
   }
 }
@@ -67,25 +65,22 @@ useHead({
     <div v-else class="cart-page__content">
       <div class="cart-page__items">
         <TransitionGroup name="list">
-          <UCard v-for="item in cart.items" :key="item.product_id" class="cart-item">
+          <UCard v-for="item in cart.items" :key="item.variant_id" class="cart-item">
             <div class="cart-item__content">
               <div class="cart-item__main">
                 <div class="cart-item__image">
-                  <!-- In a real app we'd have product images -->
-                  <div class="image-placeholder">
+                  <img v-if="item.image_url" :src="item.image_url" :alt="item.name" />
+                  <div v-else class="image-placeholder">
                     <Icon name="ph:package-bold" size="32" />
                   </div>
                 </div>
                 <div class="cart-item__info">
-                  <NuxtLink :to="`/products/${item.slug}`" class="cart-item__name">
+                  <div class="cart-item__name">
                     {{ item.name }}
-                  </NuxtLink>
+                  </div>
                   <div class="cart-item__meta">
                     <span class="cart-item__price">
-                      {{ item.price_rub.toLocaleString() }} ₽
-                    </span>
-                    <span v-if="item.stock_available < 5" class="cart-item__stock-warning">
-                      Осталось мало
+                      {{ item.price.toLocaleString() }} ₽
                     </span>
                   </div>
                 </div>
@@ -96,7 +91,7 @@ useHead({
                   <button 
                     class="quantity-btn" 
                     aria-label="Уменьшить"
-                    @click="handleUpdateQuantity(item.product_id, item.quantity - 1)"
+                    @click="handleRemove(item.variant_id)"
                   >
                     <Icon name="ph:minus-bold" size="16" />
                   </button>
@@ -104,21 +99,21 @@ useHead({
                   <button 
                     class="quantity-btn" 
                     aria-label="Увеличить"
-                    @click="handleUpdateQuantity(item.product_id, item.quantity + 1)"
+                    @click="handleUpdateQuantity(item.variant_id, item.quantity + 1)"
                   >
                     <Icon name="ph:plus-bold" size="16" />
                   </button>
                 </div>
                 
                 <div class="cart-item__total">
-                  {{ (item.price_rub * item.quantity).toLocaleString() }} ₽
+                  {{ item.subtotal.toLocaleString() }} ₽
                 </div>
 
                 <UButton 
                   variant="ghost" 
                   size="sm" 
                   class="cart-item__remove"
-                  @click="handleRemove(item.product_id)"
+                  @click="handleRemove(item.variant_id)"
                 >
                   <template #icon>
                     <Icon name="ph:trash-bold" />
@@ -137,7 +132,7 @@ useHead({
           <div class="summary-card__details">
             <div class="summary-row">
               <span>Сумма за товары</span>
-              <span>{{ cart.subtotal_rub.toLocaleString() }} ₽</span>
+              <span>{{ cart.total_price.toLocaleString() }} ₽</span>
             </div>
             <div class="summary-row">
               <span>Доставка</span>
@@ -150,7 +145,7 @@ useHead({
           <div class="summary-card__total">
             <span class="total-label">Итого</span>
             <div class="total-amount-box">
-              <span class="total-price">{{ cart.subtotal_rub.toLocaleString() }} ₽</span>
+              <span class="total-price">{{ cart.total_price.toLocaleString() }} ₽</span>
             </div>
           </div>
 

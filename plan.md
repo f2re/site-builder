@@ -490,15 +490,514 @@ def process_image(object_name: str, media_id: int):
 
 ### Этап 6 — Уведомления и курсы валют (1 нед.)
 
-**Email** через `fastapi-mail` (SMTP):
-- Подтверждение заказа, смена статуса, регистрация, одобрение комментария
 
-**SMS** через `smsc.ru` API:
-- Уведомление о доставке
+Система строится на паттерне **Event → Celery Task → Notification Channel**. При любом изменении статуса заказа бэкенд публикует событие, Celery-воркер подхватывает его и отправляет уведомления по всем настроенным каналам параллельно. SMS-канал создаётся как заглушка (`stub`), готовая к активации.
 
-**Курсы валют ЦБ РФ:**
-- Celery Beat раз в час: `GET https://www.cbr-xml-daily.ru/daily_json.js`
-- Сохранение в PostgreSQL + Redis-кэш `cbr:rates`
+**Каналы:**
+
+| Канал | Получатель | Приоритет |
+|---|---|---|
+| Email (собственный SMTP) | Пользователь + Администратор | Основной |
+| Telegram Bot | Пользователь (опционально) + Администратор | Оперативный |
+| ВКонтакте (VK Notify / сообщения группы) | Пользователь по phone/vk_id | Дополнительный |
+| SMS через smsc.ru | Пользователь | **Заглушка** |
+| In-app (WebSocket/polling) | Пользователь в ЛК | Real-time |
+
+***
+
+## Этап 6 (расширенный): Уведомления
+
+### Шаг 6.1 — Модели БД
+
+```python
+# backend/app/db/models/notifications.py
+
+class NotificationChannel(str, Enum):
+    EMAIL = "email"
+    TELEGRAM = "telegram"
+    VK = "vk"
+    SMS = "sms"          # заглушка
+    IN_APP = "in_app"
+
+class NotificationLog(Base):
+    """Лог всех отправленных уведомлений для дебага и аудита."""
+    __tablename__ = "notification_log"
+    id: int
+    user_id: int | None       # None — для уведомлений только админу
+    order_id: int | None
+    channel: str              # NotificationChannel
+    event_type: str           # 'order_created', 'order_paid', 'order_shipped', ...
+    recipient: str            # email / chat_id / vk_user_id / phone
+    status: str               # 'sent' | 'failed' | 'stub'
+    error_message: str | None
+    sent_at: datetime
+    created_at: datetime
+
+class UserNotificationSettings(Base):
+    """Настройки уведомлений для каждого пользователя."""
+    __tablename__ = "user_notification_settings"
+    id: int
+    user_id: int              # FK → User
+    email_enabled: bool = True
+    telegram_enabled: bool = False
+    telegram_chat_id: str | None   # получить через /start в боте
+    vk_enabled: bool = False
+    vk_user_id: str | None         # vk_id или phone для VK Notify
+    sms_enabled: bool = False      # заглушка, всегда False
+    phone: str | None              # зашифровать Fernet (152-ФЗ)
+    updated_at: datetime
+```
+
+***
+
+### Шаг 6.2 — Статусы заказа и события
+
+```python
+# backend/app/api/v1/orders/schemas.py
+
+class OrderStatus(str, Enum):
+    PENDING    = "pending"       # создан, ожидает оплаты
+    PAID       = "paid"          # оплачен
+    PROCESSING = "processing"   # в сборке
+    SHIPPED    = "shipped"       # передан в СДЭК
+    IN_TRANSIT = "in_transit"   # в пути
+    DELIVERED  = "delivered"    # доставлен
+    CANCELLED  = "cancelled"    # отменён
+    REFUNDED   = "refunded"     # возврат
+
+# Карта: статус → событие для уведомлений
+ORDER_STATUS_EVENTS = {
+    OrderStatus.PAID:       "order_paid",
+    OrderStatus.PROCESSING: "order_processing",
+    OrderStatus.SHIPPED:    "order_shipped",
+    OrderStatus.IN_TRANSIT: "order_in_transit",
+    OrderStatus.DELIVERED:  "order_delivered",
+    OrderStatus.CANCELLED:  "order_cancelled",
+    OrderStatus.REFUNDED:   "order_refunded",
+}
+```
+
+***
+
+### Шаг 6.3 — Email: собственный SMTP-сервер
+
+**Зависимости** — добавить в `requirements.txt`:
+```
+fastapi-mail==1.4.1
+jinja2==3.1.3        # уже может быть в проекте
+premailer==3.10.0    # инлайнит CSS в письмо (Gmail-совместимость)
+```
+
+**Конфигурация** (`backend/app/core/config.py`):
+```python
+# Email / SMTP
+MAIL_SERVER: str         # например: mail.wifiobd.shop
+MAIL_PORT: int = 465     # 465 (SSL) или 587 (STARTTLS)
+MAIL_USERNAME: str       # noreply@wifiobd.shop
+MAIL_PASSWORD: str
+MAIL_FROM: str           # "WifiOBD Shop <noreply@wifiobd.shop>"
+MAIL_SSL_TLS: bool = True
+MAIL_STARTTLS: bool = False
+MAIL_ADMIN: str          # admin@wifiobd.shop — куда идут уведомления админу
+```
+
+**Структура шаблонов** (`backend/app/templates/email/`):
+```
+email/
+├── base.html              # базовый layout: шапка с логотипом, подвал, стили
+├── order_created.html     # заказ создан (покупатель + копия админу)
+├── order_paid.html        # оплата подтверждена
+├── order_processing.html  # заказ в обработке
+├── order_shipped.html     # отправлен, трек-номер СДЭК
+├── order_in_transit.html  # в пути
+├── order_delivered.html   # доставлен, просьба оставить отзыв
+├── order_cancelled.html   # отменён
+├── order_refunded.html    # возврат оформлен
+├── welcome.html           # регистрация
+├── password_reset.html    # сброс пароля
+└── comment_approved.html  # комментарий одобрен
+```
+
+**Пример `base.html`** (структура):
+```html
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width">
+  <title>{{ subject }}</title>
+  <style>
+    /* Инлайн-стили (premailer конвертирует автоматически) */
+    body { font-family: Arial, sans-serif; background: #f4f4f4; }
+    .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 32px; }
+    .header { text-align: center; border-bottom: 2px solid #e63946; padding-bottom: 16px; }
+    .btn { background: #e63946; color: #fff; padding: 12px 24px;
+           text-decoration: none; border-radius: 4px; display: inline-block; }
+    .footer { font-size: 12px; color: #999; margin-top: 32px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="{{ site_url }}/logo.png" alt="WifiOBD Shop" height="48">
+    </div>
+    {% block content %}{% endblock %}
+    <div class="footer">
+      WifiOBD Shop · <a href="{{ site_url }}">{{ site_url }}</a><br>
+      <a href="{{ unsubscribe_url }}">Отписаться от уведомлений</a>
+    </div>
+  </div>
+</body>
+</html>
+```
+
+**Пример `order_shipped.html`**:
+```html
+{% extends "email/base.html" %}
+{% block content %}
+<h2>Ваш заказ №{{ order.number }} отправлен 🚚</h2>
+<p>Привет, {{ user.first_name }}!</p>
+<p>Ваш заказ передан в службу доставки СДЭК.</p>
+<table>
+  <tr><td><b>Трек-номер:</b></td><td>{{ order.cdek_track }}</td></tr>
+  <tr><td><b>Адрес доставки:</b></td><td>{{ order.delivery_address }}</td></tr>
+  <tr><td><b>Ориентировочная дата:</b></td><td>{{ order.estimated_delivery }}</td></tr>
+</table>
+<br>
+<a class="btn" href="{{ cdek_tracking_url }}">Отследить посылку</a>
+<hr>
+<h4>Состав заказа:</h4>
+{% for item in order.items %}
+<p>{{ item.name }} × {{ item.quantity }} — {{ item.price }} ₽</p>
+{% endfor %}
+<p><b>Итого: {{ order.total }} ₽</b></p>
+{% endblock %}
+```
+
+**Сервис отправки** (`backend/app/tasks/notifications/email.py`):
+```python
+from fastapi_mail import FastMail, MessageSchema, MessageType
+from jinja2 import Environment, FileSystemLoader
+from premailer import transform
+
+jinja_env = Environment(loader=FileSystemLoader("app/templates"))
+
+async def send_order_email(
+    to: str,
+    template_name: str,
+    context: dict,
+    subject: str,
+):
+    template = jinja_env.get_template(f"email/{template_name}.html")
+    html_raw = template.render(**context, site_url=settings.SITE_URL)
+    html_inlined = transform(html_raw)  # premailer: инлайнит CSS
+
+    message = MessageSchema(
+        subject=subject,
+        recipients=[to],
+        body=html_inlined,
+        subtype=MessageType.html,
+    )
+    fm = FastMail(mail_config)
+    await fm.send_message(message)
+```
+
+***
+
+### Шаг 6.4 — Telegram Bot
+
+**Зависимости**:
+```
+aiogram==3.9.0    # async Telegram Bot API
+```
+
+**Конфигурация** (`.env`):
+```env
+TELEGRAM_BOT_TOKEN=7xxxxxxxxx:AAF...
+TELEGRAM_ADMIN_CHAT_ID=-100xxxxxxxxxx  # ID чата/группы для уведомлений админа
+```
+
+**Бот** (`backend/app/integrations/telegram_bot.py`):
+```python
+from aiogram import Bot
+from aiogram.enums import ParseMode
+
+bot = Bot(token=settings.TELEGRAM_BOT_TOKEN, parse_mode=ParseMode.HTML)
+
+async def send_telegram(chat_id: str | int, text: str):
+    try:
+        await bot.send_message(chat_id=chat_id, text=text)
+    except Exception as e:
+        logger.error("telegram_send_failed", chat_id=chat_id, error=str(e))
+        raise
+```
+
+**Шаблоны сообщений Telegram** (`backend/app/tasks/notifications/telegram.py`):
+```python
+TELEGRAM_TEMPLATES = {
+    "order_paid": (
+        "✅ <b>Заказ №{order_number} оплачен!</b>\n\n"
+        "💰 Сумма: <b>{total} ₽</b>\n"
+        "📦 Товаров: {items_count}\n\n"
+        "Статус можно отслеживать в <a href='{order_url}'>личном кабинете</a>"
+    ),
+    "order_shipped": (
+        "🚚 <b>Заказ №{order_number} отправлен!</b>\n\n"
+        "📬 Трек-номер СДЭК: <code>{cdek_track}</code>\n"
+        "🗓 Дата доставки: {estimated_delivery}\n\n"
+        "<a href='{tracking_url}'>Отследить посылку</a>"
+    ),
+    "order_delivered": (
+        "🎉 <b>Заказ №{order_number} доставлен!</b>\n\n"
+        "Спасибо за покупку! Будем рады вашему отзыву 🙏\n"
+        "<a href='{review_url}'>Оставить отзыв</a>"
+    ),
+    "order_cancelled": (
+        "❌ <b>Заказ №{order_number} отменён</b>\n\n"
+        "Причина: {cancel_reason}\n"
+        "По вопросам: <a href='{support_url}'>связаться с поддержкой</a>"
+    ),
+    # --- Уведомления для АДМИНА ---
+    "admin_new_order": (
+        "🛒 <b>Новый заказ №{order_number}!</b>\n\n"
+        "👤 Клиент: {customer_name}\n"
+        "💰 Сумма: {total} ₽\n"
+        "📋 <a href='{admin_order_url}'>Открыть в панели</a>"
+    ),
+    "admin_order_paid": (
+        "💳 <b>Заказ №{order_number} — ОПЛАЧЕН</b>\n\n"
+        "Клиент: {customer_name} | {total} ₽\n"
+        "<a href='{admin_order_url}'>Перейти к заказу →</a>"
+    ),
+}
+```
+
+**Подключение Telegram пользователя:**
+- В ЛК пользователь нажимает «Подключить Telegram»
+- Генерируется одноразовый токен (UUID, TTL 10 мин, хранится в Redis)
+- Пользователь пишет боту `/start {token}` — бот сохраняет `chat_id` в `UserNotificationSettings`
+
+***
+
+### Шаг 6.5 — ВКонтакте
+
+**Два варианта (реализовать первый, второй — как расширение):**
+
+**Вариант A — VK Notify (уведомления по телефону, рекомендуется):**
+```python
+# backend/app/integrations/vk_notify.py
+# VK Notify: https://notify.vk.com — отправка уведомлений пользователю VK по phone
+import httpx
+
+async def send_vk_notify(phone: str, message: str, api_key: str):
+    """
+    VK Notify API: отправляет push-уведомление в VK приложение по номеру телефона.
+    Требует регистрации приложения на vk.com и подтверждения номера пользователем.
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            "https://api.vk.com/method/notifications.sendMessage",
+            data={
+                "access_token": api_key,
+                "user_ids": phone,      # или vk_user_id
+                "message": message[:254],
+                "fragment": "#orders",   # deeplink внутри VK Mini App (если есть)
+                "v": "5.199",
+            }
+        )
+    return resp.json()
+```
+
+**Вариант B — сообщения через группу ВКонтакте:**
+- Пользователь подписывается на группу и разрешает сообщения
+- API: `messages.send` через Community Token
+
+**Конфигурация** (`.env`):
+```env
+VK_NOTIFY_API_KEY=...         # Ключ VK Notify
+VK_COMMUNITY_TOKEN=...        # Ключ сообщества (вариант B)
+VK_COMMUNITY_ID=...
+```
+
+***
+
+### Шаг 6.6 — SMS-заглушка
+
+```python
+# backend/app/tasks/notifications/sms.py
+
+async def send_sms_stub(phone: str, message: str, order_id: int):
+    """
+    SMS-уведомление — ЗАГЛУШКА.
+    Реальная отправка через smsc.ru не реализована.
+    Логируется в notification_log со статусом 'stub'.
+    Для активации: раскомментировать вызов smsc.ru API и
+    установить SMSC_LOGIN, SMSC_PASSWORD в .env
+    """
+    logger.info("sms_stub", phone=phone[:4] + "****", order_id=order_id)
+    await log_notification(
+        channel="sms",
+        recipient=phone,
+        order_id=order_id,
+        status="stub",
+        error_message="SMS не реализован (заглушка)",
+    )
+    # --- АКТИВАЦИЯ (раскомментировать когда нужно) ---
+    # async with httpx.AsyncClient() as c:
+    #     await c.get("https://smsc.ru/sys/send.php", params={
+    #         "login": settings.SMSC_LOGIN,
+    #         "psw": settings.SMSC_PASSWORD,
+    #         "phones": phone,
+    #         "mes": message,
+    #         "fmt": 3,
+    #     })
+```
+
+***
+
+### Шаг 6.7 — Celery-оркестратор уведомлений
+
+```python
+# backend/app/tasks/notifications/dispatcher.py
+
+@celery_app.task(name="tasks.notify_order_status_changed", bind=True, max_retries=3)
+def notify_order_status_changed(
+    self,
+    order_id: int,
+    new_status: str,
+    user_id: int,
+):
+    """
+    Оркестратор: запускает отправку по всем каналам параллельно.
+    Вызывается из order_service.py при изменении статуса.
+    """
+    try:
+        order = get_order(order_id)
+        user = get_user(user_id)
+        settings_notif = get_user_notification_settings(user_id)
+        event = ORDER_STATUS_EVENTS.get(new_status)
+
+        # --- Уведомление ПОЛЬЗОВАТЕЛЯ ---
+        tasks = []
+
+        if settings_notif.email_enabled and user.email:
+            tasks.append(send_email_notification.s(
+                to=user.email, event=event, order_id=order_id
+            ))
+
+        if settings_notif.telegram_enabled and settings_notif.telegram_chat_id:
+            tasks.append(send_telegram_notification.s(
+                chat_id=settings_notif.telegram_chat_id,
+                event=event, order_id=order_id
+            ))
+
+        if settings_notif.vk_enabled and settings_notif.vk_user_id:
+            tasks.append(send_vk_notification.s(
+                vk_user_id=settings_notif.vk_user_id,
+                event=event, order_id=order_id
+            ))
+
+        # SMS — всегда заглушка
+        tasks.append(send_sms_stub.s(
+            phone=user.phone, order_id=order_id,
+            message=f"Статус заказа #{order.number}: {new_status}"
+        ))
+
+        # --- Уведомление АДМИНИСТРАТОРА ---
+        tasks.append(send_admin_telegram_notification.s(
+            event=f"admin_{event}", order_id=order_id
+        ))
+        tasks.append(send_admin_email_notification.s(
+            event=event, order_id=order_id
+        ))
+
+        # Запуск параллельно через chord
+        chord(tasks)(log_notifications_result.s(order_id=order_id))
+
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=60)
+```
+
+**Вызов из сервиса заказов** (`backend/app/api/v1/orders/service.py`):
+```python
+async def update_order_status(order_id: int, new_status: str, db: AsyncSession):
+    order = await order_repo.update_status(db, order_id, new_status)
+    # Fire-and-forget: не ждём выполнения
+    notify_order_status_changed.delay(
+        order_id=order_id,
+        new_status=new_status,
+        user_id=order.user_id,
+    )
+    return order
+```
+
+***
+
+### Шаг 6.8 — In-App уведомления (ЛК)
+
+```python
+# Модель
+class InAppNotification(Base):
+    __tablename__ = "in_app_notification"
+    id: int
+    user_id: int
+    title: str
+    body: str
+    link: str | None      # /orders/{id}
+    is_read: bool = False
+    created_at: datetime
+
+# API
+GET  /api/v1/notifications         — список непрочитанных
+PATCH /api/v1/notifications/{id}/read
+DELETE /api/v1/notifications/read-all
+```
+
+Для real-time — WebSocket `/ws/notifications/{user_id}` (переиспользовать инфраструктуру IoT из Этапа 8).
+
+***
+
+### Шаг 6.9 — Frontend: настройки уведомлений в ЛК
+
+```
+/profile/notifications — страница настроек:
+  ☑ Email-уведомления (email@example.com)
+  ☑ Telegram (подключить → QR / ссылка на бота)
+  ☐ ВКонтакте (ввести номер телефона)
+  ☐ SMS (недоступно — скоро)
+  Кнопка «Тест» — отправить тестовое уведомление по выбранному каналу
+```
+
+***
+
+### Шаг 6.10 — Переменные окружения
+
+Добавить в `.env.example`:
+```env
+# ── Notifications ──────────────────────────────────────────────────────────────
+# Email / SMTP (собственный сервер)
+MAIL_SERVER=mail.wifiobd.shop
+MAIL_PORT=465
+MAIL_USERNAME=noreply@wifiobd.shop
+MAIL_PASSWORD=secret
+MAIL_FROM=WifiOBD Shop <noreply@wifiobd.shop>
+MAIL_SSL_TLS=true
+MAIL_ADMIN=admin@wifiobd.shop
+
+# Telegram
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_ADMIN_CHAT_ID=
+
+# VK Notify
+VK_NOTIFY_API_KEY=
+VK_COMMUNITY_TOKEN=
+VK_COMMUNITY_ID=
+
+# SMS (заглушка — не заполнять)
+# SMSC_LOGIN=
+# SMSC_PASSWORD=
+```
+
 
 ---
 

@@ -8,9 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.cart.service import CartService
 from app.api.v1.orders.repository import OrderRepository
+from app.api.v1.products.repository import ProductRepository
 from app.api.v1.orders.schemas import OrderCreate
 from app.db.models.order import Order, OrderItem, OrderStatus
 from app.db.models.user import User
+from app.integrations.yoomoney import yoomoney_client
 
 
 class OrderService:
@@ -18,9 +20,13 @@ class OrderService:
         self,
         order_repo: OrderRepository,
         cart_service: CartService,
+        product_repo: ProductRepository,
+        session: AsyncSession,
     ):
         self.order_repo = order_repo
         self.cart_service = cart_service
+        self.product_repo = product_repo
+        self.session = session
 
     async def create_order(self, user: User, order_data: OrderCreate) -> Order:
         # 1. Get cart items
@@ -33,16 +39,31 @@ class OrderService:
                 detail="Cart is empty"
             )
 
-        # 2. Create Order
+        # 2. Stock validation and reduction
+        for item in cart["items"]:
+            success = await self.product_repo.decrement_stock(
+                variant_id=item["variant_id"], 
+                quantity=item["quantity"]
+            )
+            if not success:
+                # Stock decrement failed (insufficient stock)
+                # Note: Transaction will be rolled back by FastAPI/DB layer on exception
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Insufficient stock for item: {item['name']}"
+                )
+
+        # 3. Create Order
+        total_amount = Decimal(str(cart["total_price"]))
         order = Order(
             user_id=user.id,
             status=OrderStatus.PENDING,
-            total_amount=Decimal(str(cart["total_price"])),
+            total_amount=total_amount,
             shipping_address=order_data.shipping_address,
             currency="RUB"
         )
         
-        # 3. Create OrderItems
+        # 4. Create OrderItems
         for item in cart["items"]:
             order_item = OrderItem(
                 product_variant_id=item["variant_id"],
@@ -51,11 +72,23 @@ class OrderService:
             )
             order.items.append(order_item)
 
-        # 4. Save to DB
+        # 5. Generate Payment URL
+        order_id_str = str(order.id)
+        order.payment_url = yoomoney_client.create_payment_url(
+            amount=total_amount,
+            description=f"Order {order_id_str} at WifiOBD Shop",
+            label=order_id_str
+        )
+
+        # 6. Save to DB
         created_order = await self.order_repo.create(order)
         
-        # 5. Clear Cart
+        # 7. Clear Cart
         await self.cart_service.clear_cart(str(user.id))
+        
+        # 8. Commit transaction
+        await self.session.commit()
+        await self.session.refresh(created_order)
         
         return created_order
 

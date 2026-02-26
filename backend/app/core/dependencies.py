@@ -16,6 +16,7 @@ from app.api.v1.auth.service import AuthService
 from app.api.v1.auth.schemas import TokenPayload
 from app.api.v1.cart.service import CartService
 from app.api.v1.orders.repository import OrderRepository
+from app.api.v1.products.repository import ProductRepository, get_product_repo
 from app.api.v1.orders.service import OrderService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -53,8 +54,10 @@ async def get_order_repository(
 async def get_order_service(
     order_repo: OrderRepository = Depends(get_order_repository),
     cart_service: CartService = Depends(get_cart_service),
+    product_repo: ProductRepository = Depends(get_product_repo),
+    session: AsyncSession = Depends(get_db),
 ) -> OrderService:
-    return OrderService(order_repo, cart_service)
+    return OrderService(order_repo, cart_service, product_repo, session)
 
 
 # ──────────────────────────────────────────────

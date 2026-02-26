@@ -1,4 +1,4 @@
-# Module: api/v1/orders/schemas.py | Agent: backend-agent | Task: phase4_orders_logic
+# Module: api/v1/orders/schemas.py | Agent: backend-agent | Task: phase4_backend_ecommerce
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
@@ -31,6 +31,7 @@ class OrderRead(BaseModel):
     total_amount: Decimal
     currency: str
     shipping_address: Optional[str]
+    payment_url: Optional[str] = None
     created_at: datetime
     items: List[OrderItemRead]
 

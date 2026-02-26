@@ -1,9 +1,9 @@
-# Module: api/v1/products/repository.py | Agent: backend-agent | Task: phase3_backend_catalog
+# Module: api/v1/products/repository.py | Agent: backend-agent | Task: phase4_backend_ecommerce
 from typing import List, Optional, Tuple, Any
 from uuid import UUID
 from decimal import Decimal
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
@@ -126,6 +126,20 @@ class ProductRepository:
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def decrement_stock(self, variant_id: UUID, quantity: int) -> bool:
+        """
+        Atomic stock decrement.
+        Returns True if successful (enough stock), False otherwise.
+        """
+        stmt = (
+            update(ProductVariant)
+            .where(ProductVariant.id == variant_id)
+            .where(ProductVariant.stock_quantity >= quantity)
+            .values(stock_quantity=ProductVariant.stock_quantity - quantity)
+        )
+        result = await self.session.execute(stmt)
+        return result.rowcount > 0
 
 async def get_product_repo(session: AsyncSession = Depends(get_db)) -> ProductRepository:
     return ProductRepository(session)

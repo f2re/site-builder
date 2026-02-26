@@ -1,4 +1,4 @@
-# Module: db/models/order.py | Agent: backend-agent | Task: phase4_orders_logic
+# Module: db/models/order.py | Agent: backend-agent | Task: phase4_backend_ecommerce
 import enum
 import uuid
 from datetime import datetime, timezone
@@ -37,6 +37,7 @@ class Order(Base):
     cdek_order_uuid: Mapped[str | None] = mapped_column(String(100), nullable=True)
     # Payment
     payment_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    payment_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
