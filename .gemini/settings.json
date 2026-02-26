@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/google-gemini/gemini-cli/main/schemas/settings.schema.json",
   "model": {
-    "name": "gemini-2.5-pro"
+    "name": "gemini-3.1-pro-preview"
   },
   "general": {
     "defaultApprovalMode": "auto_edit"
