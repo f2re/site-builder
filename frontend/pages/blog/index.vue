@@ -1,97 +1,156 @@
 <script setup lang="ts">
-useSeoMeta({
-  title: 'Блог — WifiOBD Shop',
-  description: 'Статьи и инструкции по диагностике автомобилей, обзоры OBD2 устройств и советы по эксплуатации.',
+import { useBlog } from '~/composables/useBlog'
+import BlogCard from '~/components/blog/BlogCard.vue'
+
+const { getPosts } = useBlog()
+const route = useRoute()
+
+const activeTag = computed(() => route.query.tag as string | undefined)
+
+const { data: postsData, pending } = await getPosts({
+  tag: activeTag.value,
+  per_page: 12
+})
+
+// SEO
+useHead({
+  title: 'Блог | WifiOBD',
+  meta: [
+    { name: 'description', content: 'Полезные статьи, обзоры оборудования и новости мира автодиагностики.' }
+  ]
 })
 </script>
 
 <template>
   <div class="blog-page">
-    <div class="page-header">
-      <h1 class="page-title">Блог</h1>
-      <p class="page-subtitle">Инструкции, обзоры и советы по OBD2 диагностике</p>
-    </div>
+    <div class="container">
+      <header class="blog-page__header">
+        <h1 class="blog-page__title">Блог</h1>
+        <p class="blog-page__subtitle">Экспертные статьи и обзоры для профессионалов</p>
 
-    <!-- Placeholder posts -->
-    <div class="posts-grid">
-      <article
-        v-for="i in 3"
-        :key="i"
-        class="post-card"
-        aria-hidden="true"
-      >
-        <div class="skeleton post-img-skeleton" />
-        <div class="post-body">
-          <div class="skeleton skeleton-line" style="width: 30%; height: 12px; margin-bottom: 12px" />
-          <div class="skeleton skeleton-line" style="width: 85%; height: 20px; margin-bottom: 8px" />
-          <div class="skeleton skeleton-line" style="width: 60%; height: 14px" />
+        <!-- Tags filter (Simple horizontal list) -->
+        <div class="blog-tags" v-if="postsData">
+          <NuxtLink
+            to="/blog"
+            class="tag-link"
+            :class="{ 'is-active': !activeTag }"
+          >
+            Все
+          </NuxtLink>
+          <NuxtLink
+            v-for="tag in ['Диагностика', 'Новости', 'Обзоры', 'Прошивка']"
+            :key="tag"
+            :to="{ path: '/blog', query: { tag } }"
+            class="tag-link"
+            :class="{ 'is-active': activeTag === tag }"
+          >
+            #{{ tag }}
+          </NuxtLink>
         </div>
-      </article>
-    </div>
+      </header>
 
-    <p class="coming-soon">
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-        aria-hidden="true">
-        <circle cx="12" cy="12" r="10"/>
-        <polyline points="12 6 12 12 16 14"/>
-      </svg>
-      Статьи скоро появятся. Следите за обновлениями.
-    </p>
+      <!-- Loading State -->
+      <div v-if="pending" class="blog-grid">
+        <div v-for="i in 6" :key="i" class="blog-card-skeleton skeleton"></div>
+      </div>
+
+      <!-- Blog List -->
+      <div v-else-if="postsData?.items.length" class="blog-grid">
+        <TransitionGroup name="list">
+          <BlogCard
+            v-for="post in postsData.items"
+            :key="post.id"
+            :post="post"
+          />
+        </TransitionGroup>
+      </div>
+
+      <!-- Empty State -->
+      <div v-else class="blog-page__empty">
+        <h2>Статей пока нет</h2>
+        <p>Мы работаем над новым контентом. Заходите позже!</p>
+        <NuxtLink to="/blog" class="btn btn--primary">Сбросить фильтры</NuxtLink>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.page-header {
-  margin-bottom: 40px;
+.blog-page {
+  padding: 60px 0;
 }
 
-.page-title {
-  font-size: var(--text-2xl);
-  font-weight: 800;
-  margin-bottom: 8px;
+.blog-page__header {
+  text-align: center;
+  max-width: 800px;
+  margin: 0 auto 60px;
 }
 
-.page-subtitle {
+.blog-page__title {
+  font-size: var(--text-3xl);
+  font-weight: 900;
+  margin-bottom: 16px;
+  color: var(--color-text);
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+}
+
+.blog-page__subtitle {
+  font-size: var(--text-lg);
   color: var(--color-text-2);
-  font-size: var(--text-base);
+  margin-bottom: 32px;
 }
 
-.posts-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 28px;
-  margin-bottom: 40px;
-}
-
-.post-card {
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-}
-
-.post-img-skeleton {
-  width: 100%;
-  height: 200px;
-}
-
-.post-body {
-  padding: 20px;
-}
-
-.skeleton-line {
-  border-radius: var(--radius-sm);
-  display: block;
-}
-
-.coming-soon {
+.blog-tags {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-muted);
-  font-size: var(--text-sm);
   justify-content: center;
-  padding: 8px 0 32px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.tag-link {
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-2);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  transition: all var(--transition-fast);
+}
+
+.tag-link:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.tag-link.is-active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+  box-shadow: var(--shadow-glow-accent);
+}
+
+.blog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 32px;
+}
+
+.blog-card-skeleton {
+  aspect-ratio: 4 / 5;
+  border-radius: var(--radius-lg);
+}
+
+.blog-page__empty {
+  text-align: center;
+  padding: 100px 20px;
+}
+
+@media (max-width: 768px) {
+  .blog-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

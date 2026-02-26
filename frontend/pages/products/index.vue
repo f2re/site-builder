@@ -1,96 +1,210 @@
 <script setup lang="ts">
-useSeoMeta({
-  title: 'Каталог — WifiOBD Shop',
-  description: 'Каталог OBD2 сканеров, WiFi адаптеров и IoT устройств для диагностики автомобилей.',
+import { useProducts } from '~/composables/useProducts'
+import ProductCard from '~/components/catalog/ProductCard.vue'
+import CategorySidebar from '~/components/catalog/CategorySidebar.vue'
+
+const { getProducts, getCategories } = useProducts()
+const route = useRoute()
+const router = useRouter()
+
+// Filters state from query
+const categorySlug = computed(() => route.query.category as string | undefined)
+
+// Fetch data
+const { data: categoriesData } = await getCategories()
+const { data: productsData, pending, refresh } = await getProducts({
+  category_slug: categorySlug.value,
+  per_page: 20
+})
+
+// Watch for category change
+watch(categorySlug, () => {
+  refresh()
+})
+
+const handleCategorySelect = (slug: string | undefined) => {
+  router.push({
+    query: {
+      ...route.query,
+      category: slug
+    }
+  })
+}
+
+// SEO
+useHead({
+  title: 'Каталог товаров | WifiOBD',
+  meta: [
+    { name: 'description', content: 'Широкий выбор оборудования для диагностики автомобилей в нашем каталоге.' }
+  ]
 })
 </script>
 
 <template>
-  <div class="products-page">
-    <div class="page-header">
-      <h1 class="page-title">Каталог товаров</h1>
-      <p class="page-subtitle">OBD2 сканеры, WiFi адаптеры и IoT решения для вашего автомобиля</p>
-    </div>
+  <div class="catalog-page">
+    <div class="container catalog-page__layout">
+      <!-- Sidebar (Desktop) -->
+      <aside class="catalog-page__sidebar desktop-only">
+        <CategorySidebar
+          v-if="categoriesData"
+          :categories="categoriesData.items"
+          :active-slug="categorySlug"
+          @select="handleCategorySelect"
+        />
+      </aside>
 
-    <!-- Placeholder grid -->
-    <div class="products-grid">
-      <div
-        v-for="i in 8"
-        :key="i"
-        class="product-card skeleton-card"
-        aria-hidden="true"
-      >
-        <div class="skeleton product-img-skeleton" />
-        <div class="card-body">
-          <div class="skeleton skeleton-line" style="width: 70%; height: 16px; margin-bottom: 8px" />
-          <div class="skeleton skeleton-line" style="width: 40%; height: 22px" />
+      <main class="catalog-page__main">
+        <header class="catalog-page__header">
+          <h1 class="catalog-page__title">
+            {{ categorySlug ? categoriesData?.items.find(c => c.slug === categorySlug)?.name : 'Все товары' }}
+          </h1>
+
+          <div class="catalog-page__stats" v-if="productsData">
+            {{ productsData.total }} товаров найдено
+          </div>
+        </header>
+
+        <!-- Loading State -->
+        <div v-if="pending" class="product-grid">
+          <div v-for="i in 8" :key="i" class="product-card-skeleton skeleton"></div>
         </div>
-      </div>
-    </div>
 
-    <p class="coming-soon">
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-        aria-hidden="true">
-        <circle cx="12" cy="12" r="10"/>
-        <polyline points="12 6 12 12 16 14"/>
-      </svg>
-      Товары скоро появятся. Подпишитесь на обновления в Telegram.
-    </p>
+        <!-- Products List -->
+        <div v-else-if="productsData?.items.length" class="product-grid">
+          <TransitionGroup name="list">
+            <ProductCard
+              v-for="product in productsData.items"
+              :key="product.id"
+              :product="product"
+            />
+          </TransitionGroup>
+        </div>
+
+        <!-- Empty State -->
+        <div v-else class="catalog-page__empty">
+          <div class="catalog-page__empty-icon">🔍</div>
+          <h2 class="catalog-page__empty-title">Товары не найдены</h2>
+          <p class="catalog-page__empty-text">Попробуйте изменить параметры поиска или фильтры.</p>
+          <button class="btn btn--primary" @click="handleCategorySelect(undefined)">
+            Сбросить фильтры
+          </button>
+        </div>
+      </main>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.page-header {
-  margin-bottom: 40px;
+.catalog-page {
+  padding: 40px 0;
 }
 
-.page-title {
+.catalog-page__layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 32px;
+}
+
+@media (min-width: 1024px) {
+  .catalog-page__layout {
+    grid-template-columns: 280px 1fr;
+  }
+}
+
+.catalog-page__header {
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.catalog-page__title {
   font-size: var(--text-2xl);
   font-weight: 800;
+  margin: 0;
+  color: var(--color-text);
+  border-left: 4px solid var(--color-accent);
+  padding-left: 16px;
+}
+
+.catalog-page__stats {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 24px;
+}
+
+.product-card-skeleton {
+  aspect-ratio: 1 / 1.4;
+  border-radius: var(--radius-lg);
+}
+
+.catalog-page__empty {
+  text-align: center;
+  padding: 80px 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+}
+
+.catalog-page__empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.catalog-page__empty-title {
+  font-size: var(--text-xl);
+  font-weight: 700;
   margin-bottom: 8px;
 }
 
-.page-subtitle {
+.catalog-page__empty-text {
   color: var(--color-text-2);
-  font-size: var(--text-base);
+  margin-bottom: 24px;
 }
 
-.products-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 24px;
-  margin-bottom: 40px;
+.desktop-only {
+  display: none;
 }
 
-.product-card {
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
+@media (min-width: 1024px) {
+  .desktop-only {
+    display: block;
+  }
 }
 
-.product-img-skeleton {
-  width: 100%;
-  height: 180px;
-}
-
-.card-body {
-  padding: 16px;
-}
-
-.skeleton-line {
-  border-radius: var(--radius-sm);
-  display: block;
-}
-
-.coming-soon {
-  display: flex;
+/* Base button styles if not defined globally yet */
+.btn {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  color: var(--color-muted);
-  font-size: var(--text-sm);
   justify-content: center;
-  padding: 8px 0 32px;
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: none;
+  font-size: var(--text-sm);
+}
+
+.btn--primary {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.btn--primary:hover {
+  background: var(--color-accent-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-glow-accent);
+}
+
+.btn--primary:active {
+  transform: scale(0.98);
 }
 </style>

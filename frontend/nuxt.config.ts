@@ -7,6 +7,12 @@ export default defineNuxtConfig({
     '@pinia/nuxt',
   ],
 
+  runtimeConfig: {
+    public: {
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1',
+    },
+  },
+
   css: [
     '~/assets/css/tokens.css',
     '~/assets/css/main.css',   // global container + utility classes
@@ -36,6 +42,7 @@ export default defineNuxtConfig({
         },
       ],
     },
+    pageTransition: { name: 'fade-slide', mode: 'out-in' },
   },
 
   typescript: {
