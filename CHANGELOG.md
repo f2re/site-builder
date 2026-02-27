@@ -1,5 +1,81 @@
 # Changelog
 
+## [1.0.9] - 2026-02-27
+
+### Added
+
+#### Backend: Blog API (`/api/v1/blog/*`)[cite:141]
+- **Blog Endpoints**:
+  - `GET /posts` — list with filters (status, category, tag) and cursor pagination
+  - `GET /posts/{slug}` — get single post, auto-increment views
+  - `GET /categories` — list all categories
+  - `GET /tags` — list all tags
+  - `POST /posts` — create post (admin only)
+  - `PUT /posts/{id}` — update post (admin only)
+  - `DELETE /posts/{id}` — soft delete/archive (admin only)
+- **BlogService**:
+  - HTML sanitization via `bleach` (allowed tags: h1-h6, p, ul, ol, img, a, blockquote, code, etc.)
+  - Auto slug generation via `python-slugify`
+  - Reading time calculation: `len(words) // 200`
+  - Cursor-based pagination with `hasMore` + `endCursor`
+- **Security**: Admin-only endpoints protected via `require_admin` dependency
+
+#### Backend: Media API (`/api/v1/media/*`)[cite:141]
+- **Media Endpoints**:
+  - `POST /upload-url` — generate presigned MinIO PUT URL (15 min expiry)
+  - `POST /confirm` — confirm upload, create DB record, trigger `process_image` Celery task
+- **MediaService**:
+  - Creates `BlogPostMedia` record with context (blog/product)
+  - Fires Celery task for WebP conversion + thumbnail generation
+  - Unique object naming: `{context}/{YYYY}/{MM}/{uuid}.{ext}`
+
+#### Frontend: AppBreadcrumbs Component[cite:142]
+- **Features**:
+  - Semantic HTML5 `<nav>` with `aria-label` for screen readers
+  - Schema.org BreadcrumbList JSON-LD auto-injection via `useBreadcrumbSchema`
+  - Home icon support for root crumb
+  - Styled with CSS variables from tokens.css
+  - Separator with `aria-hidden="true"`
+- **Integrated on**:
+  - `/blog` — Home → Blog
+  - `/blog/[slug]` — Home → Blog → {Post Title}
+
+#### Frontend: useSchemaOrg Composable[cite:142]
+- **Exported functions**:
+  - `useBreadcrumbSchema(crumbs)` — BreadcrumbList
+  - `useArticleSchema(post)` — BlogPosting with author, publisher, dates
+  - `useProductSchema(product)` — Product with offers, price, availability
+- **Auto-injection**: All schemas injected via `useHead()` as `application/ld+json`
+
+#### Frontend: Blog Pages Redesign[cite:142]
+- **`/blog` index page**:
+  - SEO: title "Блог — WifiOBD Shop", description, Open Graph
+  - Breadcrumbs with home icon
+  - Grid layout (auto-fill, min 320px)
+  - Cards with cover image, title (2-line clamp), excerpt (3-line clamp), date, reading time
+  - Hover effect: lift + shadow + accent border
+  - Lazy loading for images
+- **`/blog/[slug]` article page**:
+  - `useArticleSeo()` — full SEO with article meta (published/modified time, author, tags)
+  - `useArticleSchema()` — BlogPosting JSON-LD
+  - Breadcrumbs: Home → Blog → {Title}
+  - Hero cover with `loading="eager"` + `fetchpriority="high"`
+  - Meta: published date, reading time, views counter
+  - Content with styled HTML: h2 (accent color), blockquotes (left border), code blocks
+  - Footer: tags as pills, back link with animated arrow
+
+### Improved
+- **API Router**: Mounted `blog_router` and `media_router` in `api/v1/router.py`[cite:141]
+- **main.py**: Added CORS middleware for frontend, version bumped to 1.0.9[cite:141]
+- **requirements.txt**: Added `python-slugify` for slug generation[cite:141]
+
+### Technical Details
+- **Sanitization**: `bleach.clean()` with whitelist prevents XSS in blog content
+- **Performance**: Cursor pagination reduces DB load vs offset-based
+- **SEO**: Breadcrumbs + Schema.org improve search engine understanding
+- **Accessibility**: `aria-label`, `alt` attributes, semantic HTML
+- **DX**: Composables (`useSeo`, `useSchemaOrg`) reduce boilerplate
+
 ## [1.0.8] - 2026-02-27
 
 ### Added
