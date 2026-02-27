@@ -1,12 +1,12 @@
 # Module: integrations/meilisearch.py | Agent: backend-agent | Task: BE-01
-from meilisearch_python_async import Client
+from meilisearch_python_sdk import AsyncClient
 from app.core.config import settings
 from typing import Any, Dict, List, Optional
 
 
 class MeilisearchProvider:
     def __init__(self, host: str, api_key: str):
-        self.client = Client(host, api_key)
+        self.client = AsyncClient(host, api_key)
 
     async def search(
         self,
@@ -21,13 +21,15 @@ class MeilisearchProvider:
         Proxy search call to Meilisearch.
         """
         index = self.client.index(index_name)
-        return await index.search(
+        result = await index.search(
             query,
             limit=limit,
             offset=offset,
             filter=filter,
             sort=sort,
         )
+        # SearchResults is a pydantic model in meilisearch-python-sdk
+        return result.model_dump()
 
 
 meilisearch_provider = MeilisearchProvider(

@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     CDEK_CLIENT_SECRET: str = ""
 
     # ── Media (Local Storage) ───────────────────────────────────────────────
-    MEDIA_ROOT: str = "/app/media"  # Path inside Docker container
+    MEDIA_ROOT: str = "./media"  # Path inside Docker container
     MEDIA_URL: str = "/media"        # Public URL prefix
     
     # ── MinIO / S3 (DEPRECATED: Switching to Local Storage) ──────────────────
