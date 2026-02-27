@@ -1,4 +1,4 @@
-# Module: core/config.py | Agent: backend-agent | Task: phase6_notifications
+# Module: core/config.py | Agent: backend-agent | Task: phase7_backend_security
 from pydantic_settings import BaseSettings
 from pydantic import ConfigDict
 from typing import List
@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    FERNET_KEY: str = "duFJhEPYbl7bimupZ4q0-cDXqfiA62LIo1173T7iZpE="  # Generated for 152-FZ PII encryption
 
     # ── Database ──────────────────────────────────────────────────────────────
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/wifiobd"

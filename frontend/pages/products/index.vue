@@ -2,10 +2,12 @@
 import { useProducts } from '~/composables/useProducts'
 import ProductCard from '~/components/catalog/ProductCard.vue'
 import CategorySidebar from '~/components/catalog/CategorySidebar.vue'
+import AppBreadcrumbs from '~/components/AppBreadcrumbs.vue'
 
 const { getProducts, getCategories } = useProducts()
 const route = useRoute()
 const router = useRouter()
+const config = useRuntimeConfig()
 
 // Filters state from query
 const categorySlug = computed(() => route.query.category as string | undefined)
@@ -32,64 +34,95 @@ const handleCategorySelect = (slug: string | undefined) => {
 }
 
 // SEO
-useHead({
+useSeoMeta({
   title: 'Каталог товаров | WifiOBD',
-  meta: [
-    { name: 'description', content: 'Широкий выбор оборудования для диагностики автомобилей в нашем каталоге.' }
+  description: 'Широкий выбор оборудования для диагностики автомобилей в нашем каталоге. OBD2 сканеры, адаптеры и аксессуары.',
+  ogTitle: 'Каталог товаров | WifiOBD',
+  ogDescription: 'Широкий выбор оборудования для диагностики автомобилей.',
+  ogType: 'website',
+})
+
+useHead({
+  link: [
+    { 
+      rel: 'canonical', 
+      href: () => {
+        const url = new URL(`${config.public.siteUrl}/products`)
+        if (categorySlug.value) {
+          url.searchParams.set('category', categorySlug.value)
+        }
+        return url.toString()
+      }
+    }
   ]
+})
+
+const breadcrumbItems = computed(() => {
+  const items = [{ label: 'Каталог', to: '/products' }]
+  if (categorySlug.value && categoriesData.value) {
+    const cat = categoriesData.value.items.find(c => c.slug === categorySlug.value)
+    if (cat) {
+      items.push({ label: cat.name, to: `/products?category=${cat.slug}` })
+    }
+  }
+  return items
 })
 </script>
 
 <template>
   <div class="catalog-page">
-    <div class="container catalog-page__layout">
-      <!-- Sidebar (Desktop) -->
-      <aside class="catalog-page__sidebar desktop-only">
-        <CategorySidebar
-          v-if="categoriesData"
-          :categories="categoriesData.items"
-          :active-slug="categorySlug"
-          @select="handleCategorySelect"
-        />
-      </aside>
+    <div class="container">
+      <AppBreadcrumbs :items="breadcrumbItems" />
+      
+      <div class="catalog-page__layout">
+        <!-- Sidebar (Desktop) -->
+        <aside class="catalog-page__sidebar desktop-only">
+          <CategorySidebar
+            v-if="categoriesData"
+            :categories="categoriesData.items"
+            :active-slug="categorySlug"
+            @select="handleCategorySelect"
+          />
+        </aside>
 
-      <main class="catalog-page__main">
-        <header class="catalog-page__header">
-          <h1 class="catalog-page__title">
-            {{ categorySlug ? categoriesData?.items.find(c => c.slug === categorySlug)?.name : 'Все товары' }}
-          </h1>
+        <main class="catalog-page__main">
+          <header class="catalog-page__header">
+            <h1 class="catalog-page__title">
+              {{ categorySlug ? categoriesData?.items.find(c => c.slug === categorySlug)?.name : 'Все товары' }}
+            </h1>
 
-          <div class="catalog-page__stats" v-if="productsData">
-            {{ productsData.total }} товаров найдено
+            <div class="catalog-page__stats" v-if="productsData">
+              {{ productsData.total }} товаров найдено
+            </div>
+          </header>
+
+          <!-- Loading State -->
+          <div v-if="pending" class="product-grid">
+            <div v-for="i in 8" :key="i" class="product-card-skeleton skeleton"></div>
           </div>
-        </header>
 
-        <!-- Loading State -->
-        <div v-if="pending" class="product-grid">
-          <div v-for="i in 8" :key="i" class="product-card-skeleton skeleton"></div>
-        </div>
+          <!-- Products List -->
+          <div v-else-if="productsData?.items.length" class="product-grid">
+            <TransitionGroup name="list">
+              <ProductCard
+                v-for="product in productsData.items"
+                :key="product.id"
+                :product="product"
+              />
+            </TransitionGroup>
+          </div>
 
-        <!-- Products List -->
-        <div v-else-if="productsData?.items.length" class="product-grid">
-          <TransitionGroup name="list">
-            <ProductCard
-              v-for="product in productsData.items"
-              :key="product.id"
-              :product="product"
-            />
-          </TransitionGroup>
-        </div>
-
-        <!-- Empty State -->
-        <div v-else class="catalog-page__empty">
-          <div class="catalog-page__empty-icon">🔍</div>
-          <h2 class="catalog-page__empty-title">Товары не найдены</h2>
-          <p class="catalog-page__empty-text">Попробуйте изменить параметры поиска или фильтры.</p>
-          <button class="btn btn--primary" @click="handleCategorySelect(undefined)">
-            Сбросить фильтры
-          </button>
-        </div>
-      </main>
+          <!-- Empty State -->
+          <div v-else class="catalog-page__empty">
+            <div class="catalog-page__empty-icon">🔍</div>
+            <h2 class="catalog-page__empty-title">Товары не найдены</h2>
+            <p class="catalog-page__empty-text">Попробуйте изменить параметры поиска или фильтры.</p>
+            <button class="btn btn--primary" @click="handleCategorySelect(undefined)">
+              Сбросить фильтры
+            </button>
+          </div>
+        </main>
+      </div>
     </div>
   </div>
 </template>
@@ -179,7 +212,6 @@ useHead({
   }
 }
 
-/* Base button styles if not defined globally yet */
 .btn {
   display: inline-flex;
   align-items: center;

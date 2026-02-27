@@ -1,0 +1,17 @@
+{
+  "task_id": "p9_frontend_seo",
+  "phase": 9,
+  "agent": "frontend-agent",
+  "title": "Implement SEO and Technical Optimization",
+  "description": "Create server routes sitemap.xml.ts, robots.txt.ts, rss.xml.ts. Add useSeoMeta and Schema.org (JSON-LD) to product and blog pages. Implement rel=canonical for catalog.",
+  "depends_on": ["phase4_frontend_ecommerce"],
+  "priority": "high",
+  "contracts_required": [".gemini/agents/contracts/api_contracts.md"],
+  "acceptance_criteria": [
+    "sitemap.xml is dynamically generated with all product and blog slugs",
+    "robots.txt allows all except admin/ and checkout/ and points to sitemap",
+    "rss.xml is available for the blog",
+    "Product and Blog pages have proper meta tags and JSON-LD schema",
+    "Catalog has canonical link pointing to base URL without sorting/pagination params"
+  ]
+}

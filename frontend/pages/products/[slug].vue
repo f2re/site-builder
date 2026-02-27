@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { useProducts } from '~/composables/useProducts'
 import { useCartStore } from '~/stores/cartStore'
+import { useProductSchema } from '~/composables/useSchemaOrg'
+import AppBreadcrumbs from '~/components/AppBreadcrumbs.vue'
 
 const route = useRoute()
+const config = useRuntimeConfig()
 const { getProduct } = useProducts()
 const cartStore = useCartStore()
 
@@ -24,23 +27,38 @@ const addToCart = () => {
 }
 
 // SEO
+useSeoMeta({
+  title: () => product.value ? `${product.value.name} | WifiOBD` : 'Загрузка...',
+  description: () => product.value?.description || 'Подробное описание товара в нашем каталоге.',
+  ogTitle: () => product.value ? `${product.value.name} | WifiOBD` : 'Загрузка...',
+  ogDescription: () => product.value?.description,
+  ogImage: () => product.value?.images?.[0],
+  twitterCard: 'summary_large_image',
+})
+
 useHead({
-  title: `${product.value?.name || 'Загрузка...'} | WifiOBD`,
-  meta: [
-    { name: 'description', content: product.value?.description || 'Подробное описание товара в нашем каталоге.' }
+  link: [
+    { rel: 'canonical', href: () => `${config.public.siteUrl}/products/${slug}` }
   ]
 })
+
+// Schema.org
+watchEffect(() => {
+  if (product.value) {
+    useProductSchema(product.value)
+  }
+})
+
+const breadcrumbItems = computed(() => [
+  { label: 'Каталог', to: '/products' },
+  { label: product.value?.name || '...', to: `/products/${slug}` }
+])
 </script>
 
 <template>
   <div class="product-page">
     <div class="container">
-      <!-- Breadcrumbs placeholder -->
-      <nav class="breadcrumbs">
-        <NuxtLink to="/">Главная</NuxtLink> /
-        <NuxtLink to="/products">Каталог</NuxtLink> /
-        <span v-if="product">{{ product.name }}</span>
-      </nav>
+      <AppBreadcrumbs :items="breadcrumbItems" />
 
       <div v-if="pending" class="product-page__skeleton skeleton"></div>
 
@@ -54,7 +72,13 @@ useHead({
         <!-- Gallery -->
         <div class="product-gallery">
           <div class="product-gallery__main">
-            <img :src="activeImage" :alt="product.name" class="product-gallery__main-image" />
+            <NuxtImg 
+              :src="activeImage" 
+              :alt="product.name" 
+              class="product-gallery__main-image"
+              loading="lazy"
+              format="webp"
+            />
           </div>
           <div v-if="product.images.length > 1" class="product-gallery__thumbs">
             <button
@@ -64,7 +88,7 @@ useHead({
               :class="{ 'is-active': activeImage === img }"
               @click="activeImage = img"
             >
-              <img :src="img" :alt="product.name" />
+              <NuxtImg :src="img" :alt="product.name" width="80" height="80" fit="contain" />
             </button>
           </div>
         </div>
@@ -123,21 +147,6 @@ useHead({
 <style scoped>
 .product-page {
   padding: 40px 0;
-}
-
-.breadcrumbs {
-  font-size: var(--text-xs);
-  color: var(--color-muted);
-  margin-bottom: 32px;
-}
-
-.breadcrumbs a {
-  color: inherit;
-  text-decoration: none;
-}
-
-.breadcrumbs a:hover {
-  color: var(--color-accent);
 }
 
 .product-page__layout {

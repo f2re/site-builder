@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { useBlog } from '~/composables/useBlog'
+import { useArticleSchema } from '~/composables/useSchemaOrg'
+import AppBreadcrumbs from '~/components/AppBreadcrumbs.vue'
 
 const route = useRoute()
+const config = useRuntimeConfig()
 const { getPost } = useBlog()
 const slug = route.params.slug as string
 
@@ -12,85 +15,101 @@ if (!post.value && !pending.value) {
 }
 
 // SEO Meta
+useSeoMeta({
+  title: () => post.value?.title ? `${post.value.title} | WifiOBD Blog` : 'Блог',
+  description: () => post.value?.summary || '',
+  ogTitle: () => post.value?.title,
+  ogDescription: () => post.value?.summary,
+  ogImage: () => post.value?.cover_url,
+  twitterCard: 'summary_large_image',
+})
+
 useHead({
-  title: post.value?.title ? `${post.value.title} | WifiOBD Blog` : 'Блог',
-  meta: [
-    { name: 'description', content: post.value?.summary || '' },
-    { property: 'og:title', content: post.value?.title },
-    { property: 'og:image', content: post.value?.cover_url }
+  link: [
+    { rel: 'canonical', href: () => `${config.public.siteUrl}/blog/${slug}` }
   ]
 })
+
+// Schema.org
+watchEffect(() => {
+  if (post.value) {
+    useArticleSchema(post.value)
+  }
+})
+
+const breadcrumbItems = computed(() => [
+  { label: 'Блог', to: '/blog' },
+  { label: post.value?.title || '...', to: `/blog/${slug}` }
+])
 </script>
 
 <template>
   <div class="post-page">
-    <div v-if="pending" class="loading-container">
-      <div class="skeleton-hero"></div>
-      <div class="skeleton-text" v-for="i in 10" :key="i"></div>
-    </div>
+    <div class="container">
+      <AppBreadcrumbs :items="breadcrumbItems" />
 
-    <article v-else-if="post" class="post-content">
-      <NuxtLink to="/blog" class="back-link">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="19" y1="12" x2="5" y2="12"></line>
-          <polyline points="12 19 5 12 12 5"></polyline>
-        </svg>
-        Назад к списку
-      </NuxtLink>
-
-      <header class="post-header">
-        <div class="post-meta">
-          <span class="category" v-if="post.category">{{ post.category.name }}</span>
-          <span class="date">{{ new Date(post.published_at).toLocaleDateString('ru-RU') }}</span>
-          <span class="dot">·</span>
-          <span class="reading-time">{{ post.reading_time_min || 5 }} мин чтения</span>
-        </div>
-        <h1 class="post-title">{{ post.title }}</h1>
-        <div class="author-info" v-if="post.author">
-          <img :src="post.author.avatar_url || '/img/avatar-placeholder.png'" alt="" class="author-avatar" />
-          <span class="author-name">{{ post.author.name }}</span>
-        </div>
-      </header>
-
-      <div class="post-hero" v-if="post.cover_url">
-        <img :src="post.cover_url" :alt="post.title" class="hero-image" />
+      <div v-if="pending" class="loading-container">
+        <div class="skeleton-hero"></div>
+        <div class="skeleton-text" v-for="i in 10" :key="i"></div>
       </div>
 
-      <div class="post-body" v-html="post.content"></div>
+      <article v-else-if="post" class="post-content">
+        <header class="post-header">
+          <div class="post-meta">
+            <span class="category" v-if="post.category">{{ post.category.name }}</span>
+            <span class="date">{{ new Date(post.published_at).toLocaleDateString('ru-RU') }}</span>
+            <span class="dot">·</span>
+            <span class="reading-time">{{ post.reading_time_min || 5 }} мин чтения</span>
+          </div>
+          <h1 class="post-title">{{ post.title }}</h1>
+          <div class="author-info" v-if="post.author">
+            <NuxtImg 
+              :src="post.author.avatar_url || '/img/avatar-placeholder.png'" 
+              alt="" 
+              class="author-avatar"
+              width="32"
+              height="32"
+            />
+            <span class="author-name">{{ post.author.name }}</span>
+          </div>
+        </header>
 
-      <footer class="post-footer">
-        <div class="tags" v-if="post.tags && post.tags.length">
-          <span v-for="tag in post.tags" :key="tag.id" class="tag">#{{ tag.name }}</span>
+        <div class="post-hero" v-if="post.cover_url">
+          <NuxtImg 
+            :src="post.cover_url" 
+            :alt="post.title" 
+            class="hero-image"
+            format="webp"
+            loading="eager"
+          />
         </div>
-      </footer>
-    </article>
 
-    <div v-else-if="error" class="error-container">
-      <h2>Ошибка загрузки</h2>
-      <p>{{ error.message }}</p>
-      <NuxtLink to="/blog" class="btn">Вернуться в блог</NuxtLink>
+        <div class="post-body" v-html="post.content"></div>
+
+        <footer class="post-footer">
+          <div class="tags" v-if="post.tags && post.tags.length">
+            <span v-for="tag in post.tags" :key="tag.id" class="tag">#{{ tag.name }}</span>
+          </div>
+        </footer>
+      </article>
+
+      <div v-else-if="error" class="error-container">
+        <h2>Ошибка загрузки</h2>
+        <p>{{ error.message }}</p>
+        <NuxtLink to="/blog" class="btn">Вернуться в блог</NuxtLink>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
 .post-page {
+  padding: 40px 0;
+}
+
+.post-content {
   max-width: 800px;
   margin: 0 auto;
-}
-
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-text-2);
-  margin-bottom: 32px;
-  font-weight: 500;
-  transition: color var(--transition-fast);
-}
-
-.back-link:hover {
-  color: var(--color-accent);
 }
 
 .post-header {
@@ -195,6 +214,8 @@ useHead({
 }
 
 .loading-container {
+  max-width: 800px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 16px;

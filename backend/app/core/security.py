@@ -1,11 +1,14 @@
-# Module: core/security.py | Agent: backend-agent | Task: stage2_rbac
+# Module: core/security.py | Agent: backend-agent | Task: phase7_backend_security
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Any, Union
 from jose import jwt
 from passlib.context import CryptContext
+from cryptography.fernet import Fernet, InvalidToken
 from app.core.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+fernet = Fernet(settings.FERNET_KEY.encode())
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -48,3 +51,35 @@ def create_refresh_token(
     to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
+
+
+def encrypt_data(plain_text: str) -> str:
+    """Encrypt sensitive data using Fernet."""
+    if not plain_text:
+        return plain_text
+    try:
+        # Check if already encrypted
+        fernet.decrypt(plain_text.encode())
+        return plain_text
+    except Exception:
+        return fernet.encrypt(plain_text.encode()).decode()
+
+
+def decrypt_data(encrypted_text: str) -> str:
+    """Decrypt sensitive data using Fernet."""
+    if not encrypted_text:
+        return encrypted_text
+    try:
+        return fernet.decrypt(encrypted_text.encode()).decode()
+    except (InvalidToken, Exception):
+        # If it's not a valid Fernet token, it might be already plain text
+        return encrypted_text
+
+
+def get_blind_index(text: str) -> str:
+    """Generate a blind index (hash) for searching encrypted fields."""
+    if not text:
+        return ""
+    # Use SHA256 with a salt (SECRET_KEY) to prevent rainbow table attacks on the blind index
+    # We lowercase the email for consistent searching
+    return hashlib.sha256((text.lower() + settings.SECRET_KEY).encode()).hexdigest()
