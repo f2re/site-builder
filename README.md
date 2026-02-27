@@ -35,11 +35,11 @@
 | **БД** | PostgreSQL 16 + **TimescaleDB** | Основная БД + IoT hypertable для телеметрии |
 | **Кэш / Очереди** | Redis 7, Celery (worker+beat) | Кэш, резерв остатков, IoT Streams, фоновые задачи |
 | **Frontend** | Nuxt 3, Vue 3 Composition API, TypeScript, Pinia | SSR, PWA, i18n (ru/en) |
-| **Медиа** | **MinIO** (S3-совместимое, self-hosted) | Фото/видео товаров и блога |
+| **Медиа** | Локальное хранилище `/media` через Nginx + Celery WebP | Фото/видео товаров и блога |
 | **Поиск** | Meilisearch | Полнотекстовый поиск товаров и статей, self-hosted |
 | **Интеграции** | СДЭК v2, YooMoney/aiomoney, ЦБ РФ | Доставка, оплата, курсы валют |
 | **SEO** | `useSeoMeta`, Schema.org JSON-LD, sitemap, RSS | Индексация блога/каталога |
-| **Инфра** | Docker Compose, Nginx | Self-hosted, без cloud |
+| **Инфра** | Docker Compose (6 сервисов), Nginx | Self-hosted, без cloud |
 | **CI/CD** | GitLab CE (gitlab.wifiobd.ru) + Runner 18.9 + Container Registry | Не Docker Hub, не GitHub Actions |
 | **Мониторинг** | Prometheus + Grafana + Loki + Promtail | Prod-профиль |
 | **ИИ-система** | Gemini CLI, 7 агентов | Мультиагентная разработка |
@@ -63,7 +63,7 @@ site-builder/
 │   │   │   ├── delivery/     # СДЭК v2 API
 │   │   │   ├── payments/     # YooMoney, HMAC-SHA256 webhook
 │   │   │   ├── blog/         # посты, теги, комментарии, SEO
-│   │   │   ├── media/        # MinIO upload/download
+│   │   │   ├── media/        # локальное хранилище, Celery WebP
 │   │   │   ├── admin/        # CRUD + IoT-мониторинг (только role=admin)
 │   │   │   ├── iot/          # WebSocket, Redis Streams → TimescaleDB
 │   │   │   └── search/       # Meilisearch прокси
@@ -71,8 +71,8 @@ site-builder/
 │   │   ├── db/
 │   │   │   ├── models/       # все SQLAlchemy-модели здесь
 │   │   │   └── migrations/   # Alembic versions
-│   │   ├── tasks/          # Celery: media, search, notifications, inventory
-│   │   └── integrations/   # cdek, yoomoney, cbr_rates, meilisearch, minio
+│   │   ├── tasks/          # Celery: media WebP, search, notifications, inventory
+│   │   └── integrations/   # cdek, yoomoney, cbr_rates, meilisearch
 │   ├── tests/
 │   └── requirements.txt
 ├── frontend/
@@ -100,7 +100,7 @@ site-builder/
 │   ├── commands/           # slash-команды
 │   ├── policies/           # TOML-политики
 │   └── system.md           # системный промпт оркестратора
-├── docker-compose.yml       # dev: все сервисы
+├── docker-compose.yml       # dev: api, frontend, postgres, redis, celery, meilisearch, nginx
 ├── .gitlab-ci.yml
 ├── .env.example
 ├── GEMINI.md                # ← точка входа для ИИ-агента
@@ -126,14 +126,12 @@ site-builder/
 git clone https://github.com/f2re/site-builder.git
 cd site-builder
 
-# Скопировать и заполнить
 cp .env.example .env
-# Обязательно: SECRET_KEY, POSTGRES_PASSWORD, MEILI_MASTER_KEY, FERNET_KEY
+# Обязательно заполнить: SECRET_KEY, POSTGRES_PASSWORD, MEILI_MASTER_KEY, FERNET_KEY
 
-# Запустить всю инфраструктуру
 docker compose up --build -d
 
-# Применить миграции БД
+# Применить миграции
 docker compose exec api alembic upgrade head
 ```
 
@@ -171,9 +169,8 @@ docker compose logs -f api
 docker compose down -v
 
 # ── Проверка сервисов
-curl -s http://localhost:8000/health
-curl -s http://localhost:7700/health
-curl -s http://localhost:9000/minio/health/live
+curl -s http://localhost:8000/health   # API
+curl -s http://localhost:7700/health   # Meilisearch
 ```
 
 ---
@@ -224,7 +221,6 @@ Secrets — только через GitLab CI/CD Variables (`SSH_PRIVATE_KEY`, `
 # Прямой вызов агента:
 @backend-agent создай db/models/telemetry.py с TimescaleDB hypertable
 @frontend-agent добавь страницу /iot/[device_id].vue с TelemetryChart
-@devops-agent настрой Nginx для раздачи MinIO-медиа
 @security-agent проведи аудит bleach.clean() в blog/service.py
 ```
 
@@ -263,7 +259,7 @@ Secrets — только через GitLab CI/CD Variables (`SSH_PRIVATE_KEY`, `
 | [`DEVOPS.md`](DEVOPS.md) | CI/CD, SSH, Runner, деплой |
 | [`CHANGELOG.md`](CHANGELOG.md) | История изменений |
 | [`.env.example`](.env.example) | Шаблон всех переменных среды |
-| [`docker-compose.yml`](docker-compose.yml) | Dev-среда |
+| [`docker-compose.yml`](docker-compose.yml) | Dev-среда (api, postgres, redis, celery, meilisearch, nginx) |
 | [`deploy/docker-compose.prod.yml`](deploy/docker-compose.prod.yml) | Продакшн-композ |
 | [`.gitlab-ci.yml`](.gitlab-ci.yml) | CI/CD пайплайн |
 | [`.gemini/agents/`](.gemini/agents/) | Определения агентов |
