@@ -1,9 +1,9 @@
-# Module: api/v1/blog/schemas.py | Agent: backend-agent | Task: phase3_backend_blog
+# Module: api/v1/blog/schemas.py | Agent: backend-agent | Task: phase11_backend_admin_blog_refinement
 from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 from uuid import UUID
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Any
 from enum import Enum
 
 class BlogStatus(str, Enum):
@@ -31,10 +31,10 @@ class AuthorRead(BaseModel):
 
 class BlogPostBase(BaseModel):
     title: str
-    slug: str
+    slug: Optional[str] = None
     summary: Optional[str] = None
-    content: str
-    status: BlogStatus
+    content_json: Any = Field(default_factory=dict, description="TipTap JSON content")
+    status: BlogStatus = BlogStatus.draft
     is_featured: bool = False
     category_id: Optional[UUID] = None
     cover_image: Optional[str] = None
@@ -45,7 +45,7 @@ class BlogPostUpdate(BaseModel):
     title: Optional[str] = None
     slug: Optional[str] = None
     summary: Optional[str] = None
-    content: Optional[str] = None
+    content_json: Optional[Any] = None
     status: Optional[BlogStatus] = None
     is_featured: Optional[bool] = None
     category_id: Optional[UUID] = None
@@ -58,11 +58,14 @@ class BlogPostCreate(BlogPostBase):
 
 class BlogPostRead(BlogPostBase):
     id: UUID
+    content_html: str
     category_id: Optional[UUID]
     author_id: UUID
     published_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    reading_time_minutes: int = 0
+    views: int = 0
 
     category: Optional[BlogCategoryRead] = None
     tags: List[TagRead] = []
@@ -79,11 +82,11 @@ class BlogPostShortRead(BaseModel):
     author: AuthorRead
     tags: List[TagRead] = []
     published_at: Optional[datetime] = None
-    reading_time_min: int = Field(default=5, description="Estimated reading time in minutes")
+    reading_time_minutes: int = Field(default=5, description="Estimated reading time in minutes")
+    status: BlogStatus
 
     model_config = ConfigDict(from_attributes=True)
 
 class BlogPagination(BaseModel):
     items: List[BlogPostShortRead]
-    next_cursor: Optional[str] = None
-    total: int
+    pageInfo: dict

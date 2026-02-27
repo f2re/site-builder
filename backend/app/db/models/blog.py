@@ -2,7 +2,7 @@
 import enum
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, Table, Column, Integer
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -69,7 +69,10 @@ class BlogPost(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    content: Mapped[str] = mapped_column(Text, nullable=False)  # Sanitized HTML or JSON string
+    
+    # Content fields - Task BE-11 refinement
+    content_json: Mapped[Any] = mapped_column(JSONB, nullable=False, server_default='{}')
+    content_html: Mapped[str] = mapped_column(Text, nullable=False, server_default='')
     
     status: Mapped[BlogPostStatus] = mapped_column(
         Enum(BlogPostStatus, native_enum=False),
@@ -102,7 +105,7 @@ class BlogPost(Base):
     category: Mapped[Optional[BlogCategory]] = relationship("BlogCategory", back_populates="posts")
     author: Mapped["User"] = relationship("User", back_populates="blog_posts")
     tags: Mapped[List[Tag]] = relationship(
-        "Tag", secondary=blog_post_tags, back_populates="posts"
+        "Tag", secondary=blog_post_tags, back_populates="tags"
     )
     media: Mapped[List["BlogPostMedia"]] = relationship(
         "BlogPostMedia",

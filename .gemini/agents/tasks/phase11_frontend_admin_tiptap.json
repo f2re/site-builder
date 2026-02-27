@@ -17,5 +17,5 @@
     "Images are uploaded directly to MinIO using presigned URLs",
     "Admin routes are protected and only accessible to users with the 'admin' role"
   ],
-  "status": "pending"
+  "status": "in_progress"
 }

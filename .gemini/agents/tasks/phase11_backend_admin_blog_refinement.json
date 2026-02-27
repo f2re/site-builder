@@ -18,5 +18,5 @@
     "Meilisearch indexing tasks are triggered on product/article updates",
     "Alembic migration for new fields is applied"
   ],
-  "status": "pending"
+  "status": "in_progress"
 }
