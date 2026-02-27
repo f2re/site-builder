@@ -22,6 +22,7 @@ from app.api.v1.orders.repository import OrderRepository
 from app.api.v1.users.repository import UserRepository
 from app.api.v1.iot.repository import IoTRepository
 from app.api.v1.cart.service import CartService
+from .pages_router import router as pages_admin_router
 
 router = APIRouter(prefix="/admin", tags=["Admin Panel"])
 
@@ -165,6 +166,7 @@ async def list_all_devices(
     _admin: User = AdminDep,
     repo: IoTRepository = Depends(get_iot_repo)
 ) -> Any:
-    # This would require an admin-specific method in IoTRepository or a broad query
-    # For now, we return an empty list as a stub or implement a generic select
     return {"items": []}
+
+# ─── Pages ───────────────────────────────────────────────────────────────────
+router.include_router(pages_admin_router)

@@ -1,0 +1,15 @@
+{
+  "task_id": "p12_frontend_001",
+  "phase": 12,
+  "agent": "frontend-agent",
+  "title": "Implement dynamic pages UI",
+  "description": "Create admin UI to manage dynamic pages and public routes to display them. Fix Vue Router warnings for /shipping, /about, /contacts, /faq, /returns, /privacy.",
+  "depends_on": ["p12_backend_001"],
+  "priority": "high",
+  "contracts_required": [],
+  "acceptance_criteria": [
+    "Admin page for managing dynamic pages exists (create/edit with WYSIWYG editor)",
+    "Public pages /shipping, /about, /contacts, /faq, /returns, /privacy fetch data from API and render correctly",
+    "No Vue Router warnings for these paths"
+  ]
+}

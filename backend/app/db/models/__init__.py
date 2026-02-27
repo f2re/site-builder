@@ -1,4 +1,4 @@
-# Module: db/models/__init__.py | Agent: backend-agent | Task: phase4_orders_logic
+# Module: db/models/__init__.py | Agent: backend-agent | Task: p12_backend_001
 # Import all models here so that Alembic autogenerate can discover them
 # via Base.metadata when env.py imports this package.
 from app.db.models.user import User          # noqa: F401
@@ -8,3 +8,4 @@ from app.db.models.product import Category, Product, ProductVariant, ProductImag
 from app.db.models.blog import BlogCategory, Tag, BlogPost  # noqa: F401
 from app.db.models.redirect import Redirect  # noqa: F401
 from app.db.models.notification import NotificationLog, UserNotificationSettings  # noqa: F401
+from app.db.models.page import StaticPage  # noqa: F401

@@ -9,6 +9,7 @@ from .cart.router import router as cart_router
 from .orders.router import router as orders_router
 from .delivery.router import router as delivery_router
 from .iot.router import router as iot_router
+from .pages.router import router as pages_router
 from .admin.router import router as admin_router
 
 api_router = APIRouter(prefix="/api/v1")
@@ -23,4 +24,5 @@ api_router.include_router(cart_router)
 api_router.include_router(orders_router)
 api_router.include_router(delivery_router)
 api_router.include_router(iot_router)
+api_router.include_router(pages_router)
 api_router.include_router(admin_router)
