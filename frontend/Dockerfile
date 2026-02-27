@@ -4,7 +4,7 @@ FROM node:22-slim AS development
 WORKDIR /app
 
 # Install curl for healthcheck + update npm
-RUN apt-get update && apt-get install -y curl \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g npm@latest
@@ -32,7 +32,7 @@ FROM node:22-slim AS builder
 WORKDIR /app
 
 # Install curl + update npm
-RUN apt-get update && apt-get install -y curl python3 make g++ \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl python3 make g++ \
     && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g npm@latest
@@ -52,7 +52,7 @@ FROM node:22-slim AS runner
 WORKDIR /app
 
 # Install curl for healthcheck
-RUN apt-get update && apt-get install -y curl \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Security: Add a non-root user

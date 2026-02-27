@@ -2,6 +2,7 @@
 fastapi==0.131.0
 uvicorn[standard]==0.41.0
 pydantic-settings==2.8.1
+gunicorn==23.0.0
 
 # Database
 sqlalchemy[asyncio]==2.0.44
@@ -36,6 +37,11 @@ meilisearch-python-sdk==7.0.1
 # Background tasks
 celery[redis]==5.5.0
 redis==5.2.1
+celery-redbeat==2.2.0
+
+# Notifications & Integrations
+fastapi-mail==1.4.1
+aiogram==3.18.0
 
 # Utilities
 python-slugify==8.0.4
@@ -53,3 +59,4 @@ mypy==1.14.1
 types-python-jose==3.5.0.20250531
 types-passlib==1.7.7.20260211
 types-bleach==6.3.0.20251115
+types-cryptography==3.3.23.2

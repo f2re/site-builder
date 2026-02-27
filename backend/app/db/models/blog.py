@@ -5,7 +5,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import enum
 
-from app.db.base_class import Base
+from app.db.base import Base
 
 
 class BlogPostStatus(str, enum.Enum):
