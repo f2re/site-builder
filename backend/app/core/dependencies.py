@@ -1,7 +1,8 @@
-# Module: core/dependencies.py | Agent: backend-agent | Task: phase5_backend_users_cabinet
-from uuid import UUID
+# Module: core/dependencies.py | Agent: backend-agent | Task: BE-03
+from uuid import UUID, uuid4
+from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request, Response
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +22,7 @@ from app.api.v1.orders.service import OrderService
 from app.api.v1.iot.repository import IoTRepository
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
 # ──────────────────────────────────────────────
@@ -100,6 +102,42 @@ async def get_current_user(
             detail="Inactive user",
         )
     return user
+
+
+async def get_optional_current_user(
+    token: Optional[str] = Depends(oauth2_scheme_optional),
+    repo: UserRepository = Depends(get_user_repository),
+) -> Optional[User]:
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        token_data = TokenPayload(**payload)
+        return await repo.get_by_id(UUID(token_data.sub))
+    except (JWTError, ValueError):
+        return None
+
+
+async def get_cart_id(
+    request: Request,
+    response: Response,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+) -> str:
+    if current_user:
+        return str(current_user.id)
+    
+    cart_session = request.cookies.get("cart_session")
+    if not cart_session:
+        cart_session = str(uuid4())
+        response.set_cookie(
+            key="cart_session",
+            value=cart_session,
+            httponly=True,
+            max_age=3600 * 24 * 7,  # 1 week
+            samesite="lax",
+            secure=True
+        )
+    return cart_session
 
 
 async def get_current_active_user(
