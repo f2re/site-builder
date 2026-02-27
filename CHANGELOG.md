@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.0.7] - 2026-02-27
+
+### Added
+- **Media Processing System**: Complete image processing pipeline for blog and product images
+  - Celery task `process_image`: downloads from MinIO, converts to WebP (quality 85), generates 480px thumbnails, extracts dimensions, updates database
+  - Celery task `delete_media_from_storage`: cleanup when BlogPostMedia/ProductImage deleted
+  - Automatic RGBA→RGB conversion for WebP compatibility
+  - Configurable original file deletion after processing
+- **MinIO Integration**: Full async client with all necessary methods
+  - `get_object`, `put_object`, `remove_object` for storage operations
+  - `get_presigned_upload_url`, `get_presigned_download_url` for direct browser uploads
+  - `list_objects`, `ensure_bucket_exists` for management
+  - Public URL generation with CDN support
+- **Media Upload API** (`/api/v1/media/*`):
+  - `POST /upload-url`: Generate presigned MinIO upload URL with unique filename
+  - `POST /confirm`: Confirm upload and trigger Celery processing
+  - Context-aware uploads: `blog/YYYY/MM/uuid.ext` or `product/YYYY/MM/uuid.ext`
+  - Supports both blog posts and product images
+- **Blog Models**: Complete database schema for blog system
+  - `BlogPost`: with SEO fields (meta_title, meta_description, og_image_url), JSON+HTML content, status, metrics
+  - `BlogPostMedia`: with alt text (required for SEO), dimensions (width/height), caption, MIME type
+  - `BlogCategory`: for blog organization
+  - `BlogPostStatus` enum: draft/published/archived
+- **Configuration**: Added MinIO settings
+  - `MINIO_BUCKET_MEDIA`: dedicated media bucket
+  - `MINIO_PUBLIC_DOMAIN`: CDN domain for public URLs
+  - `MINIO_USE_SSL`: SSL/TLS toggle
+  - `MINIO_DELETE_ORIGINAL`: option to keep/delete original after WebP conversion
+
+### Technical Details
+- Image processing uses Pillow with LANCZOS resampling for high-quality thumbnails
+- Exponential backoff retry (60s, 120s, 240s) for failed processing tasks
+- Structured logging for all media operations (upload, processing, deletion)
+- Async/await throughout for non-blocking I/O
+
 ## [1.0.6] - 2026-02-27
 
 ### Fixed
