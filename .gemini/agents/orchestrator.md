@@ -163,6 +163,17 @@ When user sends `/agents:plan <task description>`, orchestrator MUST:
 
 ---
 
+## Linting & Type Checking Rules
+
+Before marking a phase or task as DONE, agents (especially `backend-agent` and `frontend-agent`) MUST verify their code passes the project's CI/CD linting steps:
+
+- **Backend**: `cd backend && ruff check app/ --fix && ruff check app/ && mypy app/ --ignore-missing-imports`
+- **Frontend**: `cd frontend && npm install --quiet && npm run lint`
+
+Orchestrator must ensure that agent reports mention successful linting/type checking in the `Contracts Verified` or `Completed` sections.
+
+---
+
 ## Report Validation Rules
 
 Before marking any phase DONE, ALL agent reports for that phase MUST contain:
