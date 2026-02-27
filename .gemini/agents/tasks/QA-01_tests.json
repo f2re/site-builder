@@ -1,0 +1,44 @@
+{
+  "task_id": "QA-01",
+  "phase": 8,
+  "agent": "testing-agent",
+  "title": "Tests: pytest unit+integration + Locust + Lighthouse CI",
+  "status": "TODO",
+  "priority": "medium",
+  "depends_on": ["BE-01","BE-02","BE-03","BE-04","BE-05"],
+  "blocks": [],
+  "contracts_required": [],
+  "pre_check": [
+    "list_directory backend/tests/",
+    "read_file backend/tests/conftest.py"
+  ],
+  "description": "Coverage targets: services/ > 80%, api/ > 70%. Full checkout integration test. IoT WebSocket e2e test < 3sec. Locust 100 RPS p95 < 200ms.",
+  "unit_tests": [
+    "tests/unit/products/test_product_service.py: get_by_slug_found, get_by_slug_404, reserve_stock_success(Lua mock), reserve_insufficient->409, cursor_pagination",
+    "tests/unit/orders/test_order_service.py: create_success, no_stock->409, webhook_valid_hmac, webhook_invalid_hmac->400, webhook_idempotent",
+    "tests/unit/blog/test_blog_service.py: get_post_by_slug, bleach_removes_script_tag, reading_time_calc, comment_email_not_plaintext",
+    "tests/unit/iot/test_iot_service.py: post_data_xadd_redis, device_ownership_403, time_bucket_in_query_sql"
+  ],
+  "integration_tests": [
+    "tests/integration/test_checkout_flow.py: Register->Login->GET product->POST cart->POST order->POST webhook(HMAC)->GET order status=PAID",
+    "tests/integration/test_iot_websocket.py: login->WS connect->POST /iot/data->recv message < 3sec"
+  ],
+  "locust": {
+    "file": "tests/load/locustfile.py",
+    "users": ["ShopUser: browse_catalog(w3), view_product(w2), checkout(w1)","IotDevice: send_telemetry 1/sec"],
+    "targets_at_100rps": "p95 < 200ms, p99 < 500ms, error_rate < 0.1%"
+  },
+  "lighthouse": {
+    "config": "lighthouserc.json",
+    "urls": ["/","/products","/blog"],
+    "gitlab_ci": "allow_failure: true, save as artifact"
+  },
+  "acceptance_criteria": [
+    "pytest --cov=app: services/ > 80%, api/ > 70%",
+    "All webhook edge cases pass",
+    "IoT WS test passes in < 3sec",
+    "Locust 100 RPS without degradation",
+    "Lighthouse artifact appears in GitLab CI"
+  ],
+  "report": ".gemini/agents/reports/testing/QA-01.md"
+}

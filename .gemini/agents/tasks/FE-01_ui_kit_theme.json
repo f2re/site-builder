@@ -1,0 +1,64 @@
+{
+  "task_id": "FE-01",
+  "phase": 7,
+  "agent": "frontend-agent",
+  "title": "UI-kit + design tokens + Pinia stores + base composables",
+  "status": "TODO",
+  "priority": "high",
+  "depends_on": [],
+  "blocks": ["FE-02","FE-03","FE-04"],
+  "contracts_required": [".gemini/agents/contracts/api_contracts.md"],
+  "pre_check": [
+    "list_directory frontend/components/U/",
+    "read_file frontend/assets/css/tokens.css",
+    "read_file frontend/nuxt.config.ts",
+    "list_directory frontend/stores/"
+  ],
+  "description": "Base UI layer: design tokens (CSS vars), reusable U/ components, Pinia stores, base composables. Race-Style Dark theme. NO hardcoded colors or URLs.",
+  "tokens": {
+    "file": "frontend/assets/css/tokens.css",
+    "note": "If exists — read_file first, extend only. Never overwrite.",
+    "required_vars": ["--color-bg","--color-surface","--color-accent","--color-accent-hover","--color-text-primary","--color-text-secondary","--color-border","--color-success","--color-warning","--color-error","--font-sans","--font-mono","--space-1..8","--radius-sm/md/lg","--shadow-card"]
+  },
+  "components": {
+    "dir": "frontend/components/U/",
+    "list": [
+      "UButton.vue — variant(primary|secondary|ghost), size(sm|md|lg), loading, disabled",
+      "UCard.vue — slots: default, header, footer",
+      "UInput.vue — label, error, hint, type",
+      "UBadge.vue — color, size",
+      "USpinner.vue — size prop",
+      "UModal.vue — teleport body, focus trap, ESC close",
+      "UThemeToggle.vue — toggles themeStore.isDark",
+      "UBreadcrumbs.vue — crumbs:{label,href}[], emits Schema.org BreadcrumbList JSON-LD"
+    ],
+    "rule": "All colors via CSS vars from tokens.css ONLY. defineOptions({name:'U<Name>'})."
+  },
+  "stores": {
+    "dir": "frontend/stores/",
+    "list": [
+      "themeStore.ts — isDark:boolean, toggle(), persist localStorage",
+      "authStore.ts — user, token, refresh, login(), logout(), refreshToken()",
+      "cartStore.ts — items, total, addItem(), removeItem(), clear()",
+      "notificationStore.ts — WebSocket in-app notifications"
+    ]
+  },
+  "composables": [
+    "useApi.ts — useFetch wrapper with baseURL from useRuntimeConfig, handles 401 -> authStore.refreshToken()",
+    "useToast.ts — toast notifications",
+    "useIntersection.ts — IntersectionObserver for lazy loading"
+  ],
+  "contracts": [
+    "NO hardcoded URLs — only useRuntimeConfig().public.apiBase",
+    "NO hardcoded colors — only CSS vars from tokens.css",
+    "UBreadcrumbs MUST emit Schema.org BreadcrumbList JSON-LD"
+  ],
+  "acceptance_criteria": [
+    "tokens.css — all required vars present",
+    "UButton renders all 3 variants without type errors",
+    "themeStore toggles theme, state persists in localStorage",
+    "useApi handles 401 and calls authStore.refreshToken()",
+    "vue-tsc --noEmit — 0 errors"
+  ],
+  "report": ".gemini/agents/reports/frontend/FE-01.md"
+}

@@ -1,0 +1,58 @@
+{
+  "task_id": "BE-05",
+  "phase": 6,
+  "agent": "backend-agent",
+  "title": "Notifications: Email + Telegram + In-App WebSocket",
+  "status": "TODO",
+  "priority": "medium",
+  "depends_on": ["BE-03"],
+  "blocks": [],
+  "contracts_required": [".gemini/agents/contracts/api_contracts.md"],
+  "pre_check": [
+    "read_file backend/app/db/models/notification.py",
+    "list_directory backend/app/tasks/",
+    "read_file backend/app/core/config.py  # check MAIL_*, TELEGRAM_* vars"
+  ],
+  "description": "Notification system: Order status change -> Celery chord -> parallel Email + Telegram + In-App push. In-App via WebSocket reusing IoT ConnectionManager.",
+  "dependencies_to_add": ["fastapi-mail==1.4.1","jinja2==3.1.3","premailer==3.10.0","aiogram==3.9.0"],
+  "email_templates": {
+    "dir": "backend/app/templates/email/",
+    "files": ["base.html","order_created.html","order_paid.html","order_shipped.html","order_delivered.html","order_cancelled.html","welcome.html","password_reset.html","comment_approved.html"],
+    "note": "All inherit base.html. CSS inlined via premailer (Gmail compat)."
+  },
+  "celery_dispatcher": {
+    "task": "tasks.notify_order_status_changed",
+    "bind": true,
+    "max_retries": 3,
+    "pattern": "chord([send_email, send_telegram, send_inapp])(log_result)"
+  },
+  "inapp_model_check": {
+    "file": "backend/app/db/models/notification.py",
+    "must_have": "id, user_id, title, body, link(nullable), is_read(default=False), created_at"
+  },
+  "inapp_api": [
+    "GET    /api/v1/notifications  (current_user)",
+    "PATCH  /api/v1/notifications/{id}/read",
+    "DELETE /api/v1/notifications/read-all"
+  ],
+  "inapp_realtime": "WebSocket /ws/notifications/{user_id} — reuse ConnectionManager from BE-04",
+  "telegram": {
+    "file": "backend/app/integrations/telegram.py",
+    "note": "If TELEGRAM_BOT_TOKEN not set — skip silently, no exception"
+  },
+  "sms": "smsc.ru — stub only, SMSC_LOGIN intentionally empty",
+  "contracts": [
+    "NEVER log author_email or any personal data (152-FZ)",
+    "SMS channel is stub — SMSC_LOGIN stays empty",
+    "External channel failure -> tenacity retry x3, then log and continue",
+    "password_reset token: TTL 1hr, single-use (Redis SET NX)"
+  ],
+  "acceptance_criteria": [
+    "Order PAID -> email sent via Celery (check task result)",
+    "Telegram sent if token set, skipped if not",
+    "In-app notification created in DB + WebSocket push",
+    "PATCH /notifications/{id}/read -> is_read=True",
+    "No personal data in structlog output"
+  ],
+  "report": ".gemini/agents/reports/backend/BE-05.md"
+}

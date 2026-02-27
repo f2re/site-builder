@@ -1,0 +1,47 @@
+{
+  "task_id": "FE-03",
+  "phase": 7,
+  "agent": "frontend-agent",
+  "title": "Blog pages + TipTap admin editor",
+  "status": "TODO",
+  "priority": "high",
+  "depends_on": ["FE-01","BE-02"],
+  "blocks": ["FE-04"],
+  "contracts_required": [".gemini/agents/contracts/api_contracts.md"],
+  "pre_check": [
+    "list_directory frontend/pages/blog/",
+    "list_directory frontend/components/blog/",
+    "read_file frontend/package.json  # check @tiptap/* deps"
+  ],
+  "description": "Blog public pages (SSR/SEO) + admin TipTap editor. Client-side DOMPurify on v-html. Editor sends content_json, backend generates HTML.",
+  "tiptap_deps": ["@tiptap/vue-3","@tiptap/starter-kit","@tiptap/extension-image","@tiptap/extension-youtube","@tiptap/extension-link","@tiptap/extension-placeholder","@tiptap/extension-character-count","@tiptap/extension-code-block-lowlight","lowlight"],
+  "pages": {
+    "/blog": "SSR, cursor pagination, filter by category+tag, BreadcrumbList, RSS link in <head>",
+    "/blog/[slug]": "SSR, Schema.org BlogPosting(datePublished/Modified/author/image), reading_time_minutes display, comment form, canonical=/blog/{slug}",
+    "/admin/blog": "List with status filter (draft/published/archived), create/edit/delete/preview buttons",
+    "/admin/blog/[id]/edit": "TipTap editor, SEO panel(meta_title max60/meta_description max160 with char counter), image upload -> POST /api/v1/media/upload -> TipTap insertContent, status toggle draft/published"
+  },
+  "components": [
+    "PostCard.vue — title, excerpt, date, reading_time, category",
+    "PostContent.vue — v-html with DOMPurify.sanitize() client-side",
+    "CommentForm.vue — name/email(local only)/body, success state",
+    "CommentList.vue — approved comments only",
+    "TipTapEditor.vue — main editor component",
+    "SeoPanel.vue — meta_title/description with char counter"
+  ],
+  "contracts": [
+    "v-html only with content_html from API (already bleach-cleaned on backend)",
+    "Additional DOMPurify.sanitize() client-side before v-html",
+    "NEVER display author_email publicly",
+    "Editor saves content_json (not HTML) — backend generates HTML"
+  ],
+  "acceptance_criteria": [
+    "/blog/[slug] — Schema.org BlogPosting in <script type=application/ld+json>",
+    "Comment form submits and shows success state",
+    "TipTap loads existing content_json on edit",
+    "Image upload inserts into editor",
+    "SeoPanel counts meta_title chars in real time",
+    "vue-tsc --noEmit — 0 errors"
+  ],
+  "report": ".gemini/agents/reports/frontend/FE-03.md"
+}

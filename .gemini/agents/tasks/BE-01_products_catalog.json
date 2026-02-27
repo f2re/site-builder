@@ -1,0 +1,59 @@
+{
+  "task_id": "BE-01",
+  "phase": 3,
+  "agent": "backend-agent",
+  "title": "Catalog: products, categories, inventory Redis",
+  "status": "TODO",
+  "priority": "high",
+  "depends_on": [],
+  "blocks": ["BE-03", "FE-02"],
+  "contracts_required": [".gemini/agents/contracts/api_contracts.md"],
+  "pre_check": [
+    "list_directory backend/app/api/v1/products/",
+    "list_directory backend/app/db/models/",
+    "read_file backend/app/db/models/product.py IF exists"
+  ],
+  "description": "Implement full products domain: models, Alembic migration, repository, service, router, schemas. Redis inventory (Lua scripts for atomic stock reservation).",
+  "models": {
+    "file": "backend/app/db/models/product.py",
+    "classes": [
+      "Category: id, name, slug(unique+indexed), parent_id(Adjacency List), is_active",
+      "Product: id, name, slug(unique+indexed), description_html(bleach-sanitized), attributes(JSONB), category_id, price(Decimal), is_active, meta_title(max60), meta_description(max160), og_image_url, created_at, updated_at",
+      "ProductImage: id, product_id, url, alt(NOT NULL), is_cover, sort_order, width, height",
+      "ProductVariant: id, product_id, sku(unique), name, price(Decimal), stock(int>=0)",
+      "StockMovement: id, variant_id, delta(int), reason(sale|return|correction), created_at"
+    ]
+  },
+  "api": [
+    "GET /api/v1/products  ?after=&limit=24&category=",
+    "GET /api/v1/products/{slug}",
+    "GET /api/v1/categories",
+    "GET /api/v1/products/search?q=  (proxy Meilisearch)"
+  ],
+  "redis": {
+    "stock_key": "stock:{variant_id}",
+    "reservation_ttl_min": 30,
+    "note": "Lua script for atomic reserve/release/confirm — no plain DECR"
+  },
+  "celery_tasks": [
+    "tasks.index_product(product_id)",
+    "tasks.delete_product_from_index(product_id)"
+  ],
+  "contracts": [
+    "description_html — bleach.clean() before save",
+    "slug — python-slugify, unique in DB",
+    "ProductImage.alt — NOT NULL",
+    "ProductImage.width/height — fill on upload (prevents CLS)",
+    "No Any in type hints",
+    "Cursor pagination: next_cursor + per_page, NOT offset"
+  ],
+  "acceptance_criteria": [
+    "alembic check — clean",
+    "mypy backend/app/api/v1/products/ --strict — 0 errors",
+    "pytest tests/unit/products/ -v — all green",
+    "GET /api/v1/products returns list with next_cursor",
+    "GET /api/v1/products/{slug} returns images + variants + stock",
+    "reserve/confirm/release via Lua — no race condition"
+  ],
+  "report": ".gemini/agents/reports/backend/BE-01.md"
+}

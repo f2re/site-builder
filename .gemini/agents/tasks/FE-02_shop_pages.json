@@ -1,0 +1,46 @@
+{
+  "task_id": "FE-02",
+  "phase": 7,
+  "agent": "frontend-agent",
+  "title": "Shop pages: catalog, product card, cart, checkout, order status",
+  "status": "TODO",
+  "priority": "high",
+  "depends_on": ["FE-01","BE-01","BE-03"],
+  "blocks": ["FE-04"],
+  "contracts_required": [".gemini/agents/contracts/api_contracts.md"],
+  "pre_check": [
+    "list_directory frontend/pages/",
+    "list_directory frontend/components/shop/"
+  ],
+  "description": "Public shop pages with SSR, SEO, Schema.org. Cart is CSR. Checkout integrates with CDEK pickup points and YooMoney redirect.",
+  "pages": {
+    "/products": "SSR, useAsyncData, cursor pagination, filter by ?category=slug, usePageSeo, BreadcrumbList, canonical without sort/page",
+    "/products/[slug]": "SSR, Schema.org Product+Offer, img with alt/width/height/loading=lazy/srcset 480w/800w/1200w, hero loading=eager fetchpriority=high, cartStore.addItem(), variant switcher",
+    "/cart": "CSR, cartStore, qty stepper, remove, total + delivery estimate",
+    "/checkout": "Steps: 1.Address+delivery 2.Confirm 3.Payment. CDEK PVZ from /api/v1/delivery/pickup-points. POST /api/v1/orders -> redirect to confirmation_url",
+    "/orders/[id]": "SSR, status polling every 30sec, progress bar: Pending->Paid->Processing->Shipped->Delivered"
+  },
+  "components": [
+    "ProductCard.vue — name, price, image(lazy), add-to-cart button",
+    "ProductGallery.vue — zoom, thumbnail strip",
+    "CartItem.vue — qty stepper, remove",
+    "CartSummary.vue — total + delivery",
+    "OrderStatus.vue — progress bar",
+    "DeliveryPicker.vue — CDEK PVZ list"
+  ],
+  "contracts": [
+    "useSeoMeta + canonical on every public page",
+    "<img alt> — required, never empty",
+    "Stock info — separate request, does NOT block SSR",
+    "canonical for /products: ?category= only, no sort/page"
+  ],
+  "acceptance_criteria": [
+    "/products — SSR, SEO canonical, cursor pagination works",
+    "/products/[slug] — Schema.org Product in <script type=application/ld+json>",
+    "/cart — add/remove, total recalculates",
+    "/checkout — creates order, redirects to payment",
+    "vue-tsc --noEmit — 0 errors",
+    "Lighthouse SEO >= 95 on /products/[slug]"
+  ],
+  "report": ".gemini/agents/reports/frontend/FE-02.md"
+}
