@@ -1,9 +1,12 @@
 """Blog-related database models."""
-from datetime import datetime
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 import enum
+import uuid
+from datetime import datetime
+from typing import List, Optional
+
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, Table, Column, Integer
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
@@ -15,63 +18,93 @@ class BlogPostStatus(str, enum.Enum):
     ARCHIVED = "archived"
 
 
+# Association table for BlogPost <-> Tag
+blog_post_tags = Table(
+    "blog_post_tags",
+    Base.metadata,
+    Column("post_id", UUID(as_uuid=True), ForeignKey("blog_posts.id", ondelete="CASCADE"), primary_key=True),
+    Column("tag_id", UUID(as_uuid=True), ForeignKey("blog_tags.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
 class BlogCategory(Base):
     """Blog post categories."""
-    __tablename__ = "blog_category"
+    __tablename__ = "blog_categories"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    slug: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Relationships
-    posts: Mapped[list["BlogPost"]] = relationship("BlogPost", back_populates="category")
+    posts: Mapped[List["BlogPost"]] = relationship("BlogPost", back_populates="category")
+
+
+class Tag(Base):
+    """Blog post tags."""
+    __tablename__ = "blog_tags"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    slug: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
+
+    # Relationships
+    posts: Mapped[List["BlogPost"]] = relationship(
+        "BlogPost", secondary=blog_post_tags, back_populates="tags"
+    )
 
 
 class BlogPost(Base):
-    """Blog posts with SEO fields and content in JSON + HTML."""
-    __tablename__ = "blog_post"
+    """Blog posts with SEO fields and content."""
+    __tablename__ = "blog_posts"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    title: Mapped[str] = mapped_column(String(200), nullable=False)
-    slug: Mapped[str] = mapped_column(String(200), unique=True, index=True, nullable=False)
-    excerpt: Mapped[str] = mapped_column(String(300), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    category_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("blog_categories.id", ondelete="SET NULL"), nullable=True
+    )
+    author_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     
-    # Content in two formats
-    content_json: Mapped[dict] = mapped_column(JSONB, nullable=False)  # TipTap JSON
-    content_html: Mapped[str] = mapped_column(Text, nullable=False)  # Sanitized HTML
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)  # Sanitized HTML or JSON string
     
-    # SEO fields
-    meta_title: Mapped[str | None] = mapped_column(String(60), nullable=True)
-    meta_description: Mapped[str | None] = mapped_column(String(160), nullable=True)
-    og_image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    
-    # Relationships
-    category_id: Mapped[int | None] = mapped_column(ForeignKey("blog_category.id"), nullable=True)
-    author_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    
-    # Status and dates
-    status: Mapped[str] = mapped_column(
+    status: Mapped[BlogPostStatus] = mapped_column(
         Enum(BlogPostStatus, native_enum=False),
         default=BlogPostStatus.DRAFT,
         nullable=False,
     )
-    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    is_featured: Mapped[bool] = mapped_column(Boolean, default=False)
+    cover_image: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    
+    # SEO fields
+    meta_title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    meta_description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
+        nullable=False,
     )
     
     # Metrics
     views: Mapped[int] = mapped_column(Integer, default=0)
     reading_time_minutes: Mapped[int] = mapped_column(Integer, default=0)
-    
+
     # Relationships
-    category: Mapped[BlogCategory | None] = relationship("BlogCategory", back_populates="posts")
+    category: Mapped[Optional[BlogCategory]] = relationship("BlogCategory", back_populates="posts")
     author: Mapped["User"] = relationship("User", back_populates="blog_posts")
-    media: Mapped[list["BlogPostMedia"]] = relationship(
+    tags: Mapped[List[Tag]] = relationship(
+        "Tag", secondary=blog_post_tags, back_populates="posts"
+    )
+    media: Mapped[List["BlogPostMedia"]] = relationship(
         "BlogPostMedia",
         back_populates="post",
         cascade="all, delete-orphan",
@@ -79,20 +112,21 @@ class BlogPost(Base):
 
 
 class BlogPostMedia(Base):
-    """Media files (images/videos) attached to blog posts."""
+    """Media files attached to blog posts."""
     __tablename__ = "blog_post_media"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    post_id: Mapped[int | None] = mapped_column(ForeignKey("blog_post.id"), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    post_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("blog_posts.id", ondelete="CASCADE"), nullable=True
+    )
     
-    url: Mapped[str] = mapped_column(String(500), nullable=False)  # MinIO path
+    url: Mapped[str] = mapped_column(String(1000), nullable=False)
     media_type: Mapped[str] = mapped_column(String(10), nullable=False)  # 'image' or 'video'
-    alt: Mapped[str] = mapped_column(String(200), nullable=False)  # Required for SEO
-    caption: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    alt: Mapped[str] = mapped_column(String(255), nullable=False)
+    caption: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     
-    # Dimensions (for images only)
-    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    width: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    height: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     
     mime_type: Mapped[str] = mapped_column(String(50), nullable=False)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
