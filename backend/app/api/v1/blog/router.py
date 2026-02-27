@@ -1,58 +1,102 @@
-from typing import List, Optional
-from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
 
-from app.api.v1.blog.schemas import BlogPagination, BlogPostRead, BlogCategoryRead
-from app.api.v1.blog.repository import BlogRepository, get_blog_repo
-from app.db.models.blog import BlogStatus
+from app.db.session import get_db
+from app.core.dependencies import get_current_user, require_admin
+from app.db.models.user import User
+from .schemas import (
+    BlogPostListResponse,
+    BlogPostDetailResponse,
+    BlogPostCreate,
+    BlogPostUpdate,
+)
+from .service import BlogService
 
 router = APIRouter(prefix="/blog", tags=["Blog"])
 
-@router.get("/posts", response_model=BlogPagination)
-async def list_posts(
-    category_slug: Optional[str] = Query(None, description="Filter by category slug"),
-    tag_slug: Optional[str] = Query(None, description="Filter by tag slug"),
-    cursor: Optional[UUID] = Query(None, description="Cursor for pagination"),
-    per_page: int = Query(20, ge=1, le=100),
-    repo: BlogRepository = Depends(get_blog_repo)
-):
-    """
-    List published blog posts with filtering and pagination.
-    """
-    items, next_cursor, total = await repo.list_posts(
-        category_slug=category_slug,
-        tag_slug=tag_slug,
-        status=BlogStatus.published,
-        cursor=cursor,
-        per_page=per_page
-    )
-    return {
-        "items": items,
-        "next_cursor": next_cursor,
-        "total": total
-    }
 
-@router.get("/posts/{slug}", response_model=BlogPostRead)
+@router.get("/posts", response_model=BlogPostListResponse)
+async def list_posts(
+    status: str | None = Query(None, description="Filter by status: draft|published|archived"),
+    category: str | None = Query(None, description="Filter by category slug"),
+    tag: str | None = Query(None, description="Filter by tag slug"),
+    after: str | None = Query(None, description="Cursor for pagination"),
+    limit: int = Query(12, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    """List blog posts with pagination and filters."""
+    service = BlogService(db)
+    return await service.list_posts(
+        status=status,
+        category=category,
+        tag=tag,
+        after=after,
+        limit=limit,
+    )
+
+
+@router.get("/posts/{slug}", response_model=BlogPostDetailResponse)
 async def get_post(
     slug: str,
-    repo: BlogRepository = Depends(get_blog_repo)
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    Get a single published blog post by its slug.
-    """
-    post = await repo.get_by_slug(slug, status=BlogStatus.published)
+    """Get single blog post by slug. Increments views."""
+    service = BlogService(db)
+    post = await service.get_post_by_slug(slug)
     if not post:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Post not found"
-        )
+        raise HTTPException(status_code=404, detail="Post not found")
     return post
 
-@router.get("/categories", response_model=List[BlogCategoryRead])
-async def list_categories(
-    repo: BlogRepository = Depends(get_blog_repo)
+
+@router.get("/categories")
+async def list_categories(db: AsyncSession = Depends(get_db)):
+    """List all blog categories."""
+    service = BlogService(db)
+    return await service.list_categories()
+
+
+@router.get("/tags")
+async def list_tags(db: AsyncSession = Depends(get_db)):
+    """List all tags."""
+    service = BlogService(db)
+    return await service.list_tags()
+
+
+# Admin endpoints
+@router.post("/posts", response_model=BlogPostDetailResponse, dependencies=[Depends(require_admin)])
+async def create_post(
+    data: BlogPostCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Get all blog categories.
-    """
-    return await repo.get_categories()
+    """Create new blog post (admin only)."""
+    service = BlogService(db)
+    return await service.create_post(data, author_id=current_user.id)
+
+
+@router.put("/posts/{post_id}", response_model=BlogPostDetailResponse, dependencies=[Depends(require_admin)])
+async def update_post(
+    post_id: int,
+    data: BlogPostUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update blog post (admin only)."""
+    service = BlogService(db)
+    post = await service.update_post(post_id, data)
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    return post
+
+
+@router.delete("/posts/{post_id}", dependencies=[Depends(require_admin)])
+async def delete_post(
+    post_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete (archive) blog post (admin only)."""
+    service = BlogService(db)
+    success = await service.delete_post(post_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Post not found")
+    return {"message": "Post deleted"}

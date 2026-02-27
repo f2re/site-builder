@@ -1,36 +1,55 @@
+# Core
 fastapi==0.131.0
 uvicorn[standard]==0.41.0
 pydantic-settings==2.8.1
+
+# Database
 sqlalchemy[asyncio]==2.0.44
 asyncpg==0.30.0
+alembic==1.14.0
+
+# Security
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-structlog==25.1.1
-tenacity==9.0.0
-python-dotenv==1.0.1
-alembic==1.15.1
-python-multipart==0.0.25
-ruff==0.9.4
-mypy==1.14.1
-types-python-jose==3.3.4.20240106
-types-passlib==1.7.7.20240327
-redis==5.2.2
-httpx==0.28.3
-aiomoney==3.0.2
-celery==5.4.0
-fastapi-mail==1.4.2
-aiogram==3.18.0
-jinja2==3.1.5
 cryptography==44.0.0
+
+# Logging
+structlog==24.4.0
+python-json-logger==3.2.1
+
+# HTTP client
+httpx==0.28.3
+tenacity==9.0.0
+
+# MinIO / S3
+miniopy-async==1.22
+
+# Media processing
+Pillow==11.1.0
+
+# HTML sanitization
 bleach==6.2.0
-slowapi==0.1.9
+
+# Search
+meilisearch-python-sdk==3.11.0
+
+# Background tasks
+celery[redis]==5.4.0
+redis==5.2.2
+
+# Utilities
+python-slugify==8.0.4
+python-dotenv==1.0.1
+python-multipart==0.0.20
+
+# Testing
 pytest==8.3.5
 pytest-asyncio==0.25.2
-pytest-cov==6.0.0
-bandit==1.8.0
-safety==3.3.2
-miniopy-async==1.23
-Pillow==11.1.0
-meilisearch-python-sdk==3.11.0
-python-slugify==8.0.4
-premailer==3.10.0
+respx==0.22.0
+
+# Linters
+ruff==0.9.2
+mypy==1.14.1
+types-python-jose==3.3.4.20240106
+types-passlib==1.7.7.20240819
+types-bleach==6.2.0.20250106

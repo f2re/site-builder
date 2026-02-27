@@ -1,170 +1,76 @@
-"""Media upload and management API endpoints.
-
-Provides presigned URLs for direct browser → MinIO uploads,
-confirmation endpoint to trigger Celery image processing,
-and media deletion.
-"""
-from datetime import datetime
-from pathlib import Path
-import uuid
-
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
+import uuid
+from datetime import datetime
 
-from app.api.v1.media.schemas import (
-    MediaConfirmRequest,
-    MediaConfirmResponse,
-    UploadUrlRequest,
-    UploadUrlResponse,
-)
-from app.core.database import get_db
+from app.db.session import get_db
 from app.core.dependencies import get_current_user
-from app.core.logging import logger
 from app.db.models.user import User
-from app.integrations.minio import minio_client
-from app.tasks.media import process_image
+from app.integrations.minio import (
+    get_presigned_upload_url,
+    get_public_url,
+)
+from .service import MediaService
 
-router = APIRouter()
+router = APIRouter(prefix="/media", tags=["Media"])
+
+
+class UploadUrlRequest(BaseModel):
+    filename: str
+    content_type: str
+    context: str  # "blog" | "product"
+
+
+class UploadUrlResponse(BaseModel):
+    upload_url: str
+    object_name: str
+    public_url: str
+
+
+class ConfirmUploadRequest(BaseModel):
+    object_name: str
+    alt: str
+    context: str
+    entity_id: int | None = None
 
 
 @router.post("/upload-url", response_model=UploadUrlResponse)
-async def get_upload_url(
-    request: UploadUrlRequest,
+async def request_upload_url(
+    data: UploadUrlRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Generate presigned upload URL for direct browser → MinIO upload.
-    
-    Flow:
-    1. Client calls this endpoint with filename and context
-    2. Backend generates unique object path and presigned PUT URL
-    3. Client uploads file directly to MinIO using PUT request
-    4. Client calls /media/confirm to trigger processing
-    
-    Requires authentication.
-    """
-    # Generate unique filename to prevent collisions
-    ext = Path(request.filename).suffix.lower()
-    
-    # Validate extension
-    allowed_extensions = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
-    if ext not in allowed_extensions:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported file type. Allowed: {', '.join(allowed_extensions)}",
-        )
-    
-    # Generate path: {context}/{year}/{month}/{uuid}{ext}
+    """Generate presigned MinIO upload URL for direct browser upload."""
+    # Generate unique object name
+    ext = data.filename.split('.')[-1] if '.' in data.filename else 'jpg'
     now = datetime.utcnow()
-    unique_name = f"{uuid.uuid4().hex}{ext}"
-    object_name = f"{request.context}/{now.year}/{now.month:02d}/{unique_name}"
-    
-    logger.info(
-        "generating_upload_url",
-        user_id=current_user.id,
-        context=request.context,
-        object_name=object_name,
-    )
-    
-    # Get presigned URL (15 min expiration)
-    upload_url = await minio_client.get_presigned_upload_url(
-        object_name=object_name,
-        expires=15,
-    )
-    
-    public_url = minio_client.get_public_url(object_name)
-    
+    object_name = f"{data.context}/{now.year}/{now.month:02d}/{uuid.uuid4()}.{ext}"
+
+    # Get presigned URL (15 min expiry)
+    upload_url = await get_presigned_upload_url(object_name, data.content_type)
+    public_url = await get_public_url(object_name)
+
     return UploadUrlResponse(
         upload_url=upload_url,
         object_name=object_name,
         public_url=public_url,
-        expires_in=15,
     )
 
 
-@router.post("/confirm", response_model=MediaConfirmResponse)
+@router.post("/confirm")
 async def confirm_upload(
-    request: MediaConfirmRequest,
-    current_user: User = Depends(get_current_user),
+    data: ConfirmUploadRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Confirm successful upload and trigger image processing.
+    """Confirm upload and trigger Celery processing."""
+    service = MediaService(db)
     
-    Creates database record (BlogPostMedia or ProductImage)
-    and launches Celery task for WebP conversion, thumbnail generation,
-    and dimension extraction.
-    
-    Requires authentication.
-    """
-    logger.info(
-        "confirming_upload",
-        user_id=current_user.id,
-        object_name=request.object_name,
-        context=request.context,
+    media = await service.confirm_upload(
+        object_name=data.object_name,
+        alt=data.alt,
+        context=data.context,
+        entity_id=data.entity_id,
     )
-    
-    # Create database record based on context
-    if request.context == "blog":
-        from app.db.models.blog import BlogPostMedia
-        
-        media = BlogPostMedia(
-            post_id=request.entity_id,  # Can be None for new posts
-            url=request.object_name,  # Will be updated to .webp by Celery
-            media_type="image",
-            alt=request.alt,
-            caption=request.caption,
-            mime_type="image/jpeg",  # Will be updated by Celery
-            size_bytes=0,  # Will be updated by Celery
-            sort_order=0,
-        )
-        db.add(media)
-        await db.commit()
-        await db.refresh(media)
-        media_id = media.id
-        
-    elif request.context == "product":
-        from app.db.models.product import ProductImage
-        
-        if not request.entity_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="entity_id (product_id) is required for product images",
-            )
-        
-        media = ProductImage(
-            product_id=request.entity_id,
-            url=request.object_name,  # Will be updated to .webp
-            alt=request.alt,
-            is_cover=False,
-            sort_order=0,
-        )
-        db.add(media)
-        await db.commit()
-        await db.refresh(media)
-        media_id = media.id
-    
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid context",
-        )
-    
-    # Launch Celery task for image processing
-    process_image.delay(
-        object_name=request.object_name,
-        media_id=media_id,
-        context=request.context,
-    )
-    
-    logger.info(
-        "upload_confirmed",
-        media_id=media_id,
-        context=request.context,
-    )
-    
-    return MediaConfirmResponse(
-        media_id=media_id,
-        status="processing",
-        message="Image uploaded successfully. Processing in background.",
-    )
+
+    return {"message": "Upload confirmed", "media_id": media.id}
