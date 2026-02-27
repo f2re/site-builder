@@ -13,7 +13,7 @@ from app.api.v1.orders.schemas import OrderCreate
 from app.db.models.order import Order, OrderItem, OrderStatus
 from app.db.models.user import User
 from app.integrations.yoomoney import yoomoney_client
-from app.integrations.redis_inventory import reserve_stock
+from app.integrations.redis_inventory import reserve_stock, inventory
 from app.tasks.notifications.dispatcher import send_email_task
 from app.core.config import settings
 
@@ -34,7 +34,7 @@ class OrderService:
     async def create_order(self, user: User, order_data: OrderCreate, cart_id: str) -> Order:
         # 1. Get cart items
         cart = await self.cart_service.get_cart(cart_id)
-        
+
         if not cart["items"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -44,7 +44,7 @@ class OrderService:
         # 2. Stock reservation via Redis (Lua)
         for item in cart["items"]:
             success = await reserve_stock(
-                variant_id=item["variant_id"], 
+                variant_id=item["variant_id"],
                 quantity=item["quantity"]
             )
             if not success:
@@ -53,7 +53,6 @@ class OrderService:
                     detail=f"Insufficient stock for item: {item['name']}"
                 )
 
-        # 3. Create Order
         total_amount = Decimal(str(cart["total_price"]))
         order = Order(
             user_id=user.id if user else None,
@@ -62,8 +61,7 @@ class OrderService:
             shipping_address=order_data.shipping_address,
             currency="RUB"
         )
-        
-        # 4. Create OrderItems
+
         for item in cart["items"]:
             order_item = OrderItem(
                 product_variant_id=item["variant_id"],
@@ -82,16 +80,15 @@ class OrderService:
         order.payment_id = payment_data["payment_id"]
         order.payment_url = payment_data["payment_url"]
 
-        # 6. Save to DB
         created_order = await self.order_repo.create(order)
-        
+
         # 7. Clear Cart
         await self.cart_service.clear_cart(cart_id)
-        
+
         # 8. Commit transaction
         await self.session.commit()
         await self.session.refresh(created_order)
-        
+
         # 9. Trigger Notification (Async via Celery)
         recipient_email = user.email if user else order_data.email # assume email in order_data for guests
         if recipient_email:
@@ -107,24 +104,23 @@ class OrderService:
                     "payment_url": created_order.payment_url
                 }
             )
-        
+
         return created_order
 
     async def update_order_status(self, order_id: UUID, new_status: OrderStatus) -> Order:
         order = await self.order_repo.get_by_id(order_id)
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
-            
+
         order.status = new_status
         await self.order_repo.update(order)
         await self.session.commit()
         await self.session.refresh(order)
-        
-        # Trigger Status Update Notification
+
         if order.user:
             send_email_task.delay(
                 recipient=order.user.email,
-                subject=f"Статус заказа №{order.id} обновлен",
+                subject=f"Status zakaza #{order.id} obnovlen",
                 template_name="order_status_updated.html",
                 context={
                     "full_name": order.user.full_name or order.user.email,
@@ -132,7 +128,7 @@ class OrderService:
                     "status": order.status.value
                 }
             )
-            
+
         return order
 
     async def get_order(self, order_id: UUID, user_id: UUID) -> Order:
