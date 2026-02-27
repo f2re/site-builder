@@ -9,34 +9,70 @@
 
 | Этап | Название | Статус |
 |--------|---------|--------|
-| 1 | Инфраструктура и ядро (Docker, JWT, логи, БД) | ✅ Готов |
-| 2 | Каталог товаров + инвентарь (Redis + PG) | 🔄 В работе |
-| 3 | Корзина, заказы, YooMoney, СДЭК | ⏳ Ожидает |
-| 4 | **Блог + медиа (TipTap + MinIO + SEO)** | ⏳ Ожидает |
-| 5 | Админпанель | ⏳ Ожидает |
-| 6 | Уведомления, курсы валют | ⏳ Ожидает |
-| 7 | Безопасность (152-ФЗ, bleach, HMAC) | ✅ Параллельно |
-| 8 | IoT / OBD2 интеграция | ⏳ Ожидает |
-| 9 | **SEO: sitemap, Schema.org, canonical, CWV** | ⏳ Ожидает |
-| 10 | Тесты + Lighthouse CI + деплой | ⏳ Ожидает |
+| 1 | Инфраструктура и ядро (Docker, JWT, логи, БД, Redis) | ✅ Готов |
+| 2 | Каталог товаров + инвентарь (products, categories, variants) | ✅ Готов |
+| 3 | Корзина, заказы, YooMoney, СДЭК | ✅ Готов |
+| 4 | Блог + медиа (TipTap + MinIO + SEO) | ✅ Готов |
+| 5 | Админпанель (CRUD товары/заказы/блог/пользователи) | ✅ Готов |
+| 6 | Пользовательский кабинет (профиль, заказы, устройства, WS) | ✅ Готов |
+| 7 | Безопасность (152-ФЗ, bleach, HMAC, rate limiting) | ✅ Готов |
+| 8 | IoT / OBD2 интеграция (Redis Stream, WebSocket) | ✅ Готов |
+| 9 | **CI/CD (GitLab Runner, Docker Registry, SSH-деплой)** | ✅ Готов |
+| 10 | **SEO: sitemap, Schema.org, canonical, CWV** | 🔄 В работе |
+| 11 | Meilisearch + MinIO интеграция в backend | 🔄 В работе |
+| 12 | Тесты + Lighthouse CI | ⏳ Ожидает |
 
 Полный план с техническими деталями: [→ `plan.md`](plan.md)
 
 ---
 
-## 📐 Архитектура и стек технологий
+## 📅 Что реализовано (v1.0.3)
+
+### Backend (`backend/app/api/v1/`)
+
+| Модуль | Описание |
+|-------|------------|
+| `auth/` | JWT аутентификация, refresh rotation, выход |
+| `users/` | Профиль, заказы, устройства, WebSocket OBD2 |
+| `products/` | Каталог, категории, варианты, cursor-пагинация |
+| `cart/` | Redis Hash, гостевой/авторизованный режим |
+| `orders/` | Создание, статусы, атомарное списание со склада |
+| `delivery/` | СДЭК v2 API, расчёт тарифов |
+| `blog/` | Посты, категории, теги, комментарии, SEO-слаги |
+| `media/` | Presigned URL MinIO, Celery WebP-преобразование |
+| `admin/` | CRUD товары/заказы/блог/пользователи, IoT-мониторинг |
+| `iot/` | OBD2 устройства, Redis Stream телеметрия |
+
+### Инфраструктура
+
+- ✅ GitLab Runner 18.9 (`site-builder-runner`) зарегистрирован на [gitlab.wifiobd.ru](https://gitlab.wifiobd.ru)
+- ✅ CI/CD пайплайн: `lint → test → build → deploy_staging → deploy_prod`
+- ✅ Деплой по тегу (`git push origin vX.Y.Z`) — SSH на Машину B
+- ✅ `deploy/scripts/setup_server.sh` — инициализация прод-сервера
+- ✅ `deploy/scripts/setup_runner.sh` — установка Runner (glrt-токен, GitLab 16+)
+
+### Что в работе
+
+- 🔄 Подключение Meilisearch-клиента к backend (client, config, индекс `products`)
+- 🔄 Подключение MinIO-клиента к backend (`app/db/minio.py`)
+- 🔄 Frontend SEO: sitemap.xml, Schema.org, canonical
+- 🔄 `package-lock.json` — обновить после добавления `@nuxt/image`, `nuxt-icon`
+
+---
+
+## 📀 Архитектура и стек технологий
 
 | Слой | Технологии | Назначение |
 |------|-----------|-----------|
-| **Backend** | Python 3.12+, FastAPI, SQLAlchemy 2.x async, Alembic, PostgreSQL 16 | REST API, асинхронное ядро |
-| **Frontend** | Nuxt 3, Vue 3, Pinia, TypeScript, vee-validate + zod | SSR для SEO блога и каталога |
+| **Backend** | Python 3.12+, FastAPI, SQLAlchemy 2.x async, Alembic, PostgreSQL 16 + TimescaleDB | REST API, асинхронное ядро |
+| **Frontend** | Nuxt 3 (v4.x), Vue 3, Pinia, TypeScript, `@nuxt/image`, `nuxt-icon` | SSR для SEO блога и каталога |
 | **Кэш / Очереди** | Redis 7, Celery + Redis broker | Кэш каталога/блога, резерв остатков, обработка медиа |
 | **Хранилище медиа** | MinIO (self-hosted S3) | Фото/видео товаров и блога, presigned URL, WebP |
 | **Поиск** | Meilisearch | Полнотекстовый поиск товаров, self-hosted |
 | **Интеграции** | CDEK v2 API, YooMoney | Доставка, HMAC-SHA256 webhook |
 | **SEO** | Nuxt `useSeoMeta`, Schema.org JSON-LD, sitemap, RSS | Индексация блога/каталога |
-| **Инфраструктура** | Docker Compose, Nginx, Prometheus, Grafana, Loki | Self-hosted, без cloud |
-| **CI/CD** | GitLab CE + GitLab Runner + GitLab Container Registry | Без Docker Hub |
+| **Инфраструктура** | Docker Compose, Nginx, Prometheus, Grafana, Loki, Promtail | Self-hosted, без cloud |
+| **CI/CD** | GitLab CE (gitlab.wifiobd.ru) + GitLab Runner 18.9 + GitLab Container Registry | Без Docker Hub |
 | **ИИ-система** | Gemini CLI, 7 агентов | Мультиагентная разработка |
 
 **Принципы UI/UX:** Mobile-First · Race-Style Design · WCAG 2.1 AA · LCP < 2.5s · CLS < 0.1
@@ -55,134 +91,36 @@ project/
 │   │   │   ├── media/       # presigned URL MinIO, WebP Celery-таска
 │   │   │   ├── orders/      # заказы, статусы
 │   │   │   ├── cart/        # Redis Hash, гости/авторизованные
-│   │   │   ├── payments/    # YooMoney HMAC webhook
 │   │   │   ├── delivery/    # СДЭК v2
-│   │   │   ├── users/
-│   │   │   ├── auth/
-│   │   │   ├── admin/
+│   │   │   ├── users/       # профиль, заказы, OBD2 устройства, WebSocket
+│   │   │   ├── auth/        # JWT, refresh rotation
+│   │   │   ├── admin/       # полный CRUD + IoT-мониторинг
 │   │   │   └── iot/         # OBD2, Redis Stream, WebSocket
 │   │   ├── core/            # config, security, dependencies
 │   │   ├── db/models/       # SQLAlchemy ORM модели
 │   │   ├── tasks/           # Celery: media, search, email, blog
-│   │   └── integrations/    # minio.py, cdek.py, yoomoney.py, cbr_rates.py
+│   │   └── integrations/    # cdek.py, yoomoney.py
 │   └── requirements.txt
 ├── frontend/
 │   ├── pages/
-│   │   ├── blog/[slug].vue  # Schema.org BlogPosting, useSeoMeta
-│   │   └── products/[slug].vue  # Schema.org Product
-│   ├── composables/
-│   │   ├── useSeo.ts        # useSeoMeta + canonical
-│   │   └── useSchemaOrg.ts  # JSON-LD: Article, Product, Breadcrumb
-│   ├── server/routes/
-│   │   ├── sitemap.xml.ts   # динамический sitemap
-│   │   ├── robots.txt.ts    # robots с Sitemap:
-│   │   └── rss.xml.ts       # RSS-фид блога
 │   ├── components/
-│   │   └── AppBreadcrumbs.vue  # BreadcrumbList Schema.org
-│   └── error.vue            # 404 с noindex
+│   ├── composables/
+│   ├── stores/              # Pinia
+│   ├── layouts/
+│   ├── assets/
+│   ├── nuxt.config.ts
+│   └── package.json
 ├── deploy/
 │   ├── docker-compose.prod.yml
-│   └── nginx/nginx.conf     # MinIO proxy, CSP, sitemap
+│   ├── nginx/nginx.conf
+│   └── scripts/
+│       ├── setup_server.sh  # инициализация Машины B
+│       ├── setup_runner.sh  # установка GitLab Runner (glrt-)
+│       └── deploy.sh        # запуск на Машине B через SSH
 ├── .gemini/                 # агенты, политики, команды
-├── .gitlab-ci.yml           # build → test → push → deploy
+├── .gitlab-ci.yml           # lint → test → build → deploy
+├── DEVOPS.md                # инструкция по CI/CD и деплою
 └── plan.md                  # полное ТЗ с техническими деталями
-```
-
----
-
-## 📝 Блог — архитектура
-
-Блог является **основным источником SEO-трафика** для OBD2-тематики. Рендерится через Nuxt SSR.
-
-### Контент и редактор
-
-- **TipTap** (`@tiptap/vue-3`) — rich-text редактор в админпанели
-- Контент хранится в двух форматах: `content_json` (TipTap JSON, для редактора) + `content_html` (pre-rendered, для SSR)
-- `bleach.clean()` санитизирует HTML перед сохранением (XSS)
-- Видео: embed YouTube/RuTube через TipTap YouTube extension или загрузка MP4 в MinIO
-
-### Загрузка медиа (MinIO)
-
-```
-1. Frontend → POST /api/v1/media/upload-url  → presigned PUT URL
-2. Frontend → PUT <presigned URL> (MinIO)     → загрузка без прокси через FastAPI
-3. Frontend → POST /api/v1/media/confirm     → запись в БД + Celery-таска
-4. Celery    → Pillow: WebP + 3 размера (480/800/1200px) → MinIO
-```
-
-> См. технические детали: [plan.md § Этап 4](plan.md)
-
----
-
-## 🔍 SEO архитектура
-
-Все публичные страницы обязаны содержать:
-
-| Компонент | Реализация | Страницы |
-|-----------|------------|----------|
-| `useSeoMeta` | title, description, OG, Twitter Cards | все |
-| Schema.org `BlogPosting` | JSON-LD с автором, датами, `wordCount` | `/blog/[slug]` |
-| Schema.org `Product` | цена, наличие, SKU | `/products/[slug]` |
-| Schema.org `BreadcrumbList` | microdata + JSON-LD | товары, статьи |
-| `rel=canonical` | URL без sort/page, но с category | /products |
-| `sitemap.xml` | динамический: все товары + статьи + статика | `/sitemap.xml` |
-| `robots.txt` | Disallow /admin, /cart, ?* | `/robots.txt` |
-| RSS-фид | последние 20 статей | `/rss.xml` |
-| 301/302 редиректы | таблица `Redirect` в PG + Redis кэш | server middleware |
-| Core Web Vitals | `alt`+`width`+`height` для всех `<img>`, WebP, `lazy` | все |
-
-**Целевые метрики:** Lighthouse SEO = 100 · Performance ≥ 90 · CLS < 0.1 · LCP < 2.5s
-
----
-
-## 🤖 Мультиагентная система (Gemini CLI)
-
-Проект управляется системой специализированных ИИ-агентов. Каждый агент имеет строгую зону ответственности.
-
-### Агенты
-
-| Агент | Зона ответственности | Режим |
-|-------|---------------------|-------|
-| `orchestrator` | Делегирует задачи, проверяет отчёты | read/write |
-| `backend-agent` | FastAPI, SQLAlchemy, Pydantic, REST API, Celery | read/write |
-| `frontend-agent` | Nuxt 3, Vue 3, Pinia, TypeScript, SEO composables | read/write |
-| `security-agent` | OWASP, 152-ФЗ, bleach, HMAC, XSS-аудит | **только чтение** |
-| `testing-agent` | pytest, respx, Locust, Lighthouse CI | read/write |
-| `cdek-agent` | CDEK v2 API, YooMoney интеграция | read/write |
-| `devops-agent` | Docker, Nginx, GitLab CI/CD, Prometheus, MinIO | read/write |
-
-Определения агентов: [`.gemini/agents/`](.gemini/agents/)
-
-### Работа с агентами
-
-**Способ 1 — Прямой вызов в чате Gemini CLI:**
-
-```
-@orchestrator создай план реализации блог-модуля
-@backend-agent реализуй модели BlogPost, BlogCategory, BlogPostMedia
-@frontend-agent добавь страницу /blog/[slug].vue с useSeoMeta и useSchemaOrg
-@frontend-agent реализуй sitemap.xml server route
-@security-agent проведи аудит bleach.clean() в blog/service.py
-@devops-agent настрой Nginx proxy для MinIO /media/
-```
-
-> `orchestrator` **некогда не пишет код** — только делегирует и проверяет отчёты.
-
-**Способ 2 — Система задач (слэш-команды):**
-
-```bash
-/agents:start backend-agent реализовать модуль media/ presigned URL + Celery process_image
-/agents:start frontend-agent добавить AppBreadcrumbs.vue с Schema.org BreadcrumbList
-/agents:run
-/agents:status
-```
-
-**Способ 3 — Domain-команды:**
-
-```bash
-/shop:frontend добавить TipTap-редактор в /admin/blog
-/shop:backend реализовать RSS-фид блога
-/shop:review проверить последние изменения в PR
 ```
 
 ---
@@ -204,25 +142,22 @@ cd site-builder
 
 # Копировать и заполнить переменные
 cp .env.example .env
-# Отредактировать .env: SECRET_KEY, POSTGRES_PASSWORD, MINIO_ROOT_PASSWORD, NUXT_PUBLIC_SITE_URL
+# Отредактировать .env: SECRET_KEY, POSTGRES_PASSWORD, MINIO_ROOT_PASSWORD, MEILI_MASTER_KEY
 
 # Запустить всю инфраструктуру
 docker-compose up --build
 
 # Или только нужные сервисы
-docker-compose up postgres redis minio     # БД, кэш, хранилище
-docker-compose up backend                  # FastAPI сервер
-docker-compose up frontend                 # Nuxt 3 dev-сервер
+docker-compose up postgres redis minio meilisearch  # БД, кэш, хранилище, поиск
+docker-compose up backend                           # FastAPI сервер
+docker-compose up frontend                          # Nuxt 3 dev-сервер
 ```
 
-### 3. Первый запуск Gemini CLI
+### 3. Применить миграции БД
 
 ```bash
-# Gemini CLI подхватит .gemini/settings.json автоматически
-gemini
-
-# Убедиться, что агенты активны:
-/agents:status
+cd backend
+alembic upgrade head
 ```
 
 ---
@@ -231,96 +166,84 @@ gemini
 
 ```bash
 # ── Frontend (Nuxt 3)
+cd frontend
+npm install
 npm run dev           # dev-сервер с HMR
 npm run build         # production build
-npm run lint          # ESLint
-npm run type-check    # vue-tsc --noEmit
-npx nuxt analyze      # анализ бандла
+npm run lint          # vue-tsc --noEmit
+npm run typecheck     # vue-tsc --noEmit
 
 # ── Backend (FastAPI)
 cd backend
 uvicorn app.main:app --reload   # dev-сервер
-ruff check .                    # линтер
-mypy .                          # type-check
+ruff check backend/app/ --fix   # линтер + autofix
+mypy backend/app/ --ignore-missing-imports  # type-check
 alembic upgrade head            # применить миграции
-alembic revision --autogenerate -m "add blog tables"  # создать миграцию
+alembic revision --autogenerate -m "add table"  # создать миграцию
 
 # ── Тесты
-pytest -v                       # все тесты
-pytest tests/unit/              # unit
-pytest tests/integration/       # integration
-npm run test:lighthouse         # Lighthouse CI
-
-# ── SEO-проверка
-curl https://wifiobd.shop/sitemap.xml  # должен вернуть XML
-curl https://wifiobd.shop/robots.txt   # должен содержать Sitemap:
-curl -I https://wifiobd.shop/blog/test-post  # проверить canonical в headers
+pytest -v
+pytest tests/unit/
+pytest tests/integration/
 
 # ── Инфраструктура
-docker-compose ps               # статус контейнеров
-docker-compose logs -f backend  # логи сервиса
-docker-compose down -v          # остановить + удалить volumes
+docker-compose ps
+docker-compose logs -f backend
+docker-compose down -v
 
-# ── Целостность MinIO
-curl http://localhost:9001      # MinIO Console
+# ── Meilisearch
+curl -s http://localhost:7700/health
+# ── MinIO
+curl -s http://localhost:9000/minio/health/live
 ```
 
 ---
 
-## 📊 CI/CD: GitLab → GitLab Registry → prod
+## 📦 CI/CD: GitLab → Registry → prod
 
 ```
-git push main
-    ↓
-build: backend + frontend Docker-образы
-    ↓
-test: pytest + Lighthouse CI
-    ↓
-push: GitLab Container Registry (registry.ci.internal:5005)
-    ↓
-deploy: SSH → prod → docker-compose pull + up  [ручной запуск]
+git tag v1.0.4 && git push origin v1.0.4
+         ↓
+  lint (ruff + mypy + vue-tsc)
+         ↓
+  test (pytest + services)
+         ↓
+  build: Docker-образы backend + frontend
+         ↓
+  push: GitLab Container Registry (gitlab.wifiobd.ru)
+         ↓
+  deploy_staging (авто, пуш в main)
+         ↓
+  deploy_prod (SSH → Машина B → docker compose pull + up)
 ```
 
-Secrets — только через GitLab CI/CD Variables, не в репозитории.
+Secrets — только через GitLab CI/CD Variables (`SSH_PRIVATE_KEY` тип File, `PROD_HOST`, `DEPLOY_USER`). Подробнее: [DEVOPS.md](DEVOPS.md)
 
 ---
 
-## 📄 Структура задачи агента
+## 🤖 Мультиагентная система (Gemini CLI)
 
-```json
-{
-  "task_id": "20260226_143000_frontend",
-  "agent": "frontend-agent",
-  "status": "pending",
-  "priority": "normal",
-  "description": "Реализовать sitemap.xml server route",
-  "created_at": "2026-02-26T14:30:00Z",
-  "dependencies": [],
-  "report_path": ".gemini/agents/reports/frontend/20260226_143000_frontend.md"
-}
+Проект управляется системой специализированных ИИ-агентов. Каждый агент имеет строгую зону ответственности.
+
+| Агент | Зона ответственности | Режим |
+|-------|---------------------|-------|
+| `orchestrator` | Делегирует задачи, проверяет отчёты | read/write |
+| `backend-agent` | FastAPI, SQLAlchemy, Pydantic, REST API, Celery | read/write |
+| `frontend-agent` | Nuxt 3, Vue 3, Pinia, TypeScript, SEO composables | read/write |
+| `security-agent` | OWASP, 152-ФЗ, bleach, HMAC, XSS-аудит | **только чтение** |
+| `testing-agent` | pytest, respx, Locust, Lighthouse CI | read/write |
+| `cdek-agent` | CDEK v2 API, YooMoney интеграция | read/write |
+| `devops-agent` | Docker, Nginx, GitLab CI/CD, Prometheus, MinIO | read/write |
+
+Определения агентов: [`.gemini/agents/`](.gemini/agents/)
+
+```bash
+# Примеры вызовов:
+@backend-agent реализуй клиент Meilisearch в app/db/meilisearch.py
+@frontend-agent добавь страницу /blog/[slug].vue с useSeoMeta и Schema.org
+@devops-agent настрой Nginx proxy для MinIO /media/
+@security-agent проведи аудит bleach.clean() в blog/service.py
 ```
-
-Жизненный цикл: `pending → running → done` (или `blocked` → эскалация)
-
----
-
-## 📋 Структура отчёта агента
-
-Каждый агент **обязан** включить все секции — orchestrator отклонит неполный отчёт:
-
-```markdown
-## Status        — DONE / BLOCKED
-## Completed     — список реализованных файлов
-## Artifacts     — роуты, компоненты, схемы API
-## Contracts Verified — какие coding-контракты проверены
-## SEO Verified  — useSeoMeta + canonical + Schema.org (только frontend)
-## Accessibility — axe-core, alt/width/height (только frontend)
-## Performance   — Lighthouse mobile scores (только frontend)
-## Next          — задачи-продолжения
-## Blockers      — проблемы для эскалации
-```
-
-> **Новое по сравнению с предыдущей версией:** добавлена секция `## SEO Verified` — frontend-agent обязан проверять наличие `useSeoMeta`, Schema.org и `rel=canonical` на каждой реализованной странице.
 
 ---
 
@@ -328,19 +251,16 @@ Secrets — только через GitLab CI/CD Variables, не в репози
 
 | Файл / Директория | Назначение |
 |-------------------|-----------|
-| [`plan.md`](plan.md) | **Полное ТЗ** со 10 этапами, моделями БД, кодом SEO-компонентов, чек-листом |
-| [`.gemini/agents/`](.gemini/agents/) | Определения агентов (контракты, workflow) |
-| [`.gemini/agents/contracts/api_contracts.md`](.gemini/agents/contracts/api_contracts.md) | **Читать ПЕРВЫМ** перед любой задачей |
-| [`.gemini/commands/agents/`](.gemini/commands/agents/) | Слэш-команды: `start`, `run`, `status` |
-| [`.gemini/commands/shop/`](.gemini/commands/shop/) | Domain-команды: `frontend`, `backend`, `review` |
-| [`.gemini/settings.json`](.gemini/settings.json) | Конфигурация Gemini CLI |
-| [`.gemini/system.md`](.gemini/system.md) | Системный промпт оркестратора |
-| [`.env.example`](.env.example) | Шаблон всех переменных среды |
-| [`backend/requirements.txt`](backend/requirements.txt) | Python-зависимости (полный список в `plan.md`) |
-| [`deploy/docker-compose.prod.yml`](deploy/docker-compose.prod.yml) | Продакшн-композ |
-| [`deploy/nginx/nginx.conf`](deploy/nginx/nginx.conf) | Nginx: proxy MinIO, CSP, sitemap, фонты |
-| [`.gitlab-ci.yml`](.gitlab-ci.yml) | CI/CD пайплайн: build → test → push → deploy |
+| [`plan.md`](plan.md) | **Полное ТЗ** со 12 этапами, моделями БД, кодом SEO-компонентов |
+| [`DEVOPS.md`](DEVOPS.md) | Полная инструкция по CI/CD, SSH, Runner, деплою |
 | [`CHANGELOG.md`](CHANGELOG.md) | История изменений |
+| [`.env.example`](.env.example) | Шаблон всех переменных среды |
+| [`backend/requirements.txt`](backend/requirements.txt) | Python-зависимости |
+| [`deploy/docker-compose.prod.yml`](deploy/docker-compose.prod.yml) | Продакшн-композ (12 сервисов) |
+| [`deploy/scripts/setup_runner.sh`](deploy/scripts/setup_runner.sh) | Установка Runner (GitLab 16+, glrt-токен) |
+| [`deploy/scripts/setup_server.sh`](deploy/scripts/setup_server.sh) | Инициализация прод-сервера |
+| [`.gitlab-ci.yml`](.gitlab-ci.yml) | CI/CD пайплайн |
+| [`.gemini/agents/`](.gemini/agents/) | Определения агентов |
 
 ---
 
