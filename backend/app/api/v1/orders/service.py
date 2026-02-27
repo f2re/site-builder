@@ -13,6 +13,7 @@ from app.api.v1.orders.schemas import OrderCreate
 from app.db.models.order import Order, OrderItem, OrderStatus
 from app.db.models.user import User
 from app.integrations.yoomoney import yoomoney_client
+from app.integrations.redis_inventory import inventory
 from app.tasks.notifications.dispatcher import send_email_task
 from app.core.config import settings
 
@@ -38,12 +39,13 @@ class OrderService:
                 detail="Cart is empty"
             )
 
+        # Reserve stock atomically in Redis, validate availability
         for item in cart["items"]:
-            success = await self.product_repo.decrement_stock(
+            reserved = await inventory.reserve_stock(
                 variant_id=item["variant_id"],
                 quantity=item["quantity"]
             )
-            if not success:
+            if not reserved:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Insufficient stock for item: {item['name']}"
