@@ -1,7 +1,7 @@
 """Blog-related database models."""
 import enum
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Any, TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, Table, Column, Integer
@@ -21,6 +21,13 @@ class BlogPostStatus(str, enum.Enum):
     ARCHIVED = "archived"
 
 
+class CommentStatus(str, enum.Enum):
+    """Blog post comment status."""
+    PENDING = "pending"
+    APPROVED = "approved"
+    SPAM = "spam"
+
+
 # Association table for BlogPost <-> Tag
 blog_post_tags = Table(
     "blog_post_tags",
@@ -28,6 +35,23 @@ blog_post_tags = Table(
     Column("post_id", UUID(as_uuid=True), ForeignKey("blog_posts.id", ondelete="CASCADE"), primary_key=True),
     Column("tag_id", UUID(as_uuid=True), ForeignKey("blog_tags.id", ondelete="CASCADE"), primary_key=True),
 )
+
+
+class Author(Base):
+    """Author profiles linked to User table."""
+    __tablename__ = "blog_authors"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    bio: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="blog_author")
+    posts: Mapped[List["BlogPost"]] = relationship("BlogPost", back_populates="author")
 
 
 class BlogCategory(Base):
@@ -66,7 +90,7 @@ class BlogPost(Base):
         ForeignKey("blog_categories.id", ondelete="SET NULL"), nullable=True
     )
     author_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("blog_authors.id", ondelete="CASCADE"), nullable=False
     )
     
     title: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -91,12 +115,12 @@ class BlogPost(Base):
     
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
     
@@ -106,15 +130,44 @@ class BlogPost(Base):
 
     # Relationships
     category: Mapped[Optional[BlogCategory]] = relationship("BlogCategory", back_populates="posts")
-    author: Mapped["User"] = relationship("User", back_populates="blog_posts")
+    author: Mapped[Author] = relationship("Author", back_populates="posts")
     tags: Mapped[List[Tag]] = relationship(
-        "Tag", secondary=blog_post_tags, back_populates="tags"
+        "Tag", secondary=blog_post_tags, back_populates="posts"
     )
     media: Mapped[List["BlogPostMedia"]] = relationship(
         "BlogPostMedia",
         back_populates="post",
         cascade="all, delete-orphan",
     )
+    comments: Mapped[List["Comment"]] = relationship(
+        "Comment",
+        back_populates="post",
+        cascade="all, delete-orphan",
+    )
+
+
+class Comment(Base):
+    """Blog post comments."""
+    __tablename__ = "blog_comments"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    post_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("blog_posts.id", ondelete="CASCADE"), nullable=False
+    )
+    author_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    author_email: Mapped[str] = mapped_column(Text, nullable=False)  # Fernet encrypted
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[CommentStatus] = mapped_column(
+        Enum(CommentStatus, native_enum=False),
+        default=CommentStatus.PENDING,
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    # Relationships
+    post: Mapped[BlogPost] = relationship("BlogPost", back_populates="comments")
 
 
 class BlogPostMedia(Base):
@@ -139,4 +192,4 @@ class BlogPostMedia(Base):
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     
     # Relationships
-    post: Mapped["BlogPost"] = relationship("BlogPost", back_populates="media")
+    post: Mapped[BlogPost] = relationship("BlogPost", back_populates="media")

@@ -3,7 +3,7 @@
   "phase": 7,
   "agent": "frontend-agent",
   "title": "Shop pages: catalog, product card, cart, checkout, order status",
-  "status": "TODO",
+  "status": "DONE",
   "priority": "high",
   "depends_on": ["FE-01","BE-01","BE-03"],
   "blocks": ["FE-04"],

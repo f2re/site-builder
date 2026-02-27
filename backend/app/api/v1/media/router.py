@@ -1,9 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+# Module: media/router.py | Agent: backend-agent | Task: BE-02
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
+from PIL import Image
+from io import BytesIO
 
 from app.db.session import get_db
 from app.core.dependencies import get_current_user
@@ -15,59 +18,80 @@ router = APIRouter(prefix="/media", tags=["Media"])
 
 
 class UploadResponse(BaseModel):
-    object_name: str
-    public_url: str
-
-
-class ConfirmUploadRequest(BaseModel):
-    object_name: str
-    alt: str
-    context: str
-    entity_id: Optional[uuid.UUID] = None
+    url: str
+    width: int
+    height: int
 
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file(
     file: UploadFile = File(...),
     context: str = Form(...),
+    alt: str = Form(""),
+    entity_id: Optional[uuid.UUID] = Form(None),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload file directly to local storage."""
+    """
+    Upload file directly to local storage.
+    Handles multipart/form-data, saves to /media/ using storage_client.save_file,
+    then starts tasks.process_image (Celery). Returns {url, width, height}.
+    """
     # Generate unique object name
     ext = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     object_name = f"{context}/{now.year}/{now.month:02d}/{uuid.uuid4()}.{ext}"
 
-    # Read and save file
+    # Read file content
     content = await file.read()
+    size_bytes = len(content)
+    
+    # Calculate dimensions
+    try:
+        img = Image.open(BytesIO(content))
+        width, height = img.size
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid image file: {str(e)}"
+        )
+
+    # Save to local storage
     await storage_client.save_file(
         object_name=object_name,
         data=content,
         content_type=file.content_type,
     )
 
+    # Create DB record and trigger Celery task
+    service = MediaService(db)
+    await service.create_media_record(
+        object_name=object_name,
+        alt=alt,
+        context=context,
+        width=width,
+        height=height,
+        mime_type=file.content_type or "application/octet-stream",
+        size_bytes=size_bytes,
+        entity_id=entity_id,
+    )
+
     public_url = storage_client.get_public_url(object_name)
 
     return UploadResponse(
-        object_name=object_name,
-        public_url=public_url,
+        url=public_url,
+        width=width,
+        height=height,
     )
 
 
-@router.post("/confirm")
-async def confirm_upload(
-    data: ConfirmUploadRequest,
+@router.delete("/{object_name:path}")
+async def delete_media(
+    object_name: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Confirm upload and trigger Celery processing."""
+    """Removes file and DB record."""
     service = MediaService(db)
-    
-    media = await service.confirm_upload(
-        object_name=data.object_name,
-        alt=data.alt,
-        context=data.context,
-        entity_id=data.entity_id,
-    )
-
-    return {"message": "Upload confirmed", "media_id": str(media.id)}
+    await service.delete_media(object_name)
+    return {"message": "Media deleted"}

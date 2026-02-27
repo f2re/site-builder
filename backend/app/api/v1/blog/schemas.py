@@ -1,6 +1,6 @@
-# Module: api/v1/blog/schemas.py | Agent: backend-agent | Task: phase11_backend_admin_blog_refinement
+# Module: api/v1/blog/schemas.py | Agent: backend-agent | Task: BE-02
 from __future__ import annotations
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, EmailStr
 from uuid import UUID
 from datetime import datetime
 from typing import List, Optional, Any
@@ -10,6 +10,11 @@ class BlogStatus(str, Enum):
     draft = "draft"
     published = "published"
     archived = "archived"
+
+class CommentStatusSchema(str, Enum):
+    pending = "pending"
+    approved = "approved"
+    spam = "spam"
 
 class BlogCategoryRead(BaseModel):
     id: UUID
@@ -26,8 +31,15 @@ class TagRead(BaseModel):
 
 class AuthorRead(BaseModel):
     id: UUID
-    full_name: Optional[str] = None
+    display_name: str
+    bio: Optional[str] = None
+    avatar_url: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
+
+class AuthorCreate(BaseModel):
+    display_name: str
+    bio: Optional[str] = None
+    avatar_url: Optional[str] = None
 
 class BlogPostBase(BaseModel):
     title: str
@@ -90,3 +102,22 @@ class BlogPostShortRead(BaseModel):
 class BlogPagination(BaseModel):
     items: List[BlogPostShortRead]
     pageInfo: dict
+
+class CommentBase(BaseModel):
+    author_name: str
+    body: str
+
+class CommentCreate(CommentBase):
+    author_email: EmailStr
+
+class CommentRead(CommentBase):
+    id: UUID
+    post_id: UUID
+    status: CommentStatusSchema
+    created_at: datetime
+    # We don't include author_email in CommentRead for public API
+    model_config = ConfigDict(from_attributes=True)
+
+class CommentAdminRead(CommentRead):
+    author_email: str  # This will be decrypted
+    model_config = ConfigDict(from_attributes=True)

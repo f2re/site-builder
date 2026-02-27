@@ -1,9 +1,13 @@
 # Module: db/models/user.py | Agent: backend-agent | Task: phase7_backend_security
 from datetime import datetime, timezone
 import uuid
+from typing import TYPE_CHECKING
 from sqlalchemy import String, Boolean, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.db.models.blog import BlogPost, Author
 
 
 class User(Base):
@@ -36,4 +40,6 @@ class User(Base):
     # Relationships
     orders = relationship("Order", back_populates="user", lazy="selectin")
     devices = relationship("UserDevice", back_populates="user", lazy="selectin")
-    blog_posts = relationship("BlogPost", back_populates="author", lazy="selectin")
+    
+    # Blog relationships
+    blog_author = relationship("Author", back_populates="user", uselist=False, lazy="selectin")

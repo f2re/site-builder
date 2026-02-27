@@ -3,7 +3,7 @@
   "phase": 4,
   "agent": "backend-agent",
   "title": "Blog + local media storage (Celery WebP)",
-  "status": "TODO",
+  "status": "DONE",
   "priority": "high",
   "depends_on": [],
   "blocks": ["FE-03"],

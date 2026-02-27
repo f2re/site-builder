@@ -92,16 +92,19 @@ export const useOrders = () => {
     })
   }
 
-  const calculateDelivery = (body: DeliveryCalculateRequest) => {
+  const calculateDelivery = (params: DeliveryCalculateRequest) => {
     return useFetch<DeliveryCalculateResponse>(`${apiBase}/delivery/calculate`, {
-      method: 'POST',
-      body,
+      method: 'GET',
+      params: {
+        to_city_code: params.city_code,
+        weight_grams: Math.round(params.weight_kg * 1000)
+      },
       headers: getHeaders()
     })
   }
 
   const getPVZs = (cityCode: string) => {
-    return useFetch<{ items: PVZ[] }>(`${apiBase}/delivery/pvz`, {
+    return useFetch<{ items: PVZ[] }>(`${apiBase}/delivery/pickup-points`, {
       params: { city_code: cityCode },
       headers: getHeaders(),
       key: `pvz-${cityCode}`

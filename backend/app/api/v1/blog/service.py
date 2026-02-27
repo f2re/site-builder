@@ -1,6 +1,6 @@
-# Module: api/v1/blog/service.py | Agent: backend-agent | Task: phase11_backend_admin_blog_refinement
+# Module: api/v1/blog/service.py | Agent: backend-agent | Task: BE-02
 import bleach
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Union
 from uuid import UUID
 from fastapi import Depends, HTTPException, status
 import structlog
@@ -11,10 +11,17 @@ from app.api.v1.blog.schemas import (
     BlogPostCreate,
     BlogPostUpdate,
     BlogPagination,
-    BlogPostRead
+    BlogPostRead,
+    CommentCreate,
+    CommentRead,
+    CommentAdminRead,
+    TagRead,
+    AuthorRead,
+    AuthorCreate
 )
-from app.db.models.blog import BlogPost, BlogPostStatus
+from app.db.models.blog import BlogPost, BlogPostStatus, Comment, CommentStatus, Author
 from app.tasks.search import index_blog_post_task, remove_blog_post_from_index_task
+from app.core.security import encrypt_data, decrypt_data
 
 logger = structlog.get_logger()
 
@@ -146,16 +153,26 @@ class BlogService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Blog post not found"
             )
-        # In a real app, we might want to increment views here
-        # post.views += 1
-        # await self.repo.session.commit()
         return BlogPostRead.model_validate(post)
 
-    async def create_post(self, data: BlogPostCreate, author_id: UUID) -> BlogPostRead:
+    async def get_or_create_author(self, user_id: UUID, display_name: str = "Anonymous") -> Author:
+        author = await self.repo.get_author_by_user_id(user_id)
+        if not author:
+            author = Author(
+                user_id=user_id,
+                display_name=display_name
+            )
+            author = await self.repo.create_author(author)
+        return author
+
+    async def create_post(self, data: BlogPostCreate, user_id: UUID) -> BlogPostRead:
         """
         Create a new blog post, generate HTML from JSON, calculate reading time, and index in search.
         """
         slug = data.slug or slugify(data.title)
+        
+        # Ensure author exists for this user
+        author = await self.get_or_create_author(user_id, display_name=data.title) # Using title as default display name for now if not found
         
         # Generate HTML from JSON
         content_html = tiptap_to_html(data.content_json)
@@ -180,7 +197,7 @@ class BlogService:
             status=data.status,
             is_featured=data.is_featured,
             category_id=data.category_id,
-            author_id=author_id,
+            author_id=author.id,
             cover_image=data.cover_image,
             meta_title=data.meta_title,
             meta_description=data.meta_description,
@@ -257,6 +274,59 @@ class BlogService:
 
     async def list_categories(self):
         return await self.repo.get_categories()
+
+    async def get_tags(self) -> List[TagRead]:
+        tags = await self.repo.get_all_tags()
+        return [TagRead.model_validate(tag) for tag in tags]
+
+    async def create_comment(self, post_id: UUID, data: CommentCreate) -> CommentRead:
+        encrypted_email = encrypt_data(data.author_email)
+        comment = Comment(
+            post_id=post_id,
+            author_name=data.author_name,
+            author_email=encrypted_email,
+            body=data.body,
+            status=CommentStatus.PENDING
+        )
+        created_comment = await self.repo.create_comment(comment)
+        return CommentRead.model_validate(created_comment)
+
+    async def get_comments(self, post_id: UUID, is_admin: bool = False) -> Union[List[CommentRead], List[CommentAdminRead]]:
+        status_filter = None if is_admin else CommentStatus.APPROVED
+        comments = await self.repo.get_comments_by_post_id(post_id, status=status_filter)
+        
+        if is_admin:
+            results = []
+            for c in comments:
+                c_data = CommentAdminRead.model_validate(c)
+                c_data.author_email = decrypt_data(c.author_email)
+                results.append(c_data)
+            return results
+        
+        return [CommentRead.model_validate(c) for c in comments]
+
+    async def approve_comment(self, comment_id: UUID) -> CommentAdminRead:
+        updated_comment = await self.repo.update_comment_status(comment_id, CommentStatus.APPROVED)
+        if not updated_comment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Comment not found"
+            )
+        res = CommentAdminRead.model_validate(updated_comment)
+        res.author_email = decrypt_data(updated_comment.author_email)
+        return res
+
+    async def delete_comment(self, comment_id: UUID) -> bool:
+        return await self.repo.delete_comment(comment_id)
+
+    async def get_pending_comments(self) -> List[CommentAdminRead]:
+        comments = await self.repo.get_pending_comments()
+        results = []
+        for c in comments:
+            c_data = CommentAdminRead.model_validate(c)
+            c_data.author_email = decrypt_data(c.author_email)
+            results.append(c_data)
+        return results
 
 async def get_blog_service(repo: BlogRepository = Depends(get_blog_repo)) -> BlogService:
     return BlogService(repo)
