@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
-from app.db.models.blog import BlogPost, BlogCategory, Tag, BlogStatus
+from app.db.models.blog import BlogPost, BlogCategory, Tag, BlogPostStatus
 from app.db.session import get_db
 
 class BlogRepository:
@@ -27,7 +27,7 @@ class BlogRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_by_slug(self, slug: str, status: Optional[BlogStatus] = None) -> Optional[BlogPost]:
+    async def get_by_slug(self, slug: str, status: Optional[BlogPostStatus] = None) -> Optional[BlogPost]:
         stmt = (
             select(BlogPost)
             .where(BlogPost.slug == slug)
@@ -47,7 +47,7 @@ class BlogRepository:
         self,
         category_slug: Optional[str] = None,
         tag_slug: Optional[str] = None,
-        status: Optional[BlogStatus] = BlogStatus.published,
+        status: Optional[BlogPostStatus] = BlogPostStatus.PUBLISHED,
         is_featured: Optional[bool] = None,
         cursor: Optional[UUID] = None,
         per_page: int = 20,

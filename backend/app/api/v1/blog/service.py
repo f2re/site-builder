@@ -13,7 +13,7 @@ from app.api.v1.blog.schemas import (
     BlogPagination,
     BlogPostRead
 )
-from app.db.models.blog import BlogPost, BlogStatus
+from app.db.models.blog import BlogPost, BlogPostStatus
 from app.tasks.search import index_blog_post_task, remove_blog_post_from_index_task
 
 logger = structlog.get_logger()
@@ -117,7 +117,7 @@ class BlogService:
         self,
         category_slug: Optional[str] = None,
         tag_slug: Optional[str] = None,
-        status: Optional[BlogStatus] = BlogStatus.published,
+        status: Optional[BlogPostStatus] = BlogPostStatus.PUBLISHED,
         is_featured: Optional[bool] = None,
         cursor: Optional[UUID] = None,
         per_page: int = 20,
