@@ -56,7 +56,6 @@ async def list_categories(service: BlogService = Depends(get_blog_service)):
     return await service.list_categories()
 
 
-<<<<<<< HEAD
 @router.get("/tags", response_model=List[TagRead])
 async def list_tags(service: BlogService = Depends(get_blog_service)):
     """List all unique tags."""
@@ -86,9 +85,6 @@ async def list_comments(
 
 # Admin endpoints
 @router.post("/posts", response_model=BlogPostRead, status_code=status.HTTP_201_CREATED)
-=======
-@router.post("/posts", response_model=BlogPostRead, dependencies=[Depends(require_admin)])
->>>>>>> 4f647cac75a9ce7f13a93aea49b2c90254428f6f
 async def create_post(
     data: BlogPostCreate,
     current_user: User = Depends(require_role("admin")),
