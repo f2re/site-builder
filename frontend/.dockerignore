@@ -1,0 +1,28 @@
+node_modules
+.nuxt
+.output
+.nitro
+dist
+.env
+.DS_Store
+*.log
+README.md
+Dockerfile
+.dockerignore
+.git
+.github
+.gitlab
+.gitignore
+.editorconfig
+.prettierrc
+.eslintrc.js
+# Wait, I shouldn't ignore everything.
+# Let's just ignore node_modules and builds.
+node_modules
+.nuxt
+.output
+.nitro
+dist
+.env
+.DS_Store
+*.log

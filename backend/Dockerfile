@@ -21,5 +21,12 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload
 
 # Production stage
 FROM base as production
-COPY . .
+
+# Security: Add a non-root user
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+WORKDIR /app
+COPY --chown=appuser:appuser . .
+
+USER appuser
+
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
