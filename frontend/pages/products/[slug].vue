@@ -32,7 +32,7 @@ useSeoMeta({
   description: () => product.value?.description || 'Подробное описание товара в нашем каталоге.',
   ogTitle: () => product.value ? `${product.value.name} | WifiOBD` : 'Загрузка...',
   ogDescription: () => product.value?.description,
-  ogImage: () => product.value?.images?.[0],
+  ogImage: () => product.value?.images?.[0] ? (product.value.images[0].startsWith('http') ? product.value.images[0] : `${config.public.siteUrl}${product.value.images[0]}`) : undefined,
   twitterCard: 'summary_large_image',
 })
 
@@ -50,8 +50,8 @@ watchEffect(() => {
 })
 
 const breadcrumbItems = computed(() => [
-  { label: 'Каталог', to: '/products' },
-  { label: product.value?.name || '...', to: `/products/${slug}` }
+  { name: 'Каталог', path: '/products' },
+  { name: product.value?.name || '...', path: `/products/${slug}` }
 ])
 </script>
 

@@ -20,7 +20,7 @@ useSeoMeta({
   description: () => post.value?.summary || '',
   ogTitle: () => post.value?.title,
   ogDescription: () => post.value?.summary,
-  ogImage: () => post.value?.cover_url,
+  ogImage: () => post.value?.cover_url ? (post.value.cover_url.startsWith('http') ? post.value.cover_url : `${config.public.siteUrl}${post.value.cover_url}`) : undefined,
   twitterCard: 'summary_large_image',
 })
 
@@ -38,8 +38,8 @@ watchEffect(() => {
 })
 
 const breadcrumbItems = computed(() => [
-  { label: 'Блог', to: '/blog' },
-  { label: post.value?.title || '...', to: `/blog/${slug}` }
+  { name: 'Блог', path: '/blog' },
+  { name: post.value?.title || '...', path: `/blog/${slug}` }
 ])
 </script>
 

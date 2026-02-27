@@ -40,6 +40,7 @@ useSeoMeta({
   ogTitle: 'Каталог товаров | WifiOBD',
   ogDescription: 'Широкий выбор оборудования для диагностики автомобилей.',
   ogType: 'website',
+  ogImage: `${config.public.siteUrl}/img/og-catalog.jpg`
 })
 
 useHead({
@@ -51,6 +52,7 @@ useHead({
         if (categorySlug.value) {
           url.searchParams.set('category', categorySlug.value)
         }
+        // Excluding pagination/sorting from canonical as requested
         return url.toString()
       }
     }
@@ -58,11 +60,11 @@ useHead({
 })
 
 const breadcrumbItems = computed(() => {
-  const items = [{ label: 'Каталог', to: '/products' }]
+  const items = [{ name: 'Каталог', path: '/products' }]
   if (categorySlug.value && categoriesData.value) {
     const cat = categoriesData.value.items.find(c => c.slug === categorySlug.value)
     if (cat) {
-      items.push({ label: cat.name, to: `/products?category=${cat.slug}` })
+      items.push({ name: cat.name, path: `/products?category=${cat.slug}` })
     }
   }
   return items

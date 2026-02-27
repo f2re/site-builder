@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { useBlog } from '~/composables/useBlog'
 import BlogCard from '~/components/blog/BlogCard.vue'
+import AppBreadcrumbs from '~/components/AppBreadcrumbs.vue'
 
 const { getPosts } = useBlog()
 const route = useRoute()
+const config = useRuntimeConfig()
 
 const activeTag = computed(() => route.query.tag as string | undefined)
 
@@ -13,17 +15,44 @@ const { data: postsData, pending } = await getPosts({
 })
 
 // SEO
-useHead({
+useSeoMeta({
   title: 'Блог | WifiOBD',
-  meta: [
-    { name: 'description', content: 'Полезные статьи, обзоры оборудования и новости мира автодиагностики.' }
+  description: 'Полезные статьи, обзоры оборудования и новости мира автодиагностики. Читайте наш блог, чтобы быть в курсе последних тенденций.',
+  ogTitle: 'Блог | WifiOBD — Оборудование для диагностики авто',
+  ogDescription: 'Полезные статьи, обзоры оборудования и новости мира автодиагностики.',
+  ogType: 'website',
+  ogImage: `${config.public.siteUrl}/img/og-blog.jpg`
+})
+
+useHead({
+  link: [
+    { 
+      rel: 'canonical', 
+      href: () => {
+        const url = new URL(`${config.public.siteUrl}/blog`)
+        if (activeTag.value) {
+          url.searchParams.set('tag', activeTag.value)
+        }
+        return url.toString()
+      }
+    }
   ]
+})
+
+const breadcrumbItems = computed(() => {
+  const items = [{ name: 'Блог', path: '/blog' }]
+  if (activeTag.value) {
+    items.push({ name: activeTag.value, path: `/blog?tag=${activeTag.value}` })
+  }
+  return items
 })
 </script>
 
 <template>
   <div class="blog-page">
     <div class="container">
+      <AppBreadcrumbs :items="breadcrumbItems" />
+
       <header class="blog-page__header">
         <h1 class="blog-page__title">Блог</h1>
         <p class="blog-page__subtitle">Экспертные статьи и обзоры для профессионалов</p>
@@ -77,7 +106,7 @@ useHead({
 
 <style scoped>
 .blog-page {
-  padding: 60px 0;
+  padding: 40px 0 60px;
 }
 
 .blog-page__header {

@@ -1,11 +1,17 @@
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
-  const apiBase = config.public.apiBase
+  let apiBase = config.public.apiBase
   const siteUrl = config.public.siteUrl
 
-  const blogData = await $fetch<any>(`${apiBase}/blog/posts?per_page=20`)
+  // Ensure apiBase includes /api/v1 if not present
+  if (!apiBase.includes('/api/v1')) {
+    apiBase = apiBase.endsWith('/') ? `${apiBase}api/v1` : `${apiBase}/api/v1`
+  }
 
-  const rss = `<?xml version="1.0" encoding="UTF-8" ?>
+  try {
+    const blogData = await $fetch<any>(`${apiBase}/blog/posts?per_page=20`)
+
+    const rss = `<?xml version="1.0" encoding="UTF-8" ?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>WifiOBD Blog</title>
@@ -18,13 +24,17 @@ export default defineEventHandler(async (event) => {
     <item>
       <title><![CDATA[${post.title}]]></title>
       <link>${siteUrl}/blog/${post.slug}</link>
-      <description><![CDATA[${post.excerpt}]]></description>
+      <description><![CDATA[${post.summary || ''}]]></description>
       <pubDate>${new Date(post.published_at).toUTCString()}</pubDate>
       <guid isPermaLink="true">${siteUrl}/blog/${post.slug}</guid>
-    </item>`).join('')}
+    </item>`).join('').trim()}
   </channel>
 </rss>`
 
-  setHeader(event, 'Content-Type', 'application/xml')
-  return rss
+    setHeader(event, 'Content-Type', 'application/xml')
+    return rss
+  } catch (error) {
+    console.error('RSS generation error:', error)
+    return `<?xml version="1.0" encoding="UTF-8" ?><rss version="2.0"><channel><title>WifiOBD Blog</title><link>${siteUrl}/blog</link></channel></rss>`
+  }
 })
