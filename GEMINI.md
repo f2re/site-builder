@@ -1,208 +1,270 @@
-# PROJECT: FastAPI E-Commerce + Blog + IoT
+# GEMINI.md — Точка входа ИИ-агента
 
-## Stack
+> **Читай этот файл ПЕРВЫМ.** Здесь — вся концепция проекта, стек, правила и точки входа для работы.
+> Детальный план разработки: [plan.md](plan.md)
+> Текущий спринт / активные задачи: [.gemini/agents/tasks/](.gemini/agents/tasks/)
+
+---
+
+## 🎯 Концепция проекта
+
+**WifiOBD Site** — интернет-магазин автомобильной электроники (OBD-адаптеры, телематика) с:
+- 🛒 **Магазином** — каталог товаров, корзина, оформление заказа, оплата, доставка СДЭК
+- 📝 **Блогом** — статьи, документация, обзоры
+- 📊 **IoT-дашбордом** — онлайн телеметрия от OBD-устройств (WebSocket, TimescaleDB)
+- 🔧 **Админ-панелью** — управление товарами, заказами, контентом, пользователями
+
+**Аудитория:** небольшой трафик (до 1000 DAU). Приоритет — надёжность и простота поддержки, не масштаб.
+
+---
+
+## 🔧 Технологический стек
 
 ### Backend
-- Python 3.12, FastAPI, SQLAlchemy 2.x (async), Alembic
-- PostgreSQL 16, TimescaleDB (IoT hypertable), Redis 7
-- Celery + Redis broker (db=1), Celery beat (timezone: Europe/Moscow)
-- Meilisearch (full-text search), MinIO (S3-compatible media storage)
-- Monitoring: Prometheus, Grafana, Loki, Promtail
+- **Python 3.12**, FastAPI (async), SQLAlchemy 2.x (async), Alembic
+- **PostgreSQL 16 + TimescaleDB** — основная БД + IoT-телеметрия (hypertable)
+- **Redis 7** — сессии, кэш, Celery broker
+- **Celery + Beat** — фоновые задачи (уведомления, обновление курсов, индексация)
+- **Meilisearch** — полнотекстовый поиск по товарам и статьям
+- **MinIO** — хранилище медиафайлов (S3-совместимое, self-hosted)
 
 ### Frontend
-- Nuxt 3 (SSR), Vue 3 Composition API, TypeScript, Pinia
-- CSS Design Tokens: `frontend/assets/css/tokens.css`
-- Theme system: dark (default) / light via `themeStore` + `UThemeToggle`
-- PWA: `@vite-pwa/nuxt`, i18n: `@nuxtjs/i18n` (ru/en)
+- **Nuxt 3** (SSR), Vue 3 Composition API, TypeScript, Pinia
+- Design tokens: `frontend/assets/css/tokens.css` — единственный источник цветов/отступов
+- Темы: dark (default) / light — управляет `themeStore` + `UThemeToggle`
+- PWA: `@vite-pwa/nuxt` | i18n: `@nuxtjs/i18n` (ru/en)
 
-### Integrations
-- CDEK v2 API, YooMoney/aiomoney, ЦБ РФ (currency rates)
-- GitLab CI/CD (NEVER GitHub Actions)
-- GitLab Container Registry (NEVER Docker Hub)
+### Интеграции
+- **СДЭК v2 API** — расчёт и оформление доставки
+- **ЮKassa / aiomoney** — приём платежей
+- **ЦБ РФ** — актуальные курсы валют (USD, EUR, CNY)
 
-### Infrastructure
-- Docker Compose (dev: `docker-compose.yml`, prod: `deploy/docker-compose.prod.yml`)
-- Nginx: `deploy/nginx/nginx.conf`
-- CI/CD: `.gitlab-ci.yml`
-- Secrets: `.env` (gitignored), template: `.env.example`
-
----
-
-## Coding Contracts (Design-by-Contract)
-
-### Universal (all agents)
-1. Все эндпоинты MUST иметь Pydantic-схемы (Request + Response)
-2. Все сервисы MUST принимать зависимости через DI (Depends)
-3. Все внешние API-вызовы MUST иметь retry через tenacity (3 retries, exponential backoff)
-4. Все репозитории MUST использовать параметризованные запросы (no raw SQL)
-5. Все агенты MUST писать отчёт в `.gemini/agents/reports/<domain>/<task_id>.md`
-6. NEVER использовать GitHub Actions (.github/workflows/) — только GitLab CI/CD
-7. NEVER использовать Docker Hub — только GitLab Container Registry
+### Инфраструктура
+- **Docker Compose** — dev: `docker-compose.yml`, prod: `deploy/docker-compose.prod.yml`
+- **Nginx** — reverse proxy + раздача статики
+- **CI/CD: GitLab CI** (`.gitlab-ci.yml`) — **НИКОГДА не GitHub Actions**
+- **Registry: GitLab Container Registry** — **НИКОГДА не Docker Hub**
+- **Monitoring**: Prometheus + Grafana + Loki + Promtail (prod-профиль)
+- Секреты: `.env` (в git не коммитить), шаблон: `.env.example`
 
 ---
 
-## Theme Design Contract
+## 📁 Канонная структура проекта
 
-All agents working on frontend MUST follow this contract.
-
-### Token File
-```
-frontend/assets/css/tokens.css   ← SINGLE source of truth for all design tokens
-```
-
-```css
-/* tokens.css structure */
-:root {
-  /* Dark theme (default) */
-  --color-bg-primary: #0f1117;
-  --color-bg-surface: #1a1d27;
-  --color-bg-elevated: #242736;
-  --color-text-primary: #e8eaf0;
-  --color-text-secondary: #9499b0;
-  --color-accent: #6c7aff;
-  --color-accent-hover: #8490ff;
-  --color-success: #4caf82;
-  --color-error: #f06474;
-  --color-border: #2e3147;
-  --radius-sm: 6px;
-  --radius-md: 12px;
-  --radius-lg: 20px;
-  --shadow-card: 0 4px 24px rgba(0,0,0,0.32);
-}
-
-[data-theme="light"] {
-  --color-bg-primary: #f5f6fa;
-  --color-bg-surface: #ffffff;
-  --color-bg-elevated: #eef0f8;
-  --color-text-primary: #1a1d2e;
-  --color-text-secondary: #5a6070;
-  --color-accent: #4a5aef;
-  --color-accent-hover: #3a4adf;
-  --color-border: #dde0ef;
-  --shadow-card: 0 2px 12px rgba(0,0,0,0.08);
-}
-```
-
-### themeStore Contract
-```
-frontend/stores/themeStore.ts   ← SINGLE source of truth for theme state
-```
-
-```typescript
-// themeStore interface contract
-interface ThemeStore {
-  theme: 'dark' | 'light'          // current theme
-  isDark: ComputedRef<boolean>      // computed
-  toggle(): void                    // switch theme
-  setTheme(t: 'dark'|'light'): void // explicit set
-}
-```
-
-Rules:
-- `themeStore.toggle()` MUST update `document.documentElement.dataset.theme`
-- Theme preference MUST be persisted in `localStorage` key `theme`
-- SSR: read theme from cookie `theme` (httpOnly=false) to avoid hydration mismatch
-- Default theme: `dark`
-- FORBIDDEN: hardcoded color values in any `.vue` component — ALWAYS use CSS variables from tokens.css
-
-### UThemeToggle Component Contract
-```
-frontend/components/U/UThemeToggle.vue   ← global theme toggle button
-```
-- Calls `themeStore.toggle()` on click
-- Shows sun icon in dark mode, moon icon in light mode
-- MUST have `aria-label` for accessibility (WCAG 2.1 AA)
-- MUST be rendered in `AppHeader.vue`
-
-### WCAG Contrast Contract
-- Normal text contrast ratio MUST be ≥ 4.5:1 in BOTH themes
-- Large text contrast ratio MUST be ≥ 3:1 in BOTH themes
-- Interactive elements MUST have visible focus ring
-- Verified by: `npx axe-cli` (run by security-agent)
-
----
-
-## Backend Architecture (Strict)
-
-### 1. Unified Models
-- **Single Source of Truth**: All SQLAlchemy models MUST live in `backend/app/db/models/`.
-- **Naming**: File name = model name (lowercase). Example: `user.py` for `User` model.
-- **Imports**: Always import from `app.db.models.{module}`.
-
-### 2. Feature-First Logic (api/v1)
-- Each feature directory in `backend/app/api/v1/{feature}/` MUST contain:
-    - `router.py`: API endpoints.
-    - `service.py`: Business logic (DI ready).
-    - `repository.py`: CRUD operations (SQLAlchemy async).
-    - `schemas.py`: Pydantic Request/Response models.
-- **One-Way Development**: Logic MUST be scoped within the feature folder unless it's a cross-cutting concern (move to `app/core/` or `app/tasks/`).
-
-### 3. Redundancy Policy
-- **NO** top-level `app/models/`, `app/schemas/`, `app/services/`, or `app/repositories/`.
-- If a folder is empty, it should be removed.
-
----
-
-## Project Structure Reference
-
-Canonical structure — all agents MUST place files here:
+Все агенты ОБЯЗАНЫ размещать файлы строго по этой структуре:
 
 ```
 site-builder/
 ├── backend/
 │   ├── app/
-│   │   ├── api/v1/{products,orders,cart,blog,delivery,payments,iot,users,auth,admin,search}/
-│   │   ├── core/{config,security,dependencies,exceptions}.py
-│   │   ├── db/{base,session,models/}
-│   │   ├── migrations/versions/
-│   │   ├── tasks/{celery_app,notifications,inventory,search_index}.py
-│   │   └── integrations/{cdek,yoomoney,cbr_rates,meilisearch,minio}.py
+│   │   ├── api/
+│   │   │   └── v1/
+│   │   │       ├── auth/          {router, service, repository, schemas}.py
+│   │   │       ├── users/
+│   │   │       ├── products/
+│   │   │       ├── categories/
+│   │   │       ├── cart/
+│   │   │       ├── orders/
+│   │   │       ├── blog/
+│   │   │       ├── delivery/      # СДЭК
+│   │   │       ├── payments/      # ЮKassa
+│   │   │       ├── iot/           # WebSocket + телеметрия
+│   │   │       ├── admin/         # Админ-панель API
+│   │   │       └── search/        # Meilisearch прокси
+│   │   ├── core/
+│   │   │   ├── config.py          # Settings (pydantic-settings)
+│   │   │   ├── security.py        # JWT, password hashing
+│   │   │   ├── dependencies.py    # FastAPI DI
+│   │   │   └── exceptions.py      # HTTPException handlers
+│   │   ├── db/
+│   │   │   ├── base.py            # DeclarativeBase
+│   │   │   ├── session.py         # async_sessionmaker
+│   │   │   └── models/            # ЕДИНСТВЕННОЕ место для всех моделей
+│   │   │       ├── user.py
+│   │   │       ├── product.py
+│   │   │       ├── category.py
+│   │   │       ├── order.py
+│   │   │       ├── cart.py
+│   │   │       ├── blog_post.py
+│   │   │       └── telemetry.py   # TimescaleDB hypertable
+│   │   ├── tasks/
+│   │   │   ├── celery_app.py
+│   │   │   ├── notifications.py
+│   │   │   ├── inventory.py
+│   │   │   └── search_index.py
+│   │   └── integrations/
+│   │       ├── cdek.py
+│   │       ├── yoomoney.py
+│   │       ├── cbr_rates.py
+│   │       ├── meilisearch.py
+│   │       └── minio.py
+│   ├── migrations/
+│   │   └── versions/
 │   ├── Dockerfile
 │   └── requirements.txt
+│
 ├── frontend/
-│   ├── assets/css/tokens.css          ← design tokens
-│   ├── stores/{themeStore,cartStore,authStore,productStore}.ts
-│   ├── components/U/                   ← UI kit (UButton, UCard, UThemeToggle…)
+│   ├── assets/css/tokens.css       # ← ЕДИНСТВЕННЫЙ источник design tokens
+│   ├── components/
+│   │   ├── U/                      # UI kit: UButton, UCard, UInput, UThemeToggle…
+│   │   ├── shop/                   # ProductCard, CartItem, OrderStatus…
+│   │   ├── blog/                   # PostCard, PostContent…
+│   │   ├── iot/                    # TelemetryChart, DeviceStatus…
+│   │   └── admin/                  # AdminTable, AdminForm…
 │   ├── pages/
+│   │   ├── index.vue
+│   │   ├── shop/
+│   │   ├── blog/
+│   │   ├── iot/
+│   │   ├── account/
+│   │   └── admin/
+│   ├── stores/
+│   │   ├── themeStore.ts
+│   │   ├── authStore.ts
+│   │   ├── cartStore.ts
+│   │   └── productStore.ts
 │   ├── composables/
 │   ├── nuxt.config.ts
 │   └── Dockerfile
+│
 ├── deploy/
-│   ├── nginx/nginx.conf
+│   ├── nginx/
+│   │   ├── nginx.conf              # prod
+│   │   └── nginx.dev.conf          # dev
 │   ├── docker-compose.prod.yml
-│   └── monitoring/{prometheus.yml,loki.yml,promtail.yml}
+│   └── monitoring/
+│       ├── prometheus.yml
+│       ├── loki.yml
+│       └── promtail.yml
+│
 ├── tests/
-│   ├── unit/, integration/, load/
+│   ├── unit/
+│   ├── integration/
+│   ├── load/                       # Locust
 │   └── conftest.py
+│
 ├── .gemini/
-│   ├── agents/{backend,frontend,devops,testing,security,cdek,orchestrator}-agent.md
-│   ├── agents/contracts/{api_contracts,project_structure}.md
-│   ├── agents/tasks/
-│   ├── agents/reports/
-│   └── policies/{agents,security-agent}.toml
-├── docker-compose.yml               ← dev environment
+│   ├── agents/
+│   │   ├── orchestrator.md         # Агент-координатор
+│   │   ├── backend-agent.md
+│   │   ├── frontend-agent.md
+│   │   ├── devops-agent.md
+│   │   ├── testing-agent.md
+│   │   ├── security-agent.md
+│   │   ├── cdek-agent.md
+│   │   ├── contracts/              # API-контракты между агентами
+│   │   ├── tasks/                  # Активные задачи (.json)
+│   │   └── reports/                # Отчёты агентов
+│   ├── commands/                   # Slash-команды (/agents:plan и др.)
+│   ├── policies/                   # TOML-политики агентов
+│   ├── settings.json
+│   └── system.md                   # Системный промпт оркестратора
+│
+├── docker-compose.yml              # Dev: все сервисы
 ├── .gitlab-ci.yml
 ├── .env.example
-├── GEMINI.md
-└── plan.md
+├── GEMINI.md                       # ← ВЫ ЗДЕСЬ
+├── DEVOPS.md
+├── CHANGELOG.md
+└── plan.md                         # Детальный план по фазам
 ```
 
 ---
 
-## Report Contract
+## 📐 Контракты разработки (обязательны для всех агентов)
 
-Каждый отчёт агента ОБЯЗАН содержать секции:
-- `## Status: DONE | IN_PROGRESS | BLOCKED`
-- `## Completed:` (список выполненного)
-- `## Artifacts:` (список созданных файлов)
-- `## Contracts Verified:` (какие контракты выполнены)
-- `## Next:` (что передать следующему агенту)
-- `## Blockers:` (если есть)
+### Общие правила
+1. Все эндпоинты **MUST** иметь Pydantic-схемы (отдельные Request + Response)
+2. Все сервисы **MUST** принимать зависимости через `Depends` (DI)
+3. Все внешние API-вызовы **MUST** иметь retry через `tenacity` (3 попытки, exponential backoff)
+4. Все репозитории **MUST** использовать параметризованные запросы (no raw SQL)
+5. Каждый агент **MUST** писать отчёт в `.gemini/agents/reports/<domain>/<task_id>.md`
+6. **ЗАПРЕЩЕНО**: использовать GitHub Actions — только GitLab CI/CD
+7. **ЗАПРЕЩЕНО**: использовать Docker Hub — только GitLab Container Registry
+8. **ЗАПРЕЩЕНО**: хардкодить цвета в `.vue`-компонентах — только CSS-переменные из `tokens.css`
+9. Модели SQLAlchemy **MUST** жить только в `backend/app/db/models/`
+10. Нет дублирования: **ЗАПРЕЩЕНЫ** top-level `app/models/`, `app/schemas/`, `app/services/`
 
-## Agent Invocation
+### Feature-First структура backend
+Каждая фича в `backend/app/api/v1/{feature}/` **MUST** содержать:
+- `router.py` — маршруты FastAPI
+- `service.py` — бизнес-логика (DI-ready)
+- `repository.py` — CRUD через SQLAlchemy async
+- `schemas.py` — Pydantic Request/Response модели
 
-Агенты вызываются: @orchestrator, @backend-agent, @frontend-agent,
-@security-agent, @testing-agent, @cdek-agent, @devops-agent
+Кросс-доменная логика → `app/core/` или `app/tasks/`.
 
-Порядок вызова: devops → backend → cdek → frontend → testing → security
-Полный граф зависимостей: см. orchestrator.md
+---
+
+## 🎨 Design Token Contract (Frontend)
+
+```
+frontend/assets/css/tokens.css   ← ЕДИНСТВЕННЫЙ источник всех дизайн-токенов
+frontend/stores/themeStore.ts    ← ЕДИНСТВЕННЫЙ источник состояния темы
+frontend/components/U/UThemeToggle.vue ← глобальная кнопка переключения темы
+```
+
+- `themeStore.toggle()` **MUST** обновлять `document.documentElement.dataset.theme`
+- Тема **MUST** сохраняться в `localStorage` key `theme`
+- SSR: читать тему из cookie `theme` (httpOnly=false) во избежание hydration mismatch
+- Тема по умолчанию: `dark`
+- Контраст текста: ≥ 4.5:1 (WCAG 2.1 AA) в обеих темах
+
+---
+
+## 📊 IoT / Телеметрия Contract
+
+- Таблица `telemetry` **MUST** быть TimescaleDB hypertable (chunk_time_interval = '1 day')
+- WebSocket эндпоинт: `ws://host/ws/iot/{device_id}`
+- Данные пишутся через Redis Streams → Celery consumer → TimescaleDB
+- Дашборд агрегирует данные через TimescaleDB time_bucket (не raw SELECT)
+- Retention policy: 90 дней (настраивается через `TELEMETRY_RETENTION_DAYS` в .env)
+
+---
+
+## 🤖 Агенты — вызов и порядок
+
+### Доступные агенты
+| Агент | Зона ответственности |
+|---|---|
+| `@orchestrator` | Координация, декомпозиция задач, валидация отчётов |
+| `@backend-agent` | FastAPI, SQLAlchemy, Alembic, REST API, WebSocket |
+| `@cdek-agent` | СДЭК, ЮKassa, ЦБ РФ, Celery-задачи интеграций |
+| `@frontend-agent` | Nuxt 3, Vue 3, Pinia, UI kit, темы, PWA |
+| `@devops-agent` | Docker, Nginx, GitLab CI/CD, мониторинг |
+| `@testing-agent` | pytest, интеграционные тесты, Locust |
+| `@security-agent` | OWASP, 152-ФЗ, audit (READ-ONLY) |
+
+### Порядок запуска в фазе
+```
+devops-agent → backend-agent → cdek-agent → frontend-agent → testing-agent → security-agent
+```
+
+Полный граф зависимостей фаз: см. [orchestrator.md](.gemini/agents/orchestrator.md)
+
+### Точка входа для новой задачи
+```
+/agents:plan <описание задачи>
+```
+Оркестратор декомпозирует задачу, создаёт `.json`-файлы в `.gemini/agents/tasks/` и строит план выполнения.
+
+---
+
+## 📋 Формат отчёта агента
+
+Каждый отчёт **ОБЯЗАН** содержать все секции:
+
+```markdown
+## Status: DONE | IN_PROGRESS | BLOCKED
+## Completed:
+- список выполненного
+## Artifacts:
+- backend/app/api/v1/products/router.py
+## Contracts Verified:
+- Pydantic schemas: ✅
+- DI via Depends: ✅
+## Next:
+- передать frontend-agent: API контракт /api/v1/products готов
+## Blockers:
+- нет
+```
