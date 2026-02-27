@@ -1,9 +1,9 @@
 # Module: api/v1/products/repository.py | Agent: backend-agent | Task: phase4_backend_ecommerce
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from uuid import UUID
 from decimal import Decimal
 
-from sqlalchemy import select, func, update
+from sqlalchemy import select, func, update, delete
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
@@ -117,6 +117,40 @@ class ProductRepository:
             next_cursor = str(items[-1]["id"])
             
         return items, next_cursor
+
+    async def create(self, product: Product) -> Product:
+        """Create a new product."""
+        self.session.add(product)
+        await self.session.flush()
+        await self.session.refresh(product)
+        return product
+
+    async def update(self, product_id: UUID, **kwargs) -> Optional[Product]:
+        """Update a product with partial data."""
+        if not kwargs:
+            return await self.get_by_id(product_id)
+
+        stmt = (
+            update(Product)
+            .where(Product.id == product_id)
+            .values(**kwargs)
+            .returning(Product)
+        )
+        result = await self.session.execute(stmt)
+        updated_product = result.scalar_one_or_none()
+        
+        if updated_product:
+            # Refresh to load relationships if needed, or just return the updated object
+            # To ensure relationships are available, we should probably fetch it again with options
+            return await self.get_by_id(product_id)
+        
+        return None
+
+    async def delete(self, product_id: UUID) -> bool:
+        """Delete a product."""
+        stmt = delete(Product).where(Product.id == product_id)
+        result = await self.session.execute(stmt)
+        return result.rowcount > 0
 
     async def get_categories_tree(self) -> list[Category]:
         stmt = (
