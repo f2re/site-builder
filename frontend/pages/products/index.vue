@@ -3,6 +3,7 @@ import { useProducts } from '~/composables/useProducts'
 import ProductCard from '~/components/catalog/ProductCard.vue'
 import CategorySidebar from '~/components/catalog/CategorySidebar.vue'
 import AppBreadcrumbs from '~/components/AppBreadcrumbs.vue'
+import { ref, computed, watch } from 'vue'
 
 const { getProducts, getCategories } = useProducts()
 const route = useRoute()
@@ -12,17 +13,56 @@ const config = useRuntimeConfig()
 // Filters state from query
 const categorySlug = computed(() => route.query.category as string | undefined)
 
-// Fetch data
+// Pagination state
+const products = ref<any[]>([])
+const nextCursor = ref<string | null>(null)
+const total = ref(0)
+const loading = ref(false)
+
+// Fetch categories (SSR-friendly)
 const { data: categoriesData } = await getCategories()
-const { data: productsData, pending, refresh } = await getProducts({
-  category_slug: categorySlug.value,
-  per_page: 20
-})
+
+// Main fetch function
+async function fetchProducts(cursor?: string) {
+  loading.value = true
+  try {
+    const { data } = await getProducts({
+      category_slug: categorySlug.value,
+      page_cursor: cursor,
+      per_page: 20
+    })
+    
+    if (data.value) {
+      if (cursor) {
+        products.value.push(...data.value.items)
+      } else {
+        products.value = data.value.items
+      }
+      nextCursor.value = data.value.next_cursor
+      total.value = data.value.total
+    }
+  } catch (err) {
+    console.error('Error fetching products:', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+// Initial fetch on server/client
+await fetchProducts()
 
 // Watch for category change
-watch(categorySlug, () => {
-  refresh()
+watch(categorySlug, async () => {
+  products.value = []
+  nextCursor.value = null
+  await fetchProducts()
 })
+
+const loadMore = () => {
+  if (nextCursor.value && !loading.value) {
+    fetchProducts(nextCursor.value)
+  }
+}
 
 const handleCategorySelect = (slug: string | undefined) => {
   router.push({
@@ -39,8 +79,7 @@ useSeoMeta({
   description: 'Широкий выбор оборудования для диагностики автомобилей в нашем каталоге. OBD2 сканеры, адаптеры и аксессуары.',
   ogTitle: 'Каталог товаров | WifiOBD',
   ogDescription: 'Широкий выбор оборудования для диагностики автомобилей.',
-  ogType: 'website',
-  ogImage: `${config.public.siteUrl}/img/og-catalog.jpg`
+  ogType: 'website'
 })
 
 useHead({
@@ -48,11 +87,10 @@ useHead({
     { 
       rel: 'canonical', 
       href: () => {
-        const url = new URL(`${config.public.siteUrl}/products`)
+        const url = new URL(`${config.public.siteBase}/products`, config.public.siteUrl)
         if (categorySlug.value) {
           url.searchParams.set('category', categorySlug.value)
         }
-        // Excluding pagination/sorting from canonical as requested
         return url.toString()
       }
     }
@@ -93,34 +131,44 @@ const breadcrumbItems = computed(() => {
               {{ categorySlug ? categoriesData?.items.find(c => c.slug === categorySlug)?.name : 'Все товары' }}
             </h1>
 
-            <div class="catalog-page__stats" v-if="productsData">
-              {{ productsData.total }} товаров найдено
+            <div class="catalog-page__stats">
+              {{ total }} товаров найдено
             </div>
           </header>
 
-          <!-- Loading State -->
-          <div v-if="pending" class="product-grid">
-            <div v-for="i in 8" :key="i" class="product-card-skeleton skeleton"></div>
+          <!-- Products List -->
+          <div v-if="products.length" class="product-grid">
+            <ProductCard
+              v-for="product in products"
+              :key="product.id"
+              :product="product"
+            />
           </div>
 
-          <!-- Products List -->
-          <div v-else-if="productsData?.items.length" class="product-grid">
-            <TransitionGroup name="list">
-              <ProductCard
-                v-for="product in productsData.items"
-                :key="product.id"
-                :product="product"
-              />
-            </TransitionGroup>
+          <!-- Skeleton Loaders -->
+          <div v-if="loading" class="product-grid mt-6">
+            <div v-for="i in 4" :key="i" class="product-card-skeleton skeleton"></div>
           </div>
 
           <!-- Empty State -->
-          <div v-else class="catalog-page__empty">
+          <div v-if="!loading && products.length === 0" class="catalog-page__empty">
             <div class="catalog-page__empty-icon">🔍</div>
             <h2 class="catalog-page__empty-title">Товары не найдены</h2>
             <p class="catalog-page__empty-text">Попробуйте изменить параметры поиска или фильтры.</p>
             <button class="btn btn--primary" @click="handleCategorySelect(undefined)">
               Сбросить фильтры
+            </button>
+          </div>
+
+          <!-- Pagination -->
+          <div v-if="nextCursor" class="catalog-page__pagination">
+            <button 
+              class="btn btn--secondary btn--lg" 
+              :disabled="loading"
+              @click="loadMore"
+            >
+              <span v-if="loading">Загрузка...</span>
+              <span v-else>Показать еще</span>
             </button>
           </div>
         </main>
@@ -204,6 +252,14 @@ const breadcrumbItems = computed(() => {
   margin-bottom: 24px;
 }
 
+.catalog-page__pagination {
+  margin-top: 48px;
+  display: flex;
+  justify-content: center;
+}
+
+.mt-6 { margin-top: 24px; }
+
 .desktop-only {
   display: none;
 }
@@ -238,7 +294,19 @@ const breadcrumbItems = computed(() => {
   box-shadow: var(--shadow-glow-accent);
 }
 
-.btn--primary:active {
-  transform: scale(0.98);
+.btn--lg {
+  padding: 16px 32px;
+  font-size: var(--text-base);
+}
+
+.btn--secondary {
+  background: transparent;
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

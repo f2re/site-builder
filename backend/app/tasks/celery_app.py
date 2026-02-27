@@ -18,8 +18,17 @@ celery_app.conf.update(
     include=[
         "app.tasks.notifications.dispatcher",
         "app.tasks.currency",
+        "app.tasks.inventory",
+        "app.tasks.search",
     ]
 )
+
+celery_app.conf.beat_schedule = {
+    "release-stale-reservations-every-15-mins": {
+        "task": "tasks.release_stale_reservations",
+        "schedule": 900.0, # 15 minutes
+    },
+}
 
 # Optional: Configuration from environment variables
 # celery_app.config_from_object('app.core.config', namespace='CELERY')

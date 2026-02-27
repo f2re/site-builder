@@ -3,7 +3,7 @@
   "phase": 4,
   "agent": "backend-agent",
   "title": "Cart (Redis Lua) + Orders + YooMoney webhook",
-  "status": "TODO",
+  "status": "DONE",
   "priority": "high",
   "depends_on": ["BE-01"],
   "blocks": ["FE-02", "BE-05", "CDEK-01"],

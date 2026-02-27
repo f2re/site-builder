@@ -1,19 +1,44 @@
 <script setup lang="ts">
 import type { Product } from '~/composables/useProducts'
+import { useCartStore } from '~/stores/cartStore'
+import { useToast } from '~/composables/useToast'
 
-defineProps<{
+const props = defineProps<{
   product: Product
 }>()
+
+const cartStore = useCartStore()
+const toast = useToast()
+
+const handleAddToCart = () => {
+  if (props.product.stock <= 0) return
+  
+  cartStore.addItem({
+    id: props.product.id as any, // ID in store is number, but API might return string. Need to align.
+    name: props.product.name,
+    price: props.product.price_display,
+    image: props.product.images[0]
+  })
+  
+  toast.success({
+    title: 'Добавлено',
+    message: `${props.product.name} теперь в корзине`
+  })
+}
 </script>
 
 <template>
   <NuxtLink :to="`/products/${product.slug}`" class="product-card">
     <div class="product-card__image-wrapper">
-      <img
+      <NuxtImg
         :src="product.images[0] || '/placeholder-product.png'"
         :alt="product.name"
         class="product-card__image"
         loading="lazy"
+        format="webp"
+        width="300"
+        height="300"
+        fit="cover"
       />
       <div v-if="product.stock <= 0" class="product-card__badge product-card__badge--out-of-stock">
         Нет в наличии
@@ -21,7 +46,7 @@ defineProps<{
     </div>
 
     <div class="product-card__content">
-      <div class="product-card__category">{{ product.category.name }}</div>
+      <div class="product-card__category">{{ product.category?.name }}</div>
       <h3 class="product-card__title">{{ product.name }}</h3>
 
       <div class="product-card__footer">
@@ -33,10 +58,10 @@ defineProps<{
         <button
           class="product-card__add"
           :disabled="product.stock <= 0"
-          @click.prevent="$emit('add-to-cart', product)"
+          @click.prevent="handleAddToCart"
           aria-label="Добавить в корзину"
         >
-          <span class="product-card__add-icon">+</span>
+          <Icon name="ph:plus-bold" size="20" />
         </button>
       </div>
     </div>
@@ -93,12 +118,14 @@ defineProps<{
   font-size: var(--text-xs);
   font-weight: 600;
   text-transform: uppercase;
+  z-index: 1;
 }
 
 .product-card__badge--out-of-stock {
   background: var(--color-surface-2);
   color: var(--color-muted);
   border: 1px solid var(--color-border);
+  backdrop-filter: blur(4px);
 }
 
 .product-card__content {
@@ -180,11 +207,5 @@ defineProps<{
   color: var(--color-muted);
   cursor: not-allowed;
   transform: none;
-}
-
-.product-card__add-icon {
-  font-size: 24px;
-  font-weight: 400;
-  line-height: 1;
 }
 </style>
