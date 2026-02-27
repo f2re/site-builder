@@ -99,6 +99,9 @@ class CartService:
         return await self.get_cart(cart_id)
 
     async def update_item(self, cart_id: str, variant_id: UUID, item: CartItemUpdate) -> Optional[Dict[str, Any]]:
+        if not self.redis:
+            return None
+            
         # Check stock
         current_stock = await inventory.get_stock(variant_id)
         if current_stock < item.quantity:
@@ -122,6 +125,9 @@ class CartService:
         return None
 
     async def remove_item(self, cart_id: str, variant_id: UUID) -> Optional[Dict[str, Any]]:
+        if not self.redis:
+            return None
+            
         key = self._get_key(cart_id)
         cart_data = await self.redis.get(key)
         if not cart_data:
@@ -137,6 +143,8 @@ class CartService:
         return None
 
     async def clear_cart(self, cart_id: str) -> None:
+        if not self.redis:
+            return
         key = self._get_key(cart_id)
         await self.redis.delete(key)
 

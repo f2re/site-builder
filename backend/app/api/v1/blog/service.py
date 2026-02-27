@@ -143,7 +143,8 @@ class BlogService:
                 "nextCursor": next_cursor,
                 "total": total,
                 "hasMore": next_cursor is not None
-            }
+            },
+            total=total
         )
 
     async def get_post_detail(self, slug: str) -> BlogPostRead:

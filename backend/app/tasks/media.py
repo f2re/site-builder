@@ -6,7 +6,7 @@ and dimension extraction for blog posts and product images.
 import asyncio
 from io import BytesIO
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Any, cast
 
 from PIL import Image
 from sqlalchemy import select
@@ -80,7 +80,7 @@ async def _process_image_async(
     image_data = await storage_client.read_file(object_name)
 
     # 2. Load image with Pillow and extract dimensions
-    img_pillow = Image.open(BytesIO(image_data))
+    img_pillow = cast(Any, Image.open(BytesIO(image_data)))
     original_format = img_pillow.format
     width, height = img_pillow.size
     logger.info(
@@ -93,7 +93,7 @@ async def _process_image_async(
     # Convert RGBA to RGB if needed (WebP with transparency requires special handling)
     if img_pillow.mode in ("RGBA", "LA", "P"):
         # Create white background
-        background = Image.new("RGB", img_pillow.size, (255, 255, 255))
+        background = cast(Any, Image.new("RGB", img_pillow.size, (255, 255, 255)))
         if img_pillow.mode == "P":
             img_pillow = img_pillow.convert("RGBA")
         background.paste(img_pillow, mask=img_pillow.split()[-1] if img_pillow.mode == "RGBA" else None)

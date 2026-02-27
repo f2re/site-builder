@@ -1,5 +1,5 @@
 # Module: api/v1/cart/repository.py | Agent: backend-agent | Task: BE-03
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, cast
 from uuid import UUID
 from redis.asyncio import Redis
 from sqlalchemy import select, delete
@@ -19,24 +19,23 @@ class CartRepository:
         return f"cart:guest:{session_id}"
 
     async def get_redis_items(self, user_id: str | UUID | None = None, session_id: str | None = None) -> Dict[str, int]:
-        from typing import cast
         key = self._get_redis_key(user_id, session_id)
-        items = cast(Dict[bytes, bytes], await self.redis.hgetall(key))
+        items = cast(Dict[bytes, bytes], await cast(Any, self.redis.hgetall(key)))
         return {k.decode(): int(v) for k, v in items.items()}
 
     async def add_redis_item(self, variant_id: UUID, quantity: int, user_id: str | UUID | None = None, session_id: str | None = None) -> None:
         key = self._get_redis_key(user_id, session_id)
-        await self.redis.hincrby(key, str(variant_id), quantity)
+        await cast(Any, self.redis.hincrby(key, str(variant_id), quantity))
         if not user_id and session_id:
-            await self.redis.expire(key, 7 * 24 * 60 * 60)  # 7 days
+            await cast(Any, self.redis.expire(key, 7 * 24 * 60 * 60))  # 7 days
 
     async def remove_redis_item(self, variant_id: UUID, user_id: str | UUID | None = None, session_id: str | None = None) -> None:
         key = self._get_redis_key(user_id, session_id)
-        await self.redis.hdel(key, str(variant_id))
+        await cast(Any, self.redis.hdel(key, str(variant_id)))
 
     async def clear_redis_cart(self, user_id: str | UUID | None = None, session_id: str | None = None) -> None:
         key = self._get_redis_key(user_id, session_id)
-        await self.redis.delete(key)
+        await cast(Any, self.redis.delete(key))
 
     async def get_db_cart(self, user_id: str | UUID | None = None, session_id: str | None = None) -> Optional[Cart]:
         stmt = select(Cart).options(joinedload(Cart.items).joinedload(CartItem.variant))
