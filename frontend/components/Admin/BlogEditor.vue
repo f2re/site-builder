@@ -18,7 +18,11 @@ const editor = useEditor({
     Link.configure({
       openOnClick: false,
     }),
-    Image,
+    Image.configure({
+      HTMLAttributes: {
+        class: 'blog-image',
+      },
+    }),
     Typography,
   ],
   onUpdate: ({ editor }) => {
@@ -35,6 +39,75 @@ watch(() => props.modelValue, (value) => {
 onBeforeUnmount(() => {
   editor.value?.destroy()
 })
+
+// Image upload
+const { uploadImage } = useMediaUpload()
+const imageInputRef = ref<HTMLInputElement | null>(null)
+const isUploading = ref(false)
+
+function openImageDialog() {
+  imageInputRef.value?.click()
+}
+
+async function handleImageUpload(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file || !editor.value) return
+
+  // Validate image
+  if (!file.type.startsWith('image/')) {
+    alert('Пожалуйста, выберите изображение')
+    return
+  }
+
+  // Max 5MB
+  if (file.size > 5 * 1024 * 1024) {
+    alert('Размер изображения не должен превышать 5 МБ')
+    return
+  }
+
+  isUploading.value = true
+
+  try {
+    // Get alt text from user (for SEO)
+    const alt = prompt('Введите alt-текст для изображения (описание):') || ''
+
+    // Upload to MinIO
+    const publicUrl = await uploadImage(file, alt, 'blog')
+
+    // Insert into editor
+    editor.value.chain().focus().setImage({ src: publicUrl, alt }).run()
+  } catch (error: any) {
+    alert(error.message || 'Ошибка загрузки изображения')
+  } finally {
+    isUploading.value = false
+    // Reset input
+    if (target) target.value = ''
+  }
+}
+
+// Link dialog
+const showLinkDialog = ref(false)
+const linkUrl = ref('')
+
+function openLinkDialog() {
+  const previousUrl = editor.value?.getAttributes('link').href || ''
+  linkUrl.value = previousUrl
+  showLinkDialog.value = true
+}
+
+function setLink() {
+  if (!editor.value) return
+
+  if (linkUrl.value === '') {
+    editor.value.chain().focus().extendMarkRange('link').unsetLink().run()
+  } else {
+    editor.value.chain().focus().extendMarkRange('link').setLink({ href: linkUrl.value }).run()
+  }
+
+  showLinkDialog.value = false
+  linkUrl.value = ''
+}
 </script>
 
 <template>
@@ -100,6 +173,24 @@ onBeforeUnmount(() => {
       <div class="divider" />
       <button
         type="button"
+        @click="openLinkDialog"
+        :class="{ 'is-active': editor.isActive('link') }"
+        title="Ссылка"
+      >
+        <Icon name="ph:link-bold" />
+      </button>
+      <button
+        type="button"
+        @click="openImageDialog"
+        :disabled="isUploading"
+        title="Изображение"
+      >
+        <Icon v-if="!isUploading" name="ph:image-bold" />
+        <Icon v-else name="ph:spinner" class="spin" />
+      </button>
+      <div class="divider" />
+      <button
+        type="button"
         @click="editor.chain().focus().undo().run()"
         :disabled="!editor.can().undo()"
         title="Отменить"
@@ -115,7 +206,35 @@ onBeforeUnmount(() => {
         <Icon name="ph:arrow-u-up-right-bold" />
       </button>
     </div>
+    
     <EditorContent :editor="editor" class="editor-content" />
+    
+    <!-- Hidden file input for image upload -->
+    <input
+      ref="imageInputRef"
+      type="file"
+      accept="image/*"
+      style="display: none"
+      @change="handleImageUpload"
+    />
+    
+    <!-- Link dialog -->
+    <div v-if="showLinkDialog" class="link-dialog-overlay" @click="showLinkDialog = false">
+      <div class="link-dialog" @click.stop>
+        <h3>Добавить ссылку</h3>
+        <input
+          v-model="linkUrl"
+          type="url"
+          placeholder="https://example.com"
+          @keydown.enter="setLink"
+          autofocus
+        />
+        <div class="link-dialog-actions">
+          <button type="button" @click="showLinkDialog = false">Отмена</button>
+          <button type="button" @click="setLink" class="primary">Вставить</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -155,7 +274,7 @@ onBeforeUnmount(() => {
   transition: all var(--transition-fast);
 }
 
-.editor-toolbar button:hover {
+.editor-toolbar button:hover:not(:disabled) {
   background: var(--color-surface-3);
   color: var(--color-text);
 }
@@ -220,5 +339,95 @@ onBeforeUnmount(() => {
   font-style: italic;
   color: var(--color-text-2);
   margin: 1.5em 0;
+}
+
+.editor-content :deep(.tiptap img.blog-image) {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  margin: 1em 0;
+}
+
+.editor-content :deep(.tiptap a) {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Link dialog */
+.link-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.link-dialog {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.link-dialog h3 {
+  margin: 0 0 16px;
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.link-dialog input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-size: var(--text-base);
+  margin-bottom: 16px;
+}
+
+.link-dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.link-dialog-actions button {
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  transition: all var(--transition-fast);
+}
+
+.link-dialog-actions button:hover {
+  background: var(--color-surface-3);
+}
+
+.link-dialog-actions button.primary {
+  background: var(--color-accent);
+  color: white;
+  border-color: var(--color-accent);
+}
+
+.link-dialog-actions button.primary:hover {
+  opacity: 0.9;
 }
 </style>
