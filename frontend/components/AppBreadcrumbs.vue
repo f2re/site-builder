@@ -1,43 +1,54 @@
 <script setup lang="ts">
-interface BreadcrumbItem {
-  name: string
-  path: string
+import { useBreadcrumbSchema } from '~/composables/useSchemaOrg'
+
+interface Crumb {
+  label: string
+  to?: string
+  icon?: string
 }
 
 const props = defineProps<{
-  items: BreadcrumbItem[]
+  crumbs: Crumb[]
 }>()
 
-const siteUrl = useRuntimeConfig().public.siteUrl
+const config = useRuntimeConfig()
+const siteUrl = config.public.siteUrl
 
-// Automatically generate Schema.org BreadcrumbList
-const breadcrumbItems = props.items.map((item, index) => ({
-  name: item.name,
-  item: item.path === '/' ? siteUrl : `${siteUrl}${item.path}`
-}))
-
-useBreadcrumbSchema(breadcrumbItems)
+// Inject Schema.org BreadcrumbList
+useBreadcrumbSchema(
+  props.crumbs.map(c => ({
+    name: c.label,
+    url: c.to ? `${siteUrl}${c.to}` : siteUrl,
+  }))
+)
 </script>
 
 <template>
-  <nav class="breadcrumbs" aria-label="Breadcrumb">
-    <ol class="breadcrumbs__list">
-      <li class="breadcrumbs__item">
-        <NuxtLink to="/" class="breadcrumbs__link">Главная</NuxtLink>
-        <Icon name="ph:caret-right-bold" size="12" class="breadcrumbs__separator" />
-      </li>
-      <li 
-        v-for="(item, index) in items" 
-        :key="index"
-        class="breadcrumbs__item"
+  <nav class="breadcrumbs" aria-label="Хлебные крошки" itemscope itemtype="https://schema.org/BreadcrumbList">
+    <ol class="breadcrumbs-list">
+      <li
+        v-for="(crumb, i) in crumbs"
+        :key="i"
+        class="breadcrumbs-item"
+        itemprop="itemListElement"
+        itemscope
+        itemtype="https://schema.org/ListItem"
       >
-        <template v-if="index === items.length - 1">
-          <span class="breadcrumbs__current" aria-current="page">{{ item.name }}</span>
-        </template>
-        <template v-else>
-          <NuxtLink :to="item.path" class="breadcrumbs__link">{{ item.name }}</NuxtLink>
-          <Icon name="ph:caret-right-bold" size="12" class="breadcrumbs__separator" />
-        </template>
+        <NuxtLink
+          v-if="crumb.to"
+          :to="crumb.to"
+          class="breadcrumbs-link"
+          itemprop="item"
+        >
+          <Icon v-if="crumb.icon" :name="crumb.icon" class="breadcrumbs-icon" />
+          <span itemprop="name">{{ crumb.label }}</span>
+        </NuxtLink>
+        <span v-else class="breadcrumbs-current" itemprop="name">
+          <Icon v-if="crumb.icon" :name="crumb.icon" class="breadcrumbs-icon" />
+          {{ crumb.label }}
+        </span>
+        <meta itemprop="position" :content="String(i + 1)" />
+        <span v-if="i < crumbs.length - 1" class="breadcrumbs-separator" aria-hidden="true">/</span>
       </li>
     </ol>
   </nav>
@@ -45,36 +56,55 @@ useBreadcrumbSchema(breadcrumbItems)
 
 <style scoped>
 .breadcrumbs {
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--space-4);
 }
-.breadcrumbs__list {
+
+.breadcrumbs-list {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  align-items: center;
+  gap: var(--space-2);
   list-style: none;
   padding: 0;
   margin: 0;
+  font-size: var(--text-sm);
 }
-.breadcrumbs__item {
+
+.breadcrumbs-item {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: var(--text-xs);
+  gap: var(--space-2);
 }
-.breadcrumbs__link {
+
+.breadcrumbs-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   color: var(--color-text-2);
   text-decoration: none;
   transition: color var(--transition-fast);
 }
-.breadcrumbs__link:hover {
+
+.breadcrumbs-link:hover {
   color: var(--color-accent);
+  text-decoration: underline;
 }
-.breadcrumbs__separator {
-  color: var(--color-muted);
-}
-.breadcrumbs__current {
+
+.breadcrumbs-current {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   color: var(--color-text);
   font-weight: 500;
+}
+
+.breadcrumbs-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.breadcrumbs-separator {
+  color: var(--color-text-3);
+  user-select: none;
 }
 </style>

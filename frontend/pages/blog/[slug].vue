@@ -1,241 +1,256 @@
 <script setup lang="ts">
-import { useBlog } from '~/composables/useBlog'
+import { useArticleSeo } from '~/composables/useSeo'
 import { useArticleSchema } from '~/composables/useSchemaOrg'
-import AppBreadcrumbs from '~/components/AppBreadcrumbs.vue'
 
 const route = useRoute()
 const config = useRuntimeConfig()
-const { getPost } = useBlog()
-const slug = route.params.slug as string
 
-const { data: post, pending, error } = await getPost(slug)
+const { data: post, error } = await useFetch(`${config.public.apiBase}/api/v1/blog/posts/${route.params.slug}`)
 
-if (!post.value && !pending.value) {
-  throw createError({ statusCode: 404, statusMessage: 'Статья не найдена' })
+if (error.value || !post.value) {
+  throw createError({
+    statusCode: 404,
+    message: 'Статья не найдена',
+  })
 }
 
-// SEO Meta
-useSeoMeta({
-  title: () => post.value?.title ? `${post.value.title} | WifiOBD Blog` : 'Блог',
-  description: () => post.value?.summary || '',
-  ogTitle: () => post.value?.title,
-  ogDescription: () => post.value?.summary,
-  ogImage: () => post.value?.cover_url ? (post.value.cover_url.startsWith('http') ? post.value.cover_url : `${config.public.siteUrl}${post.value.cover_url}`) : undefined,
-  twitterCard: 'summary_large_image',
+// SEO
+useArticleSeo({
+  title: post.value.title,
+  description: post.value.excerpt,
+  image: post.value.og_image_url,
+  publishedAt: post.value.published_at,
+  updatedAt: post.value.updated_at,
+  author: post.value.author?.display_name || 'WifiOBD',
+  slug: post.value.slug,
+  tags: post.value.tags?.map(t => t.name),
 })
 
-useHead({
-  link: [
-    { rel: 'canonical', href: () => `${config.public.siteUrl}/blog/${slug}` }
-  ]
-})
-
-// Schema.org
-watchEffect(() => {
-  if (post.value) {
-    useArticleSchema(post.value)
-  }
-})
-
-const breadcrumbItems = computed(() => [
-  { name: 'Блог', path: '/blog' },
-  { name: post.value?.title || '...', path: `/blog/${slug}` }
-])
+// Breadcrumbs
+const breadcrumbs = [
+  { label: 'Главная', to: '/', icon: 'ph:house' },
+  { label: 'Блог', to: '/blog' },
+  { label: post.value.title },
+]
 </script>
 
 <template>
-  <div class="post-page">
+  <article class="blog-post">
     <div class="container">
-      <AppBreadcrumbs :items="breadcrumbItems" />
+      <AppBreadcrumbs :crumbs="breadcrumbs" />
 
-      <div v-if="pending" class="loading-container">
-        <div class="skeleton-hero"></div>
-        <div class="skeleton-text" v-for="i in 10" :key="i"></div>
-      </div>
-
-      <article v-else-if="post" class="post-content">
-        <header class="post-header">
-          <div class="post-meta">
-            <span class="category" v-if="post.category">{{ post.category.name }}</span>
-            <span class="date">{{ new Date(post.published_at).toLocaleDateString('ru-RU') }}</span>
-            <span class="dot">·</span>
-            <span class="reading-time">{{ post.reading_time_min || 5 }} мин чтения</span>
-          </div>
-          <h1 class="post-title">{{ post.title }}</h1>
-          <div class="author-info" v-if="post.author">
-            <NuxtImg 
-              :src="post.author.avatar_url || '/img/avatar-placeholder.png'" 
-              alt="" 
-              class="author-avatar"
-              width="32"
-              height="32"
-            />
-            <span class="author-name">{{ post.author.name }}</span>
-          </div>
-        </header>
-
-        <div class="post-hero" v-if="post.cover_url">
-          <NuxtImg 
-            :src="post.cover_url" 
-            :alt="post.title" 
-            class="hero-image"
-            format="webp"
-            loading="eager"
-          />
+      <header class="post-header">
+        <h1 class="post-title">{{ post.title }}</h1>
+        
+        <div class="post-meta">
+          <time :datetime="post.published_at" class="post-date">
+            {{ new Date(post.published_at).toLocaleDateString('ru-RU', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            }) }}
+          </time>
+          <span class="post-reading-time">
+            <Icon name="ph:clock" />
+            {{ post.reading_time_minutes }} мин
+          </span>
+          <span v-if="post.views" class="post-views">
+            <Icon name="ph:eye" />
+            {{ post.views }}
+          </span>
         </div>
 
-        <div class="post-body" v-html="post.content"></div>
+        <img
+          v-if="post.og_image_url"
+          :src="post.og_image_url"
+          :alt="post.title"
+          class="post-cover"
+          loading="eager"
+          fetchpriority="high"
+        />
+      </header>
 
-        <footer class="post-footer">
-          <div class="tags" v-if="post.tags && post.tags.length">
-            <span v-for="tag in post.tags" :key="tag.id" class="tag">#{{ tag.name }}</span>
-          </div>
-        </footer>
-      </article>
+      <div class="post-content" v-html="post.content_html" />
 
-      <div v-else-if="error" class="error-container">
-        <h2>Ошибка загрузки</h2>
-        <p>{{ error.message }}</p>
-        <NuxtLink to="/blog" class="btn">Вернуться в блог</NuxtLink>
-      </div>
+      <footer class="post-footer">
+        <div v-if="post.tags?.length" class="post-tags">
+          <span class="post-tags-label">Теги:</span>
+          <NuxtLink
+            v-for="tag in post.tags"
+            :key="tag.id"
+            :to="`/blog?tag=${tag.slug}`"
+            class="post-tag"
+          >
+            {{ tag.name }}
+          </NuxtLink>
+        </div>
+
+        <NuxtLink to="/blog" class="back-link">
+          <Icon name="ph:arrow-left" />
+          Вернуться к блогу
+        </NuxtLink>
+      </footer>
     </div>
-  </div>
+  </article>
 </template>
 
 <style scoped>
-.post-page {
-  padding: 40px 0;
+.blog-post {
+  padding: var(--space-8) 0;
 }
 
-.post-content {
+.container {
   max-width: 800px;
   margin: 0 auto;
+  padding: 0 var(--space-4);
 }
 
 .post-header {
-  margin-bottom: 40px;
+  margin-bottom: var(--space-8);
+}
+
+.post-title {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  margin-bottom: var(--space-4);
+  color: var(--color-text);
+  line-height: 1.2;
 }
 
 .post-meta {
   display: flex;
+  gap: var(--space-4);
   align-items: center;
-  gap: 12px;
-  color: var(--color-text-2);
   font-size: var(--text-sm);
-  margin-bottom: 16px;
+  color: var(--color-text-2);
+  margin-bottom: var(--space-6);
 }
 
-.category {
-  color: var(--color-accent);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.post-title {
-  font-size: var(--text-2xl);
-  font-weight: 800;
-  line-height: 1.2;
-  margin-bottom: 24px;
-}
-
-.author-info {
+.post-reading-time,
+.post-views {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-1);
 }
 
-.author-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-full);
-  background: var(--color-surface-2);
-}
-
-.author-name {
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.post-hero {
-  margin-bottom: 48px;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  box-shadow: var(--shadow-card);
-}
-
-.hero-image {
+.post-cover {
   width: 100%;
-  aspect-ratio: 16/9;
-  object-fit: cover;
-  display: block;
+  height: auto;
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-6);
 }
 
-.post-body {
+.post-content {
   font-size: var(--text-base);
   line-height: 1.7;
   color: var(--color-text);
+  margin-bottom: var(--space-8);
 }
 
-/* Typography for v-html content */
-:deep(.post-body) h2 { margin: 48px 0 24px; font-size: var(--text-xl); font-weight: 700; }
-:deep(.post-body) p { margin-bottom: 24px; }
-:deep(.post-body) img { max-width: 100%; border-radius: var(--radius-md); margin: 32px 0; }
-:deep(.post-body) blockquote {
-  border-left: 4px solid var(--color-accent);
-  padding: 16px 24px;
-  background: var(--color-surface-2);
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
-  margin: 32px 0;
-  font-style: italic;
-}
-
-.post-footer {
-  margin-top: 64px;
-  padding-top: 32px;
-  border-top: 1px solid var(--color-border);
-}
-
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.tag {
-  color: var(--color-text-2);
-  font-size: var(--text-sm);
-  transition: color var(--transition-fast);
-  cursor: pointer;
-}
-
-.tag:hover {
+.post-content :deep(h2) {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  margin: var(--space-8) 0 var(--space-4);
   color: var(--color-accent);
 }
 
-.loading-container {
-  max-width: 800px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+.post-content :deep(h3) {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  margin: var(--space-6) 0 var(--space-3);
 }
 
-.skeleton-hero {
-  height: 400px;
-  background: var(--color-surface-2);
-  border-radius: var(--radius-lg);
+.post-content :deep(p) {
+  margin-bottom: var(--space-4);
 }
 
-.skeleton-text {
-  height: 20px;
+.post-content :deep(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  margin: var(--space-4) 0;
+}
+
+.post-content :deep(a) {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.post-content :deep(blockquote) {
+  border-left: 4px solid var(--color-accent);
+  padding-left: var(--space-4);
+  font-style: italic;
+  color: var(--color-text-2);
+  margin: var(--space-6) 0;
+}
+
+.post-content :deep(ul),
+.post-content :deep(ol) {
+  padding-left: var(--space-6);
+  margin-bottom: var(--space-4);
+}
+
+.post-content :deep(code) {
   background: var(--color-surface-2);
+  padding: 2px 6px;
   border-radius: var(--radius-sm);
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
 }
 
-@media (max-width: 768px) {
-  .post-title {
-    font-size: var(--text-xl);
-  }
+.post-content :deep(pre) {
+  background: var(--color-surface-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  margin: var(--space-4) 0;
+}
+
+.post-footer {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-6);
+}
+
+.post-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-bottom: var(--space-6);
+}
+
+.post-tags-label {
+  font-weight: 600;
+  color: var(--color-text-2);
+}
+
+.post-tag {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-surface-2);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  color: var(--color-text-2);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+
+.post-tag:hover {
+  background: var(--color-accent-glow);
+  color: var(--color-accent);
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-accent);
+  text-decoration: none;
+  font-weight: 500;
+  transition: gap var(--transition-fast);
+}
+
+.back-link:hover {
+  gap: var(--space-3);
 }
 </style>
