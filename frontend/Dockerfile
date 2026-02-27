@@ -3,7 +3,10 @@ FROM node:22-slim AS development
 
 WORKDIR /app
 
-# Update npm to latest to suppress upgrade notice
+# Install curl for healthcheck + update npm
+RUN apt-get update && apt-get install -y curl \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN npm install -g npm@latest
 
 # Install dependencies
@@ -28,15 +31,11 @@ FROM node:22-slim AS builder
 
 WORKDIR /app
 
-# Update npm to latest
-RUN npm install -g npm@latest
-
-# Install build dependencies (for some npm packages that need them)
-RUN apt-get update && apt-get install -y \
-    python3 \
-    make \
-    g++ \
+# Install curl + update npm
+RUN apt-get update && apt-get install -y curl python3 make g++ \
     && rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g npm@latest
 
 # Install dependencies
 COPY package*.json ./
@@ -51,6 +50,10 @@ RUN npm run build
 FROM node:22-slim AS runner
 
 WORKDIR /app
+
+# Install curl for healthcheck
+RUN apt-get update && apt-get install -y curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Security: Add a non-root user
 RUN groupadd -r appuser && useradd -r -g appuser appuser
