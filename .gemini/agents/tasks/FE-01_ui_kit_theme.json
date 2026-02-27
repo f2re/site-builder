@@ -3,7 +3,7 @@
   "phase": 7,
   "agent": "frontend-agent",
   "title": "UI-kit + design tokens + Pinia stores + base composables",
-  "status": "TODO",
+  "status": "DONE",
   "priority": "high",
   "depends_on": [],
   "blocks": ["FE-02","FE-03","FE-04"],

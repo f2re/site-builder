@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 from decimal import Decimal
 from fastapi import APIRouter, Depends, Query, HTTPException, status
@@ -9,8 +9,36 @@ from app.api.v1.products.schemas import (
     CategoryTreeRead
 )
 from app.api.v1.products.repository import ProductRepository, get_product_repo
+from app.integrations.meilisearch import meilisearch_provider
 
 router = APIRouter(prefix="/products", tags=["Catalog"])
+
+@router.get("/search", response_model=Dict[str, Any])
+async def search_products(
+    q: str = Query("", description="Search query"),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    filter: Optional[List[str]] = Query(None),
+    sort: Optional[List[str]] = Query(None),
+):
+    """
+    Search products using Meilisearch.
+    """
+    try:
+        results = await meilisearch_provider.search(
+            index_name="products",
+            query=q,
+            limit=limit,
+            offset=offset,
+            filter=filter,
+            sort=sort,
+        )
+        return results
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Meilisearch error: {str(e)}"
+        )
 
 @router.get("/", response_model=ProductPagination)
 async def list_products(

@@ -1,4 +1,4 @@
-# Module: api/v1/products/repository.py | Agent: backend-agent | Task: phase4_backend_ecommerce
+# Module: api/v1/products/repository.py | Agent: backend-agent | Task: BE-01
 from typing import Optional, Tuple, List
 from uuid import UUID
 from decimal import Decimal
@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
-from app.db.models.product import Product, Category, ProductVariant, ProductImage
+from app.db.models.product import Product, Category, ProductVariant, ProductImage, StockMovement
 from app.db.session import get_db
 
 class ProductRepository:
@@ -49,7 +49,7 @@ class ProductRepository:
         cursor: Optional[UUID] = None,
         per_page: int = 20,
     ) -> Tuple[list[dict], Optional[str]]:
-        # Subqueries for prices and main images
+        # Subqueries for prices and cover images
         min_price_sq = (
             select(
                 ProductVariant.product_id,
@@ -59,12 +59,12 @@ class ProductRepository:
             .subquery()
         )
         
-        main_image_sq = (
+        cover_image_sq = (
             select(
                 ProductImage.product_id,
                 ProductImage.url
             )
-            .where(ProductImage.is_main)
+            .where(ProductImage.is_cover)
             .subquery()
         )
 
@@ -75,11 +75,11 @@ class ProductRepository:
                 Product.slug,
                 Product.category_id,
                 Product.is_active,
-                main_image_sq.c.url.label("main_image_url"),
+                cover_image_sq.c.url.label("main_image_url"),
                 min_price_sq.c.min_price
             )
             .outerjoin(min_price_sq, Product.id == min_price_sq.c.product_id)
-            .outerjoin(main_image_sq, Product.id == main_image_sq.c.product_id)
+            .outerjoin(cover_image_sq, Product.id == cover_image_sq.c.product_id)
             .where(Product.is_active)
         )
 
@@ -140,8 +140,6 @@ class ProductRepository:
         updated_product = result.scalar_one_or_none()
         
         if updated_product:
-            # Refresh to load relationships if needed, or just return the updated object
-            # To ensure relationships are available, we should probably fetch it again with options
             return await self.get_by_id(product_id)
         
         return None
@@ -161,19 +159,52 @@ class ProductRepository:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def decrement_stock(self, variant_id: UUID, quantity: int) -> bool:
+    async def decrement_stock(self, variant_id: UUID, quantity: int, reason: str = "order") -> bool:
         """
-        Atomic stock decrement.
-        Returns True if successful (enough stock), False otherwise.
+        Atomic stock decrement in DB. 
+        Note: Real-time stock reservation should be done in Redis.
         """
         stmt = (
             update(ProductVariant)
             .where(ProductVariant.id == variant_id)
             .where(ProductVariant.stock_quantity >= quantity)
             .values(stock_quantity=ProductVariant.stock_quantity - quantity)
+            .returning(ProductVariant.id)
         )
         result = await self.session.execute(stmt)
-        return result.rowcount > 0
+        updated = result.scalar_one_or_none()
+        
+        if updated:
+            movement = StockMovement(
+                variant_id=variant_id,
+                delta=-quantity,
+                reason=reason
+            )
+            self.session.add(movement)
+            await self.session.flush()
+            return True
+        return False
+
+    async def increment_stock(self, variant_id: UUID, quantity: int, reason: str = "restock") -> bool:
+        stmt = (
+            update(ProductVariant)
+            .where(ProductVariant.id == variant_id)
+            .values(stock_quantity=ProductVariant.stock_quantity + quantity)
+            .returning(ProductVariant.id)
+        )
+        result = await self.session.execute(stmt)
+        updated = result.scalar_one_or_none()
+        
+        if updated:
+            movement = StockMovement(
+                variant_id=variant_id,
+                delta=quantity,
+                reason=reason
+            )
+            self.session.add(movement)
+            await self.session.flush()
+            return True
+        return False
 
 async def get_product_repo(session: AsyncSession = Depends(get_db)) -> ProductRepository:
     return ProductRepository(session)

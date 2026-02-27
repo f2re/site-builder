@@ -1,4 +1,4 @@
-# Module: api/v1/products/service.py | Agent: backend-agent | Task: product_service_crud
+# Module: api/v1/products/service.py | Agent: backend-agent | Task: BE-01
 import bleach
 from typing import List, Optional
 from uuid import UUID
@@ -13,8 +13,18 @@ from app.api.v1.products.schemas import (
     ProductCreate,
     ProductUpdate
 )
-from app.db.models.product import Product
+from app.db.models.product import Product, ProductImage, ProductVariant
 from app.tasks.search import index_product_task, remove_product_from_index_task
+
+# Allowed tags and attributes for sanitization
+ALLOWED_TAGS = bleach.sanitizer.ALLOWED_TAGS | {
+    'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br', 'hr', 'div', 'span', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td'
+}
+ALLOWED_ATTRS = bleach.sanitizer.ALLOWED_ATTRIBUTES | {
+    'img': ['src', 'alt', 'width', 'height', 'title', 'class'],
+    'a': ['href', 'title', 'target', 'class'],
+    '*': ['class', 'id', 'style']
+}
 
 class ProductService:
     def __init__(self, repo: ProductRepository = Depends(get_product_repo)):
@@ -67,24 +77,32 @@ class ProductService:
         """
         Create a new product, sanitize description, and index in search.
         """
-        product_dict = data.model_dump()
+        product_dict = data.model_dump(exclude={"images", "variants"})
+        
         if product_dict.get("description"):
             product_dict["description"] = bleach.clean(product_dict["description"])
         
+        if product_dict.get("description_html"):
+            product_dict["description_html"] = bleach.clean(
+                product_dict["description_html"],
+                tags=ALLOWED_TAGS,
+                attributes=ALLOWED_ATTRS
+            )
+        
         product = Product(**product_dict)
+        
+        # Handle images
+        if data.images:
+            product.images = [ProductImage(**img.model_dump()) for img in data.images]
+            
+        # Handle variants
+        if data.variants:
+            product.variants = [ProductVariant(**var.model_dump()) for var in data.variants]
+            
         created_product = await self.repo.create(product)
         
-        # Refresh to ensure we have all fields for indexing (though for new product it's mostly same)
         # Prepare data for search indexing
-        index_data = {
-            "id": str(created_product.id),
-            "name": created_product.name,
-            "slug": created_product.slug,
-            "description": created_product.description,
-            "category_id": str(created_product.category_id) if created_product.category_id else None,
-            "is_active": created_product.is_active
-        }
-        index_product_task.delay(index_data)
+        self._trigger_indexing(created_product)
         
         return ProductRead.model_validate(created_product)
 
@@ -96,6 +114,13 @@ class ProductService:
         if "description" in update_data and update_data["description"]:
             update_data["description"] = bleach.clean(update_data["description"])
             
+        if "description_html" in update_data and update_data["description_html"]:
+            update_data["description_html"] = bleach.clean(
+                update_data["description_html"],
+                tags=ALLOWED_TAGS,
+                attributes=ALLOWED_ATTRS
+            )
+            
         updated_product = await self.repo.update(product_id, **update_data)
         if not updated_product:
             raise HTTPException(
@@ -104,15 +129,7 @@ class ProductService:
             )
             
         # Update search index
-        index_data = {
-            "id": str(updated_product.id),
-            "name": updated_product.name,
-            "slug": updated_product.slug,
-            "description": updated_product.description,
-            "category_id": str(updated_product.category_id) if updated_product.category_id else None,
-            "is_active": updated_product.is_active
-        }
-        index_product_task.delay(index_data)
+        self._trigger_indexing(updated_product)
         
         return ProductRead.model_validate(updated_product)
 
@@ -129,3 +146,14 @@ class ProductService:
         
         # Remove from search index
         remove_product_from_index_task.delay(str(product_id))
+
+    def _trigger_indexing(self, product: Product) -> None:
+        index_data = {
+            "id": str(product.id),
+            "name": product.name,
+            "slug": product.slug,
+            "description": product.description,
+            "category_id": str(product.category_id) if product.category_id else None,
+            "is_active": product.is_active
+        }
+        index_product_task.delay(index_data)

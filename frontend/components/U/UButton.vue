@@ -111,7 +111,7 @@ const isNuxtLink = computed(() => !!props.to)
   color: var(--color-on-accent);
 }
 .btn--danger:hover:not(:disabled) {
-  background-color: #ff5252;
+  background-color: var(--color-accent-hover);
 }
 
 .btn--neon {

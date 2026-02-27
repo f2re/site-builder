@@ -3,7 +3,7 @@
   "phase": 3,
   "agent": "backend-agent",
   "title": "Catalog: products, categories, inventory Redis",
-  "status": "TODO",
+  "status": "DONE",
   "priority": "high",
   "depends_on": [],
   "blocks": ["BE-03", "FE-02"],

@@ -1,4 +1,4 @@
-# Module: api/v1/products/schemas.py | Agent: backend-agent | Task: product_service_crud
+# Module: api/v1/products/schemas.py | Agent: backend-agent | Task: BE-01
 from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 from uuid import UUID
@@ -9,6 +9,7 @@ from decimal import Decimal
 class CategoryBase(BaseModel):
     name: str
     slug: str
+    is_active: bool = True
     parent_id: Optional[UUID] = None
 
 class CategoryRead(CategoryBase):
@@ -18,29 +19,51 @@ class CategoryRead(CategoryBase):
 class CategoryTreeRead(CategoryRead):
     children: List[CategoryTreeRead] = []
 
-class ProductImageRead(BaseModel):
-    id: UUID
+class ProductImageBase(BaseModel):
     url: str
-    is_main: bool
-    position: int
+    alt: str
+    is_cover: bool = False
+    sort_order: int = 0
+    width: Optional[int] = None
+    height: Optional[int] = None
+
+class ProductImageRead(ProductImageBase):
+    id: UUID
     model_config = ConfigDict(from_attributes=True)
 
-class ProductVariantRead(BaseModel):
-    id: UUID
+class ProductVariantBase(BaseModel):
+    name: str
     sku: str
     price: Decimal
-    stock_quantity: int
-    attributes: dict[str, Any]
+    stock_quantity: int = 0
+    attributes: dict[str, Any] = Field(default_factory=dict)
+
+class ProductVariantRead(ProductVariantBase):
+    id: UUID
     model_config = ConfigDict(from_attributes=True)
 
-class ProductRead(BaseModel):
+class StockMovementRead(BaseModel):
     id: UUID
-    category_id: Optional[UUID]
+    variant_id: UUID
+    delta: int
+    reason: str
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class ProductBase(BaseModel):
+    category_id: Optional[UUID] = None
     name: str
     slug: str
     description: Optional[str] = None
-    attributes: dict[str, Any]
-    is_active: bool
+    description_html: Optional[str] = None
+    meta_title: Optional[str] = Field(None, max_length=60)
+    meta_description: Optional[str] = Field(None, max_length=160)
+    og_image_url: Optional[str] = None
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    is_active: bool = True
+
+class ProductRead(ProductBase):
+    id: UUID
     created_at: datetime
     updated_at: datetime
     category: Optional[CategoryRead] = None
@@ -48,19 +71,19 @@ class ProductRead(BaseModel):
     variants: List[ProductVariantRead] = []
     model_config = ConfigDict(from_attributes=True)
 
-class ProductCreate(BaseModel):
-    category_id: Optional[UUID] = None
-    name: str
-    slug: str
-    description: Optional[str] = None
-    attributes: dict[str, Any] = Field(default_factory=dict)
-    is_active: bool = True
+class ProductCreate(ProductBase):
+    images: List[ProductImageBase] = []
+    variants: List[ProductVariantBase] = []
 
 class ProductUpdate(BaseModel):
     category_id: Optional[UUID] = None
     name: Optional[str] = None
     slug: Optional[str] = None
     description: Optional[str] = None
+    description_html: Optional[str] = None
+    meta_title: Optional[str] = Field(None, max_length=60)
+    meta_description: Optional[str] = Field(None, max_length=160)
+    og_image_url: Optional[str] = None
     attributes: Optional[dict[str, Any]] = None
     is_active: Optional[bool] = None
 

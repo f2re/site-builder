@@ -3,7 +3,7 @@
   "phase": 4,
   "agent": "cdek-agent",
   "title": "CDEK v2 client + YooMoney client + delivery API",
-  "status": "TODO",
+  "status": "DONE",
   "priority": "high",
   "depends_on": ["BE-03"],
   "blocks": ["FE-02"],
