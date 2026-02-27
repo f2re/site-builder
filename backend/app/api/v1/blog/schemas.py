@@ -36,6 +36,22 @@ class BlogPostBase(BaseModel):
     content: str
     status: BlogStatus
     is_featured: bool = False
+    category_id: Optional[UUID] = None
+    cover_image: Optional[str] = None
+    meta_title: Optional[str] = None
+    meta_description: Optional[str] = None
+
+class BlogPostCreate(BlogPostBase):
+    pass
+
+class BlogPostUpdate(BaseModel):
+    title: Optional[str] = None
+    slug: Optional[str] = None
+    summary: Optional[str] = None
+    content: Optional[str] = None
+    status: Optional[BlogStatus] = None
+    is_featured: Optional[bool] = None
+    category_id: Optional[UUID] = None
     cover_image: Optional[str] = None
     meta_title: Optional[str] = None
     meta_description: Optional[str] = None

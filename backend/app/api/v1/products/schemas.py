@@ -1,4 +1,4 @@
-# Module: api/v1/products/schemas.py | Agent: backend-agent | Task: phase3_backend_catalog
+# Module: api/v1/products/schemas.py | Agent: backend-agent | Task: product_service_crud
 from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 from uuid import UUID
@@ -47,6 +47,22 @@ class ProductRead(BaseModel):
     images: List[ProductImageRead] = []
     variants: List[ProductVariantRead] = []
     model_config = ConfigDict(from_attributes=True)
+
+class ProductCreate(BaseModel):
+    category_id: Optional[UUID] = None
+    name: str
+    slug: str
+    description: Optional[str] = None
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    is_active: bool = True
+
+class ProductUpdate(BaseModel):
+    category_id: Optional[UUID] = None
+    name: Optional[str] = None
+    slug: Optional[str] = None
+    description: Optional[str] = None
+    attributes: Optional[dict[str, Any]] = None
+    is_active: Optional[bool] = None
 
 class ProductShortRead(BaseModel):
     id: UUID
