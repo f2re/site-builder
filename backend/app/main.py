@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 import structlog
 
 from app.api.v1.router import api_router
@@ -17,7 +19,7 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -25,6 +27,11 @@ app.add_middleware(
 
 # Include API router
 app.include_router(api_router)
+
+# Serve media files in development
+# In production, Nginx should serve this directory
+os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
+app.mount(settings.MEDIA_URL, StaticFiles(directory=settings.MEDIA_ROOT), name="media")
 
 
 @app.get("/health")

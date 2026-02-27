@@ -10,12 +10,11 @@ from typing import Literal
 
 from PIL import Image
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.logging import logger
-from app.integrations.minio import minio_client
+from app.integrations.local_storage import storage_client
 from app.tasks.celery_app import celery_app
 
 
@@ -24,20 +23,20 @@ def process_image(
     self,
     object_name: str,
     media_id: int,
-    context: Literal["blog", "product"],
+    context: Literal["blog", "product"] = "blog",
 ):
     """
     Process uploaded image:
-    1. Download original from MinIO
+    1. Read original from local storage
     2. Extract real dimensions (width, height) via Pillow
     3. Convert to WebP (quality=85) for better compression
     4. Generate thumbnail (480px max dimension)
-    5. Upload WebP + thumbnail back to MinIO
+    5. Save WebP + thumbnail back to local storage
     6. Update database record with new URLs and dimensions
     7. Optionally delete original (configurable)
     
     Args:
-        object_name: Path in MinIO bucket (e.g., 'blog/2026/02/image.jpg')
+        object_name: Path in storage (e.g., 'blog/2026/02/image.jpg')
         media_id: ID of BlogPostMedia or ProductImage record
         context: 'blog' or 'product' - determines which model to update
     """
@@ -76,14 +75,9 @@ async def _process_image_async(
     context: Literal["blog", "product"],
 ):
     """Async implementation of image processing."""
-    bucket = settings.MINIO_BUCKET_MEDIA
-
-    # 1. Download original from MinIO
-    logger.info("downloading_from_minio", object_name=object_name)
-    response = await minio_client.get_object(bucket, object_name)
-    image_data = await response.read()
-    await response.close()
-    await response.release()
+    # 1. Read original from local storage
+    logger.info("reading_original_file", object_name=object_name)
+    image_data = await storage_client.read_file(object_name)
 
     # 2. Load image with Pillow and extract dimensions
     img = Image.open(BytesIO(image_data))
@@ -116,17 +110,15 @@ async def _process_image_async(
     webp_name = str(path_obj.with_suffix(".webp"))
 
     logger.info(
-        "uploading_webp",
+        "saving_webp",
         webp_name=webp_name,
         size_bytes=webp_size,
     )
 
-    # Upload WebP to MinIO
-    await minio_client.put_object(
-        bucket,
+    # Save WebP to local storage
+    await storage_client.save_file(
         webp_name,
-        webp_buffer,
-        length=webp_size,
+        webp_buffer.getvalue(),
         content_type="image/webp",
     )
 
@@ -138,20 +130,18 @@ async def _process_image_async(
     thumb_size = len(thumb_buffer.getvalue())
     thumb_width, thumb_height = img.size
 
-    thumb_name = str(path_obj.with_stem(f"{path_obj.stem}_thumb").with_suffix(".webp"))
+    thumb_name = str(path_obj.with_name(f"{path_obj.stem}_thumb.webp"))
 
     logger.info(
-        "uploading_thumbnail",
+        "saving_thumbnail",
         thumb_name=thumb_name,
         size_bytes=thumb_size,
         dimensions=f"{thumb_width}x{thumb_height}",
     )
 
-    await minio_client.put_object(
-        bucket,
+    await storage_client.save_file(
         thumb_name,
-        thumb_buffer,
-        length=thumb_size,
+        thumb_buffer.getvalue(),
         content_type="image/webp",
     )
 
@@ -188,9 +178,10 @@ async def _process_image_async(
                 logger.info("product_image_updated", media_id=media_id)
 
     # 6. Optionally delete original (if not already WebP)
+    # Using existing MINIO_DELETE_ORIGINAL setting for now
     if settings.MINIO_DELETE_ORIGINAL and original_format != "WEBP":
         try:
-            await minio_client.remove_object(bucket, object_name)
+            await storage_client.delete_file(object_name)
             logger.info("original_image_deleted", object_name=object_name)
         except Exception as e:
             logger.warning(
@@ -203,7 +194,7 @@ async def _process_image_async(
 @celery_app.task(name="tasks.delete_media_from_storage")
 def delete_media_from_storage(object_name: str):
     """
-    Delete media file from MinIO storage.
+    Delete media file from storage.
     Called when BlogPostMedia or ProductImage is deleted from database.
     """
     try:
@@ -218,14 +209,13 @@ def delete_media_from_storage(object_name: str):
 
 
 async def _delete_media_async(object_name: str):
-    """Async deletion of media from MinIO."""
-    bucket = settings.MINIO_BUCKET_MEDIA
-    await minio_client.remove_object(bucket, object_name)
+    """Async deletion of media from storage."""
+    await storage_client.delete_file(object_name)
 
     # Also delete thumbnail if exists
     path_obj = Path(object_name)
-    thumb_name = str(path_obj.with_stem(f"{path_obj.stem}_thumb"))
+    thumb_name = str(path_obj.with_name(f"{path_obj.stem}_thumb.webp"))
     try:
-        await minio_client.remove_object(bucket, thumb_name)
+        await storage_client.delete_file(thumb_name)
     except Exception:
         pass  # Thumbnail might not exist
