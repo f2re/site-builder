@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     MINIO_ACCESS_KEY: str = ""
     MINIO_SECRET_KEY: str = ""
     MINIO_BUCKET: str = "wifiobd-media"
+    MINIO_BUCKET_MEDIA: str = "media"  # Bucket for blog/product images
+    MINIO_PUBLIC_DOMAIN: str = "media.wifiobd.shop"  # Public CDN domain
+    MINIO_USE_SSL: bool = True
+    MINIO_DELETE_ORIGINAL: bool = False  # Delete original after WebP conversion
 
     # ── Meilisearch ───────────────────────────────────────────────────────────
     MEILISEARCH_HOST: str = "http://localhost:7700"
