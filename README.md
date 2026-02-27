@@ -1,162 +1,148 @@
-# 🏐 WifiOBD Site Builder — E-Commerce Platform
+# 🚗 WifiOBD Site — Интернет-магазин + IoT-дашборд
 
-> Современный интернет-магазин (**E-Commerce + Blog + IoT**) на базе **FastAPI + Nuxt 3**.
-> SEO-оптимизирован, self-hosted, CI/CD через GitLab, управляется мультиагентной системой **Gemini CLI**.
+> Современный интернет-магазин автомобильной электроники (OBD-адаптеры, телематика)
+> с **IoT-дашбордом онлайн-телеметрии**, блогом и полноценной админ-панелью.
+> Стек: **FastAPI + Nuxt 3**, self-hosted, CI/CD через GitLab, разработка управляется мультиагентной системой **Gemini CLI**.
 
 ---
 
-## 📈 Статус разработки
+## 📊 Статус разработки
 
 | Этап | Название | Статус |
 |--------|---------|--------|
-| 1 | Инфраструктура и ядро (Docker, JWT, логи, БД, Redis) | ✅ Готов |
+| 1 | Инфраструктура (Docker, JWT, логи, БД, Redis) | ✅ Готов |
 | 2 | Каталог товаров + инвентарь (products, categories, variants) | ✅ Готов |
 | 3 | Корзина, заказы, YooMoney, СДЭК | ✅ Готов |
 | 4 | Блог + медиа (TipTap + SEO) | ✅ Готов |
-| 5 | Админпанель (CRUD товары/заказы/блог/пользователи) | ✅ Готов |
-| 6 | Пользовательский кабинет (профиль, заказы, устройства, WS) | ✅ Готов |
+| 5 | Админ-панель (CRUD товары/заказы/блог/пользователи) | ✅ Готов |
+| 6 | Личный кабинет (профиль, заказы, устройства, WebSocket) | ✅ Готов |
 | 7 | Безопасность (152-ФЗ, bleach, HMAC, rate limiting) | ✅ Готов |
-| 8 | IoT / OBD2 интеграция (Redis Stream, WebSocket) | ✅ Готов |
-| 9 | **CI/CD (GitLab Runner, Docker Registry, SSH-деплой)** | ✅ Готов |
-| 10 | **SEO: sitemap, Schema.org, canonical, CWV** | 🔄 В работе |
-| 11 | Meilisearch интеграция в backend | 🔄 В работе |
-| 12 | Тесты + Lighthouse CI | ⏳ Ожидает |
+| 8 | IoT / OBD2 (телеметрия Redis Stream, WebSocket, TimescaleDB) | ✅ Готов |
+| 9 | CI/CD (GitLab Runner, Docker Registry, SSH-деплой) | ✅ Готов |
+| 10 | SEO: sitemap, Schema.org, canonical, CWV | 🔄 В работе |
+| 11 | Meilisearch — подключение к backend + индексация | 🔄 В работе |
+| 12 | Тесты (pytest, Locust) + Lighthouse CI | ⏳ Ожидает |
 
 Полный план с техническими деталями: [→ `plan.md`](plan.md)
 
 ---
 
-## 📅 Что реализовано (v1.0.3)
-
-### Backend (`backend/app/api/v1/`)
-
-| Модуль | Описание |
-|-------|------------|
-| `auth/` | JWT аутентификация, refresh rotation, выход |
-| `users/` | Профиль, заказы, устройства, WebSocket OBD2 |
-| `products/` | Каталог, категории, варианты, cursor-пагинация |
-| `cart/` | Redis Hash, гостевой/авторизованный режим |
-| `orders/` | Создание, статусы, атомарное списание со склада |
-| `delivery/` | СДЭК v2 API, расчёт тарифов |
-| `blog/` | Посты, категории, теги, комментарии, SEO-слаги |
-| `media/` | Локальное хранилище, Celery WebP-преобразование |
-| `admin/` | CRUD товары/заказы/блог/пользователи, IoT-мониторинг |
-| `iot/` | OBD2 устройства, Redis Stream телеметрия |
-
-### Инфраструктура
-
-- ✅ GitLab Runner 18.9 (`site-builder-runner`) зарегистрирован на [gitlab.wifiobd.ru](https://gitlab.wifiobd.ru)
-- ✅ CI/CD пайплайн: `lint → test → build → deploy_staging → deploy_prod`
-- ✅ Деплой по тегу (`git push origin vX.Y.Z`) — SSH на Машину B
-- ✅ `deploy/scripts/setup_server.sh` — инициализация прод-сервера
-- ✅ `deploy/scripts/setup_runner.sh` — установка Runner (glrt-токен, GitLab 16+)
-
-### Что в работе
-
-- 🔄 Подключение Meilisearch-клиента к backend (client, config, индекс `products`)
-- 🔄 Frontend SEO: sitemap.xml, Schema.org, canonical
-- 🔄 `package-lock.json` — обновить после добавления `@nuxt/image`, `nuxt-icon`
-
----
-
-## 📀 Архитектура и стек технологий
+## 📦 Стек технологий
 
 | Слой | Технологии | Назначение |
 |------|-----------|-----------|
-| **Backend** | Python 3.12+, FastAPI, SQLAlchemy 2.x async, Alembic, PostgreSQL 16 + TimescaleDB | REST API, асинхронное ядро |
-| **Frontend** | Nuxt 3 (v4.x), Vue 3, Pinia, TypeScript, `@nuxt/image`, `nuxt-icon` | SSR для SEO блога и каталога |
-| **Кэш / Очереди** | Redis 7, Celery (worker+beat) | Кэш каталога/блога, резерв остатков, обработка медиа |
-| **Хранилище медиа** | Локальная папка `/media` за Nginx | Фото/видео товаров и блога, WebP |
-| **Поиск** | Meilisearch | Полнотекстовый поиск товаров, self-hosted |
-| **Интеграции** | CDEK v2 API, YooMoney | Доставка, HMAC-SHA256 webhook |
-| **SEO** | Nuxt `useSeoMeta`, Schema.org JSON-LD, sitemap, RSS | Индексация блога/каталога |
-| **Инфраструктура** | Docker Compose (7 сервисов), Nginx | Self-hosted, без cloud |
-| **CI/CD** | GitLab CE (gitlab.wifiobd.ru) + GitLab Runner 18.9 + GitLab Container Registry | Без Docker Hub |
-| **ИИ-система** | Gemini CLI, 7 агентов | Мультиагентная разработка |
+| **Backend** | Python 3.12, FastAPI, SQLAlchemy 2.x async, Alembic | REST API, асинхронное ядро |
+| **БД** | PostgreSQL 16 + **TimescaleDB** | Основная БД + IoT hypertable для телеметрии |
+| **Кэш / Очереди** | Redis 7, Celery (worker+beat) | Кэш, резерв остатков, IoT Streams, фоновые задачи |
+| **Frontend** | Nuxt 3, Vue 3 Composition API, TypeScript, Pinia | SSR, PWA, i18n (ru/en) |
+| **Медиа** | **MinIO** (S3-совместимое, self-hosted) | Фото/видео товаров и блога |
+| **Поиск** | Meilisearch | Полнотекстовый поиск товаров и статей, self-hosted |
+| **Интеграции** | СДЭК v2, YooMoney/aiomoney, ЦБ РФ | Доставка, оплата, курсы валют |
+| **SEO** | `useSeoMeta`, Schema.org JSON-LD, sitemap, RSS | Индексация блога/каталога |
+| **Инфра** | Docker Compose, Nginx | Self-hosted, без cloud |
+| **CI/CD** | GitLab CE (gitlab.wifiobd.ru) + Runner 18.9 + Container Registry | Не Docker Hub, не GitHub Actions |
+| **Мониторинг** | Prometheus + Grafana + Loki + Promtail | Prod-профиль |
+| **ИИ-система** | Gemini CLI, 7 агентов | Мультиагентная разработка |
 
-**Принципы UI/UX:** Mobile-First · Race-Style Design · WCAG 2.1 AA · LCP < 2.5s · CLS < 0.1
+**Принципы UI/UX:** Mobile-First · Race-Style Design · Dark theme by default · WCAG 2.1 AA · LCP < 2.5s
 
 ---
 
-## 📂 Структура проекта
+## 📁 Структура проекта
 
 ```
-project/
+site-builder/
 ├── backend/
 │   ├── app/
 │   │   ├── api/v1/
-│   │   │   ├── products/    # каталог, варианты, Schema.org Product
-│   │   │   ├── blog/        # посты, категории, теги, комментарии
-│   │   │   ├── media/       # загрузка файлов, WebP Celery-таска
-│   │   │   ├── orders/      # заказы, статусы
-│   │   │   ├── cart/        # Redis Hash, гости/авторизованные
-│   │   │   ├── delivery/    # СДЭК v2
-│   │   │   ├── users/       # профиль, заказы, OBD2 устройства, WebSocket
-│   │   │   ├── auth/        # JWT, refresh rotation
-│   │   │   ├── admin/       # полный CRUD + IoT-мониторинг
-│   │   │   └── iot/         # OBD2, Redis Stream, WebSocket
-│   │   ├── core/            # config, security, dependencies
-│   │   ├── db/models/       # SQLAlchemy ORM модели
-│   │   ├── tasks/           # Celery: media, search, email, blog
-│   │   └── integrations/    # cdek.py, yoomoney.py
+│   │   │   ├── auth/         # JWT, refresh rotation
+│   │   │   ├── users/        # профиль, заказы, OBD2-устройства
+│   │   │   ├── products/     # каталог, категории, варианты
+│   │   │   ├── cart/         # Redis Hash, резервирование Lua
+│   │   │   ├── orders/       # заказы, статусы, атомарное списание
+│   │   │   ├── delivery/     # СДЭК v2 API
+│   │   │   ├── payments/     # YooMoney, HMAC-SHA256 webhook
+│   │   │   ├── blog/         # посты, теги, комментарии, SEO
+│   │   │   ├── media/        # MinIO upload/download
+│   │   │   ├── admin/        # CRUD + IoT-мониторинг (только role=admin)
+│   │   │   ├── iot/          # WebSocket, Redis Streams → TimescaleDB
+│   │   │   └── search/       # Meilisearch прокси
+│   │   ├── core/           # config, security, dependencies, exceptions, logging
+│   │   ├── db/
+│   │   │   ├── models/       # все SQLAlchemy-модели здесь
+│   │   │   └── migrations/   # Alembic versions
+│   │   ├── tasks/          # Celery: media, search, notifications, inventory
+│   │   └── integrations/   # cdek, yoomoney, cbr_rates, meilisearch, minio
+│   ├── tests/
 │   └── requirements.txt
 ├── frontend/
-│   ├── pages/
+│   ├── assets/css/tokens.css   # ← единственный источник design tokens
 │   ├── components/
+│   │   ├── U/              # UI-кит: UButton, UCard, UThemeToggle…
+│   │   ├── shop/           # ProductCard, CartItem, OrderStatus…
+│   │   ├── blog/           # PostCard, PostContent…
+│   │   ├── iot/            # TelemetryChart, DeviceStatus…
+│   │   └── admin/          # AdminTable, AdminForm…
+│   ├── pages/
+│   ├── stores/             # themeStore, authStore, cartStore, productStore
 │   ├── composables/
-│   ├── stores/              # Pinia
-│   ├── layouts/
-│   ├── assets/
-│   ├── nuxt.config.ts
-│   └── package.json
+│   └── nuxt.config.ts
 ├── deploy/
 │   ├── docker-compose.prod.yml
 │   ├── nginx/nginx.conf
+│   ├── monitoring/             # prometheus.yml, loki.yml, promtail.yml
 │   └── scripts/
-│       ├── setup_server.sh  # инициализация Машины B
-│       ├── setup_runner.sh  # установка GitLab Runner (glrt-)
-│       └── deploy.sh        # запуск на Машине B через SSH
-├── .gemini/                 # агенты, политики, команды
-├── .gitlab-ci.yml           # lint → test → build → deploy
-├── DEVOPS.md                # инструкция по CI/CD и деплою
-└── plan.md                  # полное ТЗ с техническими деталями
+│       ├── setup_server.sh
+│       ├── setup_runner.sh
+│       └── deploy.sh
+├── .gemini/
+│   ├── agents/             # промпты агентов
+│   ├── commands/           # slash-команды
+│   ├── policies/           # TOML-политики
+│   └── system.md           # системный промпт оркестратора
+├── docker-compose.yml       # dev: все сервисы
+├── .gitlab-ci.yml
+├── .env.example
+├── GEMINI.md                # ← точка входа для ИИ-агента
+├── DEVOPS.md
+├── CHANGELOG.md
+└── plan.md
 ```
 
 ---
 
-## 🚀 Быстрый старт разработки
+## 🚀 Быстрый старт
 
-### 1. Требования
+### Требования
 
-- [Gemini CLI](https://github.com/google-gemini/gemini-cli) установлен глобально
+- [Gemini CLI](https://github.com/google-gemini/gemini-cli) — установлен глобально
 - Docker + Docker Compose
 - Node.js 20+
 - Python 3.12+
 
-### 2. Клонирование и запуск
+### Запуск
 
 ```bash
 git clone https://github.com/f2re/site-builder.git
 cd site-builder
 
-# Копировать и заполнить переменные
+# Скопировать и заполнить
 cp .env.example .env
-# Отредактировать .env: SECRET_KEY, POSTGRES_PASSWORD, MEILI_MASTER_KEY
+# Обязательно: SECRET_KEY, POSTGRES_PASSWORD, MEILI_MASTER_KEY, FERNET_KEY
 
 # Запустить всю инфраструктуру
-docker-compose up --build
+docker compose up --build -d
 
-# Или только нужные сервисы
-docker-compose up postgres redis meilisearch  # БД, кэш, поиск
-docker-compose up api                         # FastAPI сервер
-docker-compose up frontend                    # Nuxt 3 dev-сервер
+# Применить миграции БД
+docker compose exec api alembic upgrade head
 ```
 
-### 3. Применить миграции БД
+### Отдельные сервисы
 
 ```bash
-cd backend
-alembic upgrade head
+docker compose up postgres redis meilisearch -d   # БД, кэш, поиск
+docker compose up api -d                          # FastAPI
+docker compose up frontend -d                     # Nuxt 3 dev
 ```
 
 ---
@@ -164,34 +150,30 @@ alembic upgrade head
 ## ⚡ Полезные команды
 
 ```bash
-# ── Frontend (Nuxt 3)
-cd frontend
-npm install
-npm run dev           # dev-сервер с HMR
-npm run build         # production build
-npm run lint          # vue-tsc --noEmit
-npm run typecheck     # vue-tsc --noEmit
-
-# ── Backend (FastAPI)
+# ── Backend
 cd backend
-uvicorn app.main:app --reload   # dev-сервер
-ruff check backend/app/ --fix   # линтер + autofix
-mypy backend/app/ --ignore-missing-imports  # type-check
-alembic upgrade head            # применить миграции
-alembic revision --autogenerate -m "add table"  # создать миграцию
+uvicorn app.main:app --reload
+ruff check backend/app/ --fix
+mypy backend/app/ --strict
+alembic upgrade head
+alembic revision --autogenerate -m "<domain>: <description>"
+pytest -v --cov=app
 
-# ── Тесты
-pytest -v
-pytest tests/unit/
-pytest tests/integration/
+# ── Frontend
+cd frontend
+npm run dev
+npm run build
+npm run lint
 
-# ── Инфраструктура
-docker-compose ps
-docker-compose logs -f api
-docker-compose down -v
+# ── Docker
+docker compose ps
+docker compose logs -f api
+docker compose down -v
 
-# ── Meilisearch
+# ── Проверка сервисов
+curl -s http://localhost:8000/health
 curl -s http://localhost:7700/health
+curl -s http://localhost:9000/minio/health/live
 ```
 
 ---
@@ -199,7 +181,7 @@ curl -s http://localhost:7700/health
 ## 📦 CI/CD: GitLab → Registry → prod
 
 ```
-git tag v1.0.4 && git push origin v1.0.4
+git tag v1.1.0 && git push origin v1.1.0
          ↓
   lint (ruff + mypy + vue-tsc)
          ↓
@@ -214,69 +196,75 @@ git tag v1.0.4 && git push origin v1.0.4
   deploy_prod (SSH → Машина B → docker compose pull + up)
 ```
 
-Secrets — только через GitLab CI/CD Variables (`SSH_PRIVATE_KEY` тип File, `PROD_HOST`, `DEPLOY_USER`). Подробнее: [DEVOPS.md](DEVOPS.md)
+Secrets — только через GitLab CI/CD Variables (`SSH_PRIVATE_KEY`, `PROD_HOST`, `DEPLOY_USER`).
+Подробнее: [DEVOPS.md](DEVOPS.md)
 
 ---
 
 ## 🤖 Мультиагентная система (Gemini CLI)
 
-Проект управляется системой специализированных ИИ-агентов. Каждый агент имеет строгую зону ответственности.
+Проект управляется системой специализированных агентов Gemini CLI.
+
+> Начальная точка для агента: [`GEMINI.md`](GEMINI.md) — читать первым.
 
 | Агент | Зона ответственности | Режим |
 |-------|---------------------|-------|
-| `orchestrator` | Делегирует задачи, проверяет отчёты | read/write |
-| `backend-agent` | FastAPI, SQLAlchemy, Pydantic, REST API, Celery | read/write |
-| `frontend-agent` | Nuxt 3, Vue 3, Pinia, TypeScript, SEO composables | read/write |
-| `security-agent` | OWASP, 152-ФЗ, bleach, HMAC, XSS-аудит | **только чтение** |
-| `testing-agent` | pytest, respx, Locust, Lighthouse CI | read/write |
-| `cdek-agent` | CDEK v2 API, YooMoney интеграция | read/write |
-| `devops-agent` | Docker, Nginx, GitLab CI/CD | read/write |
-
-Определения агентов: [`.gemini/agents/`](.gemini/agents/)
+| `@orchestrator` | Делегирует задачи, проверяет отчёты | read/write |
+| `@backend-agent` | FastAPI, SQLAlchemy, Alembic, REST API, IoT | read/write |
+| `@frontend-agent` | Nuxt 3, Vue 3, Pinia, UI-кит, SEO, admin-страницы | read/write |
+| `@cdek-agent` | СДЭК v2, YooMoney, ЦБ РФ, Celery-интеграции | read/write |
+| `@devops-agent` | Docker, Nginx, GitLab CI/CD, мониторинг | read/write |
+| `@testing-agent` | pytest, WebSocket-тесты, Locust | read/write |
+| `@security-agent` | OWASP, 152-ФЗ, audit | **только чтение** |
 
 ```bash
-# Примеры вызовов:
-@backend-agent реализуй клиент Meilisearch в app/db/meilisearch.py
-@frontend-agent добавь страницу /blog/[slug].vue с useSeoMeta и Schema.org
-@devops-agent настрой Nginx для раздачи /media/
+# Запуск новой задачи через оркестратор:
+/agents:plan реализовать подключение Meilisearch к backend
+
+# Прямой вызов агента:
+@backend-agent создай db/models/telemetry.py с TimescaleDB hypertable
+@frontend-agent добавь страницу /iot/[device_id].vue с TelemetryChart
+@devops-agent настрой Nginx для раздачи MinIO-медиа
 @security-agent проведи аудит bleach.clean() в blog/service.py
 ```
 
 ---
 
-## 🔗 Ключевые файлы проекта
+## 📐 Принципы кодовой базы
 
-| Файл / Директория | Назначение |
-|-------------------|-----------|
-| [`plan.md`](plan.md) | **Полное ТЗ** со 12 этапами, моделями БД, кодом SEO-компонентов |
-| [`DEVOPS.md`](DEVOPS.md) | Полная инструкция по CI/CD, SSH, Runner, деплою |
-| [`CHANGELOG.md`](CHANGELOG.md) | История изменений |
-| [`.env.example`](.env.example) | Шаблон всех переменных среды |
-| [`backend/requirements.txt`](backend/requirements.txt) | Python-зависимости |
-| [`deploy/docker-compose.prod.yml`](deploy/docker-compose.prod.yml) | Продакшн-композ (7 сервисов) |
-| [`deploy/scripts/setup_runner.sh`](deploy/scripts/setup_runner.sh) | Установка Runner (GitLab 16+, glrt-токен) |
-| [`deploy/scripts/setup_server.sh`](deploy/scripts/setup_server.sh) | Инициализация прод-сервера |
-| [`.gitlab-ci.yml`](.gitlab-ci.yml) | CI/CD пайплайн |
-| [`.gemini/agents/`](.gemini/agents/) | Определения агентов |
+**Backend:**
+- Feature-First структура: `api/v1/{feature}/{router,service,repository,schemas}.py`
+- Repository Pattern: сервисный слой никогда не импортирует из `db/` напрямую
+- Dependency Injection: сессии, пользователь, настройки — через `Depends()`
+- Circuit Breaker: `tenacity` + exponential backoff для СДЭК/YooMoney
+- sanitize always: `bleach.clean()` для HTML из пользовательского ввода
+- IoT: `time_bucket()` TimescaleDB для агрегации, не raw SELECT
+
+**Frontend:**
+- Composables для API-вызовов, Pinia stores для состояния
+- `tokens.css` — единственный источник цветов, NO hardcoded colors
+- `useSeoMeta` + Schema.org JSON-LD + `rel=canonical` — на каждой публичной странице
+- NO hardcoded URL: только `useRuntimeConfig()`
+
+**Безопасность:**
+- JWT + refresh rotation, HMAC-SHA256 вебхук YooMoney
+- Шифрование персданных Fernet (152-ФЗ)
+- Rate limiting: `slowapi` на `/auth/*`, `/checkout`, `/payments/*`
+- Secrets: только GitLab CI/CD Variables + `.env` на сервере, никогда в git
 
 ---
 
-## 🏗️ Принципы кодовой базы
+## 🔗 Ключевые файлы
 
-**Backend:**
-- Repository Pattern: сервисный слой работает только через репозиторий
-- Dependency Injection: сессии БД, пользователь, настройки через `Depends()`
-- Sanitize always: `bleach.clean()` для любого HTML из пользовательского ввода
-- Circuit Breaker: `tenacity` с exponential backoff для CDEK/YooMoney
-
-**Frontend:**
-- Composables для всех API-вызовов, Pinia stores для состояния
-- `useSeoMeta` + `useSchemaOrg` + `rel=canonical` — на каждой публичной странице
-- NO hardcoded URLs: только `useRuntimeConfig()`
-- Фото: `alt`+`width`+`height`+`loading="lazy"` обязательные атрибуты
-
-**Безопасность:**
-- JWT + refresh rotation, HMAC-SHA256 webhook YooMoney
-- Шифрование персональных данных Fernet (152-ФЗ)
-- Rate limiting: `slowapi` на `/auth/*`, `/checkout`, `/media/upload-url`
-- Secrets: только GitLab CI/CD Variables + `.env.prod` на сервере
+| Файл | Назначение |
+|-------------------|-----------|
+| [`GEMINI.md`](GEMINI.md) | **Точка входа для ИИ-агента** — читать первым |
+| [`plan.md`](plan.md) | Полное ТЗ с техническими деталями |
+| [`DEVOPS.md`](DEVOPS.md) | CI/CD, SSH, Runner, деплой |
+| [`CHANGELOG.md`](CHANGELOG.md) | История изменений |
+| [`.env.example`](.env.example) | Шаблон всех переменных среды |
+| [`docker-compose.yml`](docker-compose.yml) | Dev-среда |
+| [`deploy/docker-compose.prod.yml`](deploy/docker-compose.prod.yml) | Продакшн-композ |
+| [`.gitlab-ci.yml`](.gitlab-ci.yml) | CI/CD пайплайн |
+| [`.gemini/agents/`](.gemini/agents/) | Определения агентов |
+| [`backend/requirements.txt`](backend/requirements.txt) | Python-зависимости |
