@@ -40,6 +40,21 @@ class BlogPostBase(BaseModel):
     meta_title: Optional[str] = None
     meta_description: Optional[str] = None
 
+class BlogPostCreate(BlogPostBase):
+    category_id: Optional[UUID] = None
+
+class BlogPostUpdate(BaseModel):
+    title: Optional[str] = None
+    slug: Optional[str] = None
+    summary: Optional[str] = None
+    content: Optional[str] = None
+    status: Optional[BlogStatus] = None
+    is_featured: Optional[bool] = None
+    cover_image: Optional[str] = None
+    category_id: Optional[UUID] = None
+    meta_title: Optional[str] = None
+    meta_description: Optional[str] = None
+
 class BlogPostRead(BlogPostBase):
     id: UUID
     category_id: Optional[UUID]
