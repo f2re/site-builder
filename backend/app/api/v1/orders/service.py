@@ -13,7 +13,7 @@ from app.api.v1.orders.schemas import OrderCreate
 from app.db.models.order import Order, OrderItem, OrderStatus
 from app.db.models.user import User
 from app.integrations.yoomoney import yoomoney_client
-from app.integrations.redis_inventory import reserve_stock, inventory
+from app.integrations.redis_inventory import inventory
 from app.tasks.notifications.dispatcher import send_email_task
 from app.core.config import settings
 
@@ -43,8 +43,8 @@ class OrderService:
 
         # 2. Stock reservation via Redis (Lua)
         for item in cart["items"]:
-            success = await reserve_stock(
-                variant_id=item["variant_id"],
+            success = await inventory.reserve_stock(
+                variant_id=item["variant_id"], 
                 quantity=item["quantity"]
             )
             if not success:
@@ -53,6 +53,7 @@ class OrderService:
                     detail=f"Insufficient stock for item: {item['name']}"
                 )
 
+        # 3. Create Order
         total_amount = Decimal(str(cart["total_price"]))
         order = Order(
             user_id=user.id if user else None,

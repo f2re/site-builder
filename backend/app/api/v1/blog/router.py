@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing import List, Optional, Union
 from uuid import UUID
 
-from app.core.dependencies import get_current_user, require_role
+from app.core.dependencies import get_current_user, require_admin
 from app.db.models.user import User
 from app.db.models.blog import BlogPostStatus
 from .schemas import (
@@ -87,7 +87,7 @@ async def list_comments(
 @router.post("/posts", response_model=BlogPostRead, status_code=status.HTTP_201_CREATED)
 async def create_post(
     data: BlogPostCreate,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(require_admin),
     service: BlogService = Depends(get_blog_service),
 ):
     """Create new blog post (admin only)."""
@@ -98,7 +98,7 @@ async def create_post(
 async def update_post(
     post_id: UUID,
     data: BlogPostUpdate,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(require_admin),
     service: BlogService = Depends(get_blog_service),
 ):
     """Update blog post (admin only)."""
@@ -108,7 +108,7 @@ async def update_post(
 @router.delete("/posts/{post_id}")
 async def delete_post(
     post_id: UUID,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(require_admin),
     service: BlogService = Depends(get_blog_service),
 ):
     """Delete blog post (admin only)."""
@@ -120,7 +120,7 @@ async def delete_post(
 
 @router.get("/comments/pending", response_model=List[CommentAdminRead])
 async def list_pending_comments(
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(require_admin),
     service: BlogService = Depends(get_blog_service),
 ):
     """List all comments awaiting approval (admin only)."""
@@ -130,7 +130,7 @@ async def list_pending_comments(
 @router.put("/comments/{comment_id}/approve", response_model=CommentAdminRead)
 async def approve_comment(
     comment_id: UUID,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(require_admin),
     service: BlogService = Depends(get_blog_service),
 ):
     """Approve a comment (admin only)."""
@@ -140,7 +140,7 @@ async def approve_comment(
 @router.delete("/comments/{comment_id}")
 async def delete_comment(
     comment_id: UUID,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(require_admin),
     service: BlogService = Depends(get_blog_service),
 ):
     """Delete a comment (admin only)."""

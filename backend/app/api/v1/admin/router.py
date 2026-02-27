@@ -144,7 +144,7 @@ async def create_blog_post(
     _admin: User = AdminDep,
     service: BlogService = Depends(get_blog_service)
 ) -> Any:
-    return await service.create_post(author_id=_admin.id, data=body)
+    return await service.create_post(data=body, user_id=_admin.id)
 
 @router.put("/blog/posts/{post_id}")
 async def update_blog_post(

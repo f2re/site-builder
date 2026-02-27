@@ -2,12 +2,10 @@ from datetime import datetime, timedelta, timezone
 import asyncio
 from sqlalchemy import select
 from app.tasks.celery_app import celery_app
-from app.db.session import async_session_factory
-from app.db.models.order import Order, OrderStatus
-from app.integrations.redis_inventory import release_stock
-from app.core.logging import logger
 from app.db.session import AsyncSessionLocal
+from app.db.models.order import Order, OrderStatus
 from app.integrations.redis_inventory import inventory
+from app.core.logging import logger
 from app.api.v1.products.repository import ProductRepository
 
 
@@ -18,7 +16,7 @@ def release_stale_reservations_task():
     release their stock in Redis and mark them as CANCELLED.
     """
     async def _process():
-        async with async_session_factory() as session:
+        async with AsyncSessionLocal() as session:
             # Query pending orders older than 30 minutes
             threshold = datetime.now(timezone.utc) - timedelta(minutes=30)
             stmt = (
@@ -34,7 +32,7 @@ def release_stale_reservations_task():
 
                 # Release stock for each item in order
                 for item in order.items:
-                    await release_stock(item.product_variant_id, item.quantity)
+                    await inventory.release_stock(item.product_variant_id, item.quantity)
 
                 # Mark as cancelled
                 order.status = OrderStatus.CANCELLED
