@@ -34,6 +34,13 @@ class IoTRepository:
         )
         return result.scalars().all()
 
+    async def list_all(self) -> Sequence[UserDevice]:
+        """List all devices in the system for admin."""
+        result = await self.session.execute(
+            select(UserDevice)
+        )
+        return result.scalars().all()
+
     async def create_device(
         self, user_id: UUID, device_uid: str, name: str | None = None, model: str | None = None
     ) -> UserDevice:

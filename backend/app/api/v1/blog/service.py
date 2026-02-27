@@ -1,13 +1,20 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from typing import List, Optional
-from uuid import UUID
-import structlog
+# Module: api/v1/blog/service.py | Agent: backend-agent | Task: phase11_backend_admin_blog_refinement
 import bleach
+from typing import List, Optional, Any
+from uuid import UUID
+from fastapi import Depends, HTTPException, status
+import structlog
 from slugify import slugify
 
-from app.db.models.blog import BlogPost, BlogCategory, Tag, BlogPostStatus
-from .schemas import BlogPostCreate, BlogPostUpdate
+from app.api.v1.blog.repository import BlogRepository, get_blog_repo
+from app.api.v1.blog.schemas import (
+    BlogPostCreate,
+    BlogPostUpdate,
+    BlogPagination,
+    BlogPostRead
+)
+from app.db.models.blog import BlogPost, BlogStatus
+from app.tasks.search import index_blog_post_task, remove_blog_post_from_index_task
 
 logger = structlog.get_logger()
 
@@ -26,182 +33,230 @@ ALLOWED_ATTRS = {
     '*': ['class'],
 }
 
+def tiptap_to_text(json_content: Any) -> str:
+    """Extract plain text from TipTap JSON for word counting."""
+    if not json_content or not isinstance(json_content, dict):
+        return ""
+    
+    text_parts = []
+    
+    def walk(node: Any):
+        if not isinstance(node, dict):
+            return
+        if node.get("type") == "text":
+            text_parts.append(node.get("text", ""))
+        
+        for child in node.get("content", []):
+            walk(child)
+            
+    walk(json_content)
+    return " ".join(text_parts)
+
+def tiptap_to_html(json_content: Any) -> str:
+    """Very basic TipTap JSON to HTML converter."""
+    if not json_content or not isinstance(json_content, dict):
+        return ""
+    
+    def render_node(node: Any) -> str:
+        if not isinstance(node, dict):
+            return ""
+        
+        node_type = node.get("type")
+        content = "".join(render_node(child) for child in node.get("content", []))
+        
+        if node_type == "doc":
+            return content
+        elif node_type == "paragraph":
+            return f"<p>{content}</p>"
+        elif node_type == "text":
+            text = node.get("text", "")
+            # Apply marks
+            for mark in node.get("marks", []):
+                mark_type = mark.get("type")
+                if mark_type == "bold":
+                    text = f"<strong>{text}</strong>"
+                elif mark_type == "italic":
+                    text = f"<em>{text}</em>"
+                elif mark_type == "strike":
+                    text = f"<s>{text}</s>"
+                elif mark_type == "link":
+                    href = mark.get("attrs", {}).get("href", "#")
+                    text = f'<a href="{href}">{text}</a>'
+            return text
+        elif node_type == "heading":
+            level = node.get("attrs", {}).get("level", 1)
+            return f"<h{level}>{content}</h{level}>"
+        elif node_type == "bulletList":
+            return f"<ul>{content}</ul>"
+        elif node_type == "orderedList":
+            return f"<ol>{content}</ol>"
+        elif node_type == "listItem":
+            return f"<li>{content}</li>"
+        elif node_type == "blockquote":
+            return f"<blockquote>{content}</blockquote>"
+        elif node_type == "image":
+            src = node.get("attrs", {}).get("src", "")
+            alt = node.get("attrs", {}).get("alt", "")
+            return f'<img src="{src}" alt="{alt}" />'
+        elif node_type == "hardBreak":
+            return "<br />"
+        elif node_type == "horizontalRule":
+            return "<hr />"
+        elif node_type == "codeBlock":
+            return f"<pre><code>{content}</code></pre>"
+        
+        return content
+
+    return render_node(json_content)
 
 class BlogService:
-    def __init__(self, db: AsyncSession):
-        self.db = db
+    def __init__(self, repo: BlogRepository = Depends(get_blog_repo)):
+        self.repo = repo
 
     async def list_posts(
         self,
-        status: str | None = None,
-        category: str | None = None,
-        tag: str | None = None,
-        after: str | None = None,
-        limit: int = 12,
-    ):
-        """List posts with filters and cursor pagination."""
-        query = select(BlogPost)
-
-        # Filters
-        if status:
-            query = query.where(BlogPost.status == status)
-        if category:
-            query = query.join(BlogCategory).where(BlogCategory.slug == category)
-        if tag:
-            query = query.join(BlogPost.tags).where(Tag.slug == tag)
-
-        # Cursor pagination
-        if after:
-            try:
-                after_uuid = UUID(after)
-                # For UUID cursor, we might need a different strategy than < 
-                # but if it was integer before, we should decide how to paginate.
-                # Usually with UUIDs we use created_at + id for stable pagination.
-                # For now, let's just use it as a simple filter if it's expected.
-                # But simple < doesn't work well with UUIDs for ordering.
-                pass 
-            except ValueError:
-                pass
-
-        query = query.order_by(BlogPost.published_at.desc(), BlogPost.created_at.desc()).limit(limit + 1)
-
-        result = await self.db.execute(query)
-        posts = result.scalars().all()
-
-        has_more = len(posts) > limit
-        posts = posts[:limit]
-
-        return {
-            "items": posts,
-            "pageInfo": {
-                "hasMore": has_more,
-                "endCursor": str(posts[-1].id) if posts else None,
-            }
-        }
-
-    async def get_post_by_slug(self, slug: str):
-        """Get post by slug and increment views."""
-        result = await self.db.execute(
-            select(BlogPost).where(BlogPost.slug == slug)
+        category_slug: Optional[str] = None,
+        tag_slug: Optional[str] = None,
+        status: Optional[BlogStatus] = BlogStatus.published,
+        is_featured: Optional[bool] = None,
+        cursor: Optional[UUID] = None,
+        per_page: int = 20,
+    ) -> BlogPagination:
+        items, next_cursor, total = await self.repo.list_posts(
+            category_slug=category_slug,
+            tag_slug=tag_slug,
+            status=status,
+            is_featured=is_featured,
+            cursor=cursor,
+            per_page=per_page
         )
-        post = result.scalar_one_or_none()
+        return BlogPagination(
+            items=items,
+            pageInfo={
+                "nextCursor": next_cursor,
+                "total": total,
+                "hasMore": next_cursor is not None
+            }
+        )
 
-        if post:
-            # Increment views (async, non-blocking)
-            post.views += 1
-            await self.db.commit()
+    async def get_post_detail(self, slug: str) -> BlogPostRead:
+        post = await self.repo.get_by_slug(slug)
+        if not post:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Blog post not found"
+            )
+        # In a real app, we might want to increment views here
+        # post.views += 1
+        # await self.repo.session.commit()
+        return BlogPostRead.model_validate(post)
 
-        return post
-
-    async def create_post(self, data: BlogPostCreate, author_id: UUID):
-        """Create new blog post."""
-        # Generate slug if not provided
+    async def create_post(self, data: BlogPostCreate, author_id: UUID) -> BlogPostRead:
+        """
+        Create a new blog post, generate HTML from JSON, calculate reading time, and index in search.
+        """
         slug = data.slug or slugify(data.title)
-
-        # Sanitize content if it's HTML
-        content = bleach.clean(
-            data.content,
+        
+        # Generate HTML from JSON
+        content_html = tiptap_to_html(data.content_json)
+        # Sanitize HTML
+        content_html = bleach.clean(
+            content_html,
             tags=ALLOWED_TAGS,
             attributes=ALLOWED_ATTRS,
         )
-
+        
         # Calculate reading time
-        word_count = len(content.split())
+        plain_text = tiptap_to_text(data.content_json)
+        word_count = len(plain_text.split())
         reading_time = max(1, word_count // 200)
-
+        
         post = BlogPost(
             title=data.title,
             slug=slug,
             summary=data.summary,
-            content=content,
-            meta_title=data.meta_title,
-            meta_description=data.meta_description,
-            cover_image=data.cover_image,
+            content_json=data.content_json,
+            content_html=content_html,
+            status=data.status,
+            is_featured=data.is_featured,
             category_id=data.category_id,
             author_id=author_id,
-            status=data.status or BlogPostStatus.DRAFT,
-            is_featured=data.is_featured,
-            reading_time_minutes=reading_time,
+            cover_image=data.cover_image,
+            meta_title=data.meta_title,
+            meta_description=data.meta_description,
+            reading_time_minutes=reading_time
         )
+        
+        created_post = await self.repo.create(post)
+        
+        # Search indexing
+        index_data = {
+            "id": str(created_post.id),
+            "title": created_post.title,
+            "slug": created_post.slug,
+            "summary": created_post.summary,
+            "content": plain_text[:5000], # Index first 5000 chars of plain text
+            "status": created_post.status
+        }
+        index_blog_post_task.delay(index_data)
+        
+        return BlogPostRead.model_validate(created_post)
 
-        self.db.add(post)
-        await self.db.commit()
-        await self.db.refresh(post)
-
-        logger.info("blog_post_created", post_id=str(post.id), slug=slug)
-        return post
-
-    async def update_post(self, post_id: UUID, data: BlogPostUpdate):
-        """Update blog post."""
-        result = await self.db.execute(
-            select(BlogPost).where(BlogPost.id == post_id)
-        )
-        post = result.scalar_one_or_none()
-
-        if not post:
-            return None
-
-        # Update fields
-        if data.title is not None:
-            post.title = data.title
-            if not data.slug:
-                post.slug = slugify(data.title)
-        if data.slug is not None:
-            post.slug = data.slug
-        if data.summary is not None:
-            post.summary = data.summary
-        if data.content is not None:
-            post.content = bleach.clean(
-                data.content,
+    async def update_post(self, post_id: UUID, data: BlogPostUpdate) -> BlogPostRead:
+        """
+        Update blog post, regenerate HTML if JSON changed, and update search index.
+        """
+        update_data = data.model_dump(exclude_unset=True)
+        
+        if "content_json" in update_data and update_data["content_json"]:
+            # Generate HTML from JSON
+            content_html = tiptap_to_html(update_data["content_json"])
+            # Sanitize HTML
+            update_data["content_html"] = bleach.clean(
+                content_html,
                 tags=ALLOWED_TAGS,
                 attributes=ALLOWED_ATTRS,
             )
-        if data.meta_title is not None:
-            post.meta_title = data.meta_title
-        if data.meta_description is not None:
-            post.meta_description = data.meta_description
-        if data.cover_image is not None:
-            post.cover_image = data.cover_image
-        if data.category_id is not None:
-            post.category_id = data.category_id
-        if data.status is not None:
-            post.status = data.status
-        if data.is_featured is not None:
-            post.is_featured = data.is_featured
+            # Recalculate reading time
+            plain_text = tiptap_to_text(update_data["content_json"])
+            word_count = len(plain_text.split())
+            update_data["reading_time_minutes"] = max(1, word_count // 200)
+        
+        if "title" in update_data and not update_data.get("slug"):
+             update_data["slug"] = slugify(update_data["title"])
 
-        # Recalculate reading time
-        if data.content:
-            word_count = len(post.content.split())
-            post.reading_time_minutes = max(1, word_count // 200)
+        updated_post = await self.repo.update(post_id, **update_data)
+        if not updated_post:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Blog post not found"
+            )
+            
+        # Update search index
+        plain_text = tiptap_to_text(updated_post.content_json)
+        index_data = {
+            "id": str(updated_post.id),
+            "title": updated_post.title,
+            "slug": updated_post.slug,
+            "summary": updated_post.summary,
+            "content": plain_text[:5000],
+            "status": updated_post.status
+        }
+        index_blog_post_task.delay(index_data)
+        
+        return BlogPostRead.model_validate(updated_post)
 
-        await self.db.commit()
-        await self.db.refresh(post)
-
-        logger.info("blog_post_updated", post_id=str(post.id))
-        return post
-
-    async def delete_post(self, post_id: UUID):
-        """Soft delete by setting status to archived."""
-        result = await self.db.execute(
-            select(BlogPost).where(BlogPost.id == post_id)
-        )
-        post = result.scalar_one_or_none()
-
-        if not post:
-            return False
-
-        post.status = BlogPostStatus.ARCHIVED
-        await self.db.commit()
-
-        logger.info("blog_post_deleted", post_id=str(post.id))
-        return True
+    async def delete_post(self, post_id: UUID) -> bool:
+        """
+        Delete blog post and remove from search index.
+        """
+        success = await self.repo.delete(post_id)
+        if success:
+            remove_blog_post_from_index_task.delay(str(post_id))
+        return success
 
     async def list_categories(self):
-        """List all categories."""
-        result = await self.db.execute(select(BlogCategory))
-        return result.scalars().all()
+        return await self.repo.get_categories()
 
-    async def list_tags(self):
-        """List all tags."""
-        result = await self.db.execute(select(Tag))
-        return result.scalars().all()
+async def get_blog_service(repo: BlogRepository = Depends(get_blog_repo)) -> BlogService:
+    return BlogService(repo)

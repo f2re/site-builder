@@ -6,8 +6,8 @@ from typing import Any, List, Optional
 from sqlalchemy import select, func
 
 from app.core.dependencies import require_admin, get_product_repo, get_db
-from app.db.models.user import User
-from app.db.models.order import Order, OrderStatus
+from app.db.models.order import Order, OrderStatus, OrderItem
+from app.db.models.product import ProductVariant, Product
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Services & Repositories
@@ -76,11 +76,28 @@ async def get_dashboard(
     paid_count_stmt = select(func.count(Order.id)).where(Order.status == OrderStatus.PAID)
     paid_orders = (await session.execute(paid_count_stmt)).scalar() or 0
 
+    # Top products aggregation
+    top_products_stmt = (
+        select(
+            Product.name,
+            func.sum(OrderItem.quantity).label("sold_quantity")
+        )
+        .join(OrderItem, ProductVariant.id == OrderItem.product_variant_id)
+        .join(Product, Product.id == ProductVariant.product_id)
+        .join(Order, Order.id == OrderItem.order_id)
+        .where(Order.status.in_([OrderStatus.PAID, OrderStatus.PROCESSING, OrderStatus.SHIPPED, OrderStatus.DELIVERED]))
+        .group_by(Product.name)
+        .order_by(func.sum(OrderItem.quantity).desc())
+        .limit(5)
+    )
+    top_products_res = await session.execute(top_products_stmt)
+    top_products = [{"name": row.name, "sold_quantity": row.sold_quantity} for row in top_products_res.all()]
+
     return SalesAnalytics(
         total_revenue=total_revenue,
         orders_count=total_orders,
         paid_orders_count=paid_orders,
-        top_products=[] # Placeholder for top products aggregation
+        top_products=top_products
     )
 
 # ─── Products ────────────────────────────────────────────────────────────────
@@ -166,7 +183,18 @@ async def list_all_devices(
     _admin: User = AdminDep,
     repo: IoTRepository = Depends(get_iot_repo)
 ) -> Any:
-    return {"items": []}
+    devices = await repo.list_all()
+    return {"items": [
+        {
+            "id": str(d.id),
+            "device_uid": d.device_uid,
+            "name": d.name,
+            "model": d.model,
+            "user_id": str(d.user_id),
+            "last_seen_at": d.last_seen_at.isoformat() if d.last_seen_at else None,
+            "is_active": d.is_active
+        } for d in devices
+    ]}
 
 # ─── Pages ───────────────────────────────────────────────────────────────────
 router.include_router(pages_admin_router)
