@@ -41,9 +41,6 @@ class BlogPostBase(BaseModel):
     meta_title: Optional[str] = None
     meta_description: Optional[str] = None
 
-class BlogPostCreate(BlogPostBase):
-    pass
-
 class BlogPostUpdate(BaseModel):
     title: Optional[str] = None
     slug: Optional[str] = None
@@ -58,18 +55,6 @@ class BlogPostUpdate(BaseModel):
 
 class BlogPostCreate(BlogPostBase):
     category_id: Optional[UUID] = None
-
-class BlogPostUpdate(BaseModel):
-    title: Optional[str] = None
-    slug: Optional[str] = None
-    summary: Optional[str] = None
-    content: Optional[str] = None
-    status: Optional[BlogStatus] = None
-    is_featured: Optional[bool] = None
-    cover_image: Optional[str] = None
-    category_id: Optional[UUID] = None
-    meta_title: Optional[str] = None
-    meta_description: Optional[str] = None
 
 class BlogPostRead(BlogPostBase):
     id: UUID
@@ -78,11 +63,11 @@ class BlogPostRead(BlogPostBase):
     published_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
-    
+
     category: Optional[BlogCategoryRead] = None
     tags: List[TagRead] = []
     author: AuthorRead
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 class BlogPostShortRead(BaseModel):
@@ -95,7 +80,7 @@ class BlogPostShortRead(BaseModel):
     tags: List[TagRead] = []
     published_at: Optional[datetime] = None
     reading_time_min: int = Field(default=5, description="Estimated reading time in minutes")
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 class BlogPagination(BaseModel):
