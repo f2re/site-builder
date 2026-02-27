@@ -1,4 +1,4 @@
-export interface Category {
+export interface ProductCategory {
   id: string
   slug: string
   name: string
@@ -15,7 +15,7 @@ export interface Product {
   currency: string
   stock: number
   images: string[]
-  category: Category
+  category: ProductCategory
   description?: string
   attributes?: Record<string, any>
   related?: Product[]
@@ -52,7 +52,7 @@ export const useProducts = () => {
   }
 
   const getCategories = () => {
-    return useFetch<{ items: Category[] }>(`${apiBase}/products/categories`, {
+    return useFetch<{ items: ProductCategory[] }>(`${apiBase}/products/categories`, {
       key: 'categories'
     })
   }

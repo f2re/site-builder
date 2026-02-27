@@ -1,6 +1,6 @@
 import { useAuth } from './useAuth'
 
-export interface CartItem {
+export interface ApiCartItem {
   variant_id: string
   name: string
   price: number
@@ -10,9 +10,9 @@ export interface CartItem {
 }
 
 export interface CartResponse {
-  items: CartItem[]
+  items: ApiCartItem[]
   total_quantity: number
-  total_price: float
+  total_price: number
 }
 
 export const useCart = () => {

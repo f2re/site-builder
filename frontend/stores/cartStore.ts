@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
-export interface CartItem {
+export interface StoreCartItem {
   id: number
   name: string
   price: number
@@ -10,7 +10,7 @@ export interface CartItem {
 }
 
 export const useCartStore = defineStore('cart', () => {
-  const items = ref<CartItem[]>([])
+  const items = ref<StoreCartItem[]>([])
 
   const totalCount = computed(() =>
     items.value.reduce((sum, item) => sum + item.quantity, 0)

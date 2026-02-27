@@ -10,7 +10,7 @@ export interface Tag {
   slug: string
 }
 
-export interface Category {
+export interface BlogCategory {
   id: string
   name: string
   slug: string
@@ -23,7 +23,7 @@ export interface BlogPost {
   excerpt: string
   cover_url: string
   author: Author
-  category?: Category
+  category?: BlogCategory
   tags: Tag[] | string[] // backend might return Tag objects or strings depending on endpoint
   published_at?: string
   reading_time_minutes: number
