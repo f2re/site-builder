@@ -27,8 +27,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      meilisearch:
-        condition: service_healthy
     command: >-
       gunicorn app.main:app
       -w 4 -k uvicorn.workers.UvicornWorker
@@ -116,33 +114,21 @@ services:
       retries: 5
     networks: [sb_net]
 
-  # ── Celery Worker ──────────────────────────────────────────────────────────
-  celery_worker:
+  # ── Celery (worker + beat в одном контейнере) ──────────────────────────────
+  celery:
     image: ${CI_REGISTRY_IMAGE}/backend:${IMAGE_TAG:-latest}
-    container_name: sb_celery_worker
+    container_name: sb_celery
     restart: always
     env_file: /srv/site-builder/.env.prod
     depends_on:
       - redis
       - postgres
-    command: celery -A app.tasks.celery_app worker --loglevel=warning --concurrency=4 -E
+    # -B запускает beat-планировщик внутри того же процесса worker
+    command: celery -A app.tasks.celery_app worker -B --loglevel=warning --concurrency=2 -E
     user: appuser
     logging: *default-logging
     labels:
-      - "service=celery_worker"
-    networks: [sb_net]
-
-  # ── Celery Beat ────────────────────────────────────────────────────────────
-  celery_beat:
-    image: ${CI_REGISTRY_IMAGE}/backend:${IMAGE_TAG:-latest}
-    container_name: sb_celery_beat
-    restart: always
-    env_file: /srv/site-builder/.env.prod
-    depends_on:
-      - redis
-    command: celery -A app.tasks.celery_app beat --loglevel=warning --scheduler redbeat.RedBeatScheduler
-    user: appuser
-    logging: *default-logging
+      - "service=celery"
     networks: [sb_net]
 
   # ── Meilisearch ────────────────────────────────────────────────────────────
@@ -161,28 +147,6 @@ services:
     logging: *default-logging
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:7700/health | grep -q 'available'"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-    networks: [sb_net]
-
-  # ── MinIO ──────────────────────────────────────────────────────────────────
-  minio:
-    image: minio/minio:latest
-    container_name: sb_minio
-    restart: always
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_BROWSER: "off"   # disable console in prod
-    expose:
-      - "9000"
-    volumes:
-      - minio_data:/data
-    command: server /data
-    logging: *default-logging
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -208,73 +172,6 @@ services:
     logging: *default-logging
     networks: [sb_net]
 
-  # ── Prometheus ────────────────────────────────────────────────────────────
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: sb_prometheus
-    restart: always
-    expose:
-      - "9090"
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    command: >
-      --config.file=/etc/prometheus/prometheus.yml
-      --storage.tsdb.retention.time=30d
-      --web.enable-lifecycle
-    logging: *default-logging
-    networks: [sb_net]
-
-  # ── Grafana ───────────────────────────────────────────────────────────────
-  grafana:
-    image: grafana/grafana:latest
-    container_name: sb_grafana
-    restart: always
-    environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_SERVER_ROOT_URL: https://${DOMAIN}/grafana/
-      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
-      GF_AUTH_ANONYMOUS_ENABLED: "false"
-    expose:
-      - "3000"
-    volumes:
-      - grafana_data:/var/lib/grafana
-    depends_on:
-      - prometheus
-    logging: *default-logging
-    networks: [sb_net]
-
-  # ── Loki ──────────────────────────────────────────────────────────────────
-  loki:
-    image: grafana/loki:latest
-    container_name: sb_loki
-    restart: always
-    expose:
-      - "3100"
-    volumes:
-      - ./monitoring/loki.yml:/etc/loki/loki.yml:ro
-      - loki_data:/loki
-    command: -config.file=/etc/loki/loki.yml
-    logging: *default-logging
-    networks: [sb_net]
-
-  # ── Promtail ──────────────────────────────────────────────────────────────
-  promtail:
-    image: grafana/promtail:latest
-    container_name: sb_promtail
-    restart: always
-    volumes:
-      - ./monitoring/promtail.yml:/etc/promtail/promtail.yml:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    command: -config.file=/etc/promtail/promtail.yml
-    depends_on:
-      - loki
-    logging: *default-logging
-    networks: [sb_net]
-
 volumes:
   pg_data:
     driver: local
@@ -294,18 +191,6 @@ volumes:
       type: none
       o: bind
       device: /srv/site-builder/data/meilisearch
-  minio_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /srv/site-builder/data/minio
-  prometheus_data:
-    driver: local
-  grafana_data:
-    driver: local
-  loki_data:
-    driver: local
   nginx_cache:
     driver: local
 

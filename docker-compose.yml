@@ -25,8 +25,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      meilisearch:
-        condition: service_healthy
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/health | grep -q 'ok'"]
@@ -98,13 +96,13 @@ services:
       retries: 5
     networks: [sb_net]
 
-  # ── Celery Worker ─────────────────────────────────────────────────────────
-  celery_worker:
+  # ── Celery (worker + beat в одном контейнере) ─────────────────────────────
+  celery:
     build:
       context: ./backend
       dockerfile: Dockerfile
       target: development
-    container_name: sb_celery_worker
+    container_name: sb_celery
     restart: unless-stopped
     env_file: .env
     depends_on:
@@ -112,22 +110,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
-    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
-    networks: [sb_net]
-
-  # ── Celery Beat ───────────────────────────────────────────────────────────
-  celery_beat:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      target: development
-    container_name: sb_celery_beat
-    restart: unless-stopped
-    env_file: .env
-    depends_on:
-      redis:
-        condition: service_healthy
-    command: celery -A app.tasks.celery_app beat --loglevel=info --scheduler redbeat.RedBeatScheduler
+    # -B запускает beat-планировщик внутри того же процесса worker
+    command: celery -A app.tasks.celery_app worker -B --loglevel=info --concurrency=1
     networks: [sb_net]
 
   # ── Meilisearch ──────────────────────────────────────────────────────────
@@ -149,27 +133,6 @@ services:
       retries: 5
     networks: [sb_net]
 
-  # ── MinIO (S3-compatible media storage) ──────────────────────────────────
-  minio:
-    image: minio/minio:latest
-    container_name: sb_minio
-    restart: unless-stopped
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - minio_data:/data
-    command: server /data --console-address ":9001"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks: [sb_net]
-
   # ── Nginx ─────────────────────────────────────────────────────────────────
   nginx:
     image: nginx:alpine
@@ -184,70 +147,10 @@ services:
       - frontend
     networks: [sb_net]
 
-  # ── Prometheus ────────────────────────────────────────────────────────────
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: sb_prometheus
-    restart: unless-stopped
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    command: --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.retention.time=15d
-    networks: [sb_net]
-
-  # ── Grafana ───────────────────────────────────────────────────────────────
-  grafana:
-    image: grafana/grafana:latest
-    container_name: sb_grafana
-    restart: unless-stopped
-    environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
-      GF_USERS_ALLOW_SIGN_UP: "false"
-    ports:
-      - "3001:3000"
-    volumes:
-      - grafana_data:/var/lib/grafana
-    depends_on:
-      - prometheus
-    networks: [sb_net]
-
-  # ── Loki (log aggregation) ────────────────────────────────────────────────
-  loki:
-    image: grafana/loki:latest
-    container_name: sb_loki
-    restart: unless-stopped
-    ports:
-      - "3100:3100"
-    volumes:
-      - ./deploy/monitoring/loki.yml:/etc/loki/loki.yml:ro
-      - loki_data:/loki
-    command: -config.file=/etc/loki/loki.yml
-    networks: [sb_net]
-
-  # ── Promtail (log shipper) ────────────────────────────────────────────────
-  promtail:
-    image: grafana/promtail:latest
-    container_name: sb_promtail
-    restart: unless-stopped
-    volumes:
-      - ./deploy/monitoring/promtail.yml:/etc/promtail/promtail.yml:ro
-      - /var/log:/var/log:ro
-    command: -config.file=/etc/promtail/promtail.yml
-    depends_on:
-      - loki
-    networks: [sb_net]
-
 volumes:
   pg_data:
   redis_data:
   meili_data:
-  minio_data:
-  prometheus_data:
-  grafana_data:
-  loki_data:
 
 networks:
   sb_net:

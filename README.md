@@ -12,14 +12,14 @@
 | 1 | Инфраструктура и ядро (Docker, JWT, логи, БД, Redis) | ✅ Готов |
 | 2 | Каталог товаров + инвентарь (products, categories, variants) | ✅ Готов |
 | 3 | Корзина, заказы, YooMoney, СДЭК | ✅ Готов |
-| 4 | Блог + медиа (TipTap + MinIO + SEO) | ✅ Готов |
+| 4 | Блог + медиа (TipTap + SEO) | ✅ Готов |
 | 5 | Админпанель (CRUD товары/заказы/блог/пользователи) | ✅ Готов |
 | 6 | Пользовательский кабинет (профиль, заказы, устройства, WS) | ✅ Готов |
 | 7 | Безопасность (152-ФЗ, bleach, HMAC, rate limiting) | ✅ Готов |
 | 8 | IoT / OBD2 интеграция (Redis Stream, WebSocket) | ✅ Готов |
 | 9 | **CI/CD (GitLab Runner, Docker Registry, SSH-деплой)** | ✅ Готов |
 | 10 | **SEO: sitemap, Schema.org, canonical, CWV** | 🔄 В работе |
-| 11 | Meilisearch + MinIO интеграция в backend | 🔄 В работе |
+| 11 | Meilisearch интеграция в backend | 🔄 В работе |
 | 12 | Тесты + Lighthouse CI | ⏳ Ожидает |
 
 Полный план с техническими деталями: [→ `plan.md`](plan.md)
@@ -39,7 +39,7 @@
 | `orders/` | Создание, статусы, атомарное списание со склада |
 | `delivery/` | СДЭК v2 API, расчёт тарифов |
 | `blog/` | Посты, категории, теги, комментарии, SEO-слаги |
-| `media/` | Presigned URL MinIO, Celery WebP-преобразование |
+| `media/` | Локальное хранилище, Celery WebP-преобразование |
 | `admin/` | CRUD товары/заказы/блог/пользователи, IoT-мониторинг |
 | `iot/` | OBD2 устройства, Redis Stream телеметрия |
 
@@ -54,7 +54,6 @@
 ### Что в работе
 
 - 🔄 Подключение Meilisearch-клиента к backend (client, config, индекс `products`)
-- 🔄 Подключение MinIO-клиента к backend (`app/db/minio.py`)
 - 🔄 Frontend SEO: sitemap.xml, Schema.org, canonical
 - 🔄 `package-lock.json` — обновить после добавления `@nuxt/image`, `nuxt-icon`
 
@@ -66,12 +65,12 @@
 |------|-----------|-----------|
 | **Backend** | Python 3.12+, FastAPI, SQLAlchemy 2.x async, Alembic, PostgreSQL 16 + TimescaleDB | REST API, асинхронное ядро |
 | **Frontend** | Nuxt 3 (v4.x), Vue 3, Pinia, TypeScript, `@nuxt/image`, `nuxt-icon` | SSR для SEO блога и каталога |
-| **Кэш / Очереди** | Redis 7, Celery + Redis broker | Кэш каталога/блога, резерв остатков, обработка медиа |
-| **Хранилище медиа** | MinIO (self-hosted S3) | Фото/видео товаров и блога, presigned URL, WebP |
+| **Кэш / Очереди** | Redis 7, Celery (worker+beat) | Кэш каталога/блога, резерв остатков, обработка медиа |
+| **Хранилище медиа** | Локальная папка `/media` за Nginx | Фото/видео товаров и блога, WebP |
 | **Поиск** | Meilisearch | Полнотекстовый поиск товаров, self-hosted |
 | **Интеграции** | CDEK v2 API, YooMoney | Доставка, HMAC-SHA256 webhook |
 | **SEO** | Nuxt `useSeoMeta`, Schema.org JSON-LD, sitemap, RSS | Индексация блога/каталога |
-| **Инфраструктура** | Docker Compose, Nginx, Prometheus, Grafana, Loki, Promtail | Self-hosted, без cloud |
+| **Инфраструктура** | Docker Compose (7 сервисов), Nginx | Self-hosted, без cloud |
 | **CI/CD** | GitLab CE (gitlab.wifiobd.ru) + GitLab Runner 18.9 + GitLab Container Registry | Без Docker Hub |
 | **ИИ-система** | Gemini CLI, 7 агентов | Мультиагентная разработка |
 
@@ -88,7 +87,7 @@ project/
 │   │   ├── api/v1/
 │   │   │   ├── products/    # каталог, варианты, Schema.org Product
 │   │   │   ├── blog/        # посты, категории, теги, комментарии
-│   │   │   ├── media/       # presigned URL MinIO, WebP Celery-таска
+│   │   │   ├── media/       # загрузка файлов, WebP Celery-таска
 │   │   │   ├── orders/      # заказы, статусы
 │   │   │   ├── cart/        # Redis Hash, гости/авторизованные
 │   │   │   ├── delivery/    # СДЭК v2
@@ -142,15 +141,15 @@ cd site-builder
 
 # Копировать и заполнить переменные
 cp .env.example .env
-# Отредактировать .env: SECRET_KEY, POSTGRES_PASSWORD, MINIO_ROOT_PASSWORD, MEILI_MASTER_KEY
+# Отредактировать .env: SECRET_KEY, POSTGRES_PASSWORD, MEILI_MASTER_KEY
 
 # Запустить всю инфраструктуру
 docker-compose up --build
 
 # Или только нужные сервисы
-docker-compose up postgres redis minio meilisearch  # БД, кэш, хранилище, поиск
-docker-compose up backend                           # FastAPI сервер
-docker-compose up frontend                          # Nuxt 3 dev-сервер
+docker-compose up postgres redis meilisearch  # БД, кэш, поиск
+docker-compose up api                         # FastAPI сервер
+docker-compose up frontend                    # Nuxt 3 dev-сервер
 ```
 
 ### 3. Применить миграции БД
@@ -188,13 +187,11 @@ pytest tests/integration/
 
 # ── Инфраструктура
 docker-compose ps
-docker-compose logs -f backend
+docker-compose logs -f api
 docker-compose down -v
 
 # ── Meilisearch
 curl -s http://localhost:7700/health
-# ── MinIO
-curl -s http://localhost:9000/minio/health/live
 ```
 
 ---
@@ -233,7 +230,7 @@ Secrets — только через GitLab CI/CD Variables (`SSH_PRIVATE_KEY` т
 | `security-agent` | OWASP, 152-ФЗ, bleach, HMAC, XSS-аудит | **только чтение** |
 | `testing-agent` | pytest, respx, Locust, Lighthouse CI | read/write |
 | `cdek-agent` | CDEK v2 API, YooMoney интеграция | read/write |
-| `devops-agent` | Docker, Nginx, GitLab CI/CD, Prometheus, MinIO | read/write |
+| `devops-agent` | Docker, Nginx, GitLab CI/CD | read/write |
 
 Определения агентов: [`.gemini/agents/`](.gemini/agents/)
 
@@ -241,7 +238,7 @@ Secrets — только через GitLab CI/CD Variables (`SSH_PRIVATE_KEY` т
 # Примеры вызовов:
 @backend-agent реализуй клиент Meilisearch в app/db/meilisearch.py
 @frontend-agent добавь страницу /blog/[slug].vue с useSeoMeta и Schema.org
-@devops-agent настрой Nginx proxy для MinIO /media/
+@devops-agent настрой Nginx для раздачи /media/
 @security-agent проведи аудит bleach.clean() в blog/service.py
 ```
 
@@ -256,7 +253,7 @@ Secrets — только через GitLab CI/CD Variables (`SSH_PRIVATE_KEY` т
 | [`CHANGELOG.md`](CHANGELOG.md) | История изменений |
 | [`.env.example`](.env.example) | Шаблон всех переменных среды |
 | [`backend/requirements.txt`](backend/requirements.txt) | Python-зависимости |
-| [`deploy/docker-compose.prod.yml`](deploy/docker-compose.prod.yml) | Продакшн-композ (12 сервисов) |
+| [`deploy/docker-compose.prod.yml`](deploy/docker-compose.prod.yml) | Продакшн-композ (7 сервисов) |
 | [`deploy/scripts/setup_runner.sh`](deploy/scripts/setup_runner.sh) | Установка Runner (GitLab 16+, glrt-токен) |
 | [`deploy/scripts/setup_server.sh`](deploy/scripts/setup_server.sh) | Инициализация прод-сервера |
 | [`.gitlab-ci.yml`](.gitlab-ci.yml) | CI/CD пайплайн |
