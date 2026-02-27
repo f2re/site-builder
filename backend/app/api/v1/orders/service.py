@@ -14,6 +14,7 @@ from app.db.models.order import Order, OrderItem, OrderStatus
 from app.db.models.user import User
 from app.integrations.yoomoney import yoomoney_client
 from app.tasks.notifications.dispatcher import send_email_task
+from app.core.config import settings
 
 
 class OrderService:
@@ -30,30 +31,24 @@ class OrderService:
         self.session = session
 
     async def create_order(self, user: User, order_data: OrderCreate) -> Order:
-        # 1. Get cart items
-        # For now, we use user.id as cart_id
         cart = await self.cart_service.get_cart(str(user.id))
-        
         if not cart["items"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cart is empty"
             )
 
-        # 2. Stock validation and reduction
         for item in cart["items"]:
             success = await self.product_repo.decrement_stock(
-                variant_id=item["variant_id"], 
+                variant_id=item["variant_id"],
                 quantity=item["quantity"]
             )
             if not success:
-                # Stock decrement failed (insufficient stock)
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Insufficient stock for item: {item['name']}"
                 )
 
-        # 3. Create Order
         total_amount = Decimal(str(cart["total_price"]))
         order = Order(
             user_id=user.id,
@@ -62,8 +57,7 @@ class OrderService:
             shipping_address=order_data.shipping_address,
             currency="RUB"
         )
-        
-        # 4. Create OrderItems
+
         for item in cart["items"]:
             order_item = OrderItem(
                 product_variant_id=item["variant_id"],
@@ -72,28 +66,25 @@ class OrderService:
             )
             order.items.append(order_item)
 
-        # 5. Generate Payment URL
         order_id_str = str(order.id)
-        order.payment_url = yoomoney_client.create_payment_url(
+        return_url = f"{settings.FRONTEND_URL}/orders/{order_id_str}"
+        payment_result = await yoomoney_client.create_payment(
             amount=total_amount,
+            order_id=order_id_str,
+            return_url=return_url,
             description=f"Order {order_id_str} at WifiOBD Shop",
-            label=order_id_str
         )
+        order.payment_url = payment_result["payment_url"]
+        order.payment_id = payment_result["payment_id"]
 
-        # 6. Save to DB
         created_order = await self.order_repo.create(order)
-        
-        # 7. Clear Cart
         await self.cart_service.clear_cart(str(user.id))
-        
-        # 8. Commit transaction
         await self.session.commit()
         await self.session.refresh(created_order)
-        
-        # 9. Trigger Notification (Async via Celery)
+
         send_email_task.delay(
             recipient=user.email,
-            subject=f"Заказ №{created_order.id} принят",
+            subject=f"Zakaz #{created_order.id} prinyat",
             template_name="order_created.html",
             context={
                 "full_name": user.full_name or user.email,
@@ -103,24 +94,23 @@ class OrderService:
                 "payment_url": created_order.payment_url
             }
         )
-        
+
         return created_order
 
     async def update_order_status(self, order_id: UUID, new_status: OrderStatus) -> Order:
         order = await self.order_repo.get_by_id(order_id)
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
-            
+
         order.status = new_status
         await self.order_repo.update(order)
         await self.session.commit()
         await self.session.refresh(order)
-        
-        # Trigger Status Update Notification
+
         if order.user:
             send_email_task.delay(
                 recipient=order.user.email,
-                subject=f"Статус заказа №{order.id} обновлен",
+                subject=f"Status zakaza #{order.id} obnovlen",
                 template_name="order_status_updated.html",
                 context={
                     "full_name": order.user.full_name or order.user.email,
@@ -128,7 +118,7 @@ class OrderService:
                     "status": order.status.value
                 }
             )
-            
+
         return order
 
     async def get_order(self, order_id: UUID, user_id: UUID) -> Order:

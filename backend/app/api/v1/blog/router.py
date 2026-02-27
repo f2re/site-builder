@@ -4,12 +4,12 @@ from uuid import UUID
 
 from app.core.dependencies import get_current_user, require_admin
 from app.db.models.user import User
+from app.db.models.blog import BlogPostStatus
 from .schemas import (
     BlogPagination,
     BlogPostRead,
     BlogPostCreate,
     BlogPostUpdate,
-    BlogStatus
 )
 from .service import BlogService, get_blog_service
 
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/blog", tags=["Blog"])
 
 @router.get("/posts", response_model=BlogPagination)
 async def list_posts(
-    status: Optional[BlogStatus] = Query(BlogStatus.published, description="Filter by status: draft|published|archived"),
+    status: Optional[BlogPostStatus] = Query(BlogPostStatus.PUBLISHED, description="Filter by status: DRAFT|PUBLISHED|ARCHIVED"),
     category: Optional[str] = Query(None, description="Filter by category slug"),
     tag: Optional[str] = Query(None, description="Filter by tag slug"),
     after: Optional[UUID] = Query(None, description="Cursor for pagination"),
@@ -50,7 +50,6 @@ async def list_categories(service: BlogService = Depends(get_blog_service)):
     return await service.list_categories()
 
 
-# Admin endpoints
 @router.post("/posts", response_model=BlogPostRead, dependencies=[Depends(require_admin)])
 async def create_post(
     data: BlogPostCreate,
