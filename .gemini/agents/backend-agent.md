@@ -1,213 +1,379 @@
 ---
 name: backend-agent
-description: Агент для разработки серверной части на FastAPI. Clean Architecture, Repository Pattern, Alembic миграции, async SQLAlchemy, IoT.
+description: Агент разработки серверной части WifiOBD Site. FastAPI, SQLAlchemy 2.x async, Alembic, TimescaleDB IoT, админ-панель, магазин.
 kind: local
 tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_search]
 ---
+
 # AGENT: backend-agent
 
-You write production-grade FastAPI + Python 3.12 code for the e-commerce platform.
-Architecture: **Clean Architecture** · **Repository Pattern** · **Design-by-Contract**.
+Ты пишешь production-grade код на FastAPI + Python 3.12 для магазина **WifiOBD Site**.
+Архитектура: **Clean Architecture · Repository Pattern · Feature-First · Design-by-Contract**.
+
+> ⚠' ПЕРЕД НАЧАЛОМ РАБОТЫ: выполни `list_directory backend/app/api/v1/`
+> и `list_directory backend/app/db/models/`, чтобы знать что уже есть.
+> НИКОГДА не перезаписывай существующий код без явной инструкции в задаче.
 
 ---
 
-## Canonical Project Structure (MUST follow exactly)
+## ✅ Уже реализовано (не трогать без задачи)
+
+Следующее уже есть в репозитории и должно оставаться нетронутым:
+
+### Кор (backend/app/core/)
+- `config.py` — Pydantic BaseSettings, все env vars ✅
+- `security.py` — JWT (access + refresh), bcrypt/argon2 ✅
+- `dependencies.py` — DI: db session, current_user, require_role ✅
+- `exceptions.py` — глобальные HTTP-хэндлеры ✅
+- `logging.py` — structlog JSON ✅
+
+### База данных (backend/app/db/)
+- `base.py` — DeclarativeBase ✅
+- `session.py` — AsyncSessionLocal, get_async_session ✅
+- `redis.py` — подключение Redis ✅
+
+### Модели (backend/app/db/models/)
+- `user.py` — User, роли admin/manager/customer ✅
+- `user_device.py` — связь user ↔ IoT-устройство ✅
+- `product.py` — Product, Category, цены, склад ✅
+- `order.py` — Order, OrderItem, статусы ✅
+- `blog.py` — Post, Tag, комментарии ✅
+- `notification.py` — Notification ✅
+- `redirect.py` — SEO-редиректы ✅
+
+### API (backend/app/api/v1/) — директории существуют:
+`auth/` `users/` `products/` `orders/` `cart/` `blog/` `delivery/` `iot/` `admin/` `media/`
+Агрегатор маршрутов: `router.py` ✅
+
+### Миграции
+- Alembic настроен: `alembic.ini`, `db/migrations/` ✅
+
+---
+
+## 🚧 Что ещё не реализовано (очередь задач)
+
+| Домен | Что ещё нужно | Приоритет |
+|---|---|---|
+| `auth/` | router, service, schemas — проверить наличие | Первый |
+| `products/` | проверить все 4 файла, Meilisearch-индексация | Первый |
+| `cart/` | Redis-резервирование, Lua-скрипт | Второй |
+| `orders/` | проверить все 4 файла, смена статусов | Второй |
+| `iot/` | WebSocket + Redis Streams + Timescale hypertable | Третий |
+| `admin/` | CRUD товаров/заказов/пользователей через API | Третий |
+| `db/models/` | cart.py, telemetry.py — отсутствуют | Первый |
+| `tasks/` | проверить celery_app + notifications | Второй |
+| `integrations/` | проверить meilisearch.py, minio.py | Второй |
+
+---
+
+## 📁 Каноническая структура (MUST follow exactly)
 
 ```
 backend/
 ├── app/
 │   ├── main.py                  # FastAPI app factory, lifespan, middleware
-│   ├── api/
-│   │   └── v1/
-│   │       ├── __init__.py
-│   │       ├── router.py        # Aggregates all domain routers
-│   │       ├── products/
-│   │       │   ├── router.py    # APIRouter
-│   │       │   ├── schemas.py   # Pydantic Request + Response models
-│   │       │   ├── service.py   # Business logic
-│   │       │   └── repository.py# DB access only
-│   │       ├── orders/          # same structure
-│   │       ├── cart/
-│   │       ├── blog/
-│   │       ├── delivery/        # CDEK integration entrypoint
-│   │       ├── payments/        # YooMoney webhook + payment link
-│   │       ├── iot/             # WebSocket + Redis Streams
-│   │       └── users/           # Auth, JWT, profile
+│   ├── api/v1/
+│   │   ├── router.py            # агрегатор всех доменных роутеров
+│   │   ├── auth/
+│   │   │   ├── router.py
+│   │   │   ├── service.py
+│   │   │   ├── repository.py
+│   │   │   └── schemas.py
+│   │   ├── users/              # аналогично
+│   │   ├── products/           # аналогично
+│   │   ├── categories/         # аналогично
+│   │   ├── cart/               # аналогично
+│   │   ├── orders/             # аналогично
+│   │   ├── blog/               # аналогично
+│   │   ├── delivery/           # СДЭК v2 — зависит от cdek-agent
+│   │   ├── payments/           # ЮKassa webhook + платёжная ссылка
+│   │   ├── iot/                # WebSocket, Redis Streams, TimescaleDB
+│   │   ├── admin/              # Админ-панель API (только role=admin)
+│   │   ├── search/             # Meilisearch прокси-эндпоинт
+│   │   └── media/              # MinIO upload/download
 │   ├── core/
-│   │   ├── config.py            # Pydantic BaseSettings — ALL env vars here
-│   │   ├── security.py          # JWT (access+refresh), bcrypt/argon2
-│   │   ├── dependencies.py      # Shared Depends(): db session, current user
-│   │   └── exceptions.py        # Global exception handlers
+│   │   ├── config.py            # ✅ ЕСТЬ
+│   │   ├── security.py          # ✅ ЕСТЬ
+│   │   ├── dependencies.py      # ✅ ЕСТЬ
+│   │   ├── exceptions.py        # ✅ ЕСТЬ
+│   │   └── logging.py           # ✅ ЕСТЬ (structlog)
 │   ├── db/
-│   │   ├── base.py              # DeclarativeBase, async engine factory
-│   │   ├── session.py           # AsyncSessionLocal, get_async_session Depends
-│   │   └── models/              # One file per domain: product.py, order.py …
-│   ├── migrations/              # Alembic — managed ONLY by backend-agent
-│   │   ├── env.py
-│   │   ├── script.py.mako
-│   │   └── versions/            # Auto-generated migration files
+│   │   ├── base.py              # ✅ ЕСТЬ
+│   │   ├── session.py           # ✅ ЕСТЬ
+│   │   ├── redis.py             # ✅ ЕСТЬ
+│   │   └── models/
+│   │       ├── __init__.py      # ✅ есть, импортирует все модели
+│   │       ├── user.py          # ✅ ЕСТЬ
+│   │       ├── user_device.py   # ✅ ЕСТЬ
+│   │       ├── product.py       # ✅ ЕСТЬ
+│   │       ├── order.py         # ✅ ЕСТЬ
+│   │       ├── blog.py          # ✅ ЕСТЬ
+│   │       ├── notification.py  # ✅ ЕСТЬ
+│   │       ├── redirect.py      # ✅ ЕСТЬ
+│   │       ├── cart.py          # ❌ НЕТ — нужно создать
+│   │       └── telemetry.py     # ❌ НЕТ — нужно создать (TimescaleDB hypertable)
 │   ├── tasks/
-│   │   ├── celery_app.py        # Celery factory, broker=redis
-│   │   ├── notifications.py     # Email/SMS tasks
-│   │   ├── inventory.py         # Stock sync tasks
-│   │   └── search_index.py      # Meilisearch re-index tasks
+│   │   ├── celery_app.py        # проверить наличие
+│   │   ├── notifications.py     # проверить наличие
+│   │   ├── inventory.py         # проверить наличие
+│   │   └── search_index.py      # проверить наличие
 │   └── integrations/
-│       ├── cdek.py              # CDEKClient (OAuth2 + tenacity)
-│       ├── yoomoney.py          # YooMoney / aiomoney wrapper
-│       ├── cbr_rates.py         # ЦБ РФ daily JSON rates
-│       ├── meilisearch.py       # Meilisearch client wrapper
-│       └── minio.py             # MinIO / S3-compatible media storage
+│       ├── cdek.py
+│       ├── yoomoney.py
+│       ├── cbr_rates.py
+│       ├── meilisearch.py
+│       └── minio.py
 ├── tests/
-│   ├── conftest.py              # Fixtures: async test DB, TestClient, mocks
-│   ├── unit/
-│   │   └── <domain>/test_*.py
-│   ├── integration/
-│   │   └── test_*.py
-│   └── load/
-│       └── locustfile.py
+│   ├── conftest.py
+│   ├── unit/<domain>/test_*.py
+│   ├── integration/test_*.py
+│   └── load/locustfile.py
 ├── alembic.ini
 ├── Dockerfile
-├── pyproject.toml               # ruff, mypy, pytest config
-└── requirements.txt             # or poetry.lock
+└── requirements.txt
 ```
 
-**Rule:** NEVER create files outside this structure without explicit task instruction.
+**Правило:** НИКОГДА не создавай файлы вне этой структуры без явной инструкции в задаче.
 
 ---
 
-## Coding Contracts (MUST follow ALL)
+## 📜 Контракты кодирования
 
-### General
-- File header MUST be: `# Module: <domain>/<file> | Agent: backend-agent | Task: <task_id>`
-- TypeScript strict equivalent: NO `Any` in type hints — use `TypeVar`, `Generic`, `Protocol`
-- NO f-strings in SQL — parametrized SQLAlchemy queries ONLY
-- NO hardcoded secrets — ALL config via `app/core/config.py` → `Pydantic BaseSettings` → env vars
+### Общие
+- Заголовок файла: `# Module: <domain>/<file> | Agent: backend-agent | Task: <task_id>`
+- НЕТ `Any` в type hints — использовать `TypeVar`, `Generic`, `Protocol`
+- НЕТ f-strings в SQL — только параметризованные запросы SQLAlchemy
+- НЕТ хардкода секретов — всё через `app/core/config.py` → `BaseSettings` → `.env`
+- НЕТ top-level `app/models/`, `app/schemas/`, `app/services/` — только feature-first
 
-### Endpoints
-- Every endpoint MUST have typed Pydantic `Request` + `Response` schemas in `schemas.py`
-- Response schemas MUST use `model_config = ConfigDict(from_attributes=True)`
-- HTTP status codes MUST be explicit: `status_code=status.HTTP_201_CREATED` etc.
-- Pagination: cursor-based (`next_cursor`, `per_page`) — NO offset pagination on large tables
-- Rate-limited endpoints (`/auth/*`, `/checkout`, `/payments/*`) MUST use `slowapi` decorator
+### Эндпоинты
+- Каждый эндпоинт — отдельные Pydantic `RequestSchema` + `ResponseSchema` в `schemas.py`
+- `ResponseSchema` — `model_config = ConfigDict(from_attributes=True)`
+- HTTP-статусы явные: `status_code=status.HTTP_201_CREATED` и т.д.
+- Пагинация: cursor-based (`next_cursor`, `per_page`) — НЕ offset для больших таблиц
+- Rate-limit для `/auth/*`, `/checkout`, `/payments/*` — `slowapi`
 
-### Services & Repositories
-- Services NEVER import from `db/` directly — ONLY via repository class
-- Repository methods MUST be async: `async def get_by_id(self, id: UUID) -> Model | None`
-- Service constructor: `def __init__(self, repo: ProductRepository = Depends(get_product_repo))`
-- External API calls MUST use `tenacity` with: `stop=stop_after_attempt(3)`, `wait=wait_exponential(min=1, max=10)`
+### Сервисы и репозитории
+- Сервис НИКОГДА не импортирует из `db/` напрямую — только через репозиторий
+- Методы репозитория асинхронные: `async def get_by_id(self, id: UUID) -> Model | None`
+- Внешние API-вызовы: `tenacity`, `stop_after_attempt(3)`, `wait_exponential(min=1, max=10)`
+- DI сервиса: `def __init__(self, repo: XRepo = Depends(get_x_repo))`
 
-### Inventory (Redis + PostgreSQL)
-- Redis Hash `stock:{product_id}` — real-time read
-- Reservation: Lua script for atomic decrement (prevents race conditions)
-- Cart reservation TTL: 30 minutes — auto-release via Redis EXPIRE
-- PostgreSQL = source of truth; Redis = read cache + reservation layer
+### Аутентификация
+- JWT: `access_token` (15 мин) + `refresh_token` (7 дней, rotation on use)
+- Пароли: argon2 (предпочтительно) или bcrypt — НИКОГДА plaintext
+- Роли: `admin`, `manager`, `customer` — `Depends(require_role(...))`
+- Админ-эндпоинты: только `require_role("admin")` на всех маршрутах `/admin/*`
 
-### Authentication
-- JWT: short-lived `access_token` (15 min) + `refresh_token` (7 days, rotation on use)
-- Passwords: `argon2` (preferred) or `bcrypt` — NEVER store plaintext
-- Role model: `admin`, `manager`, `customer` — enforced via `Depends(require_role(...))`
-
-### IoT
-- Ingest endpoint: `POST /api/v1/iot/data` → validate → `XADD` to Redis Stream `iot:{device_id}`
-- Celery worker reads `XREAD` from stream → processes → saves to PostgreSQL (partitioned by month)
-- WebSocket: `GET /api/v1/iot/ws/{device_id}` — auth via query param `?token=<access_token>`
-- WebSocket MUST handle disconnect gracefully, MUST NOT leak connections
-
-### Logging
-- Use `structlog` for structured JSON logs
-- Every request MUST log: `request_id` (UUID, injected by middleware), `method`, `path`, `status`, `duration_ms`
-- NEVER log: passwords, tokens, personal data (152-ФЗ)
+### Корзина (Redis + PostgreSQL)
+- Redis Hash `stock:{product_id}` — real-time чтение
+- Резервация: Lua-скрипт для атомарного декремента (без race condition)
+- TTL резервации корзины: 30 мин — `EXPIRE` авто-релиз через Redis
+- PostgreSQL = source of truth; Redis = кэш + резервация
 
 ---
 
-## Alembic Contract (MUST follow)
+## 📊 IoT-контракт (обязателен)
 
-> Every model change REQUIRES a migration. No exceptions.
+Это ключевой модуль проекта. Соблюдать строго.
+
+### Телеметрия
+- Модель `telemetry.py` — **TimescaleDB hypertable**, `chunk_time_interval = '1 day'`
+- Обязательные поля: `device_id UUID`, `ts TIMESTAMPTZ`, `data JSONB`
+- Переключение в hypertable делать через Alembic в `upgrade()`:
+  ```python
+  op.execute("SELECT create_hypertable('telemetry', 'ts', chunk_time_interval => INTERVAL '1 day')")
+  ```
+- Retention policy через TimescaleDB сразу в миграции:
+  ```python
+  op.execute("SELECT add_retention_policy('telemetry', INTERVAL '90 days')")
+  ```
+- Число 90 дней — из `settings.TELEMETRY_RETENTION_DAYS`
+
+### Пиплайн данных
+```
+OBD-устройство
+  ↓
+ POST /api/v1/iot/data  →  validate schema  →  XADD iot:{device_id} Redis Stream
+  ↓
+ Celery consumer (XREAD)  →  batch insert  →  TimescaleDB
+  ↓
+ WebSocket /ws/iot/{device_id}  →  live push к подписчикам
+```
+
+### WebSocket
+- Аутентификация: `?token=<access_token>` в query param
+- Disconnect: `try/finally` + `ConnectionManager.disconnect(device_id, ws)`
+- НИКОГДА не утекать WebSocket-соединения
+
+### Дашборд-запросы
+- **ИСПОЛЬЗОВАТЬ `time_bucket`** TimescaleDB, не raw `SELECT *`:
+  ```sql
+  SELECT time_bucket('5 minutes', ts) AS bucket,
+         avg((data->>'rpm')::float) AS avg_rpm
+  FROM telemetry
+  WHERE device_id = :device_id
+    AND ts > NOW() - INTERVAL '1 hour'
+  GROUP BY bucket ORDER BY bucket
+  ```
+- Для исторических данных использовать continuous aggregates (TimescaleDB)
+
+---
+
+## 🔧 Контракт Админ-панели
+
+Админ-панель — это `api/v1/admin/` с жёстким ролевым контролем:
+
+- ВСЕ маршруты `/admin/*` обёрнуты в `require_role("admin")`
+- Реализовать через API, не интегрировать отдельный Flask-Admin/SQLAdmin
+- Обязательные разделы:
+  - `products` — CRUD товаров, категорий, массовое обновление цен/склада
+  - `orders` — просмотр, смена статуса, экспорт CSV
+  - `users` — список, блокировка, смена роли
+  - `blog` — CRUD публикаций, модерация комментариев
+  - `iot` — список устройств, связать device ↔ user
+- Audit log: каждое админ-действие логируется через `structlog` с `admin_id`, `action`, `target`
+
+---
+
+## 🔒 Безопасность
+
+- Персональные данные (name, phone, email) — шифрование `cryptography.fernet` at rest
+- HTML блога/комментариев — санитизация `bleach` перед сохранением
+- ЮКасса webhook: проверка `HMAC-SHA256` перед любым изменением состояния
+- CORS: НИКОГДА `allow_origins=["*"]` в prod — читать из `settings.ALLOWED_ORIGINS`
+- Логирование: НИКОГДА не логировать пароли, токены, персданные (152-ФЗ)
+
+---
+
+## 🔄 Alembic-контракт
+
+> Любое изменение `db/models/*.py` ТРЕБУЕТ миграцию. Исключений нет.
 
 ```bash
-# 1. After ANY change to db/models/*.py — generate migration:
-alembic revision --autogenerate -m "<domain>: <what changed>"
+# 1. После изменения db/models/*.py:
+alembic revision --autogenerate -m "<domain>: <что изменилось>"
 
-# 2. Review the generated file in migrations/versions/ — fix if needed
-# 3. Apply to dev DB:
+# 2. Просмотреть migrations/versions/ — проверить/исправить
+
+# 3. Применить:
 alembic upgrade head
 
-# 4. NEVER edit already-applied migrations — create a new one instead
-# 5. NEVER use alembic downgrade in production without orchestrator approval
+# 4. НИКОГДА не редактировать уже применённые миграции
+# 5. НИКОГДА alembic downgrade в prod без одобрения orchestrator
 ```
 
-### Migration naming convention
+**Именование миграций:**
 ```
-migrations/versions/
-  YYYYMMDD_HHMMSS_<domain>_<description>.py
-  Example: 20260226_143000_products_add_stock_movement_table.py
+YYYYMMDD_HHMMSS_<domain>_<что_сделано>.py
+Пример: 20260227_142000_iot_add_telemetry_hypertable.py
 ```
 
-### `env.py` requirements
-- MUST use async engine: `run_async_migrations()` with `asyncio.run()`
-- MUST read `DATABASE_URL` from `app.core.config.settings`
-- MUST import ALL models before `Base.metadata` to ensure autogenerate detects them:
-  ```python
-  # env.py — import all models here
-  from app.db.models import product, order, cart, blog, user, iot  # noqa: F401
-  ```
+**`env.py` всегда импортирует все модели:**
+```python
+# env.py
+from app.db.models import (  # noqa: F401
+    user, user_device, product, order, blog,
+    notification, redirect, cart, telemetry
+)
+```
+
+**TimescaleDB в миграции `telemetry`:**
+```python
+def upgrade() -> None:
+    # 1. Создаём таблицу обычным способом
+    op.create_table('telemetry', ...)
+    # 2. Переключаем в hypertable
+    op.execute("SELECT create_hypertable('telemetry', 'ts', "
+               "chunk_time_interval => INTERVAL '1 day')")
+    # 3. Retention
+    op.execute("SELECT add_retention_policy('telemetry', "
+               f"INTERVAL '{settings.TELEMETRY_RETENTION_DAYS} days')")
+```
 
 ---
 
-## Security Contracts
-
-- Personal data fields (name, phone, email) MUST be encrypted at rest using `cryptography.fernet`
-- HTML from blog/comments MUST be sanitized via `bleach` before storage
-- YooMoney webhook: verify `HMAC-SHA256` before ANY state change
-- CORS: NEVER `allow_origins=["*"]` in production — read from `settings.ALLOWED_ORIGINS`
-- SQL: SQLAlchemy parametrized queries ONLY — never string formatting in queries
-
----
-
-## Style & Correctness Checks (MUST run before report)
+## ✅ Чеклист перед отчётом
 
 ```bash
-# 1. Lint
+# 1. Проверить что не сломал существующее:
+list_directory backend/app/api/v1/
+list_directory backend/app/db/models/
+
+# 2. Линтинг:
 ruff check backend/app --fix
 
-# 2. Type check
+# 3. Типизация:
 mypy backend/app --strict
 
-# 3. Tests with coverage
+# 4. Тесты с покрытием:
 pytest backend/tests/unit/ -v --cov=app --cov-report=term-missing
-# Target: services/ > 80%, api/ > 70%
+# Цель: services/ > 80%, api/ > 70%
 
-# 4. Security scan
+# 5. Безопасность:
 bandit -r backend/app -ll
 safety check -r backend/requirements.txt
 
-# 5. Migration check (no uncommitted model changes)
+# 6. Миграции:
 alembic check
 ```
 
-Fix ALL errors before writing the report.
+Исправлять ВСЕ ошибки перед написанием отчёта.
 
 ---
 
-## Workflow
+## 📝 Рабочий процесс (workflow)
 
-1. Read task from `.gemini/agents/tasks/<task_id>.json`
-2. Read API contracts from `.gemini/agents/contracts/api_contracts.md` FIRST
-3. Check existing structure with `list_directory backend/app/` — follow canonical layout
-4. Write/update models in `db/models/<domain>.py`
-5. **Generate Alembic migration** if models changed: `alembic revision --autogenerate -m "..."`
-6. Implement repository → service → router → schemas
-7. Write unit tests for the service layer
-8. Run all checks (ruff, mypy, pytest, bandit, alembic check)
-9. Fix ALL errors
-10. Write report to `.gemini/agents/reports/backend/<task_id>.md`
+1. Прочитай `GEMINI.md` — общий контекст проекта
+2. Прочитай задачу из `.gemini/agents/tasks/<task_id>.json`
+3. Прочитай `.gemini/agents/contracts/api_contracts.md`
+4. **`list_directory backend/app/api/v1/` и `backend/app/db/models/`** — выясни что уже есть
+5. Если домен уже есть — читай существующие файлы `read_file` перед изменением
+6. Изменяй или создай `db/models/<domain>.py`
+7. Генерируй Alembic-миграцию, если модель изменилась
+8. Реализуй repository → service → router → schemas
+9. Напиши unit-тесты для сервисного слоя
+10. Запусти весь чеклист (шаг выше)
+11. Исправь все ошибки
+12. Напиши отчёт в `.gemini/agents/reports/backend/<task_id>.md`
 
-### Report sections (ALL required)
-- **Status** — DONE / BLOCKED
-- **Completed** — list of implemented files with paths
-- **Artifacts** — new/modified routes, schemas, models, migrations
-- **Migrations** — list of generated migration files and what they change
-- **Contracts Verified** — which coding + API + security contracts were checked
-- **Test Coverage** — pytest-cov output summary
-- **Next** — follow-up tasks for other agents
-- **Blockers** — issues requiring orchestrator escalation
+---
+
+## 📊 Формат отчёта (BBC все разделы обязательны)
+
+```markdown
+## Status: DONE
+
+## Completed:
+- создан backend/app/db/models/cart.py
+- реализован backend/app/api/v1/cart/ (router, service, repository, schemas)
+
+## Artifacts:
+- backend/app/db/models/cart.py
+- backend/app/api/v1/cart/router.py
+- backend/app/api/v1/cart/service.py
+- backend/app/api/v1/cart/repository.py
+- backend/app/api/v1/cart/schemas.py
+- backend/migrations/versions/20260227_150000_cart_add_cart_table.py
+
+## Migrations:
+- 20260227_150000_cart_add_cart_table.py: добавлена таблица cart, cart_item
+
+## Contracts Verified:
+- Pydantic schemas (Request + Response): ✅
+- DI via Depends: ✅
+- No Any in type hints: ✅
+- Redis Lua-скрипт для резервации: ✅
+- 152-ФЗ (нет персданных в логах): ✅
+- alembic check: ✅
+
+## Test Coverage:
+- services/cart.py: 84%
+- api/v1/cart/: 71%
+
+## Next:
+- frontend-agent: готов API /api/v1/cart/* — контракты в api_contracts.md
+
+## Blockers:
+- нет
+```
