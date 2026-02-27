@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.0.6] - 2026-02-27
+
+### Fixed
+- **CI/CD Pipeline**: Added `types-bleach` to mypy dependencies to resolve import type checking errors
+- **CI/CD Pipeline**: Replaced `npm ci` with `npm install` in frontend lint/security jobs to handle outdated package-lock.json
+- **Backend Dependencies**: Updated `aiomoney` from non-existent `0.2.1` to available `3.0.2`
+- **Backend Dependencies**: Upgraded all packages to latest stable versions:
+  - FastAPI: 0.110.0 → 0.131.0 (+21 minor versions)
+  - Uvicorn: 0.27.1 → 0.41.0 (+14 versions)
+  - SQLAlchemy: 2.0.28 → 2.0.44
+  - Pydantic Settings: 2.2.1 → 2.8.1
+  - Redis: 5.0.1 → 5.2.2
+  - HTTPx: 0.27.0 → 0.28.3
+  - Celery: 5.3.6 → 5.4.0
+  - Aiogram: 3.4.1 → 3.18.0
+  - Cryptography: 42.0.5 → 44.0.0
+  - Pytest: 8.1.1 → 8.3.5
+  - Pillow: 10.3.0 → 11.1.0
+  - Meilisearch SDK: 3.0.0 → 3.11.0
+  - And 15+ other packages
+- **Backend Schemas**: Added missing `BlogPostCreate` and `BlogPostUpdate` schemas that were imported but not defined in `backend/app/api/v1/blog/schemas.py`
+
+### Technical Debt
+- TODO: Regenerate `frontend/package-lock.json` locally and commit to re-enable `npm ci` in CI
+- TODO: Add runner tags to `.gitlab-ci.yml` if "Run untagged jobs" is disabled on GitLab Runner
+
 ## [Unreleased]
 
 ### Added — 2026-02-26 (stage3_wiring)
