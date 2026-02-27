@@ -7,7 +7,7 @@ const { getPages, deletePage } = usePages()
 const { data: pages, pending, refresh } = await getPages()
 const toast = useToast()
 
-const handleDelete = async (id: number) => {
+const handleDelete = async (id: string) => {
   if (!confirm('Вы уверены, что хотите удалить эту страницу?')) return
 
   try {

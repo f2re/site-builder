@@ -13,7 +13,7 @@ const { getPageById, createPage, updatePage } = usePages()
 const toast = useToast()
 
 const isEdit = route.params.id !== 'create'
-const pageId = isEdit ? parseInt(route.params.id as string) : null
+const pageId = isEdit ? route.params.id as string : null
 
 // Form schema
 const schema = z.object({
