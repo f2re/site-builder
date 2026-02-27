@@ -84,6 +84,8 @@ async def update_my_profile(
 ) -> Any:
     """Update current user profile."""
     updated_user = await user_repo.update(current_user.id, full_name=body.full_name)
+    if updated_user is None:
+        raise HTTPException(status_code=404, detail="User not found")
     return {
         "id": str(updated_user.id),
         "full_name": updated_user.full_name,
@@ -134,11 +136,10 @@ async def register_device(
     iot_repo: IoTRepository = Depends(get_iot_repository)
 ) -> Any:
     """Register a new IoT/OBD2 device to the current user account."""
-    # Check if device_uid already exists
     existing = await iot_repo.get_device_by_uid(body.device_uid)
     if existing:
         raise HTTPException(status_code=400, detail="Device UID already registered")
-        
+
     device = await iot_repo.create_device(
         user_id=current_user.id,
         device_uid=body.device_uid,
@@ -163,13 +164,13 @@ async def device_websocket(
     Client must pass JWT in query param ?token=<access_token>.
     """
     await websocket.accept()
-    
+
     # 1. Manual Token Validation
     token = websocket.query_params.get("token")
     if not token:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
-        
+
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id = payload.get("sub")
@@ -191,21 +192,19 @@ async def device_websocket(
         return
 
     # 3. Subscribe to Redis Stream
-    last_id = "$"  # Start from the latest message
+    last_id = "$"
     try:
         await websocket.send_json({
             "event": "connected",
             "device_id": str(device_id),
             "message": "Real-time telemetry stream connected",
         })
-        
+
         while True:
-            # Read from stream with blocking
             streams = await redis.xread({"iot:telemetry": last_id}, count=1, block=5000)
             if streams:
                 for stream_name, messages in streams:
                     for msg_id, data in messages:
-                        # Filter by device_id in data
                         if data.get("device_id") == str(device_id):
                             await websocket.send_json({
                                 "event": "telemetry",
@@ -213,10 +212,9 @@ async def device_websocket(
                                 "timestamp": msg_id.split("-")[0]
                             })
                         last_id = msg_id
-            
-            # Prevent busy loop and check for disconnects
+
             await asyncio.sleep(0.1)
-            
+
     except WebSocketDisconnect:
         pass
     except Exception as e:
