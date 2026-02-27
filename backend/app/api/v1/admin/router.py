@@ -35,6 +35,7 @@ from typing import Any
 
 from app.core.dependencies import require_admin
 from app.db.models.user import User
+from app.api.v1.products.repository import ProductRepository, get_product_repo
 
 router = APIRouter(prefix="/admin", tags=["Admin Panel"])
 
@@ -105,9 +106,13 @@ async def list_products(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     _admin: User = AdminDep,
+    repo: ProductRepository = Depends(get_product_repo)
 ) -> Any:
-    """List all products (paginated). TODO: wire ProductRepository."""
-    return {"items": [], "total": 0, "page": page, "per_page": per_page}
+    """List all products (paginated)."""
+    # Using list_products from repo which is already implemented for public, 
+    # but could be extended for admin (e.g. showing inactive products)
+    items, next_cursor = await repo.list_products(per_page=per_page)
+    return {"items": items, "next_cursor": next_cursor, "page": page, "per_page": per_page}
 
 
 @router.post("/products", status_code=status.HTTP_201_CREATED)

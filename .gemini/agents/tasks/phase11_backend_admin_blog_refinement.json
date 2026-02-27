@@ -1,0 +1,22 @@
+{
+  "task_id": "phase11_backend_admin_blog_refinement",
+  "phase": 11,
+  "agent": "backend-agent",
+  "title": "Complete Admin API and Blog Model Refinement",
+  "description": "Implement all Admin API endpoints, expand Blog model (content_json/html, views, reading_time), integrate bleach for sanitization, and wire Meilisearch indexing.",
+  "depends_on": ["phase7_backend_security"],
+  "priority": "high",
+  "target_paths": [
+    "backend/app/api/v1/admin/router.py",
+    "backend/app/db/models/blog.py",
+    "backend/app/tasks/search.py"
+  ],
+  "acceptance_criteria": [
+    "All stubs in /api/v1/admin/ are replaced with real logic",
+    "Blog model updated with content_json, content_html, views, reading_time_minutes",
+    "Bleach sanitization applied to HTML content before saving",
+    "Meilisearch indexing tasks are triggered on product/article updates",
+    "Alembic migration for new fields is applied"
+  ],
+  "status": "pending"
+}

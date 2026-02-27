@@ -1,15 +1,18 @@
 export default defineEventHandler((event) => {
-  const siteUrl = 'https://wifiobd.ru'
-  
-  const robots = `User-agent: *
-Disallow: /admin
-Disallow: /cart
-Disallow: /checkout
-Disallow: /profile
-Disallow: /*?*
+  const config = useRuntimeConfig()
+  const siteUrl = config.public.siteUrl
 
-Sitemap: ${siteUrl}/sitemap.xml`
+  const robots = [
+    'User-agent: *',
+    'Allow: /',
+    'Disallow: /admin/',
+    'Disallow: /checkout/',
+    'Disallow: /profile/',
+    'Disallow: /api/',
+    '',
+    `Sitemap: ${siteUrl}/sitemap.xml`
+  ].join('\n')
 
-  event.node.res.setHeader('Content-Type', 'text/plain')
+  setHeader(event, 'Content-Type', 'text/plain')
   return robots
 })

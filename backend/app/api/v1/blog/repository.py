@@ -1,8 +1,8 @@
-# Module: api/v1/blog/repository.py | Agent: backend-agent | Task: phase3_backend_blog
+# Module: api/v1/blog/repository.py | Agent: backend-agent | Task: phase11_backend_admin_blog_refinement
 from typing import List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update, delete
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
@@ -13,6 +13,19 @@ from app.db.session import get_db
 class BlogRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    async def get_by_id(self, post_id: UUID) -> Optional[BlogPost]:
+        stmt = (
+            select(BlogPost)
+            .where(BlogPost.id == post_id)
+            .options(
+                selectinload(BlogPost.category),
+                selectinload(BlogPost.tags),
+                selectinload(BlogPost.author)
+            )
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_by_slug(self, slug: str, status: Optional[BlogStatus] = None) -> Optional[BlogPost]:
         stmt = (
@@ -34,25 +47,28 @@ class BlogRepository:
         self,
         category_slug: Optional[str] = None,
         tag_slug: Optional[str] = None,
-        status: BlogStatus = BlogStatus.published,
+        status: Optional[BlogStatus] = BlogStatus.published,
         is_featured: Optional[bool] = None,
         cursor: Optional[UUID] = None,
         per_page: int = 20,
     ) -> Tuple[List[BlogPost], Optional[str], int]:
         
         # Base count query
-        count_stmt = select(func.count(BlogPost.id)).where(BlogPost.status == status)
+        count_stmt = select(func.count(BlogPost.id))
+        if status:
+            count_stmt = count_stmt.where(BlogPost.status == status)
         
         # Base list query
         stmt = (
             select(BlogPost)
-            .where(BlogPost.status == status)
             .options(
                 selectinload(BlogPost.category),
                 selectinload(BlogPost.tags),
                 selectinload(BlogPost.author)
             )
         )
+        if status:
+            stmt = stmt.where(BlogPost.status == status)
         
         if is_featured is not None:
             count_stmt = count_stmt.where(BlogPost.is_featured == is_featured)
@@ -85,6 +101,27 @@ class BlogRepository:
             next_cursor = str(items[-1].id)
             
         return items, next_cursor, total
+
+    async def create(self, post: BlogPost) -> BlogPost:
+        self.session.add(post)
+        await self.session.flush()
+        await self.session.refresh(post)
+        return post
+
+    async def update(self, post_id: UUID, **kwargs) -> Optional[BlogPost]:
+        stmt = (
+            update(BlogPost)
+            .where(BlogPost.id == post_id)
+            .values(**kwargs)
+            .returning(BlogPost)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def delete(self, post_id: UUID) -> bool:
+        stmt = delete(BlogPost).where(BlogPost.id == post_id)
+        result = await self.session.execute(stmt)
+        return result.rowcount > 0
 
     async def get_categories(self) -> List[BlogCategory]:
         stmt = select(BlogCategory).order_by(BlogCategory.name)

@@ -1,51 +1,49 @@
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
   const apiBase = config.public.apiBase
-  const siteUrl = 'https://wifiobd.ru'
-  
-  try {
-    const [productsResponse, postsResponse] = await Promise.all([
-      $fetch<any>(`${apiBase}/products`),
-      $fetch<any>(`${apiBase}/blog/posts`)
-    ])
-    
-    const products = productsResponse.items || []
-    const posts = postsResponse.items || []
-    
-    const staticRoutes = [
-      '/',
-      '/products',
-      '/blog',
-      '/about',
-      '/contact'
-    ]
-    
-    const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+  const siteUrl = config.public.siteUrl
+
+  const [productsData, blogData, categoriesData] = await Promise.all([
+    $fetch<any>(`${apiBase}/products?per_page=1000`),
+    $fetch<any>(`${apiBase}/blog/posts?per_page=1000`),
+    $fetch<any>(`${apiBase}/products/categories`)
+  ])
+
+  const staticRoutes = [
+    '',
+    '/blog',
+    '/products',
+    '/cart',
+  ]
+
+  const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${staticRoutes.map(route => `
+  ${staticRoutes.map(route => `
   <url>
     <loc>${siteUrl}${route}</loc>
     <changefreq>daily</changefreq>
-    <priority>${route === '/' ? '1.0' : '0.8'}</priority>
+    <priority>${route === '' ? '1.0' : '0.8'}</priority>
   </url>`).join('')}
-${products.map((p: any) => `
+  ${categoriesData.items.map((cat: any) => `
   <url>
-    <loc>${siteUrl}/products/${p.slug}</loc>
+    <loc>${siteUrl}/products?category_slug=${cat.slug}</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>`).join('')}
-${posts.map((post: any) => `
+  ${productsData.items.map((prod: any) => `
   <url>
-    <loc>${siteUrl}/blog/${post.slug}</loc>
+    <loc>${siteUrl}/products/${prod.slug}</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>`).join('')}
+  ${blogData.items.map((post: any) => `
+  <url>
+    <loc>${siteUrl}/blog/${post.slug}</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>`).join('')}
 </urlset>`
 
-    event.node.res.setHeader('Content-Type', 'application/xml')
-    return sitemap
-  } catch (err) {
-    console.error('Sitemap generation error:', err)
-    return 'Error generating sitemap'
-  }
+  setHeader(event, 'Content-Type', 'application/xml')
+  return sitemap
 })

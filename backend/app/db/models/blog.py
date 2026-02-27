@@ -1,11 +1,11 @@
-# Module: db/models/blog.py | Agent: backend-agent | Task: phase3_backend_blog
+# Module: db/models/blog.py | Agent: backend-agent | Task: phase11_backend_admin_blog_refinement
 from __future__ import annotations
 import enum
 import uuid
 from datetime import datetime
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import String, ForeignKey, Boolean, DateTime, func, Text, Table, Column, Enum
+from sqlalchemy import String, ForeignKey, Boolean, DateTime, func, Text, Table, Column, Enum, JSON, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -61,6 +61,9 @@ class BlogPost(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    content_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    content_html: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
     summary: Mapped[Optional[str]] = mapped_column(Text)
     status: Mapped[BlogStatus] = mapped_column(
         Enum(BlogStatus), default=BlogStatus.draft, nullable=False
@@ -68,6 +71,9 @@ class BlogPost(Base):
     is_featured: Mapped[bool] = mapped_column(Boolean, default=False)
     
     cover_image: Mapped[Optional[str]] = mapped_column(String(1000))
+    
+    views: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    reading_time_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(

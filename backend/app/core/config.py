@@ -1,4 +1,4 @@
-# Module: core/config.py | Agent: backend-agent | Task: phase7_backend_security
+# Module: core/config.py | Agent: backend-agent | Task: phase11_backend_admin_blog_refinement
 from pydantic_settings import BaseSettings
 from pydantic import ConfigDict
 from typing import List
@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     MINIO_ACCESS_KEY: str = ""
     MINIO_SECRET_KEY: str = ""
     MINIO_BUCKET: str = "wifiobd-media"
+
+    # ── Meilisearch ───────────────────────────────────────────────────────────
+    MEILISEARCH_HOST: str = "http://localhost:7700"
+    MEILISEARCH_API_KEY: str = "masterKey"
 
     model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True)
 

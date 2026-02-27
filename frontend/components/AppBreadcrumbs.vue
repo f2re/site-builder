@@ -1,17 +1,22 @@
 <script setup lang="ts">
-import { useBreadcrumbSchema } from '~/composables/useSchemaOrg'
-
 interface BreadcrumbItem {
-  label: string
-  to: string
+  name: string
+  path: string
 }
 
 const props = defineProps<{
   items: BreadcrumbItem[]
 }>()
 
-// Register JSON-LD schema
-useBreadcrumbSchema(props.items.map(i => ({ name: i.label, item: i.to })))
+const siteUrl = useRuntimeConfig().public.siteUrl
+
+// Automatically generate Schema.org BreadcrumbList
+const breadcrumbItems = props.items.map((item, index) => ({
+  name: item.name,
+  item: item.path === '/' ? siteUrl : `${siteUrl}${item.path}`
+}))
+
+useBreadcrumbSchema(breadcrumbItems)
 </script>
 
 <template>
@@ -19,26 +24,20 @@ useBreadcrumbSchema(props.items.map(i => ({ name: i.label, item: i.to })))
     <ol class="breadcrumbs__list">
       <li class="breadcrumbs__item">
         <NuxtLink to="/" class="breadcrumbs__link">Главная</NuxtLink>
-        <span class="breadcrumbs__separator" aria-hidden="true">/</span>
+        <Icon name="ph:caret-right-bold" size="12" class="breadcrumbs__separator" />
       </li>
       <li 
         v-for="(item, index) in items" 
-        :key="item.to" 
+        :key="index"
         class="breadcrumbs__item"
       >
-        <NuxtLink 
-          v-if="index < items.length - 1" 
-          :to="item.to" 
-          class="breadcrumbs__link"
-        >
-          {{ item.label }}
-        </NuxtLink>
-        <span v-else class="breadcrumbs__current" aria-current="page">
-          {{ item.label }}
-        </span>
-        <span v-if="index < items.length - 1" class="breadcrumbs__separator" aria-hidden="true">
-          /
-        </span>
+        <template v-if="index === items.length - 1">
+          <span class="breadcrumbs__current" aria-current="page">{{ item.name }}</span>
+        </template>
+        <template v-else>
+          <NuxtLink :to="item.path" class="breadcrumbs__link">{{ item.name }}</NuxtLink>
+          <Icon name="ph:caret-right-bold" size="12" class="breadcrumbs__separator" />
+        </template>
       </li>
     </ol>
   </nav>
@@ -46,43 +45,36 @@ useBreadcrumbSchema(props.items.map(i => ({ name: i.label, item: i.to })))
 
 <style scoped>
 .breadcrumbs {
-  margin-bottom: 24px;
+  margin-bottom: 1.5rem;
 }
-
 .breadcrumbs__list {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
+  gap: 0.5rem;
   list-style: none;
   padding: 0;
   margin: 0;
-  gap: 8px;
 }
-
 .breadcrumbs__item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   font-size: var(--text-xs);
-  color: var(--color-muted);
 }
-
 .breadcrumbs__link {
-  color: inherit;
+  color: var(--color-text-2);
   text-decoration: none;
   transition: color var(--transition-fast);
 }
-
 .breadcrumbs__link:hover {
   color: var(--color-accent);
 }
-
+.breadcrumbs__separator {
+  color: var(--color-muted);
+}
 .breadcrumbs__current {
   color: var(--color-text);
   font-weight: 500;
-}
-
-.breadcrumbs__separator {
-  user-select: none;
-  opacity: 0.5;
 }
 </style>

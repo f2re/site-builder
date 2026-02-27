@@ -29,3 +29,8 @@ pytest-asyncio==0.23.5
 pytest-cov==4.1.0
 bandit==1.7.8
 safety==3.1.0
+miniopy-async==1.19.0
+Pillow==10.3.0
+meilisearch-python-sdk==3.0.0
+python-slugify==8.0.4
+premailer==3.10.0

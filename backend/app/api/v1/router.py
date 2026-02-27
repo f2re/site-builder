@@ -10,12 +10,14 @@ from app.api.v1.cart.router import router as cart_router
 from app.api.v1.orders.router import router as orders_router
 from app.api.v1.delivery.router import router as delivery_router
 from app.api.v1.iot.router import router as iot_router
+from app.api.v1.media.router import router as media_router
 
 api_router = APIRouter()
 
 # ── Public: Catalog & Blog ───────────────────────────────────────────────────
 api_router.include_router(products_router)
 api_router.include_router(blog_router)
+api_router.include_router(media_router)
 
 # ── E-Commerce: Cart, Orders & Delivery ──────────────────────────────────────
 api_router.include_router(cart_router)
