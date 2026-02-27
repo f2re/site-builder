@@ -1,5 +1,5 @@
 # Module: api/v1/products/repository.py | Agent: backend-agent | Task: BE-01
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple
 from uuid import UUID
 from decimal import Decimal
 
@@ -148,7 +148,7 @@ class ProductRepository:
         """Delete a product."""
         stmt = delete(Product).where(Product.id == product_id)
         result = await self.session.execute(stmt)
-        return result.rowcount > 0
+        return getattr(result, "rowcount", 0) > 0
 
     async def get_categories_tree(self) -> list[Category]:
         stmt = (

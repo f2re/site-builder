@@ -2,7 +2,6 @@ from fastapi import APIRouter, HTTPException, status, Query
 from pydantic import BaseModel
 from app.integrations.cdek import cdek_client
 from decimal import Decimal
-from typing import List, Any
 from app.core.logging import logger
 
 router = APIRouter(prefix="/delivery", tags=["Delivery"])

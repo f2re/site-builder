@@ -1,6 +1,6 @@
 # Module: api/v1/cart/router.py | Agent: backend-agent | Task: BE-03
 from uuid import UUID
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends
 
 from app.api.v1.cart.schemas import CartItemCreate, CartResponse, CartItemUpdate
 from app.api.v1.cart.service import CartService

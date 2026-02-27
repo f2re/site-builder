@@ -23,6 +23,7 @@ class OrderItemRead(OrderItemBase):
 
 class OrderCreate(BaseModel):
     shipping_address: Optional[str] = Field(None, max_length=500)
+    email: Optional[str] = Field(None, max_length=255)
 
 
 class OrderRead(BaseModel):

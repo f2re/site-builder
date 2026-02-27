@@ -1,5 +1,4 @@
 # Module: tasks/celery_app.py | Agent: backend-agent | Task: phase6_notifications
-import os
 from celery import Celery
 from app.core.config import settings
 

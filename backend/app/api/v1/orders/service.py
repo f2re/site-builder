@@ -1,6 +1,6 @@
 # Module: api/v1/orders/service.py | Agent: backend-agent | Task: phase4_orders_logic
 from decimal import Decimal
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 
 from fastapi import HTTPException, status

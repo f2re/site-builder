@@ -1,7 +1,7 @@
 # Module: core/exceptions.py | Agent: backend-agent | Task: stage1_backend
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 class APIException(Exception):
     def __init__(
@@ -47,5 +47,5 @@ async def api_exception_handler(request: Request, exc: APIException) -> JSONResp
     )
 
 def setup_exception_handlers(app: FastAPI) -> None:
-    app.add_exception_handler(APIException, api_exception_handler)
-    app.add_exception_handler(Exception, global_exception_handler)
+    app.add_exception_handler(APIException, cast(Any, api_exception_handler))
+    app.add_exception_handler(Exception, cast(Any, global_exception_handler))

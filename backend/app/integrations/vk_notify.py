@@ -1,5 +1,3 @@
-import httpx
-from app.core.config import settings
 from app.core.logging import logger
 
 async def send_vk_notify(phone: str, message: str):

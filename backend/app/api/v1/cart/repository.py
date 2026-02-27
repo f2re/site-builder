@@ -1,5 +1,5 @@
 # Module: api/v1/cart/repository.py | Agent: backend-agent | Task: BE-03
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 from uuid import UUID
 from redis.asyncio import Redis
 from sqlalchemy import select, delete
@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.db.models.cart import Cart, CartItem
-from app.db.models.product import ProductVariant
 
 class CartRepository:
     def __init__(self, redis: Redis, session: AsyncSession):
@@ -20,8 +19,9 @@ class CartRepository:
         return f"cart:guest:{session_id}"
 
     async def get_redis_items(self, user_id: str | UUID | None = None, session_id: str | None = None) -> Dict[str, int]:
+        from typing import cast
         key = self._get_redis_key(user_id, session_id)
-        items = await self.redis.hgetall(key)
+        items = cast(Dict[bytes, bytes], await self.redis.hgetall(key))
         return {k.decode(): int(v) for k, v in items.items()}
 
     async def add_redis_item(self, variant_id: UUID, quantity: int, user_id: str | UUID | None = None, session_id: str | None = None) -> None:

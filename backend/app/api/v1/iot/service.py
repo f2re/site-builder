@@ -1,5 +1,6 @@
 # Module: api/v1/iot/service.py | Agent: backend-agent | Task: phase5_backend_iot
 import json
+from typing import Dict, Any, cast
 from redis.asyncio import Redis
 from fastapi import HTTPException, status
 from app.api.v1.iot.repository import IoTRepository
@@ -30,7 +31,7 @@ class IoTService:
         }
         
         try:
-            await self.redis.xadd("iot:telemetry", telemetry_payload)
+            await self.redis.xadd("iot:telemetry", cast(Dict[Any, Any], telemetry_payload))
         except Exception:
             # TODO: Logging structured errors
             raise HTTPException(

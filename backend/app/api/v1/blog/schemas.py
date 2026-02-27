@@ -102,6 +102,7 @@ class BlogPostShortRead(BaseModel):
 class BlogPagination(BaseModel):
     items: List[BlogPostShortRead]
     pageInfo: dict
+    total: int
 
 class CommentBase(BaseModel):
     author_name: str

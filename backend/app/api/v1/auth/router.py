@@ -1,3 +1,4 @@
+from typing import cast
 from fastapi import APIRouter, Depends, status
 from app.api.v1.auth.schemas import LoginRequest, Token, UserCreate, UserResponse
 from app.api.v1.auth.service import AuthService
@@ -17,4 +18,5 @@ async def register(
     user_in: UserCreate,
     auth_service: AuthService = Depends(get_auth_service)
 ) -> UserResponse:
-    return await auth_service.register(user_in)
+    user = await auth_service.register(user_in)
+    return cast(UserResponse, user)

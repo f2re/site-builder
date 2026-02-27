@@ -2,11 +2,10 @@ import hmac
 import hashlib
 from decimal import Decimal
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from app.core.config import settings
-from app.core.logging import logger
 
 class YooMoneyClient:
     """

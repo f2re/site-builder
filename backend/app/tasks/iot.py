@@ -1,9 +1,7 @@
 # Module: tasks/iot.py | Agent: backend-agent | Task: phase5_backend_iot
 import asyncio
-import json
 import structlog
 from app.db.redis import redis_client
-from app.core.config import settings
 
 logger = structlog.get_logger(__name__)
 

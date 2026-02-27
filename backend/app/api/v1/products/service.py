@@ -5,13 +5,15 @@ from uuid import UUID
 from decimal import Decimal
 from fastapi import Depends, HTTPException, status
 
+from pydantic import TypeAdapter
 from app.api.v1.products.repository import ProductRepository, get_product_repo
 from app.api.v1.products.schemas import (
     ProductPagination, 
     ProductRead, 
     CategoryTreeRead,
     ProductCreate,
-    ProductUpdate
+    ProductUpdate,
+    ProductShortRead
 )
 from app.db.models.product import Product, ProductImage, ProductVariant
 from app.tasks.search import index_product_task, remove_product_from_index_task
@@ -46,7 +48,7 @@ class ProductService:
             per_page=per_page
         )
         return ProductPagination(
-            items=items,
+            items=TypeAdapter(List[ProductShortRead]).validate_python(items),
             next_cursor=next_cursor,
             per_page=per_page
         )

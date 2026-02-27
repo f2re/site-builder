@@ -38,7 +38,8 @@ async def upload_file(
     then starts tasks.process_image (Celery). Returns {url, width, height}.
     """
     # Generate unique object name
-    ext = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
+    filename = file.filename or "image.jpg"
+    ext = filename.split('.')[-1] if '.' in filename else 'jpg'
     now = datetime.now(timezone.utc)
     object_name = f"{context}/{now.year}/{now.month:02d}/{uuid.uuid4()}.{ext}"
 
@@ -60,7 +61,7 @@ async def upload_file(
     await storage_client.save_file(
         object_name=object_name,
         data=content,
-        content_type=file.content_type,
+        content_type=file.content_type or "application/octet-stream",
     )
 
     # Create DB record and trigger Celery task

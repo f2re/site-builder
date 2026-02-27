@@ -5,7 +5,7 @@ from app.core.config import settings
 from app.db.redis import redis_client
 from app.core.logging import logger
 from decimal import Decimal
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 class CDEKClient:
     def __init__(self):

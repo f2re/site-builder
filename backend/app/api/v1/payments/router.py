@@ -1,5 +1,5 @@
 # Module: api/v1/payments/router.py | Agent: backend-agent | Task: BE-03
-from fastapi import APIRouter, Request, Header, HTTPException, status, Depends
+from fastapi import APIRouter, Request, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 import json
 
@@ -11,7 +11,6 @@ from app.integrations.yoomoney import yoomoney_client
 from app.api.v1.orders.repository import OrderRepository
 from app.db.models.order import OrderStatus
 from app.tasks.notifications.dispatcher import send_email_task
-from app.integrations.cdek import cdek_client
 
 
 router = APIRouter(prefix="/payments", tags=["payments"])

@@ -6,6 +6,7 @@ from fastapi import Depends, HTTPException, status
 import structlog
 from slugify import slugify
 
+from pydantic import TypeAdapter
 from app.api.v1.blog.repository import BlogRepository, get_blog_repo
 from app.api.v1.blog.schemas import (
     BlogPostCreate,
@@ -16,8 +17,7 @@ from app.api.v1.blog.schemas import (
     CommentRead,
     CommentAdminRead,
     TagRead,
-    AuthorRead,
-    AuthorCreate
+    BlogPostShortRead
 )
 from app.db.models.blog import BlogPost, BlogPostStatus, Comment, CommentStatus, Author
 from app.tasks.search import index_blog_post_task, remove_blog_post_from_index_task
@@ -138,7 +138,7 @@ class BlogService:
             per_page=per_page
         )
         return BlogPagination(
-            items=items,
+            items=TypeAdapter(List[BlogPostShortRead]).validate_python(items),
             pageInfo={
                 "nextCursor": next_cursor,
                 "total": total,

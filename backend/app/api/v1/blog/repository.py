@@ -121,7 +121,7 @@ class BlogRepository:
     async def delete(self, post_id: UUID) -> bool:
         stmt = delete(BlogPost).where(BlogPost.id == post_id)
         result = await self.session.execute(stmt)
-        return result.rowcount > 0
+        return getattr(result, "rowcount", 0) > 0
 
     async def get_categories(self) -> List[BlogCategory]:
         stmt = select(BlogCategory).order_by(BlogCategory.name)
@@ -176,7 +176,7 @@ class BlogRepository:
     async def delete_comment(self, comment_id: UUID) -> bool:
         stmt = delete(Comment).where(Comment.id == comment_id)
         result = await self.session.execute(stmt)
-        return result.rowcount > 0
+        return getattr(result, "rowcount", 0) > 0
 
     async def get_pending_comments(self) -> List[Comment]:
         stmt = select(Comment).where(Comment.status == CommentStatus.PENDING).order_by(Comment.created_at.desc())

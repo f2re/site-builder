@@ -80,9 +80,9 @@ async def _process_image_async(
     image_data = await storage_client.read_file(object_name)
 
     # 2. Load image with Pillow and extract dimensions
-    img = Image.open(BytesIO(image_data))
-    original_format = img.format
-    width, height = img.size
+    img_pillow = Image.open(BytesIO(image_data))
+    original_format = img_pillow.format
+    width, height = img_pillow.size
     logger.info(
         "image_dimensions_extracted",
         width=width,
@@ -91,17 +91,17 @@ async def _process_image_async(
     )
 
     # Convert RGBA to RGB if needed (WebP with transparency requires special handling)
-    if img.mode in ("RGBA", "LA", "P"):
+    if img_pillow.mode in ("RGBA", "LA", "P"):
         # Create white background
-        background = Image.new("RGB", img.size, (255, 255, 255))
-        if img.mode == "P":
-            img = img.convert("RGBA")
-        background.paste(img, mask=img.split()[-1] if img.mode == "RGBA" else None)
-        img = background
+        background = Image.new("RGB", img_pillow.size, (255, 255, 255))
+        if img_pillow.mode == "P":
+            img_pillow = img_pillow.convert("RGBA")
+        background.paste(img_pillow, mask=img_pillow.split()[-1] if img_pillow.mode == "RGBA" else None)
+        img_pillow = background
 
     # 3. Convert to WebP (quality=85 is optimal balance)
     webp_buffer = BytesIO()
-    img.save(webp_buffer, format="WEBP", quality=85, method=6)
+    img_pillow.save(webp_buffer, format="WEBP", quality=85, method=6)
     webp_buffer.seek(0)
     webp_size = len(webp_buffer.getvalue())
 
@@ -123,12 +123,12 @@ async def _process_image_async(
     )
 
     # 4. Create thumbnail (max 480px on longest side)
-    img.thumbnail((480, 480), Image.Resampling.LANCZOS)
+    img_pillow.thumbnail((480, 480), Image.Resampling.LANCZOS)
     thumb_buffer = BytesIO()
-    img.save(thumb_buffer, format="WEBP", quality=85, method=6)
+    img_pillow.save(thumb_buffer, format="WEBP", quality=85, method=6)
     thumb_buffer.seek(0)
     thumb_size = len(thumb_buffer.getvalue())
-    thumb_width, thumb_height = img.size
+    thumb_width, thumb_height = img_pillow.size
 
     thumb_name = str(path_obj.with_name(f"{path_obj.stem}_thumb.webp"))
 
@@ -150,30 +150,30 @@ async def _process_image_async(
         if context == "blog":
             from app.db.models.blog import BlogPostMedia
 
-            stmt = select(BlogPostMedia).where(BlogPostMedia.id == media_id)
-            result = await db.execute(stmt)
-            media = result.scalar_one_or_none()
+            stmt_blog = select(BlogPostMedia).where(BlogPostMedia.id == media_id)
+            result_blog = await db.execute(stmt_blog)
+            media_blog = result_blog.scalar_one_or_none()
 
-            if media:
-                media.url = webp_name
-                media.width = width
-                media.height = height
-                media.mime_type = "image/webp"
-                media.size_bytes = webp_size
+            if media_blog:
+                media_blog.url = webp_name
+                media_blog.width = width
+                media_blog.height = height
+                media_blog.mime_type = "image/webp"
+                media_blog.size_bytes = webp_size
                 await db.commit()
                 logger.info("blog_media_updated", media_id=media_id)
 
         elif context == "product":
             from app.db.models.product import ProductImage
 
-            stmt = select(ProductImage).where(ProductImage.id == media_id)
-            result = await db.execute(stmt)
-            media = result.scalar_one_or_none()
+            stmt_prod = select(ProductImage).where(ProductImage.id == media_id)
+            result_prod = await db.execute(stmt_prod)
+            media_prod = result_prod.scalar_one_or_none()
 
-            if media:
-                media.url = webp_name
-                media.width = width
-                media.height = height
+            if media_prod:
+                media_prod.url = webp_name
+                media_prod.width = width
+                media_prod.height = height
                 await db.commit()
                 logger.info("product_image_updated", media_id=media_id)
 

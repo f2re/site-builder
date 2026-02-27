@@ -51,7 +51,7 @@ class PageRepository:
     async def delete(self, page_id: UUID) -> bool:
         stmt = delete(StaticPage).where(StaticPage.id == page_id)
         result = await self.session.execute(stmt)
-        return result.rowcount > 0
+        return getattr(result, "rowcount", 0) > 0
 
 
 async def get_page_repo(session: AsyncSession = Depends(get_db)) -> PageRepository:

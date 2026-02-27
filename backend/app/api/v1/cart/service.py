@@ -1,7 +1,7 @@
 # Module: api/v1/cart/service.py | Agent: backend-agent | Task: BE-03
 import json
 from uuid import UUID
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -14,7 +14,7 @@ from app.integrations.redis_inventory import inventory
 
 
 class CartService:
-    def __init__(self, redis: Redis, session: AsyncSession):
+    def __init__(self, redis: Optional[Redis], session: AsyncSession):
         self.redis = redis
         self.session = session
         self.ttl = 60 * 60 * 24 * 7  # 7 days
@@ -23,6 +23,9 @@ class CartService:
         return f"cart:{cart_id}"
 
     async def get_cart(self, cart_id: str) -> Dict[str, Any]:
+        if not self.redis:
+            return {"items": [], "total_quantity": 0, "total_price": 0.0}
+        
         key = self._get_key(cart_id)
         cart_data = await self.redis.get(key)
         if not cart_data:
@@ -69,6 +72,9 @@ class CartService:
         }
 
     async def add_item(self, cart_id: str, item: CartItemCreate) -> Dict[str, Any]:
+        if not self.redis:
+             raise HTTPException(status_code=500, detail="Redis client not initialized")
+        
         # Check stock before adding
         current_stock = await inventory.get_stock(item.variant_id)
         
@@ -135,6 +141,9 @@ class CartService:
         await self.redis.delete(key)
 
     async def merge_carts(self, guest_cart_id: str, user_cart_id: str) -> None:
+        if not self.redis:
+            return
+            
         guest_key = self._get_key(guest_cart_id)
         user_key = self._get_key(user_cart_id)
         

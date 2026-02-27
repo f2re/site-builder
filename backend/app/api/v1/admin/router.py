@@ -1,8 +1,8 @@
 # Module: api/v1/admin/router.py | Agent: backend-agent | Task: admin_router_complete
 from uuid import UUID
-from fastapi import APIRouter, Depends, status, Query, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException
 from pydantic import BaseModel
-from typing import Any, List, Optional
+from typing import Any, List
 from sqlalchemy import select, func
 
 from app.core.dependencies import require_admin, get_product_repo, get_db
@@ -16,7 +16,6 @@ from app.api.v1.products.service import ProductService
 from app.api.v1.products.repository import ProductRepository
 from app.api.v1.products.schemas import ProductCreate, ProductUpdate, ProductRead
 from app.api.v1.blog.service import BlogService, get_blog_service
-from app.api.v1.blog.repository import BlogRepository, get_blog_repo
 from app.api.v1.blog.schemas import BlogPostCreate, BlogPostUpdate
 from app.api.v1.orders.service import OrderService
 from app.api.v1.orders.repository import OrderRepository
