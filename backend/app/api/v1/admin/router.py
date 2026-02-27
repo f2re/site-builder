@@ -8,6 +8,7 @@ from sqlalchemy import select, func
 from app.core.dependencies import require_admin, get_product_repo, get_db
 from app.db.models.order import Order, OrderStatus, OrderItem
 from app.db.models.product import ProductVariant, Product
+from app.db.models.user import User
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Services & Repositories

@@ -2,13 +2,16 @@
 import enum
 import uuid
 from datetime import datetime
-from typing import List, Optional, Any
+from typing import List, Optional, Any, TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, Table, Column, Integer
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.db.models.user import User
 
 
 class BlogPostStatus(str, enum.Enum):

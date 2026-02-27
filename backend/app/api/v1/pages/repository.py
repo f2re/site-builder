@@ -19,14 +19,14 @@ class PageRepository:
     async def get_by_slug(self, slug: str, active_only: bool = False) -> Optional[StaticPage]:
         stmt = select(StaticPage).where(StaticPage.slug == slug)
         if active_only:
-            stmt = stmt.where(StaticPage.is_active == True)
+            stmt = stmt.where(StaticPage.is_active)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def list_all(self, active_only: bool = False) -> Sequence[StaticPage]:
         stmt = select(StaticPage).order_by(StaticPage.title)
         if active_only:
-            stmt = stmt.where(StaticPage.is_active == True)
+            stmt = stmt.where(StaticPage.is_active)
         result = await self.session.execute(stmt)
         return result.scalars().all()
 

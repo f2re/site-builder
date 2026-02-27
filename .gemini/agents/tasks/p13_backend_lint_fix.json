@@ -1,0 +1,15 @@
+{
+  "task_id": "lint_fix_001",
+  "phase": 13,
+  "agent": "backend-agent",
+  "title": "Fix CI/CD linting errors",
+  "description": "Fix F821 Undefined name and E712 Avoid equality comparisons to True in backend code.",
+  "depends_on": [],
+  "priority": "high",
+  "contracts_required": [],
+  "acceptance_criteria": [
+    "F821 fixed in backend/app/api/v1/admin/router.py (import User)",
+    "E712 fixed in backend/app/api/v1/pages/repository.py (use .is_active instead of == True)",
+    "F821 fixed in backend/app/db/models/blog.py (ensure User is available or annotations are handled correctly)"
+  ]
+}
