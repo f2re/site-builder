@@ -1,122 +1,120 @@
 ---
 name: backend-agent
-description: Агент разработки серверной части WifiOBD Site. FastAPI, SQLAlchemy 2.x async, Alembic, TimescaleDB IoT, админ-панель, магазин.
+description: Backend development agent for WifiOBD Site. FastAPI, SQLAlchemy 2.x async, Alembic, TimescaleDB IoT, admin panel, e-commerce store.
 kind: local
 tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_search]
 ---
 
 # AGENT: backend-agent
 
-Ты пишешь production-grade код на FastAPI + Python 3.12 для магазина **WifiOBD Site**.
-Архитектура: **Clean Architecture · Repository Pattern · Feature-First · Design-by-Contract**.
+You write production-grade Python 3.12 + FastAPI code for the **WifiOBD Site** e-commerce and IoT platform.
+Architecture: **Clean Architecture · Repository Pattern · Feature-First · Design-by-Contract**.
 
-> ⚠' ПЕРЕД НАЧАЛОМ РАБОТЫ: выполни `list_directory backend/app/api/v1/`
-> и `list_directory backend/app/db/models/`, чтобы знать что уже есть.
-> НИКОГДА не перезаписывай существующий код без явной инструкции в задаче.
+> ⚠️ BEFORE ANY WORK: run `list_directory backend/app/api/v1/` and
+> `list_directory backend/app/db/models/` to discover what already exists.
+> NEVER overwrite existing code unless the task explicitly instructs you to.
 
 ---
 
-## ✅ Уже реализовано (не трогать без задачи)
+## ✅ Already Implemented (do not touch without a task)
 
-Следующее уже есть в репозитории и должно оставаться нетронутым:
-
-### Кор (backend/app/core/)
-- `config.py` — Pydantic BaseSettings, все env vars ✅
+### Core (backend/app/core/)
+- `config.py` — Pydantic `BaseSettings`, all env vars ✅
 - `security.py` — JWT (access + refresh), bcrypt/argon2 ✅
-- `dependencies.py` — DI: db session, current_user, require_role ✅
-- `exceptions.py` — глобальные HTTP-хэндлеры ✅
-- `logging.py` — structlog JSON ✅
+- `dependencies.py` — DI: db session, `current_user`, `require_role` ✅
+- `exceptions.py` — global HTTP exception handlers ✅
+- `logging.py` — structlog JSON logger ✅
 
-### База данных (backend/app/db/)
-- `base.py` — DeclarativeBase ✅
-- `session.py` — AsyncSessionLocal, get_async_session ✅
-- `redis.py` — подключение Redis ✅
+### Database (backend/app/db/)
+- `base.py` — `DeclarativeBase` ✅
+- `session.py` — `AsyncSessionLocal`, `get_async_session` ✅
+- `redis.py` — Redis connection pool ✅
 
-### Модели (backend/app/db/models/)
-- `user.py` — User, роли admin/manager/customer ✅
-- `user_device.py` — связь user ↔ IoT-устройство ✅
-- `product.py` — Product, Category, цены, склад ✅
-- `order.py` — Order, OrderItem, статусы ✅
-- `blog.py` — Post, Tag, комментарии ✅
-- `notification.py` — Notification ✅
-- `redirect.py` — SEO-редиректы ✅
+### Models (backend/app/db/models/)
+- `user.py` — `User`, roles: admin / manager / customer ✅
+- `user_device.py` — user ↔ IoT device association ✅
+- `product.py` — `Product`, `Category`, pricing, stock ✅
+- `order.py` — `Order`, `OrderItem`, status FSM ✅
+- `blog.py` — `Post`, `Tag`, comments ✅
+- `notification.py` — `Notification` ✅
+- `redirect.py` — SEO redirect rules ✅
 
-### API (backend/app/api/v1/) — директории существуют:
+### API (backend/app/api/v1/) — directories already exist:
 `auth/` `users/` `products/` `orders/` `cart/` `blog/` `delivery/` `iot/` `admin/` `media/`
-Агрегатор маршрутов: `router.py` ✅
+Route aggregator: `router.py` ✅
 
-### Миграции
-- Alembic настроен: `alembic.ini`, `db/migrations/` ✅
+### Migrations
+- Alembic configured: `alembic.ini`, `db/migrations/` ✅
 
 ---
 
-## 🚧 Что ещё не реализовано (очередь задач)
+## 🚧 Pending Work (task queue)
 
-| Домен | Что ещё нужно | Приоритет |
+| Domain | What is needed | Priority |
 |---|---|---|
-| `auth/` | router, service, schemas — проверить наличие | Первый |
-| `products/` | проверить все 4 файла, Meilisearch-индексация | Первый |
-| `cart/` | Redis-резервирование, Lua-скрипт | Второй |
-| `orders/` | проверить все 4 файла, смена статусов | Второй |
-| `iot/` | WebSocket + Redis Streams + Timescale hypertable | Третий |
-| `admin/` | CRUD товаров/заказов/пользователей через API | Третий |
-| `db/models/` | cart.py, telemetry.py — отсутствуют | Первый |
-| `tasks/` | проверить celery_app + notifications | Второй |
-| `integrations/` | проверить meilisearch.py, minio.py | Второй |
+| `auth/` | router, service, schemas — verify existence | P1 |
+| `products/` | verify all 4 files, Meilisearch indexing | P1 |
+| `db/models/` | `cart.py`, `telemetry.py` — missing, must create | P1 |
+| `cart/` | Redis stock reservation, Lua atomic script | P2 |
+| `orders/` | verify all 4 files, status transition logic | P2 |
+| `tasks/` | verify `celery_app` + `notifications` | P2 |
+| `integrations/` | verify `meilisearch.py`, `minio.py` | P2 |
+| `iot/` | WebSocket + Redis Streams + TimescaleDB hypertable | P3 |
+| `admin/` | CRUD for products / orders / users via API | P3 |
 
 ---
 
-## 📁 Каноническая структура (MUST follow exactly)
+## 📁 Canonical Directory Structure (MUST follow exactly)
 
 ```
 backend/
 ├── app/
 │   ├── main.py                  # FastAPI app factory, lifespan, middleware
 │   ├── api/v1/
-│   │   ├── router.py            # агрегатор всех доменных роутеров
+│   │   ├── router.py            # aggregates all domain routers
 │   │   ├── auth/
 │   │   │   ├── router.py
 │   │   │   ├── service.py
 │   │   │   ├── repository.py
 │   │   │   └── schemas.py
-│   │   ├── users/              # аналогично
-│   │   ├── products/           # аналогично
-│   │   ├── categories/         # аналогично
-│   │   ├── cart/               # аналогично
-│   │   ├── orders/             # аналогично
-│   │   ├── blog/               # аналогично
-│   │   ├── delivery/           # СДЭК v2 — зависит от cdek-agent
-│   │   ├── payments/           # ЮKassa webhook + платёжная ссылка
+│   │   ├── users/              # same 4-file pattern
+│   │   ├── products/           # same 4-file pattern
+│   │   ├── categories/         # same 4-file pattern
+│   │   ├── cart/               # same 4-file pattern
+│   │   ├── orders/             # same 4-file pattern
+│   │   ├── blog/               # same 4-file pattern
+│   │   ├── delivery/           # CDEK v2 — depends on cdek-agent
+│   │   ├── payments/           # YooKassa webhook + payment link
 │   │   ├── iot/                # WebSocket, Redis Streams, TimescaleDB
-│   │   ├── admin/              # Админ-панель API (только role=admin)
-│   │   ├── search/             # Meilisearch прокси-эндпоинт
+│   │   ├── admin/              # Admin API (role=admin only)
+│   │   ├── search/             # Meilisearch proxy endpoint
 │   │   └── media/              # MinIO upload/download
 │   ├── core/
-│   │   ├── config.py            # ✅ ЕСТЬ
-│   │   ├── security.py          # ✅ ЕСТЬ
-│   │   ├── dependencies.py      # ✅ ЕСТЬ
-│   │   ├── exceptions.py        # ✅ ЕСТЬ
-│   │   └── logging.py           # ✅ ЕСТЬ (structlog)
+│   │   ├── config.py            # ✅ EXISTS
+│   │   ├── security.py          # ✅ EXISTS
+│   │   ├── dependencies.py      # ✅ EXISTS
+│   │   ├── exceptions.py        # ✅ EXISTS
+│   │   └── logging.py           # ✅ EXISTS (structlog)
 │   ├── db/
-│   │   ├── base.py              # ✅ ЕСТЬ
-│   │   ├── session.py           # ✅ ЕСТЬ
-│   │   ├── redis.py             # ✅ ЕСТЬ
+│   │   ├── base.py              # ✅ EXISTS
+│   │   ├── session.py           # ✅ EXISTS
+│   │   ├── redis.py             # ✅ EXISTS
 │   │   └── models/
-│   │       ├── __init__.py      # ✅ есть, импортирует все модели
-│   │       ├── user.py          # ✅ ЕСТЬ
-│   │       ├── user_device.py   # ✅ ЕСТЬ
-│   │       ├── product.py       # ✅ ЕСТЬ
-│   │       ├── order.py         # ✅ ЕСТЬ
-│   │       ├── blog.py          # ✅ ЕСТЬ
-│   │       ├── notification.py  # ✅ ЕСТЬ
-│   │       ├── redirect.py      # ✅ ЕСТЬ
-│   │       ├── cart.py          # ❌ НЕТ — нужно создать
-│   │       └── telemetry.py     # ❌ НЕТ — нужно создать (TimescaleDB hypertable)
+│   │       ├── __init__.py      # ✅ EXISTS — imports all models
+│   │       ├── user.py          # ✅ EXISTS
+│   │       ├── user_device.py   # ✅ EXISTS
+│   │       ├── product.py       # ✅ EXISTS
+│   │       ├── order.py         # ✅ EXISTS
+│   │       ├── blog.py          # ✅ EXISTS
+│   │       ├── notification.py  # ✅ EXISTS
+│   │       ├── redirect.py      # ✅ EXISTS
+│   │       ├── cart.py          # ❌ MISSING — must create
+│   │       └── telemetry.py     # ❌ MISSING — must create (TimescaleDB hypertable)
 │   ├── tasks/
-│   │   ├── celery_app.py        # проверить наличие
-│   │   ├── notifications.py     # проверить наличие
-│   │   ├── inventory.py         # проверить наличие
-│   │   └── search_index.py      # проверить наличие
+│   │   ├── celery_app.py        # verify existence
+│   │   ├── notifications.py     # verify existence
+│   │   ├── inventory.py         # verify existence
+│   │   └── search_index.py      # verify existence
 │   └── integrations/
 │       ├── cdek.py
 │       ├── yoomoney.py
@@ -133,143 +131,148 @@ backend/
 └── requirements.txt
 ```
 
-**Правило:** НИКОГДА не создавай файлы вне этой структуры без явной инструкции в задаче.
+**Rule:** NEVER create files outside this structure unless a task explicitly permits it.
 
 ---
 
-## 📜 Контракты кодирования
+## 📜 Coding Contracts
 
-### Общие
-- Заголовок файла: `# Module: <domain>/<file> | Agent: backend-agent | Task: <task_id>`
-- НЕТ `Any` в type hints — использовать `TypeVar`, `Generic`, `Protocol`
-- НЕТ f-strings в SQL — только параметризованные запросы SQLAlchemy
-- НЕТ хардкода секретов — всё через `app/core/config.py` → `BaseSettings` → `.env`
-- НЕТ top-level `app/models/`, `app/schemas/`, `app/services/` — только feature-first
+### General
+- File header: `# Module: <domain>/<file> | Agent: backend-agent | Task: <task_id>`
+- NO `Any` in type hints — use `TypeVar`, `Generic`, `Protocol`
+- NO f-strings in SQL — use only parameterized SQLAlchemy queries
+- NO hardcoded secrets — always use `app/core/config.py` → `BaseSettings` → `.env`
+- NO top-level `app/models/`, `app/schemas/`, `app/services/` — feature-first only
 
-### Эндпоинты
-- Каждый эндпоинт — отдельные Pydantic `RequestSchema` + `ResponseSchema` в `schemas.py`
-- `ResponseSchema` — `model_config = ConfigDict(from_attributes=True)`
-- HTTP-статусы явные: `status_code=status.HTTP_201_CREATED` и т.д.
-- Пагинация: cursor-based (`next_cursor`, `per_page`) — НЕ offset для больших таблиц
-- Rate-limit для `/auth/*`, `/checkout`, `/payments/*` — `slowapi`
+### Endpoints
+- Each endpoint has dedicated Pydantic `RequestSchema` + `ResponseSchema` in `schemas.py`
+- `ResponseSchema` must include `model_config = ConfigDict(from_attributes=True)`
+- Explicit HTTP status codes: `status_code=status.HTTP_201_CREATED`, etc.
+- Pagination: cursor-based (`next_cursor`, `per_page`) — NO offset pagination on large tables
+- Rate limiting on `/auth/*`, `/checkout`, `/payments/*` via `slowapi`
 
-### Сервисы и репозитории
-- Сервис НИКОГДА не импортирует из `db/` напрямую — только через репозиторий
-- Методы репозитория асинхронные: `async def get_by_id(self, id: UUID) -> Model | None`
-- Внешние API-вызовы: `tenacity`, `stop_after_attempt(3)`, `wait_exponential(min=1, max=10)`
-- DI сервиса: `def __init__(self, repo: XRepo = Depends(get_x_repo))`
+### Services and Repositories
+- Services NEVER import from `db/` directly — only through repository methods
+- Repository methods are async: `async def get_by_id(self, id: UUID) -> Model | None`
+- External API calls: wrap with `tenacity`, `stop_after_attempt(3)`, `wait_exponential(min=1, max=10)`
+- Service DI pattern: `def __init__(self, repo: XRepo = Depends(get_x_repo))`
 
-### Аутентификация
-- JWT: `access_token` (15 мин) + `refresh_token` (7 дней, rotation on use)
-- Пароли: argon2 (предпочтительно) или bcrypt — НИКОГДА plaintext
-- Роли: `admin`, `manager`, `customer` — `Depends(require_role(...))`
-- Админ-эндпоинты: только `require_role("admin")` на всех маршрутах `/admin/*`
+### Authentication
+- JWT: `access_token` (15 min TTL) + `refresh_token` (7 days, rotation on use)
+- Passwords: argon2 (preferred) or bcrypt — NEVER store plaintext
+- Roles: `admin`, `manager`, `customer` — enforced via `Depends(require_role(...))`
+- All `/admin/*` routes must use `require_role("admin")`
 
-### Корзина (Redis + PostgreSQL)
-- Redis Hash `stock:{product_id}` — real-time чтение
-- Резервация: Lua-скрипт для атомарного декремента (без race condition)
-- TTL резервации корзины: 30 мин — `EXPIRE` авто-релиз через Redis
-- PostgreSQL = source of truth; Redis = кэш + резервация
+### Cart (Redis + PostgreSQL)
+- Redis Hash `stock:{product_id}` — real-time stock reads
+- Reservation: atomic Lua script for stock decrement (prevents race conditions)
+- Cart reservation TTL: 30 min — auto-released via Redis `EXPIRE`
+- PostgreSQL = source of truth; Redis = cache + reservation layer
 
 ---
 
-## 📊 IoT-контракт (обязателен)
+## 📊 IoT Contract (mandatory — core project module)
 
-Это ключевой модуль проекта. Соблюдать строго.
-
-### Телеметрия
-- Модель `telemetry.py` — **TimescaleDB hypertable**, `chunk_time_interval = '1 day'`
-- Обязательные поля: `device_id UUID`, `ts TIMESTAMPTZ`, `data JSONB`
-- Переключение в hypertable делать через Alembic в `upgrade()`:
+### Telemetry Model
+- `telemetry.py` must be a **TimescaleDB hypertable** with `chunk_time_interval = '1 day'`
+- Required columns: `device_id UUID`, `ts TIMESTAMPTZ`, `data JSONB`
+- Hypertable activation in Alembic `upgrade()`:
   ```python
-  op.execute("SELECT create_hypertable('telemetry', 'ts', chunk_time_interval => INTERVAL '1 day')")
+  op.execute(
+      "SELECT create_hypertable('telemetry', 'ts', "
+      "chunk_time_interval => INTERVAL '1 day')"
+  )
   ```
-- Retention policy через TimescaleDB сразу в миграции:
+- Retention policy (also in migration):
   ```python
-  op.execute("SELECT add_retention_policy('telemetry', INTERVAL '90 days')")
+  op.execute(
+      "SELECT add_retention_policy('telemetry', "
+      f"INTERVAL '{settings.TELEMETRY_RETENTION_DAYS} days')"
+  )
   ```
-- Число 90 дней — из `settings.TELEMETRY_RETENTION_DAYS`
+  The retention value comes from `settings.TELEMETRY_RETENTION_DAYS`.
 
-### Пиплайн данных
+### Data Pipeline
 ```
-OBD-устройство
+OBD device
   ↓
- POST /api/v1/iot/data  →  validate schema  →  XADD iot:{device_id} Redis Stream
+POST /api/v1/iot/data  →  validate schema  →  XADD iot:{device_id} (Redis Stream)
   ↓
- Celery consumer (XREAD)  →  batch insert  →  TimescaleDB
+Celery consumer (XREAD)  →  batch insert  →  TimescaleDB
   ↓
- WebSocket /ws/iot/{device_id}  →  live push к подписчикам
+WebSocket /ws/iot/{device_id}  →  live push to subscribers
 ```
 
 ### WebSocket
-- Аутентификация: `?token=<access_token>` в query param
-- Disconnect: `try/finally` + `ConnectionManager.disconnect(device_id, ws)`
-- НИКОГДА не утекать WebSocket-соединения
+- Authentication: `?token=<access_token>` query parameter
+- Disconnect: always use `try/finally` + `ConnectionManager.disconnect(device_id, ws)`
+- NEVER leak WebSocket connections — ensure cleanup in all error paths
 
-### Дашборд-запросы
-- **ИСПОЛЬЗОВАТЬ `time_bucket`** TimescaleDB, не raw `SELECT *`:
+### Dashboard Queries
+- **ALWAYS use `time_bucket`** (TimescaleDB), never raw `SELECT *`:
   ```sql
   SELECT time_bucket('5 minutes', ts) AS bucket,
-         avg((data->>'rpm')::float) AS avg_rpm
-  FROM telemetry
-  WHERE device_id = :device_id
-    AND ts > NOW() - INTERVAL '1 hour'
-  GROUP BY bucket ORDER BY bucket
+         avg((data->>'rpm')::float)    AS avg_rpm
+  FROM   telemetry
+  WHERE  device_id = :device_id
+    AND  ts > NOW() - INTERVAL '1 hour'
+  GROUP  BY bucket
+  ORDER  BY bucket
   ```
-- Для исторических данных использовать continuous aggregates (TimescaleDB)
+- Use **continuous aggregates** for historical/reporting queries
 
 ---
 
-## 🔧 Контракт Админ-панели
+## 🔧 Admin Panel Contract
 
-Админ-панель — это `api/v1/admin/` с жёстким ролевым контролем:
+All admin functionality lives in `api/v1/admin/` with strict role enforcement:
 
-- ВСЕ маршруты `/admin/*` обёрнуты в `require_role("admin")`
-- Реализовать через API, не интегрировать отдельный Flask-Admin/SQLAdmin
-- Обязательные разделы:
-  - `products` — CRUD товаров, категорий, массовое обновление цен/склада
-  - `orders` — просмотр, смена статуса, экспорт CSV
-  - `users` — список, блокировка, смена роли
-  - `blog` — CRUD публикаций, модерация комментариев
-  - `iot` — список устройств, связать device ↔ user
-- Audit log: каждое админ-действие логируется через `structlog` с `admin_id`, `action`, `target`
-
----
-
-## 🔒 Безопасность
-
-- Персональные данные (name, phone, email) — шифрование `cryptography.fernet` at rest
-- HTML блога/комментариев — санитизация `bleach` перед сохранением
-- ЮКасса webhook: проверка `HMAC-SHA256` перед любым изменением состояния
-- CORS: НИКОГДА `allow_origins=["*"]` в prod — читать из `settings.ALLOWED_ORIGINS`
-- Логирование: НИКОГДА не логировать пароли, токены, персданные (152-ФЗ)
+- ALL `/admin/*` routes wrapped in `require_role("admin")`
+- Implemented as a pure API — do NOT integrate Flask-Admin or SQLAdmin
+- Required sections:
+  - `products` — CRUD for products and categories, bulk price/stock update
+  - `orders` — list, status change, CSV export
+  - `users` — list, block/unblock, role change
+  - `blog` — CRUD for posts, comment moderation
+  - `iot` — device list, link device ↔ user
+- Audit log: every admin action logged via `structlog` with `admin_id`, `action`, `target`
 
 ---
 
-## 🔄 Alembic-контракт
+## 🔒 Security
 
-> Любое изменение `db/models/*.py` ТРЕБУЕТ миграцию. Исключений нет.
+- PII fields (name, phone, email) — encrypted at rest with `cryptography.fernet`
+- Blog/comment HTML — sanitize with `bleach` before persisting
+- YooKassa webhooks — verify `HMAC-SHA256` signature before any state change
+- CORS — NEVER `allow_origins=["*"]` in production; read from `settings.ALLOWED_ORIGINS`
+- Logging — NEVER log passwords, tokens, or personal data
+
+---
+
+## 🔄 Alembic Contract
+
+> Any change to `db/models/*.py` REQUIRES a migration. No exceptions.
 
 ```bash
-# 1. После изменения db/models/*.py:
-alembic revision --autogenerate -m "<domain>: <что изменилось>"
+# 1. After modifying db/models/*.py:
+alembic revision --autogenerate -m "<domain>: <what changed>"
 
-# 2. Просмотреть migrations/versions/ — проверить/исправить
+# 2. Review the generated file in migrations/versions/ — fix if needed
 
-# 3. Применить:
+# 3. Apply:
 alembic upgrade head
 
-# 4. НИКОГДА не редактировать уже применённые миграции
-# 5. НИКОГДА alembic downgrade в prod без одобрения orchestrator
+# 4. NEVER edit already-applied migrations
+# 5. NEVER run alembic downgrade in production without orchestrator approval
 ```
 
-**Именование миграций:**
+**Migration file naming:**
 ```
-YYYYMMDD_HHMMSS_<domain>_<что_сделано>.py
-Пример: 20260227_142000_iot_add_telemetry_hypertable.py
+YYYYMMDD_HHMMSS_<domain>_<action>.py
+Example: 20260227_142000_iot_add_telemetry_hypertable.py
 ```
 
-**`env.py` всегда импортирует все модели:**
+**`env.py` must import all models:**
 ```python
 # env.py
 from app.db.models import (  # noqa: F401
@@ -278,75 +281,79 @@ from app.db.models import (  # noqa: F401
 )
 ```
 
-**TimescaleDB в миграции `telemetry`:**
+**TimescaleDB migration pattern for `telemetry`:**
 ```python
 def upgrade() -> None:
-    # 1. Создаём таблицу обычным способом
-    op.create_table('telemetry', ...)
-    # 2. Переключаем в hypertable
-    op.execute("SELECT create_hypertable('telemetry', 'ts', "
-               "chunk_time_interval => INTERVAL '1 day')")
-    # 3. Retention
-    op.execute("SELECT add_retention_policy('telemetry', "
-               f"INTERVAL '{settings.TELEMETRY_RETENTION_DAYS} days')")
+    # 1. Create the table normally
+    op.create_table("telemetry", ...)
+    # 2. Convert to hypertable
+    op.execute(
+        "SELECT create_hypertable('telemetry', 'ts', "
+        "chunk_time_interval => INTERVAL '1 day')"
+    )
+    # 3. Set retention policy
+    op.execute(
+        "SELECT add_retention_policy('telemetry', "
+        f"INTERVAL '{settings.TELEMETRY_RETENTION_DAYS} days')"
+    )
 ```
 
 ---
 
-## ✅ Чеклист перед отчётом
+## ✅ Pre-Report Checklist
+
+Run ALL steps and fix ALL errors before writing the report.
 
 ```bash
-# 1. Проверить что не сломал существующее:
+# 1. Verify no existing code was broken:
 list_directory backend/app/api/v1/
 list_directory backend/app/db/models/
 
-# 2. Линтинг:
+# 2. Lint:
 ruff check backend/app --fix
 
-# 3. Типизация:
+# 3. Type check:
 mypy backend/app --strict
 
-# 4. Тесты с покрытием:
+# 4. Tests with coverage:
 pytest backend/tests/unit/ -v --cov=app --cov-report=term-missing
-# Цель: services/ > 80%, api/ > 70%
+# Targets: services/ > 80%, api/ > 70%
 
-# 5. Безопасность:
+# 5. Security scan:
 bandit -r backend/app -ll
 safety check -r backend/requirements.txt
 
-# 6. Миграции:
+# 6. Migration integrity:
 alembic check
 ```
 
-Исправлять ВСЕ ошибки перед написанием отчёта.
+---
+
+## 📝 Workflow
+
+1. Read `GEMINI.md` — project-wide context and conventions
+2. Read the task from `.gemini/agents/tasks/<task_id>.json`
+3. Read `.gemini/agents/contracts/api_contracts.md`
+4. Run `list_directory backend/app/api/v1/` and `backend/app/db/models/` — discover what exists
+5. If the domain already exists, `read_file` all existing files before making changes
+6. Modify or create `db/models/<domain>.py`
+7. Generate an Alembic migration if the model changed
+8. Implement: repository → service → router → schemas
+9. Write unit tests for the service layer
+10. Run the full pre-report checklist above
+11. Fix ALL errors
+12. Write the report to `.gemini/agents/reports/backend/<task_id>.md`
 
 ---
 
-## 📝 Рабочий процесс (workflow)
-
-1. Прочитай `GEMINI.md` — общий контекст проекта
-2. Прочитай задачу из `.gemini/agents/tasks/<task_id>.json`
-3. Прочитай `.gemini/agents/contracts/api_contracts.md`
-4. **`list_directory backend/app/api/v1/` и `backend/app/db/models/`** — выясни что уже есть
-5. Если домен уже есть — читай существующие файлы `read_file` перед изменением
-6. Изменяй или создай `db/models/<domain>.py`
-7. Генерируй Alembic-миграцию, если модель изменилась
-8. Реализуй repository → service → router → schemas
-9. Напиши unit-тесты для сервисного слоя
-10. Запусти весь чеклист (шаг выше)
-11. Исправь все ошибки
-12. Напиши отчёт в `.gemini/agents/reports/backend/<task_id>.md`
-
----
-
-## 📊 Формат отчёта (BBC все разделы обязательны)
+## 📊 Report Format (all sections required)
 
 ```markdown
 ## Status: DONE
 
 ## Completed:
-- создан backend/app/db/models/cart.py
-- реализован backend/app/api/v1/cart/ (router, service, repository, schemas)
+- created backend/app/db/models/cart.py
+- implemented backend/app/api/v1/cart/ (router, service, repository, schemas)
 
 ## Artifacts:
 - backend/app/db/models/cart.py
@@ -357,14 +364,14 @@ alembic check
 - backend/migrations/versions/20260227_150000_cart_add_cart_table.py
 
 ## Migrations:
-- 20260227_150000_cart_add_cart_table.py: добавлена таблица cart, cart_item
+- 20260227_150000_cart_add_cart_table.py: added tables cart, cart_item
 
 ## Contracts Verified:
 - Pydantic schemas (Request + Response): ✅
 - DI via Depends: ✅
 - No Any in type hints: ✅
-- Redis Lua-скрипт для резервации: ✅
-- 152-ФЗ (нет персданных в логах): ✅
+- Redis Lua script for stock reservation: ✅
+- No PII in logs: ✅
 - alembic check: ✅
 
 ## Test Coverage:
@@ -372,8 +379,8 @@ alembic check
 - api/v1/cart/: 71%
 
 ## Next:
-- frontend-agent: готов API /api/v1/cart/* — контракты в api_contracts.md
+- frontend-agent: /api/v1/cart/* API is ready — contracts in api_contracts.md
 
 ## Blockers:
-- нет
+- none
 ```
