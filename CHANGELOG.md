@@ -1,5 +1,47 @@
 # Changelog
 
+## [1.0.8] - 2026-02-27
+
+### Added
+- **BlogEditor Image Upload**: Complete MinIO integration in TipTap editor
+  - Image upload button in toolbar with visual loading state
+  - Direct browser → MinIO upload via presigned URLs (no backend proxy)
+  - Alt text prompt dialog for SEO accessibility
+  - File validation: type check, 5MB max size
+  - Link dialog for adding/editing hyperlinks
+  - Responsive image styling with border-radius
+- **useMediaUpload Composable**: Reusable upload flow
+  - Request presigned URL from `/media/upload-url`
+  - Direct PUT to MinIO with proper Content-Type
+  - Confirm to backend to trigger Celery processing
+  - Returns public URL for immediate use
+  - Context-aware (blog/product)
+  - Toast notifications for errors
+- **useSeo Composable**: Dynamic meta tag management
+  - `useSeo()`: Generic SEO with Open Graph, Twitter Card, canonical links
+  - `useArticleSeo()`: Blog articles with article-specific meta (published/modified time, author, tags)
+  - `useProductSeo()`: Products with price, currency, availability
+  - Automatic Schema.org injection
+  - Support for custom OG images
+- **TipTap Extensions**: Updated package.json
+  - Added `@tiptap/extension-youtube` for video embeds (ready for future use)
+  - All TipTap packages declared explicitly
+
+### Improved
+- **BlogEditor UX**: Visual feedback for all operations
+  - Active state for toolbar buttons
+  - Disabled state during upload
+  - Spinner animation during image processing
+  - Modal dialog for link URLs
+  - Keyboard shortcuts (Enter to confirm)
+
+### Technical Details
+- Image upload uses native fetch with PUT method for MinIO compatibility
+- Alt text required before upload for accessibility compliance
+- Link dialog with overlay click-outside to close
+- SEO composables integrate with existing `useArticleSchema`/`useProductSchema`
+- Canonical URL generation from route path
+
 ## [1.0.7] - 2026-02-27
 
 ### Added
