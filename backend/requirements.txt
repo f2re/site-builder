@@ -31,7 +31,7 @@ Pillow==11.1.0
 bleach==6.2.0
 
 # Search
-meilisearch-python-sdk==3.11.0
+meilisearch-python-sdk==7.0.1
 
 # Background tasks
 celery[redis]==5.4.0
