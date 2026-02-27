@@ -122,6 +122,27 @@ frontend/components/U/UThemeToggle.vue   ← global theme toggle button
 
 ---
 
+## Backend Architecture (Strict)
+
+### 1. Unified Models
+- **Single Source of Truth**: All SQLAlchemy models MUST live in `backend/app/db/models/`.
+- **Naming**: File name = model name (lowercase). Example: `user.py` for `User` model.
+- **Imports**: Always import from `app.db.models.{module}`.
+
+### 2. Feature-First Logic (api/v1)
+- Each feature directory in `backend/app/api/v1/{feature}/` MUST contain:
+    - `router.py`: API endpoints.
+    - `service.py`: Business logic (DI ready).
+    - `repository.py`: CRUD operations (SQLAlchemy async).
+    - `schemas.py`: Pydantic Request/Response models.
+- **One-Way Development**: Logic MUST be scoped within the feature folder unless it's a cross-cutting concern (move to `app/core/` or `app/tasks/`).
+
+### 3. Redundancy Policy
+- **NO** top-level `app/models/`, `app/schemas/`, `app/services/`, or `app/repositories/`.
+- If a folder is empty, it should be removed.
+
+---
+
 ## Project Structure Reference
 
 Canonical structure — all agents MUST place files here:
