@@ -1,7 +1,10 @@
 # --- Development Stage ---
-FROM node:20-slim AS development
+FROM node:22-slim AS development
 
 WORKDIR /app
+
+# Update npm to latest to suppress upgrade notice
+RUN npm install -g npm@latest
 
 # Install dependencies
 COPY package*.json ./
@@ -21,9 +24,12 @@ CMD ["npm", "run", "dev"]
 
 
 # --- Build Stage ---
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
+
+# Update npm to latest
+RUN npm install -g npm@latest
 
 # Install build dependencies (for some npm packages that need them)
 RUN apt-get update && apt-get install -y \
@@ -34,7 +40,6 @@ RUN apt-get update && apt-get install -y \
 
 # Install dependencies
 COPY package*.json ./
-# Using npm install because Nuxt 3 projects often don't have a frozen lockfile if just started
 RUN npm install
 
 # Copy source and build
@@ -43,7 +48,7 @@ RUN npm run build
 
 
 # --- Runner (Production) Stage ---
-FROM node:20-slim AS runner
+FROM node:22-slim AS runner
 
 WORKDIR /app
 
