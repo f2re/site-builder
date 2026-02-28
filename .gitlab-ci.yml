@@ -123,13 +123,27 @@ build:frontend:
     - docker push $IMAGE_FRONTEND:latest
 
 # ── SSH key helper (shared by deploy jobs) ───────────────────────────────────
-# GitLab CI variables may store the key with literal '\n' instead of real
-# newlines. `printf '%b'` expands escape sequences so the PEM is valid.
 .ssh_setup: &ssh_setup
   - apk add --no-cache openssh-client bash
   - eval $(ssh-agent -s)
   - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+  # ── DIAGNOSTICS (remove after fix) ──
+  - echo "=== SSH KEY DIAGNOSTICS ==="
+  - |
+    if [ -z "$SSH_PRIVATE_KEY" ]; then
+      echo "[ERROR] SSH_PRIVATE_KEY is EMPTY or NOT SET in GitLab CI/CD variables!"
+      exit 1
+    fi
+  - echo "[OK] SSH_PRIVATE_KEY is set, length=${#SSH_PRIVATE_KEY} chars"
   - printf '%b' "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+  - echo "[INFO] File size after write: $(wc -c < ~/.ssh/id_rsa) bytes"
+  - echo "[INFO] Line count: $(wc -l < ~/.ssh/id_rsa)"
+  - echo "[INFO] First line: $(head -1 ~/.ssh/id_rsa)"
+  - echo "[INFO] Last line:  $(tail -1 ~/.ssh/id_rsa)"
+  - echo "[INFO] ssh-keygen fingerprint check:"
+  - ssh-keygen -l -f ~/.ssh/id_rsa || echo "[FAIL] ssh-keygen: invalid key format"
+  - echo "=== END DIAGNOSTICS ==="
+  # ── END DIAGNOSTICS ──
   - chmod 600 ~/.ssh/id_rsa
   - ssh-add ~/.ssh/id_rsa
   - ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts
