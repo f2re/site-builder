@@ -122,40 +122,40 @@ build:frontend:
     - docker push $IMAGE_FRONTEND:$DYNAMIC_TAG
     - docker push $IMAGE_FRONTEND:latest
 
-# ── SSH key helper (shared by deploy jobs) ───────────────────────────────────
-.ssh_setup: &ssh_setup
-  - apk add --no-cache openssh-client bash
-  - eval $(ssh-agent -s)
-  - mkdir -p ~/.ssh && chmod 700 ~/.ssh
-  # ── DIAGNOSTICS (remove after fix) ──
-  - echo "=== SSH KEY DIAGNOSTICS ==="
-  - |
-    if [ -z "$SSH_PRIVATE_KEY" ]; then
-      echo "[ERROR] SSH_PRIVATE_KEY is EMPTY or NOT SET in GitLab CI/CD variables!"
-      exit 1
-    fi
-  - echo "[OK] SSH_PRIVATE_KEY is set, length=${#SSH_PRIVATE_KEY} chars"
-  - printf '%b' "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
-  - echo "[INFO] File size after write: $(wc -c < ~/.ssh/id_rsa) bytes"
-  - echo "[INFO] Line count: $(wc -l < ~/.ssh/id_rsa)"
-  - echo "[INFO] First line: $(head -1 ~/.ssh/id_rsa)"
-  - echo "[INFO] Last line:  $(tail -1 ~/.ssh/id_rsa)"
-  - echo "[INFO] ssh-keygen fingerprint check:"
-  - ssh-keygen -l -f ~/.ssh/id_rsa || echo "[FAIL] ssh-keygen: invalid key format"
-  - echo "=== END DIAGNOSTICS ==="
-  # ── END DIAGNOSTICS ──
-  - chmod 600 ~/.ssh/id_rsa
-  - ssh-add ~/.ssh/id_rsa
-  - ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts
+# ── Deploy base (shared SSH setup + diagnostics) ───────────────────────────
+# Jobs starting with '.' are hidden (not executed directly).
+# `extends` performs a deep merge so staging/production inherit before_script.
+.deploy_base:
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client bash
+    - eval $(ssh-agent -s)
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    # ── DIAGNOSTICS: remove this block once SSH key issue is resolved ──
+    - echo "=== SSH KEY DIAGNOSTICS ==="
+    - |
+      if [ -z "$SSH_PRIVATE_KEY" ]; then
+        echo "[ERROR] SSH_PRIVATE_KEY is EMPTY or NOT SET in GitLab CI/CD variables!"
+        exit 1
+      fi
+    - echo "[OK] SSH_PRIVATE_KEY length=${#SSH_PRIVATE_KEY} chars"
+    - printf '%b' "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - echo "[INFO] id_rsa size=$(wc -c < ~/.ssh/id_rsa) bytes, lines=$(wc -l < ~/.ssh/id_rsa)"
+    - echo "[INFO] First line: $(head -1 ~/.ssh/id_rsa)"
+    - echo "[INFO] Last line:  $(tail -1 ~/.ssh/id_rsa)"
+    - ssh-keygen -l -f ~/.ssh/id_rsa || echo "[FAIL] ssh-keygen: invalid key format"
+    - echo "=== END DIAGNOSTICS ==="
+    # ── END DIAGNOSTICS ──
+    - chmod 600 ~/.ssh/id_rsa
+    - ssh-add ~/.ssh/id_rsa
+    - ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts
 
 # ── Deploy Staging ────────────────────────────────────────────────────────────
 deploy:staging:
+  extends: .deploy_base
   stage: deploy_staging
-  image: alpine:latest
   variables:
     DEPLOY_HOST: $STAGING_HOST
-  before_script:
-    - *ssh_setup
   script:
     - scp deploy/scripts/deploy.sh $DEPLOY_USER@$STAGING_HOST:/tmp/deploy.sh
     - ssh $DEPLOY_USER@$STAGING_HOST "bash /tmp/deploy.sh $DYNAMIC_TAG $CI_REGISTRY $DEPLOY_TOKEN_USER $DEPLOY_TOKEN_PASS $CI_REGISTRY_IMAGE"
@@ -167,12 +167,10 @@ deploy:staging:
 
 # ── Deploy Production ─────────────────────────────────────────────────────────
 deploy:production:
+  extends: .deploy_base
   stage: deploy_prod
-  image: alpine:latest
   variables:
     DEPLOY_HOST: $PROD_HOST
-  before_script:
-    - *ssh_setup
   script:
     - scp deploy/scripts/deploy.sh $DEPLOY_USER@$PROD_HOST:/tmp/deploy.sh
     - ssh $DEPLOY_USER@$PROD_HOST "bash /tmp/deploy.sh $DYNAMIC_TAG $CI_REGISTRY $DEPLOY_TOKEN_USER $DEPLOY_TOKEN_PASS $CI_REGISTRY_IMAGE"
