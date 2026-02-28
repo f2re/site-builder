@@ -135,6 +135,11 @@ build:frontend:
     - eval $(ssh-agent -s)
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
     # === MAIN FIX: sanitize key — strip CRLF + ensure trailing newline ===
+    - |
+      if [ -z "$DEPLOY_HOST" ]; then
+        echo "❌ ERROR: DEPLOY_HOST (STAGING_HOST or PROD_HOST) is not defined in GitLab CI/CD Variables!"
+        exit 1
+      fi
     - SSH_KEY_TMP=$(mktemp)
     - tr -d '\r' < "$SSH_PRIVATE_KEY" > "$SSH_KEY_TMP"
     - echo "" >> "$SSH_KEY_TMP"
