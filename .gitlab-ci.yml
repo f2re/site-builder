@@ -16,7 +16,7 @@ image: docker:24
 
 variables:
   DOCKER_TLS_CERTDIR: ""
-  DOCKER_HOST: tcp://docker:2375
+  DOCKER_HOST: unix:///var/run/docker.sock
   REGISTRY: $CI_REGISTRY
   IMAGE_BACKEND: $CI_REGISTRY_IMAGE/backend
   IMAGE_FRONTEND: $CI_REGISTRY_IMAGE/frontend
@@ -108,9 +108,6 @@ test:backend:
 # ── Build ─────────────────────────────────────────────────────────────────────
 build:backend:
   stage: build
-  services:
-    - name: docker:24-dind
-      alias: docker
   <<: *docker_login
   script:
     - docker build -t $IMAGE_BACKEND:$DYNAMIC_TAG -t $IMAGE_BACKEND:latest ./backend
@@ -119,9 +116,6 @@ build:backend:
 
 build:frontend:
   stage: build
-  services:
-    - name: docker:24-dind
-      alias: docker
   <<: *docker_login
   script:
     - docker build -t $IMAGE_FRONTEND:$DYNAMIC_TAG -t $IMAGE_FRONTEND:latest ./frontend
