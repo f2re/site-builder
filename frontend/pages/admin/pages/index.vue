@@ -22,16 +22,13 @@ const handleDelete = async (id: string) => {
 
 <template>
   <div class="admin-pages-list">
-    <template #header-title>
+    <div class="mb-6 flex items-center justify-between">
       <h1>Управление страницами</h1>
-    </template>
-    
-    <template #header-actions>
       <NuxtLink to="/admin/pages/create" class="btn-create">
         <Icon name="ph:plus-bold" />
         <span>Создать страницу</span>
       </NuxtLink>
-    </template>
+    </div>
 
     <div v-if="pending" class="loading-state">
       <Icon name="ph:spinner-gap-bold" class="spin" size="32" />

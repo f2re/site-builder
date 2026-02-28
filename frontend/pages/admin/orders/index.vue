@@ -35,9 +35,9 @@ async function updateStatus(orderId: string, status: string) {
 
 <template>
   <div>
-    <template #header-title>
+    <div class="mb-6">
       <h1 class="text-xl font-bold">Заказы</h1>
-    </template>
+    </div>
 
     <UCard class="overflow-hidden">
       <div v-if="pending" class="p-4 space-y-4">

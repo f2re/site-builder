@@ -69,9 +69,9 @@ async function save() {
 
 <template>
   <div class="max-w-4xl">
-    <template #header-title>
+    <div class="mb-6">
       <h1 class="text-xl font-bold">Редактирование поста</h1>
-    </template>
+    </div>
     
     <div v-if="loading">
       <USkeleton height="400px" />

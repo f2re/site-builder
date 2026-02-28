@@ -99,9 +99,9 @@ const generateSlug = () => {
 
 <template>
   <div class="admin-page-editor">
-    <template #header-title>
+    <div class="mb-6">
       <h1>{{ isEdit ? 'Редактирование страницы' : 'Создание страницы' }}</h1>
-    </template>
+    </div>
 
     <div v-if="isLoading" class="loading-state">
       <Icon name="ph:spinner-gap-bold" class="spin" size="32" />

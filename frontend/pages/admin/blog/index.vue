@@ -26,12 +26,10 @@ async function deletePost(slug: string) {
 
 <template>
   <div>
-    <template #header-title>
+    <div class="mb-6 flex items-center justify-between">
       <h1 class="text-xl font-bold">Блог</h1>
-    </template>
-    <template #header-actions>
       <UButton to="/admin/blog/create" icon="ph:plus-bold">Новый пост</UButton>
-    </template>
+    </div>
 
     <UCard class="overflow-hidden">
       <div v-if="pending" class="p-4 space-y-4">

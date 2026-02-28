@@ -59,9 +59,9 @@ async function save() {
 
 <template>
   <div class="max-w-4xl">
-    <template #header-title>
+    <div class="mb-6">
       <h1 class="text-xl font-bold">Новый пост</h1>
-    </template>
+    </div>
     
     <div class="space-y-6">
       <UCard>

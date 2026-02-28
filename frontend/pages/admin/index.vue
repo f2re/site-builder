@@ -34,9 +34,9 @@ const statCards = computed(() => [
 
 <template>
   <div>
-    <template #header-title>
+    <div class="mb-6">
       <h1 class="text-xl font-bold">Панель управления</h1>
-    </template>
+    </div>
 
     <div v-if="pending" class="stats-grid">
       <USkeleton v-for="i in 3" :key="i" height="120px" />
