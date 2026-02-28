@@ -1,7 +1,4 @@
-# deploy/docker-compose.prod.yml — Production Environment
-# Usage: docker compose -f deploy/docker-compose.prod.yml up -d
-# Secrets: all via .env.prod (gitignored) or GitLab CI/CD Variables
-# Images: pulled from GitLab Container Registry ($CI_REGISTRY_IMAGE)
+# deploy/docker-compose.prod.yml
 
 version: "3.9"
 
@@ -10,11 +7,9 @@ x-logging: &default-logging
   options:
     max-size: "10m"
     max-file: "3"
-    labels: "service"
 
 services:
 
-  # ── Backend ────────────────────────────────────────────────────────────────
   backend:
     image: ${CI_REGISTRY_IMAGE}/backend:${IMAGE_TAG:-latest}
     container_name: sb_backend
@@ -39,8 +34,6 @@ services:
     tmpfs:
       - /tmp
     logging: *default-logging
-    labels:
-      - "service=backend"
     networks: [sb_net]
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/api/v1/health || exit 1"]
@@ -48,19 +41,16 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Frontend ───────────────────────────────────────────────────────────────
   frontend:
     image: ${CI_REGISTRY_IMAGE}/frontend:${IMAGE_TAG:-latest}
     container_name: sb_frontend
     restart: always
     env_file: /srv/site-builder/.env.prod
-    expose:
-      - "3000"
+    ports:
+      - "3000:3000"       # ← хост-nginx проксирует сюда
     command: node .output/server/index.mjs
     user: appuser
     logging: *default-logging
-    labels:
-      - "service=frontend"
     networks: [sb_net]
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:3000/ || exit 1"]
@@ -68,7 +58,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── PostgreSQL 16 + TimescaleDB ────────────────────────────────────────────
   postgres:
     image: timescale/timescaledb:latest-pg16
     container_name: sb_postgres
@@ -81,8 +70,6 @@ services:
       - "5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
-    command: postgres -c config_file=/etc/postgresql/postgresql.conf
     logging: *default-logging
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
@@ -91,7 +78,6 @@ services:
       retries: 10
     networks: [sb_net]
 
-  # ── Redis 7 ────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: sb_redis
@@ -114,7 +100,6 @@ services:
       retries: 5
     networks: [sb_net]
 
-  # ── Celery (worker + beat в одном контейнере) ──────────────────────────────
   celery:
     image: ${CI_REGISTRY_IMAGE}/backend:${IMAGE_TAG:-latest}
     container_name: sb_celery
@@ -123,15 +108,11 @@ services:
     depends_on:
       - redis
       - postgres
-    # -B запускает beat-планировщик внутри того же процесса worker
     command: celery -A app.tasks.celery_app worker -B --loglevel=warning --concurrency=2 -E
     user: appuser
     logging: *default-logging
-    labels:
-      - "service=celery"
     networks: [sb_net]
 
-  # ── Meilisearch ────────────────────────────────────────────────────────────
   meilisearch:
     image: getmeili/meilisearch:latest
     container_name: sb_meilisearch
@@ -150,26 +131,6 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
-    networks: [sb_net]
-
-  # ── Nginx (TLS termination, reverse proxy) ─────────────────────────────────
-  nginx:
-    image: nginx:alpine
-    container_name: sb_nginx
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - nginx_cache:/var/cache/nginx
-    depends_on:
-      backend:
-        condition: service_healthy
-      frontend:
-        condition: service_healthy
-    logging: *default-logging
     networks: [sb_net]
 
 volumes:
@@ -191,12 +152,7 @@ volumes:
       type: none
       o: bind
       device: /srv/site-builder/data/meilisearch
-  nginx_cache:
-    driver: local
 
 networks:
   sb_net:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16

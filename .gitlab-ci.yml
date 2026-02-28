@@ -2,6 +2,16 @@
 # NEVER use GitHub Actions (.github/workflows/)
 # Registry: GitLab Container Registry (not Docker Hub)
 
+# Глобальные настройки для всех заданий
+default:
+  tags:
+    - site-builder
+
+# Запуск пайплайна ТОЛЬКО при пуше тега версии (например, v1.0.0)
+workflow:
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+
 image: docker:24
 
 variables:
@@ -10,9 +20,8 @@ variables:
   REGISTRY: $CI_REGISTRY
   IMAGE_BACKEND: $CI_REGISTRY_IMAGE/backend
   IMAGE_FRONTEND: $CI_REGISTRY_IMAGE/frontend
-  # Determine image tag: use git tag if present, otherwise commit sha or latest
   IMAGE_TAG: $CI_COMMIT_TAG
-  DYNAMIC_TAG: ${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}
+  DYNAMIC_TAG: $CI_COMMIT_TAG
 
 stages:
   - lint
@@ -36,10 +45,6 @@ lint:backend:
     - ruff check backend/app/ --fix || true
     - ruff check backend/app/
     - mypy backend/app/ --ignore-missing-imports
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_COMMIT_TAG
 
 lint:frontend:
   stage: lint
@@ -49,10 +54,6 @@ lint:frontend:
     - cd frontend && npm install --quiet
     - npm run lint
     - npm run typecheck
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_COMMIT_TAG
 
 # ── Security Audit ────────────────────────────────────────────────────────────
 security:backend:
@@ -103,10 +104,6 @@ test:backend:
     - cd backend
     - pip install -r requirements.txt --quiet
     - pytest --cov=app tests/unit/ tests/integration/ -v
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_COMMIT_TAG
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 build:backend:
@@ -119,9 +116,6 @@ build:backend:
     - docker build -t $IMAGE_BACKEND:$DYNAMIC_TAG -t $IMAGE_BACKEND:latest ./backend
     - docker push $IMAGE_BACKEND:$DYNAMIC_TAG
     - docker push $IMAGE_BACKEND:latest
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_COMMIT_TAG
 
 build:frontend:
   stage: build
@@ -133,9 +127,6 @@ build:frontend:
     - docker build -t $IMAGE_FRONTEND:$DYNAMIC_TAG -t $IMAGE_FRONTEND:latest ./frontend
     - docker push $IMAGE_FRONTEND:$DYNAMIC_TAG
     - docker push $IMAGE_FRONTEND:latest
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_COMMIT_TAG
 
 # ── Deploy Staging ────────────────────────────────────────────────────────────
 deploy:staging:
@@ -149,13 +140,12 @@ deploy:staging:
     - ssh-keyscan $STAGING_HOST >> ~/.ssh/known_hosts
   script:
     - scp deploy/scripts/deploy.sh $DEPLOY_USER@$STAGING_HOST:/tmp/deploy.sh
-    - ssh $DEPLOY_USER@$STAGING_HOST "bash /tmp/deploy.sh $DYNAMIC_TAG $CI_REGISTRY $DEPLOY_TOKEN_USER $DEPLOY_TOKEN_PASS"
+    - ssh $DEPLOY_USER@$STAGING_HOST "bash /tmp/deploy.sh $DYNAMIC_TAG $CI_REGISTRY $DEPLOY_TOKEN_USER $DEPLOY_TOKEN_PASS $CI_REGISTRY_IMAGE"
   environment:
     name: staging
-    url: https://staging.example.com
+    url: https://m.wifiobd.ru
   rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-      when: on_success
+    - when: manual
 
 # ── Deploy Production ─────────────────────────────────────────────────────────
 deploy:production:
@@ -169,12 +159,9 @@ deploy:production:
     - ssh-keyscan $PROD_HOST >> ~/.ssh/known_hosts
   script:
     - scp deploy/scripts/deploy.sh $DEPLOY_USER@$PROD_HOST:/tmp/deploy.sh
-    - ssh $DEPLOY_USER@$PROD_HOST "bash /tmp/deploy.sh $DYNAMIC_TAG $CI_REGISTRY $DEPLOY_TOKEN_USER $DEPLOY_TOKEN_PASS"
+    - ssh $DEPLOY_USER@$PROD_HOST "bash /tmp/deploy.sh $DYNAMIC_TAG $CI_REGISTRY $DEPLOY_TOKEN_USER $DEPLOY_TOKEN_PASS $CI_REGISTRY_IMAGE"
   environment:
     name: production
-    url: https://example.com
+    url: https://m.wifiobd.ru
   rules:
-    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/  # Trigger on tags like v1.0.0
-      when: on_success
-    - if: $CI_COMMIT_BRANCH == "main"
-      when: manual  # Manual deploy for main branch
+    - when: manual
