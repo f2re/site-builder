@@ -6,6 +6,9 @@ set -e
 
 PROJECT_ROOT="/srv/site-builder"
 IMAGE_TAG=$1
+REGISTRY=$2
+TOKEN_USER=$3
+TOKEN_PASS=$4
 
 if [ -z "$IMAGE_TAG" ]; then
     echo "Usage: $0 <IMAGE_TAG>"
@@ -15,6 +18,9 @@ fi
 cd $PROJECT_ROOT
 
 echo "--- Deployment started with tag: $IMAGE_TAG ---"
+
+echo "--- Logging into registry ---"
+echo "$TOKEN_PASS" | docker login "$REGISTRY" -u "$TOKEN_USER" --password-stdin
 
 # Export IMAGE_TAG for docker-compose.prod.yml
 export IMAGE_TAG=$IMAGE_TAG

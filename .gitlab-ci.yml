@@ -24,7 +24,7 @@ stages:
 # ── Templates ────────────────────────────────────────────────────────────────
 .docker_login: &docker_login
   before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY
 
 # ── Lint ─────────────────────────────────────────────────────────────────────
 lint:backend:
@@ -149,7 +149,7 @@ deploy:staging:
     - ssh-keyscan $STAGING_HOST >> ~/.ssh/known_hosts
   script:
     - scp deploy/scripts/deploy.sh $DEPLOY_USER@$STAGING_HOST:/tmp/deploy.sh
-    - ssh $DEPLOY_USER@$STAGING_HOST "bash /tmp/deploy.sh $DYNAMIC_TAG"
+    - ssh $DEPLOY_USER@$STAGING_HOST "bash /tmp/deploy.sh $DYNAMIC_TAG $CI_REGISTRY $DEPLOY_TOKEN_USER $DEPLOY_TOKEN_PASS"
   environment:
     name: staging
     url: https://staging.example.com
@@ -169,7 +169,7 @@ deploy:production:
     - ssh-keyscan $PROD_HOST >> ~/.ssh/known_hosts
   script:
     - scp deploy/scripts/deploy.sh $DEPLOY_USER@$PROD_HOST:/tmp/deploy.sh
-    - ssh $DEPLOY_USER@$PROD_HOST "bash /tmp/deploy.sh $DYNAMIC_TAG"
+    - ssh $DEPLOY_USER@$PROD_HOST "bash /tmp/deploy.sh $DYNAMIC_TAG $CI_REGISTRY $DEPLOY_TOKEN_USER $DEPLOY_TOKEN_PASS"
   environment:
     name: production
     url: https://example.com
