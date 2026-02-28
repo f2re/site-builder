@@ -47,7 +47,7 @@ services:
     restart: always
     env_file: /srv/site-builder/.env.prod
     ports:
-      - "3000:3000"       # ← хост-nginx проксирует сюда
+      - "3000:3000"
     command: node .output/server/index.mjs
     user: appuser
     logging: *default-logging
@@ -72,7 +72,8 @@ services:
       - pg_data:/var/lib/postgresql/data
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      # Use explicit default fallback so healthcheck never runs with empty user/db
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -94,7 +95,8 @@ services:
       --requirepass ${REDIS_PASSWORD}
     logging: *default-logging
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      # Use REDISCLI_AUTH env var instead of -a flag to handle any password value safely
+      test: ["CMD-SHELL", "REDISCLI_AUTH=${REDIS_PASSWORD} redis-cli ping | grep -q PONG"]
       interval: 10s
       timeout: 3s
       retries: 5
