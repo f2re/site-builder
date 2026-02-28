@@ -2,6 +2,9 @@
 set -e
 
 PROJECT_ROOT="/srv/site-builder"
+ENV_FILE="$PROJECT_ROOT/.env.prod"
+COMPOSE_FILE="$PROJECT_ROOT/deploy/docker-compose.prod.yml"
+
 IMAGE_TAG=$1
 CI_REGISTRY=$2
 DEPLOY_TOKEN_USER=$3
@@ -20,9 +23,9 @@ mkdir -p "$PROJECT_ROOT/data/meilisearch"
 mkdir -p "$PROJECT_ROOT/deploy"
 
 # Guard: abort if .env.prod is missing
-if [ ! -f "$PROJECT_ROOT/.env.prod" ]; then
-    echo "ERROR: $PROJECT_ROOT/.env.prod not found!"
-    echo "Create it manually on the server before running deployment."
+if [ ! -f "$ENV_FILE" ]; then
+    echo "ERROR: $ENV_FILE not found!"
+    echo "Copy deploy/.env.prod.example to $ENV_FILE and fill in real values."
     exit 1
 fi
 
@@ -35,11 +38,15 @@ echo "--- Deployment started with tag: $IMAGE_TAG ---"
 export IMAGE_TAG=$IMAGE_TAG
 export CI_REGISTRY_IMAGE=$CI_REGISTRY_IMAGE
 
+# --env-file loads .env.prod for ${VAR} substitution inside docker-compose.prod.yml
+# (env_file: directive only injects vars into containers, not into compose YAML itself)
+DC="docker compose -f $COMPOSE_FILE --env-file $ENV_FILE"
+
 echo "--- Pulling new images ---"
-docker compose -f deploy/docker-compose.prod.yml pull
+$DC pull
 
 echo "--- Restarting services ---"
-docker compose -f deploy/docker-compose.prod.yml up -d --remove-orphans
+$DC up -d --remove-orphans
 
 echo "--- Pruning old images ---"
 docker image prune -f
