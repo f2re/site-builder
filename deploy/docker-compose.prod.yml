@@ -15,8 +15,14 @@ services:
     container_name: sb_backend
     restart: always
     env_file: /srv/site-builder/.env.prod
+    environment:
+      # Override MEDIA_ROOT: container is read_only, ./media would fail.
+      # /app/media is writable via the media_data volume mount below.
+      MEDIA_ROOT: /app/media
     expose:
       - "8000"
+    volumes:
+      - media_data:/app/media
     depends_on:
       postgres:
         condition: service_healthy
@@ -72,7 +78,6 @@ services:
       - pg_data:/var/lib/postgresql/data
     logging: *default-logging
     healthcheck:
-      # Use explicit default fallback so healthcheck never runs with empty user/db
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
       interval: 10s
       timeout: 5s
@@ -95,7 +100,6 @@ services:
       --requirepass ${REDIS_PASSWORD}
     logging: *default-logging
     healthcheck:
-      # Use REDISCLI_AUTH env var instead of -a flag to handle any password value safely
       test: ["CMD-SHELL", "REDISCLI_AUTH=${REDIS_PASSWORD} redis-cli ping | grep -q PONG"]
       interval: 10s
       timeout: 3s
@@ -107,11 +111,25 @@ services:
     container_name: sb_celery
     restart: always
     env_file: /srv/site-builder/.env.prod
+    environment:
+      MEDIA_ROOT: /app/media
     depends_on:
       - redis
       - postgres
-    command: celery -A app.tasks.celery_app worker -B --loglevel=warning --concurrency=2 -E
+    # --schedule /tmp/celerybeat-schedule: beat must write schedule file;
+    # /app is read_only in prod image, /tmp is writable via tmpfs
+    command: >-
+      celery -A app.tasks.celery_app worker -B
+      --loglevel=warning
+      --concurrency=2
+      -E
+      --schedule /tmp/celerybeat-schedule
     user: appuser
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - media_data:/app/media
     logging: *default-logging
     networks: [sb_net]
 
@@ -154,6 +172,12 @@ volumes:
       type: none
       o: bind
       device: /srv/site-builder/data/meilisearch
+  media_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /srv/site-builder/data/media
 
 networks:
   sb_net:

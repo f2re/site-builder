@@ -20,6 +20,7 @@ fi
 mkdir -p "$PROJECT_ROOT/data/postgres"
 mkdir -p "$PROJECT_ROOT/data/redis"
 mkdir -p "$PROJECT_ROOT/data/meilisearch"
+mkdir -p "$PROJECT_ROOT/data/media"
 mkdir -p "$PROJECT_ROOT/deploy"
 
 # Guard: abort if .env.prod is missing
