@@ -20,5 +20,7 @@
 .main {
   flex-grow: 1;
   padding: 40px 0;
+  position: relative;
+  z-index: 1;
 }
 </style>

@@ -58,7 +58,7 @@ const handleSubmit = () => {
   position: fixed;
   inset: 0;
   background-color: var(--color-overlay);
-  z-index: var(--z-modal);
+  z-index: 11000;
   display: flex;
   align-items: flex-start;
   justify-content: center;

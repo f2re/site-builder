@@ -254,7 +254,7 @@ watch(() => route.fullPath, () => {
   justify-content: center;
   position: sticky;
   top: 0;
-  z-index: var(--z-overlay);
+  z-index: 50;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -401,7 +401,7 @@ watch(() => route.fullPath, () => {
   inset: 0;
   background: var(--color-overlay);
   backdrop-filter: blur(8px);
-  z-index: 9998;
+  z-index: 10000;
 }
 
 .mobile-nav {
@@ -412,7 +412,7 @@ watch(() => route.fullPath, () => {
   max-width: 320px;
   height: 100vh;
   background-color: var(--color-bg);
-  z-index: 9999;
+  z-index: 10001;
   box-shadow: -10px 0 30px rgba(0,0,0,0.3);
   border-left: 1px solid var(--color-border);
 }
