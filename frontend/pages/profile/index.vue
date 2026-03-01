@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { useUser } from '~/composables/useUser'
-import { useForm } from 'vee-validate'
+import { useForm, useField } from 'vee-validate'
 import * as zod from 'zod'
 import { toTypedSchema } from '@vee-validate/zod'
 import { useToast } from '~/composables/useToast'
-import { onMounted } from 'vue'
+import { onMounted, computed } from 'vue'
 
 definePageMeta({
   middleware: 'auth'
@@ -25,7 +25,7 @@ const schema = zod.object({
   address: zod.string().max(255, 'Максимум 255 символов').optional().nullable().or(zod.literal(''))
 })
 
-const { handleSubmit, resetForm, errors, defineField, values } = useForm({
+const { handleSubmit, resetForm, errors } = useForm({
   validationSchema: toTypedSchema(schema),
   initialValues: {
     full_name: '',
@@ -34,9 +34,9 @@ const { handleSubmit, resetForm, errors, defineField, values } = useForm({
   }
 })
 
-const [full_name, full_nameProps] = defineField('full_name')
-const [phone, phoneProps] = defineField('phone')
-const [address, addressProps] = defineField('address')
+const { value: full_name } = useField<string>('full_name')
+const { value: phone } = useField<string>('phone')
+const { value: address } = useField<string>('address')
 
 const isAdmin = computed(() => user.value?.role === 'admin')
 
@@ -58,14 +58,17 @@ onMounted(async () => {
 })
 
 const onSubmit = handleSubmit(async (formValues) => {
+  console.log('[DEBUG] Profile form submission started', formValues)
   try {
-    await updateProfile({
+    const result = await updateProfile({
       full_name: formValues.full_name || null,
       phone: formValues.phone || null,
       address: formValues.address || null
     })
+    console.log('[DEBUG] Profile update result:', result)
     toast.success('Профиль обновлен', 'Ваши данные успешно сохранены')
   } catch (err) {
+    console.error('[DEBUG] Profile update error:', err)
     toast.error('Ошибка обновления', 'Не удалось сохранить изменения')
   }
 })
@@ -105,7 +108,6 @@ const onSubmit = handleSubmit(async (formValues) => {
               <label>ФИО</label>
               <UInput
                 v-model="full_name"
-                v-bind="full_nameProps"
                 placeholder="Иван Иванов"
                 :error="errors.full_name"
                 icon="ph:user-bold"
@@ -116,7 +118,6 @@ const onSubmit = handleSubmit(async (formValues) => {
               <label>Телефон</label>
               <UInput
                 v-model="phone"
-                v-bind="phoneProps"
                 placeholder="+7 (999) 000-00-00"
                 :error="errors.phone"
                 icon="ph:phone-bold"
@@ -127,7 +128,6 @@ const onSubmit = handleSubmit(async (formValues) => {
               <label>Адрес доставки</label>
               <UInput
                 v-model="address"
-                v-bind="addressProps"
                 placeholder="г. Москва, ул. Ленина, д. 1"
                 :error="errors.address"
                 icon="ph:map-pin-bold"

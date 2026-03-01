@@ -49,10 +49,11 @@ const loginWithProvider = (provider: string) => {
 // Telegram Login Widget handler
 onMounted(() => {
   const botName = config.public.telegramBotName
-  console.log('[DEBUG] Login Page - Telegram Bot Name:', botName)
+  const isDefault = botName === 'WifiOBD_Bot'
+  console.log('[DEBUG] Login Page - Telegram Bot Name from RuntimeConfig:', botName, isDefault ? '(using default)' : '(overridden)')
   
-  if (!botName || botName === 'WifiOBD_Bot') {
-    console.warn('[DEBUG] Warning: Telegram Bot Name is missing or using default. Check .env')
+  if (isDefault) {
+    console.warn('[DEBUG] Warning: Telegram Bot Name is using default "WifiOBD_Bot". If this is not intended, set NUXT_PUBLIC_TELEGRAM_BOT_NAME in .env')
   }
   
   // Define callback on window
@@ -71,13 +72,14 @@ onMounted(() => {
   const script = document.createElement('script')
   script.src = 'https://telegram.org/js/telegram-widget.js?22'
   script.async = true
-  script.setAttribute('data-telegram-login', config.public.telegramBotName)
+  script.setAttribute('data-telegram-login', botName)
   script.setAttribute('data-size', 'large')
   script.setAttribute('data-onauth', 'onTelegramAuth')
   script.setAttribute('data-request-access', 'write')
   
   const container = document.getElementById('telegram-login-container')
   if (container) {
+    container.innerHTML = '' // Clear placeholder if any script already exists
     container.appendChild(script)
   }
 })
@@ -167,7 +169,7 @@ onUnmounted(() => {
             <span>Google</span>
           </button>
           <button @click="loginWithProvider('yandex')" class="oauth-btn oauth-btn--yandex" aria-label="Войти через Яндекс">
-            <Icon name="logos:yandex" size="20" />
+            <Icon name="simple-icons:yandex" size="20" style="color: #fc3f1d" />
             <span>Яндекс</span>
           </button>
         </div>

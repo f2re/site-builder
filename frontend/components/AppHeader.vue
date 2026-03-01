@@ -162,82 +162,85 @@ watch(() => route.fullPath, () => {
       </div>
     </div>
 
-    <!-- Mobile menu overlay -->
-    <Transition name="fade">
-      <div v-if="isMenuOpen" class="mobile-nav-overlay" @click="closeMenu"></div>
-    </Transition>
-
-    <!-- Mobile menu drawer -->
-    <Transition name="mobile-menu">
-      <nav
-        v-if="isMenuOpen"
-        id="mobile-menu"
-        class="mobile-nav"
-        aria-label="Мобильная навигация"
-      >
-        <div class="mobile-nav-content">
-          <div class="mobile-nav-header">
-             <span class="mobile-nav-title">Навигация</span>
-             <UThemeToggle />
-          </div>
-          
-          <div class="mobile-nav-links">
-            <NuxtLink
-              v-for="link in navLinks"
-              :key="link.to"
-              :to="link.to"
-              class="mobile-nav-link"
-              @click="closeMenu"
-            >
-              <div class="link-label">
-                <Icon :name="link.icon" size="24" />
-                <span>{{ link.label }}</span>
-              </div>
-              <Icon name="ph:caret-right-bold" size="16" class="caret" />
-            </NuxtLink>
-            
-            <NuxtLink to="/cart" class="mobile-nav-link" @click="closeMenu">
-              <div class="link-label">
-                <Icon name="ph:shopping-cart-bold" size="24" />
-                <span>Корзина</span>
-              </div>
-              <span v-if="cartCount > 0" class="cart-badge-inline">{{ cartCount }}</span>
-            </NuxtLink>
-
-            <div v-if="isAdmin" class="admin-divider">Администрирование</div>
-            <NuxtLink v-if="isAdmin" to="/admin" class="mobile-nav-link admin-link" @click="closeMenu">
-              <div class="link-label">
-                <Icon name="ph:gauge-bold" size="24" />
-                <span>Панель управления</span>
-              </div>
-              <Icon name="ph:caret-right-bold" size="16" class="caret" />
-            </NuxtLink>
-          </div>
-          
-          <div class="mobile-nav-footer">
-            <template v-if="isAuthenticated">
-              <NuxtLink to="/profile" class="mobile-auth-btn profile-btn" @click="closeMenu">
-                <Icon name="ph:user-circle-bold" size="24" />
-                <span>Личный кабинет</span>
-              </NuxtLink>
-              <button @click="handleLogout" class="mobile-auth-btn logout-btn">
-                <Icon name="ph:sign-out-bold" size="24" />
-                <span>Выйти из аккаунта</span>
-              </button>
-            </template>
-            <template v-else>
-              <div class="auth-grid">
-                <UButton to="/auth/login" variant="secondary" size="lg" class="w-full">Войти</UButton>
-                <UButton to="/auth/register" variant="primary" size="lg" class="w-full">Регистрация</UButton>
-              </div>
-            </template>
-          </div>
-        </div>
-      </nav>
-    </Transition>
-
     <!-- Search modal -->
     <USearchModal v-if="isSearchOpen" @close="isSearchOpen = false" />
+
+    <!-- Mobile menu teleported to body -->
+    <Teleport to="body">
+      <!-- Overlay -->
+      <Transition name="fade">
+        <div v-if="isMenuOpen" class="mobile-nav-overlay" @click="closeMenu"></div>
+      </Transition>
+
+      <!-- Drawer -->
+      <Transition name="mobile-menu">
+        <nav
+          v-if="isMenuOpen"
+          id="mobile-menu"
+          class="mobile-nav"
+          aria-label="Мобильная навигация"
+        >
+          <div class="mobile-nav-content">
+            <div class="mobile-nav-header">
+               <span class="mobile-nav-title">Навигация</span>
+               <UThemeToggle />
+            </div>
+            
+            <div class="mobile-nav-links">
+              <NuxtLink
+                v-for="link in navLinks"
+                :key="link.to"
+                :to="link.to"
+                class="mobile-nav-link"
+                @click="closeMenu"
+              >
+                <div class="link-label">
+                  <Icon :name="link.icon" size="24" />
+                  <span>{{ link.label }}</span>
+                </div>
+                <Icon name="ph:caret-right-bold" size="16" class="caret" />
+              </NuxtLink>
+              
+              <NuxtLink to="/cart" class="mobile-nav-link" @click="closeMenu">
+                <div class="link-label">
+                  <Icon name="ph:shopping-cart-bold" size="24" />
+                  <span>Корзина</span>
+                </div>
+                <span v-if="cartCount > 0" class="cart-badge-inline">{{ cartCount }}</span>
+              </NuxtLink>
+
+              <div v-if="isAdmin" class="admin-divider">Администрирование</div>
+              <NuxtLink v-if="isAdmin" to="/admin" class="mobile-nav-link admin-link" @click="closeMenu">
+                <div class="link-label">
+                  <Icon name="ph:gauge-bold" size="24" />
+                  <span>Панель управления</span>
+                </div>
+                <Icon name="ph:caret-right-bold" size="16" class="caret" />
+              </NuxtLink>
+            </div>
+            
+            <div class="mobile-nav-footer">
+              <template v-if="isAuthenticated">
+                <NuxtLink to="/profile" class="mobile-auth-btn profile-btn" @click="closeMenu">
+                  <Icon name="ph:user-circle-bold" size="24" />
+                  <span>Личный кабинет</span>
+                </NuxtLink>
+                <button @click="handleLogout" class="mobile-auth-btn logout-btn">
+                  <Icon name="ph:sign-out-bold" size="24" />
+                  <span>Выйти из аккаунта</span>
+                </button>
+              </template>
+              <template v-else>
+                <div class="auth-grid">
+                  <UButton to="/auth/login" variant="secondary" size="lg" class="w-full">Войти</UButton>
+                  <UButton to="/auth/register" variant="primary" size="lg" class="w-full">Регистрация</UButton>
+                </div>
+              </template>
+            </div>
+          </div>
+        </nav>
+      </Transition>
+    </Teleport>
   </header>
 </template>
 
@@ -398,7 +401,7 @@ watch(() => route.fullPath, () => {
   inset: 0;
   background: var(--color-overlay);
   backdrop-filter: blur(8px);
-  z-index: calc(var(--z-overlay) - 1);
+  z-index: 9998;
 }
 
 .mobile-nav {
@@ -409,7 +412,7 @@ watch(() => route.fullPath, () => {
   max-width: 320px;
   height: 100vh;
   background-color: var(--color-bg);
-  z-index: var(--z-overlay);
+  z-index: 9999;
   box-shadow: -10px 0 30px rgba(0,0,0,0.3);
   border-left: 1px solid var(--color-border);
 }

@@ -13,7 +13,7 @@ export default defineNuxtConfig({
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1',
       siteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'https://wifiobd.ru',
-      telegramBotName: process.env.TELEGRAM_BOT_NAME || 'WifiOBD_Bot',
+      telegramBotName: process.env.NUXT_PUBLIC_TELEGRAM_BOT_NAME || process.env.TELEGRAM_BOT_NAME || 'WifiOBD_Bot',
     },
   },
 

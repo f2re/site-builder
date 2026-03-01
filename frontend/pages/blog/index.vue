@@ -136,7 +136,7 @@ if (category.value) breadcrumbs.push({ label: `Категория: ${category.va
       </div>
 
       <div v-else class="blog-empty">
-        <Icon name="ph:article-slash" size="48" />
+        <Icon name="ph:newspaper-bold" size="48" />
         <p>Статей пока нет</p>
         <UButton v-if="tag || category" to="/blog" variant="ghost" class="mt-4">
           Вернуться ко всем статьям
