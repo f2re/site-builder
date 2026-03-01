@@ -17,6 +17,7 @@ class Category(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    oc_category_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     parent_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("categories.id", ondelete="CASCADE"), nullable=True
     )
@@ -45,6 +46,7 @@ class Product(Base):
     attributes: Mapped[dict] = mapped_column(JSONB, server_default="{}", default=dict)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_featured: Mapped[bool] = mapped_column(Boolean, default=False)
+    oc_product_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

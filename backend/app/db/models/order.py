@@ -38,6 +38,7 @@ class Order(Base):
     # Payment
     payment_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     payment_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    oc_order_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)

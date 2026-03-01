@@ -19,6 +19,7 @@ celery_app.conf.update(
         "app.tasks.currency",
         "app.tasks.inventory",
         "app.tasks.search",
+        "app.tasks.migration_tasks",
     ]
 )
 

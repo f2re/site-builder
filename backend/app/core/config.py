@@ -55,6 +55,15 @@ class Settings(BaseSettings):
     CDEK_CLIENT_ID: str = ""
     CDEK_CLIENT_SECRET: str = ""
 
+    # ── OpenCart Migration ───────────────────────────────────────────────────
+    OC_DB_HOST: str = "localhost"
+    OC_DB_PORT: int = 3306
+    OC_DB_NAME: str = ""
+    OC_DB_USER: str = ""
+    OC_DB_PASSWORD: str = ""
+    OC_SITE_URL: str = ""
+    OC_LANGUAGE_ID: int = 1
+
     # ── Media (Local Storage) ───────────────────────────────────────────────
     MEDIA_ROOT: str = "./media"  # Path inside Docker container
     MEDIA_URL: str = "/media"        # Public URL prefix

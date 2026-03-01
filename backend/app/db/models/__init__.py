@@ -10,3 +10,4 @@ from app.db.models.redirect import Redirect  # noqa: F401
 from app.db.models.notification import NotificationLog, UserNotificationSettings  # noqa: F401
 from app.db.models.page import StaticPage  # noqa: F401
 from app.db.models.cart import Cart, CartItem  # noqa: F401
+from app.db.models.migration import MigrationJob  # noqa: F401

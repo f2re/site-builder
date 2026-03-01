@@ -28,6 +28,11 @@ from app.api.v1.iot.repository import IoTRepository
 from app.api.v1.cart.service import CartService
 from .pages_router import router as pages_admin_router
 
+# Migration
+from .migration_service import MigrationService
+from .migration_repository import MigrationRepository
+from .schemas import MigrationJobResponse, MigrationStartRequest, MigrationStatusResponse
+
 router = APIRouter(prefix="/admin", tags=["Admin Panel"])
 
 # ─── Shared guard ────────────────────────────────────────────────────────────
@@ -50,6 +55,15 @@ async def get_admin_order_service(
 ) -> OrderService:
     # CartService not strictly needed for admin status updates, but required by OrderService constructor
     return OrderService(order_repo, CartService(None, session), product_repo, session)
+
+def get_migration_repo(session: AsyncSession = Depends(get_db)) -> MigrationRepository:
+    return MigrationRepository(session)
+
+def get_migration_service(
+    repo: MigrationRepository = Depends(get_migration_repo),
+    session: AsyncSession = Depends(get_db)
+) -> MigrationService:
+    return MigrationService(repo, session)
 
 # ─── Schemas ─────────────────────────────────────────────────────────────────
 class SalesAnalytics(BaseModel):
@@ -258,6 +272,45 @@ async def list_all_devices(
             "is_active": d.is_active
         } for d in devices
     ]}
+
+# ─── Migration ───────────────────────────────────────────────────────────────
+@router.post("/migration/start", response_model=MigrationJobResponse)
+async def start_migration(
+    payload: MigrationStartRequest,
+    _admin: User = AdminDep,
+    service: MigrationService = Depends(get_migration_service)
+) -> Any:
+    return await service.start_migration(payload.entity)
+
+@router.get("/migration/status", response_model=MigrationStatusResponse)
+async def get_migration_status(
+    _admin: User = AdminDep,
+    service: MigrationService = Depends(get_migration_service)
+) -> Any:
+    jobs = await service.get_all_jobs()
+    return MigrationStatusResponse(jobs=jobs)
+
+@router.post("/migration/{job_id}/pause", response_model=MigrationJobResponse)
+async def pause_migration(
+    job_id: UUID,
+    _admin: User = AdminDep,
+    service: MigrationService = Depends(get_migration_service)
+) -> Any:
+    job = await service.pause_migration(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Migration job not found")
+    return job
+
+@router.post("/migration/{job_id}/resume", response_model=MigrationJobResponse)
+async def resume_migration(
+    job_id: UUID,
+    _admin: User = AdminDep,
+    service: MigrationService = Depends(get_migration_service)
+) -> Any:
+    job = await service.resume_migration(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Migration job not found")
+    return job
 
 # ─── Pages ───────────────────────────────────────────────────────────────────
 router.include_router(pages_admin_router)
