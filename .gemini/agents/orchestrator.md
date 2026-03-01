@@ -113,6 +113,21 @@ When multiple agents work in same phase, use this sequence:
 **Rule**: Never call `testing-agent` before `backend-agent` reports DONE for the same phase.
 **Rule**: Never call `security-agent` before `testing-agent` reports DONE.
 **Rule**: `frontend-agent` can start Phase 7 in parallel with Phase 5/6 IF Phase 3 is DONE.
+## Gatekeeper Protocol (MANDATORY)
+
+Before proposing a commit to the user, ORCHESTRATOR **MUST** execute the following verification steps:
+
+1.  **Dependency & Version Check**: 
+    - Ensure all new imports in `backend` are present in `requirements.txt`.
+    - Verify that versions in `requirements.txt` are NOT arbitrary (must be stable and compatible with Python 3.12).
+    - If `pip install` was used during work, ensure the exact version is pinned in `requirements.txt`.
+2.  **Migration Check**: 
+...
+    - Run `cd backend && alembic heads` to ensure there is exactly ONE head.
+    - Run `cd backend && alembic check` to ensure models match migrations.
+    - Inspect new migration files for `DuplicateObjectError` protection (e.g., `IF NOT EXISTS` for ENUMs).
+3.  **Automated Validation**: Call `testing-agent` with a "Final Verification" task covering linting, types, and affected tests.
+4.  **Frontend Sync**: Ensure `frontend/stores/` match any changes in `backend/app/api/v1/schemas.py`.
 
 ---
 

@@ -194,6 +194,25 @@ class IoTDeviceTaskSet(TaskSet):
 
 ---
 
+## System Integrity Check (Gatekeeper Task)
+
+When the orchestrator requests a "Final Verification", you MUST:
+1.  **Check Alembic**: 
+    - `cd backend && alembic heads` (verify single head).
+    - `cd backend && alembic check` (verify model synchronization).
+2.  **Check Dependencies**:
+    - Verify `requirements.txt` includes all used packages (e.g., `aiomysql`, `pymysql`).
+    - Run `pip install -r backend/requirements.txt --quiet`.
+3.  **Run Linting**:
+    - `backend`: `ruff check app/` and `mypy app/`.
+    - `frontend`: `npm run lint`.
+4.  **Run Tests**:
+    - Execute `pytest` for all relevant modules.
+
+If any check fails, your report MUST start with `## Status: BLOCKED` and detail the failure.
+
+---
+
 ## Workflow
 
 1. Read task from `.gemini/agents/tasks/<task_id>.json`
