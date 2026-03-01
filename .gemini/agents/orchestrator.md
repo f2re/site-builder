@@ -165,12 +165,19 @@ When user sends `/agents:plan <task description>`, orchestrator MUST:
 
 ## Linting & Type Checking Rules
 
-Before marking a phase or task as DONE, agents (especially `backend-agent` and `frontend-agent`) MUST verify their code passes the project's CI/CD linting steps:
+Before marking a phase or task as DONE, or proposing a commit, agents **MUST** verify their code passes the project's CI/CD linting steps locally using the following commands:
 
-- **Backend**: `cd backend && ruff check app/ --fix && ruff check app/ && mypy app/ --ignore-missing-imports`
-- **Frontend**: `cd frontend && npm install --quiet && npm run lint`
+- **Backend (Python)**:
+  1. `cd backend`
+  2. `ruff check app/ --fix` (auto-fix formatting)
+  3. `ruff check app/` (final check)
+  4. `mypy app/ --ignore-missing-imports` (type check)
+- **Frontend (Nuxt 3)**:
+  1. `cd frontend`
+  2. `npm install --quiet`
+  3. `npm run lint` (which runs `vue-tsc --noEmit`)
 
-Orchestrator must ensure that agent reports mention successful linting/type checking in the `Contracts Verified` or `Completed` sections.
+**CRITICAL:** Agents must not assume linting passes. They must execute these tools and observe the output. Orchestrator must verify that agent reports explicitly state: "Local linting/type checking passed: ✅".
 
 ---
 

@@ -45,7 +45,7 @@ class BlogPostBase(BaseModel):
     title: str
     slug: Optional[str] = None
     summary: Optional[str] = None
-    content_json: Any = Field(default_factory=dict, description="TipTap JSON content")
+    content_json: Any = Field(default_factory=lambda: {}, description="TipTap JSON content")
     status: BlogStatus = BlogStatus.draft
     is_featured: bool = False
     category_id: Optional[UUID] = None

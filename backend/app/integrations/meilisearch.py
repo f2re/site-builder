@@ -1,7 +1,7 @@
 # Module: integrations/meilisearch.py | Agent: backend-agent | Task: BE-01
 from meilisearch_python_sdk import AsyncClient
 from app.core.config import settings
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 
 class MeilisearchProvider:
@@ -25,7 +25,7 @@ class MeilisearchProvider:
             query,
             limit=limit,
             offset=offset,
-            filter=filter,
+            filter=cast(Any, filter),
             sort=sort,
         )
         # SearchResults is a pydantic model in meilisearch-python-sdk

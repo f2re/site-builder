@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 from typing import Dict, Any
 from app.tasks.celery_app import celery_app
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
@@ -15,7 +16,7 @@ mail_conf = ConnectionConfig(
     MAIL_STARTTLS=True,
     MAIL_SSL_TLS=False,
     USE_CREDENTIALS=True,
-    TEMPLATE_FOLDER='app/templates/email'
+    TEMPLATE_FOLDER=Path('app/templates/email')
 )
 
 @celery_app.task(name="tasks.send_email")
