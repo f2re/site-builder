@@ -2,7 +2,7 @@
 import enum
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, DateTime, JSON, Enum as SAEnum
+from sqlalchemy import Integer, DateTime, JSON, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 

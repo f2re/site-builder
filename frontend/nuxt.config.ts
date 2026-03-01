@@ -6,7 +6,7 @@ export default defineNuxtConfig({
   modules: [
     '@pinia/nuxt',
     '@nuxt/image',
-    'nuxt-icon'
+    '@nuxt/icon'
   ],
 
   runtimeConfig: {
@@ -66,4 +66,9 @@ export default defineNuxtConfig({
   nitro: {
     compressPublicAssets: true,
   },
+
+  icon: {
+    // Enable local bundling for common icon sets
+    collections: ['ph', 'logos', 'simple-icons']
+  }
 })

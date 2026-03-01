@@ -288,7 +288,7 @@ async def get_migration_status(
     service: MigrationService = Depends(get_migration_service)
 ) -> Any:
     jobs = await service.get_all_jobs()
-    return MigrationStatusResponse(jobs=jobs)
+    return MigrationStatusResponse(jobs=[MigrationJobResponse.model_validate(j) for j in jobs])
 
 @router.post("/migration/{job_id}/pause", response_model=MigrationJobResponse)
 async def pause_migration(

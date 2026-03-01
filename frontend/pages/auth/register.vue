@@ -119,7 +119,7 @@ onUnmounted(() => {
             <span>Google</span>
           </button>
           <button @click="loginWithProvider('yandex')" class="oauth-btn oauth-btn--yandex" aria-label="Зарегистрироваться через Яндекс">
-            <Icon name="simple-icons:yandex" size="20" />
+            <Icon name="logos:yandex" size="20" />
             <span>Яндекс</span>
           </button>
         </div>
@@ -195,7 +195,7 @@ onUnmounted(() => {
         <div class="telegram-section">
           <div id="telegram-login-container" class="tg-wrapper">
             <div class="tg-placeholder">
-               <Icon name="ph:telegram-logo-duotone" size="24" class="tg-icon" />
+               <Icon name="logos:telegram" size="24" class="tg-icon" />
                <span>Регистрация через Telegram...</span>
             </div>
           </div>

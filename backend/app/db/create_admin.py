@@ -19,8 +19,7 @@ import os
 import sys
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
 from app.core.config import settings
 from app.core.security import get_password_hash, encrypt_data, get_blind_index
@@ -29,7 +28,7 @@ from app.db.models.user import User
 
 async def create_admin(email: str, password: str, full_name: str = "Administrator") -> None:
     engine = create_async_engine(settings.DATABASE_URL, echo=False)
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async_session = async_sessionmaker(engine, expire_on_commit=False)
 
     async with async_session() as session:
         # Проверяем, что пользователь с таким email ещё не существует

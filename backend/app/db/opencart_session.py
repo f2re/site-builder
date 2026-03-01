@@ -1,6 +1,5 @@
-# Module: db/opencart_session.py | Agent: backend-agent | Task: opencart_migration
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+# Module: db/opencart_session.py | Agent: orchestrator | Task: opencart_migration
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from app.core.config import settings
 
 # MySQL (OpenCart) async engine
@@ -16,9 +15,8 @@ oc_engine = create_async_engine(
     echo=settings.DEBUG
 )
 
-OCAsyncSessionLocal = sessionmaker(
+OCAsyncSessionLocal = async_sessionmaker(
     oc_engine, 
-    class_=AsyncSession, 
     expire_on_commit=False
 )
 

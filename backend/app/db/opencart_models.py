@@ -2,27 +2,30 @@
 OpenCart database models (read-only access)
 These models map to the existing OpenCart database tables
 """
-from sqlalchemy import Column, Integer, String, Text, Numeric, Boolean, DateTime, SmallInteger
-from sqlalchemy.ext.declarative import declarative_base
+from datetime import datetime
+from typing import Optional
+from sqlalchemy import String, Integer, DateTime, Text, Numeric, Boolean
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-OCBase = declarative_base()
+class OCBase(DeclarativeBase):
+    pass
 
 
 class OCCategory(OCBase):
     """OpenCart category table"""
     __tablename__ = "oc_category"
 
-    category_id = Column(Integer, primary_key=True)
-    image = Column(String(255), nullable=True)
-    parent_id = Column(Integer, default=0)
-    top = Column(Boolean, default=False)
-    column = Column(Integer, default=1)
-    sort_order = Column(Integer, default=0)
-    status = Column(Boolean, default=True)
-    date_added = Column(DateTime, nullable=True)
-    date_modified = Column(DateTime, nullable=True)
+    category_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    image: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    parent_id: Mapped[int] = mapped_column(Integer, default=0)
+    top: Mapped[bool] = mapped_column(Boolean, default=False)
+    column: Mapped[int] = mapped_column(Integer, default=1)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[bool] = mapped_column(Boolean, default=True)
+    date_added: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    date_modified: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<OCCategory {self.category_id}>"
 
 
@@ -30,15 +33,15 @@ class OCCategoryDescription(OCBase):
     """OpenCart category descriptions (multi-language)"""
     __tablename__ = "oc_category_description"
 
-    category_id = Column(Integer, primary_key=True)
-    language_id = Column(Integer, primary_key=True)
-    name = Column(String(255), nullable=False)
-    description = Column(Text, nullable=True)
-    meta_title = Column(String(255), nullable=True)
-    meta_description = Column(String(255), nullable=True)
-    meta_keyword = Column(String(255), nullable=True)
+    category_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    language_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    meta_title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    meta_description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    meta_keyword: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<OCCategoryDescription cat={self.category_id} lang={self.language_id}>"
 
 
@@ -46,10 +49,10 @@ class OCCategoryToStore(OCBase):
     """OpenCart category to store mapping"""
     __tablename__ = "oc_category_to_store"
 
-    category_id = Column(Integer, primary_key=True)
-    store_id = Column(Integer, primary_key=True)
+    category_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<OCCategoryToStore cat={self.category_id} store={self.store_id}>"
 
 
@@ -57,39 +60,39 @@ class OCProduct(OCBase):
     """OpenCart product table"""
     __tablename__ = "oc_product"
 
-    product_id = Column(Integer, primary_key=True)
-    model = Column(String(64), nullable=False)
-    sku = Column(String(64), nullable=True)
-    upc = Column(String(12), nullable=True)
-    ean = Column(String(14), nullable=True)
-    jan = Column(String(13), nullable=True)
-    isbn = Column(String(17), nullable=True)
-    mpn = Column(String(64), nullable=True)
-    location = Column(String(128), nullable=True)
-    quantity = Column(Integer, default=0)
-    stock_status_id = Column(Integer, nullable=True)
-    image = Column(String(255), nullable=True)
-    manufacturer_id = Column(Integer, nullable=True)
-    shipping = Column(Boolean, default=True)
-    price = Column(Numeric(15, 4), nullable=False)
-    points = Column(Integer, default=0)
-    tax_class_id = Column(Integer, nullable=True)
-    date_available = Column(DateTime, nullable=True)
-    weight = Column(Numeric(15, 8), default=0)
-    weight_class_id = Column(Integer, default=0)
-    length = Column(Numeric(15, 8), default=0)
-    width = Column(Numeric(15, 8), default=0)
-    height = Column(Numeric(15, 8), default=0)
-    length_class_id = Column(Integer, default=0)
-    subtract = Column(Boolean, default=True)
-    minimum = Column(Integer, default=1)
-    sort_order = Column(Integer, default=0)
-    status = Column(Boolean, default=False)
-    viewed = Column(Integer, default=0)
-    date_added = Column(DateTime, nullable=True)
-    date_modified = Column(DateTime, nullable=True)
+    product_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    model: Mapped[str] = mapped_column(String(64), nullable=False)
+    sku: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    upc: Mapped[Optional[str]] = mapped_column(String(12), nullable=True)
+    ean: Mapped[Optional[str]] = mapped_column(String(14), nullable=True)
+    jan: Mapped[Optional[str]] = mapped_column(String(13), nullable=True)
+    isbn: Mapped[Optional[str]] = mapped_column(String(17), nullable=True)
+    mpn: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    location: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    quantity: Mapped[int] = mapped_column(Integer, default=0)
+    stock_status_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    image: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    manufacturer_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    shipping: Mapped[bool] = mapped_column(Boolean, default=True)
+    price: Mapped[float] = mapped_column(Numeric(15, 4), nullable=False)
+    points: Mapped[int] = mapped_column(Integer, default=0)
+    tax_class_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    date_available: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    weight: Mapped[float] = mapped_column(Numeric(15, 8), default=0)
+    weight_class_id: Mapped[int] = mapped_column(Integer, default=0)
+    length: Mapped[float] = mapped_column(Numeric(15, 8), default=0)
+    width: Mapped[float] = mapped_column(Numeric(15, 8), default=0)
+    height: Mapped[float] = mapped_column(Numeric(15, 8), default=0)
+    length_class_id: Mapped[int] = mapped_column(Integer, default=0)
+    subtract: Mapped[bool] = mapped_column(Boolean, default=True)
+    minimum: Mapped[int] = mapped_column(Integer, default=1)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[bool] = mapped_column(Boolean, default=False)
+    viewed: Mapped[int] = mapped_column(Integer, default=0)
+    date_added: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    date_modified: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<OCProduct {self.product_id} ({self.model})>"
 
 
@@ -97,16 +100,16 @@ class OCProductDescription(OCBase):
     """OpenCart product descriptions (multi-language)"""
     __tablename__ = "oc_product_description"
 
-    product_id = Column(Integer, primary_key=True)
-    language_id = Column(Integer, primary_key=True)
-    name = Column(String(255), nullable=False)
-    description = Column(Text, nullable=True)
-    tag = Column(Text, nullable=True)
-    meta_title = Column(String(255), nullable=True)
-    meta_description = Column(String(255), nullable=True)
-    meta_keyword = Column(String(255), nullable=True)
+    product_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    language_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    tag: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    meta_title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    meta_description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    meta_keyword: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<OCProductDescription prod={self.product_id} lang={self.language_id}>"
 
 
@@ -114,10 +117,10 @@ class OCProductToCategory(OCBase):
     """OpenCart product to category mapping"""
     __tablename__ = "oc_product_to_category"
 
-    product_id = Column(Integer, primary_key=True)
-    category_id = Column(Integer, primary_key=True)
+    product_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    category_id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<OCProductToCategory prod={self.product_id} cat={self.category_id}>"
 
 
@@ -125,10 +128,10 @@ class OCProductToStore(OCBase):
     """OpenCart product to store mapping"""
     __tablename__ = "oc_product_to_store"
 
-    product_id = Column(Integer, primary_key=True)
-    store_id = Column(Integer, primary_key=True)
+    product_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<OCProductToStore prod={self.product_id} store={self.store_id}>"
 
 
@@ -136,30 +139,30 @@ class OCCustomer(OCBase):
     """OpenCart customer table"""
     __tablename__ = "oc_customer"
 
-    customer_id = Column(Integer, primary_key=True)
-    customer_group_id = Column(Integer, nullable=False)
-    store_id = Column(Integer, default=0)
-    language_id = Column(Integer, nullable=False)
-    firstname = Column(String(32), nullable=False)
-    lastname = Column(String(32), nullable=False)
-    email = Column(String(96), nullable=False)
-    telephone = Column(String(32), nullable=False)
-    fax = Column(String(32), nullable=True)
-    password = Column(String(255), nullable=False)
-    salt = Column(String(9), nullable=True)
-    cart = Column(Text, nullable=True)
-    wishlist = Column(Text, nullable=True)
-    newsletter = Column(Boolean, default=False)
-    address_id = Column(Integer, default=0)
-    custom_field = Column(Text, nullable=True)
-    ip = Column(String(40), nullable=True)
-    status = Column(Boolean, default=True)
-    safe = Column(Boolean, default=False)
-    token = Column(Text, nullable=True)
-    code = Column(String(40), nullable=True)
-    date_added = Column(DateTime, nullable=False)
+    customer_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    customer_group_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    store_id: Mapped[int] = mapped_column(Integer, default=0)
+    language_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    firstname: Mapped[str] = mapped_column(String(32), nullable=False)
+    lastname: Mapped[str] = mapped_column(String(32), nullable=False)
+    email: Mapped[str] = mapped_column(String(96), nullable=False)
+    telephone: Mapped[str] = mapped_column(String(32), nullable=False)
+    fax: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    password: Mapped[str] = mapped_column(String(255), nullable=False)
+    salt: Mapped[Optional[str]] = mapped_column(String(9), nullable=True)
+    cart: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    wishlist: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    newsletter: Mapped[bool] = mapped_column(Boolean, default=False)
+    address_id: Mapped[int] = mapped_column(Integer, default=0)
+    custom_field: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ip: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    status: Mapped[bool] = mapped_column(Boolean, default=True)
+    safe: Mapped[bool] = mapped_column(Boolean, default=False)
+    token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    code: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    date_added: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<OCCustomer {self.customer_id} ({self.email})>"
 
 
@@ -167,69 +170,69 @@ class OCOrder(OCBase):
     """OpenCart order table"""
     __tablename__ = "oc_order"
 
-    order_id = Column(Integer, primary_key=True)
-    invoice_no = Column(Integer, default=0)
-    invoice_prefix = Column(String(26), nullable=True)
-    store_id = Column(Integer, default=0)
-    store_name = Column(String(64), nullable=True)
-    store_url = Column(String(255), nullable=True)
-    customer_id = Column(Integer, default=0)
-    customer_group_id = Column(Integer, default=0)
-    firstname = Column(String(32), nullable=False)
-    lastname = Column(String(32), nullable=False)
-    email = Column(String(96), nullable=False)
-    telephone = Column(String(32), nullable=False)
-    fax = Column(String(32), nullable=True)
-    custom_field = Column(Text, nullable=True)
-    payment_firstname = Column(String(32), nullable=True)
-    payment_lastname = Column(String(32), nullable=True)
-    payment_company = Column(String(60), nullable=True)
-    payment_address_1 = Column(String(128), nullable=True)
-    payment_address_2 = Column(String(128), nullable=True)
-    payment_city = Column(String(128), nullable=True)
-    payment_postcode = Column(String(10), nullable=True)
-    payment_country = Column(String(128), nullable=True)
-    payment_country_id = Column(Integer, nullable=True)
-    payment_zone = Column(String(128), nullable=True)
-    payment_zone_id = Column(Integer, nullable=True)
-    payment_address_format = Column(Text, nullable=True)
-    payment_custom_field = Column(Text, nullable=True)
-    payment_method = Column(String(128), nullable=True)
-    payment_code = Column(String(128), nullable=True)
-    shipping_firstname = Column(String(32), nullable=True)
-    shipping_lastname = Column(String(32), nullable=True)
-    shipping_company = Column(String(40), nullable=True)
-    shipping_address_1 = Column(String(128), nullable=True)
-    shipping_address_2 = Column(String(128), nullable=True)
-    shipping_city = Column(String(128), nullable=True)
-    shipping_postcode = Column(String(10), nullable=True)
-    shipping_country = Column(String(128), nullable=True)
-    shipping_country_id = Column(Integer, nullable=True)
-    shipping_zone = Column(String(128), nullable=True)
-    shipping_zone_id = Column(Integer, nullable=True)
-    shipping_address_format = Column(Text, nullable=True)
-    shipping_custom_field = Column(Text, nullable=True)
-    shipping_method = Column(String(128), nullable=True)
-    shipping_code = Column(String(128), nullable=True)
-    comment = Column(Text, nullable=True)
-    total = Column(Numeric(15, 4), default=0)
-    order_status_id = Column(Integer, default=0)
-    affiliate_id = Column(Integer, nullable=True)
-    commission = Column(Numeric(15, 4), nullable=True)
-    marketing_id = Column(Integer, nullable=True)
-    tracking = Column(String(64), nullable=True)
-    language_id = Column(Integer, nullable=False)
-    currency_id = Column(Integer, nullable=False)
-    currency_code = Column(String(3), nullable=False)
-    currency_value = Column(Numeric(15, 8), default=1)
-    ip = Column(String(40), nullable=True)
-    forwarded_ip = Column(String(40), nullable=True)
-    user_agent = Column(String(255), nullable=True)
-    accept_language = Column(String(255), nullable=True)
-    date_added = Column(DateTime, nullable=False)
-    date_modified = Column(DateTime, nullable=False)
+    order_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    invoice_no: Mapped[int] = mapped_column(Integer, default=0)
+    invoice_prefix: Mapped[Optional[str]] = mapped_column(String(26), nullable=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=0)
+    store_name: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    store_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    customer_id: Mapped[int] = mapped_column(Integer, default=0)
+    customer_group_id: Mapped[int] = mapped_column(Integer, default=0)
+    firstname: Mapped[str] = mapped_column(String(32), nullable=False)
+    lastname: Mapped[str] = mapped_column(String(32), nullable=False)
+    email: Mapped[str] = mapped_column(String(96), nullable=False)
+    telephone: Mapped[str] = mapped_column(String(32), nullable=False)
+    fax: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    custom_field: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    payment_firstname: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    payment_lastname: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    payment_company: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
+    payment_address_1: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    payment_address_2: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    payment_city: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    payment_postcode: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    payment_country: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    payment_country_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    payment_zone: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    payment_zone_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    payment_address_format: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    payment_custom_field: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    payment_method: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    payment_code: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    shipping_firstname: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    shipping_lastname: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    shipping_company: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    shipping_address_1: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    shipping_address_2: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    shipping_city: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    shipping_postcode: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    shipping_country: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    shipping_country_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    shipping_zone: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    shipping_zone_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    shipping_address_format: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    shipping_custom_field: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    shipping_method: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    shipping_code: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    total: Mapped[float] = mapped_column(Numeric(15, 4), default=0)
+    order_status_id: Mapped[int] = mapped_column(Integer, default=0)
+    affiliate_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    commission: Mapped[Optional[float]] = mapped_column(Numeric(15, 4), nullable=True)
+    marketing_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    tracking: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    language_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency_code: Mapped[str] = mapped_column(String(3), nullable=False)
+    currency_value: Mapped[float] = mapped_column(Numeric(15, 8), default=1)
+    ip: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    forwarded_ip: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    accept_language: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    date_added: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    date_modified: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<OCOrder {self.order_id}>"
 
 
@@ -237,16 +240,16 @@ class OCOrderProduct(OCBase):
     """OpenCart order products"""
     __tablename__ = "oc_order_product"
 
-    order_product_id = Column(Integer, primary_key=True)
-    order_id = Column(Integer, nullable=False)
-    product_id = Column(Integer, nullable=False)
-    name = Column(String(255), nullable=False)
-    model = Column(String(64), nullable=False)
-    quantity = Column(Integer, nullable=False)
-    price = Column(Numeric(15, 4), default=0)
-    total = Column(Numeric(15, 4), default=0)
-    tax = Column(Numeric(15, 4), default=0)
-    reward = Column(Integer, nullable=True)
+    order_product_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    order_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    product_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    model: Mapped[str] = mapped_column(String(64), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    price: Mapped[float] = mapped_column(Numeric(15, 4), default=0)
+    total: Mapped[float] = mapped_column(Numeric(15, 4), default=0)
+    tax: Mapped[float] = mapped_column(Numeric(15, 4), default=0)
+    reward: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<OCOrderProduct order={self.order_id} product={self.product_id}>"

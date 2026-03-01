@@ -82,7 +82,7 @@ class MigrationService:
                 
                 if count_stmt is not None:
                     count_res = await oc_session.execute(count_stmt)
-                    job.total = count_res.scalar()
+                    job.total = int(count_res.scalar() or 0)
                     await self.session.commit()
 
         try:
@@ -126,8 +126,8 @@ class MigrationService:
             for oc_cust in customers:
                 # Idempotency check: use get_blind_index(email)
                 email_hash = get_blind_index(oc_cust.email)
-                stmt = select(User).where(User.email_hash == email_hash)
-                existing = await self.session.execute(stmt)
+                check_stmt = select(User).where(User.email_hash == email_hash)
+                existing = await self.session.execute(check_stmt)
                 if existing.scalar_one_or_none():
                     skipped += 1
                 else:
@@ -188,8 +188,8 @@ class MigrationService:
             async with httpx.AsyncClient() as client:
                 for oc_prod in products:
                     # Idempotency check: use oc_product_id
-                    stmt = select(Product).where(Product.oc_product_id == oc_prod.product_id)
-                    existing = await self.session.execute(stmt)
+                    prod_check_stmt = select(Product).where(Product.oc_product_id == oc_prod.product_id)
+                    existing = await self.session.execute(prod_check_stmt)
                     if existing.scalar_one_or_none():
                         skipped += 1
                     else:
@@ -295,8 +295,8 @@ class MigrationService:
 
             for oc_order in orders:
                 # Idempotency check: use oc_order_id
-                stmt = select(Order).where(Order.oc_order_id == oc_order.order_id)
-                existing = await self.session.execute(stmt)
+                order_check_stmt = select(Order).where(Order.oc_order_id == oc_order.order_id)
+                existing = await self.session.execute(order_check_stmt)
                 if existing.scalar_one_or_none():
                     skipped += 1
                 else:

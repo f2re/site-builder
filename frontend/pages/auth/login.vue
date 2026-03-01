@@ -71,10 +71,6 @@ onMounted(() => {
   
   const container = document.getElementById('telegram-login-container')
   if (container) {
-    // The placeholder is removed once the widget loads or we can clear it now
-    // Actually, Telegram widget appends an iframe, so clearing might be good
-    // but we can also just leave it and the iframe will appear below/above.
-    // Better to clear it when script loads or just before appending.
     container.appendChild(script)
   }
 })
@@ -164,7 +160,7 @@ onUnmounted(() => {
             <span>Google</span>
           </button>
           <button @click="loginWithProvider('yandex')" class="oauth-btn oauth-btn--yandex" aria-label="Войти через Яндекс">
-            <Icon name="simple-icons:yandex" size="20" />
+            <Icon name="logos:yandex" size="20" />
             <span>Яндекс</span>
           </button>
         </div>
@@ -172,7 +168,7 @@ onUnmounted(() => {
         <div class="telegram-section">
           <div id="telegram-login-container" class="tg-wrapper">
             <div class="tg-placeholder">
-               <Icon name="ph:telegram-logo-duotone" size="24" class="tg-icon" />
+               <Icon name="logos:telegram" size="24" class="tg-icon" />
                <span>Вход через Telegram...</span>
             </div>
           </div>
