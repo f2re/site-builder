@@ -33,3 +33,13 @@ class PageRead(PageBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class RedirectRead(BaseModel):
+    id: int
+    old_path: str
+    new_path: str
+    status_code: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

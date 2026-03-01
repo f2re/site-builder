@@ -126,7 +126,7 @@ class BlogPost(Base):
     
     # Metrics
     views: Mapped[int] = mapped_column(Integer, default=0)
-    reading_time_minutes: Mapped[int] = mapped_column(Integer, default=0)
+    reading_time: Mapped[int] = mapped_column(Integer, default=0)
 
     # Relationships
     category: Mapped[Optional[BlogCategory]] = relationship("BlogCategory", back_populates="posts")

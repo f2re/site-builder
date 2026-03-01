@@ -162,6 +162,12 @@ const handlePlaceOrder = async () => {
     isPending.value = false
   }
 }
+
+useHead({
+  meta: [
+    { name: 'robots', content: 'noindex' }
+  ]
+})
 </script>
 
 <template>

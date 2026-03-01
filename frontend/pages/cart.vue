@@ -29,6 +29,12 @@ useSeoMeta({
   description: 'Ваш список покупок в магазине WifiOBD. Оформите заказ прямо сейчас.',
   ogTitle: 'Корзина | WifiOBD',
 })
+
+useHead({
+  meta: [
+    { name: 'robots', content: 'noindex' }
+  ]
+})
 </script>
 
 <template>

@@ -11,6 +11,7 @@ from .payments.router import router as payments_router
 from .delivery.router import router as delivery_router
 from .iot.router import router as iot_router
 from .pages.router import router as pages_router
+from .pages.redirect_router import router as redirect_router
 from .firmware.router import router as firmware_router
 from .admin.router import router as admin_router
 
@@ -28,5 +29,6 @@ api_router.include_router(payments_router)
 api_router.include_router(delivery_router)
 api_router.include_router(iot_router)
 api_router.include_router(pages_router)
+api_router.include_router(redirect_router)
 api_router.include_router(firmware_router)
 api_router.include_router(admin_router)

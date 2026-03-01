@@ -202,7 +202,7 @@ class BlogService:
             cover_image=data.cover_image,
             meta_title=data.meta_title,
             meta_description=data.meta_description,
-            reading_time_minutes=reading_time
+            reading_time=reading_time
         )
         
         created_post = await self.repo.create(post)
@@ -238,7 +238,7 @@ class BlogService:
             # Recalculate reading time
             plain_text = tiptap_to_text(update_data["content_json"])
             word_count = len(plain_text.split())
-            update_data["reading_time_minutes"] = max(1, word_count // 200)
+            update_data["reading_time"] = max(1, word_count // 200)
         
         if "title" in update_data and not update_data.get("slug"):
              update_data["slug"] = slugify(update_data["title"])

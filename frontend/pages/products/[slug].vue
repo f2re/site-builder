@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { useProducts } from '~/composables/useProducts'
 import { useCartStore } from '~/stores/cartStore'
-import { useProductSchema } from '~/composables/useSchemaOrg'
+import { useProductSeo } from '~/composables/useSeo'
 import { useToast } from '~/composables/useToast'
 import AppBreadcrumbs from '~/components/AppBreadcrumbs.vue'
 import { ref, computed, watch, watchEffect } from 'vue'
 
 const route = useRoute()
-const config = useRuntimeConfig()
 const { getProduct } = useProducts()
 const cartStore = useCartStore()
 const toast = useToast()
@@ -36,40 +35,17 @@ const addToCart = () => {
   }
 }
 
-// SEO
-useSeoMeta({
-  title: () => product.value ? `${product.value.name} | WifiOBD` : 'Загрузка...',
-  description: () => product.value?.description || 'Подробное описание товара в нашем каталоге.',
-  ogTitle: () => product.value ? `${product.value.name} | WifiOBD` : 'Загрузка...',
-  ogDescription: () => product.value?.description,
-  ogImage: () => product.value?.images?.[0] ? (product.value.images[0].startsWith('http') ? product.value.images[0] : `${config.public.siteUrl}${product.value.images[0]}`) : undefined,
-  twitterCard: 'summary_large_image',
-})
-
-useHead({
-  link: [
-    { rel: 'canonical', href: () => `${config.public.siteUrl}/products/${slug}` }
-  ]
-})
-
-// Schema.org
+// SEO & Schema.org (handled by composable)
 watchEffect(() => {
   if (product.value) {
-    useProductSchema({
-      name: product.value.name,
-      description: product.value.description,
-      images: product.value.images,
-      price_rub: product.value.price_rub,
-      stock: product.value.stock,
-      sku: product.value.slug
-    })
+    useProductSeo(product)
   }
 })
 
-const breadcrumbItems = computed(() => [
-  { name: 'Каталог', path: '/products' },
-  { name: product.value?.category?.name || '...', path: `/products?category=${product.value?.category?.slug}` },
-  { name: product.value?.name || '...', path: `/products/${slug}` }
+const breadcrumbCrumbs = computed(() => [
+  { label: 'Каталог', to: '/products' },
+  { label: product.value?.category?.name || '...', to: `/products?category=${product.value?.category?.slug}` },
+  { label: product.value?.name || '...', to: `/products/${slug}` }
 ])
 
 // Variant mock
@@ -80,7 +56,7 @@ const variants = ['Standard', 'Premium', 'Pro']
 <template>
   <div class="product-page">
     <div class="container">
-      <AppBreadcrumbs :items="breadcrumbItems" />
+      <AppBreadcrumbs :crumbs="breadcrumbCrumbs" />
 
       <div v-if="pending" class="product-page__skeleton-wrapper">
         <div class="skeleton-image skeleton"></div>

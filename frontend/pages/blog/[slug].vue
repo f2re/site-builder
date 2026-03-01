@@ -1,11 +1,15 @@
 <script setup lang="ts">
+import { useBlog } from '~/composables/useBlog'
 import { useArticleSeo } from '~/composables/useSeo'
-import { useArticleSchema } from '~/composables/useSchemaOrg'
+import BlogCard from '~/components/blog/BlogCard.vue'
+import AppBreadcrumbs from '~/components/AppBreadcrumbs.vue'
+import { watchEffect, computed } from 'vue'
 
 const route = useRoute()
 const config = useRuntimeConfig()
+const { getPost, getPosts } = useBlog()
 
-const { data: post, error } = await useFetch(`${config.public.apiBase}/api/v1/blog/posts/${route.params.slug}`)
+const { data: post, error } = await getPost(route.params.slug as string)
 
 if (error.value || !post.value) {
   throw createError({
@@ -14,16 +18,24 @@ if (error.value || !post.value) {
   })
 }
 
-// SEO
-useArticleSeo({
-  title: post.value.title,
-  description: post.value.excerpt,
-  image: post.value.og_image_url,
-  publishedAt: post.value.published_at,
-  updatedAt: post.value.updated_at,
-  author: post.value.author?.display_name || 'WifiOBD',
-  slug: post.value.slug,
-  tags: post.value.tags?.map(t => t.name),
+// SEO & Schema.org
+watchEffect(() => {
+  if (post.value) {
+    useArticleSeo(post)
+  }
+})
+
+// Related articles
+const { data: relatedResponse } = await getPosts({
+  category_slug: post.value.category?.slug,
+  per_page: 4,
+})
+
+const relatedPosts = computed(() => {
+  if (!relatedResponse.value?.items) return []
+  return relatedResponse.value.items
+    .filter(p => p.slug !== post.value?.slug)
+    .slice(0, 3)
 })
 
 // Breadcrumbs
@@ -61,8 +73,8 @@ const breadcrumbs = [
         </div>
 
         <img
-          v-if="post.og_image_url"
-          :src="post.og_image_url"
+          v-if="post.og_image_url || post.cover_url"
+          :src="post.og_image_url || post.cover_url"
           :alt="post.title"
           class="post-cover"
           loading="eager"
@@ -77,11 +89,11 @@ const breadcrumbs = [
           <span class="post-tags-label">Теги:</span>
           <NuxtLink
             v-for="tag in post.tags"
-            :key="tag.id"
-            :to="`/blog?tag=${tag.slug}`"
+            :key="typeof tag === 'string' ? tag : tag.id"
+            :to="`/blog?tag=${typeof tag === 'string' ? tag : tag.slug}`"
             class="post-tag"
           >
-            {{ tag.name }}
+            {{ typeof tag === 'string' ? tag : tag.name }}
           </NuxtLink>
         </div>
 
@@ -90,6 +102,18 @@ const breadcrumbs = [
           Вернуться к блогу
         </NuxtLink>
       </footer>
+
+      <!-- Related Articles -->
+      <section v-if="relatedPosts.length" class="related-posts">
+        <h2 class="related-posts__title">Похожие статьи</h2>
+        <div class="related-posts__grid">
+          <BlogCard
+            v-for="related in relatedPosts"
+            :key="related.id"
+            :post="related"
+          />
+        </div>
+      </section>
     </div>
   </article>
 </template>
@@ -209,6 +233,7 @@ const breadcrumbs = [
 .post-footer {
   border-top: 1px solid var(--color-border);
   padding-top: var(--space-6);
+  margin-bottom: var(--space-12);
 }
 
 .post-tags {
@@ -252,5 +277,30 @@ const breadcrumbs = [
 
 .back-link:hover {
   gap: var(--space-3);
+}
+
+/* Related Posts */
+.related-posts {
+  margin-top: var(--space-12);
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--color-border);
+}
+
+.related-posts__title {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  margin-bottom: var(--space-6);
+}
+
+.related-posts__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-6);
+}
+
+@media (min-width: 640px) {
+  .related-posts__grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 </style>

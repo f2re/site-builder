@@ -98,6 +98,8 @@ class ProductShortRead(BaseModel):
     min_price: Decimal
     is_active: bool
     is_featured: bool
+    created_at: datetime
+    updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
 class PaginatedResponse(BaseModel):

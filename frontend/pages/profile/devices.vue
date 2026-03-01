@@ -8,6 +8,12 @@ definePageMeta({
   middleware: 'auth'
 })
 
+useHead({
+  meta: [
+    { name: 'robots', content: 'noindex' }
+  ]
+})
+
 const { devices, pending, fetchDevices, registerDevice } = useIoT()
 const toast = useToast()
 

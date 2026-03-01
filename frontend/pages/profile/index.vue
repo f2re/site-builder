@@ -10,6 +10,12 @@ definePageMeta({
   middleware: 'auth'
 })
 
+useHead({
+  meta: [
+    { name: 'robots', content: 'noindex' }
+  ]
+})
+
 const { user, pending, fetchProfile, updateProfile } = useUser()
 const toast = useToast()
 

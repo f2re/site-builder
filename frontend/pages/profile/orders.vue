@@ -6,6 +6,12 @@ const { getOrders } = useOrders()
 const { accessToken } = useAuth()
 const router = useRouter()
 
+useHead({
+  meta: [
+    { name: 'robots', content: 'noindex' }
+  ]
+})
+
 // Redirect to login if not authenticated
 onMounted(() => {
   if (!accessToken.value) {

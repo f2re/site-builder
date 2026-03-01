@@ -1,3 +1,6 @@
+import { toValue } from 'vue'
+import type { MaybeRefOrGetter } from 'vue'
+
 /**
  * SEO composable for dynamic meta tag management.
  * Provides helpers for common SEO patterns: pages, articles, products.
@@ -95,64 +98,57 @@ export const useSeo = (options: SeoOptions) => {
 /**
  * SEO for blog articles with automatic Schema.org
  */
-export const useArticleSeo = (article: {
-  title: string
-  description: string
-  image?: string
-  publishedAt: string
-  updatedAt?: string
-  author: string
-  slug: string
-  tags?: string[]
-}) => {
+export const useArticleSeo = (articleInput: MaybeRefOrGetter<any>) => {
+  const article = toValue(articleInput)
+  if (!article) return
+
   const config = useRuntimeConfig()
   const siteUrl = config.public.siteUrl
   const url = `${siteUrl}/blog/${article.slug}`
 
+  const authorName = article.author?.display_name || article.author?.name || article.author || 'WifiOBD'
+  const tags = article.tags?.map((t: any) => typeof t === 'string' ? t : t.name) || []
+  const image = article.og_image_url || article.cover_url || article.image
+
   // Set SEO meta
   useSeo({
     title: `${article.title} — WifiOBD`,
-    description: article.description,
-    image: article.image,
+    description: article.excerpt || article.description || '',
+    image,
     url,
     type: 'article',
     article: {
-      publishedTime: article.publishedAt,
-      modifiedTime: article.updatedAt,
-      author: article.author,
-      tags: article.tags,
+      publishedTime: article.published_at || article.publishedAt,
+      modifiedTime: article.updated_at || article.updatedAt,
+      author: authorName,
+      tags,
     },
   })
 
   // Add Schema.org
   useArticleSchema({
     title: article.title,
-    cover_url: article.image,
-    published_at: article.publishedAt,
-    author: { name: article.author },
+    cover_url: image,
+    published_at: article.published_at || article.publishedAt,
+    author: { name: authorName },
   })
 }
 
 /**
  * SEO for product pages with automatic Schema.org
  */
-export const useProductSeo = (product: {
-  name: string
-  description: string
-  images: string[]
-  price_rub: number
-  stock: number
-  slug: string
-  id: number
-}) => {
+export const useProductSeo = (productInput: MaybeRefOrGetter<any>) => {
+  const product = toValue(productInput)
+  if (!product) return
+
   const config = useRuntimeConfig()
   const siteUrl = config.public.siteUrl
   const url = `${siteUrl}/products/${product.slug}`
 
   useSeo({
     title: `${product.name} — WifiOBD Shop`,
-    description: product.description,
-    image: product.images[0],
+    description: product.description || '',
+    image: product.images?.[0],
     url,
     type: 'product',
     product: {
@@ -163,5 +159,12 @@ export const useProductSeo = (product: {
   })
 
   // Add Schema.org
-  useProductSchema(product)
+  useProductSchema({
+    name: product.name,
+    description: product.description,
+    images: product.images,
+    price_rub: product.price_rub,
+    stock: product.stock,
+    sku: product.slug
+  })
 }

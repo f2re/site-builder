@@ -6,9 +6,11 @@ export default defineEventHandler((event) => {
     'User-agent: *',
     'Allow: /',
     'Disallow: /admin/',
+    'Disallow: /auth/',
     'Disallow: /checkout/',
     'Disallow: /profile/',
     'Disallow: /api/',
+    'Disallow: /cart',
     '',
     `Sitemap: ${siteUrl}/sitemap.xml`
   ].join('\n')

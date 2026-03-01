@@ -76,7 +76,7 @@ class BlogPostRead(BlogPostBase):
     published_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
-    reading_time_minutes: int = 0
+    reading_time: int = 0
     views: int = 0
 
     category: Optional[BlogCategoryRead] = None
@@ -94,7 +94,8 @@ class BlogPostShortRead(BaseModel):
     author: AuthorRead
     tags: List[TagRead] = []
     published_at: Optional[datetime] = None
-    reading_time_minutes: int = Field(default=5, description="Estimated reading time in minutes")
+    updated_at: datetime
+    reading_time: int = Field(default=5, description="Estimated reading time in minutes")
     status: BlogStatus
 
     model_config = ConfigDict(from_attributes=True)
