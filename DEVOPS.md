@@ -15,10 +15,12 @@
 7. [Apache — настройка reverse proxy](#7-apache--настройка-reverse-proxy)
 8. [SSL-сертификат Let's Encrypt](#8-ssl-сертификат-lets-encrypt)
 9. [Первый запуск](#9-первый-запуск)
-10. [Схема маршрутизации URL](#10-схема-маршрутизации-url)
-11. [Управление контейнерами](#11-управление-контейнерами)
-12. [Обновление через пайплайн](#12-обновление-через-пайплайн)
-13. [Troubleshooting](#13-troubleshooting)
+10. [Применение миграций БД](#10-применение-миграций-бд)
+11. [Создание администратора](#11-создание-администратора)
+12. [Схема маршрутизации URL](#12-схема-маршрутизации-url)
+13. [Управление контейнерами](#13-управление-контейнерами)
+14. [Обновление через пайплайн](#14-обновление-через-пайплайн)
+15. [Troubleshooting](#15-troubleshooting)
 
 ---
 
@@ -50,7 +52,7 @@ systemctl enable apache2
 
 ```bash
 # Создать директории проекта
-mkdir -p /srv/site-builder/data/{postgres,redis,meilisearch}
+mkdir -p /srv/site-builder/data/{postgres,redis,meilisearch,media}
 mkdir -p /srv/site-builder/deploy
 
 # Права для Docker-контейнеров
@@ -141,7 +143,7 @@ chmod 600 /srv/site-builder/.env.prod
 ```bash
 # Создать search-only ключ
 curl -s -X POST http://localhost:7700/keys \
-  -H "Authorization: Bearer ВАШ_MEILI_MASTER_KEY" \
+  -H "Authorization: Bearer <MEILI_MASTER_KEY>" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Frontend search key",
@@ -170,6 +172,23 @@ a2ensite m.wifiobd.ru.conf
 apache2ctl configtest && systemctl reload apache2
 ```
 
+> ⚠️ **Apache проксирует на localhost — порты должны быть открыты на хосте.**
+> В `deploy/docker-compose.prod.yml` сервисы `backend` и `meilisearch` должны
+> использовать `ports`, а не `expose`:
+>
+> ```yaml
+> backend:
+>   ports:
+>     - "127.0.0.1:8000:8000"   # только loopback, не наружу
+>
+> meilisearch:
+>   ports:
+>     - "127.0.0.1:7700:7700"   # только loopback, не наружу
+> ```
+>
+> `expose` открывает порт только внутри Docker-сети — Apache на хосте его не видит
+> и возвращает **503 Service Unavailable**.
+
 ---
 
 ## 8. SSL-сертификат Let's Encrypt
@@ -187,7 +206,7 @@ rm /var/www/letsencrypt/.well-known/acme-challenge/test.txt
 certbot certonly --webroot \
   -w /var/www/letsencrypt \
   -d m.wifiobd.ru \
-  --email admin@wifiobd.ru \
+  --email <ADMIN_EMAIL> \
   --agree-tos \
   --non-interactive
 
@@ -206,12 +225,34 @@ certbot renew --dry-run
 cd /srv/site-builder
 
 # Подтянуть образы (нужно залогиниться вручную первый раз)
-docker login registry.gitlab.wifiobd.ru -u DEPLOY_TOKEN_USER
+docker login <CI_REGISTRY> -u <DEPLOY_TOKEN_USER> -p <DEPLOY_TOKEN_PASS>
 
-# Запустить все сервисы
+# Поднять только базу данных и ждать её готовности
 IMAGE_TAG=v1.0.0 \
-CI_REGISTRY_IMAGE=registry.gitlab.wifiobd.ru/f2re/wifiobd2-site-modern \
-docker compose -f deploy/docker-compose.prod.yml --env-file .env.prod up -d
+CI_REGISTRY_IMAGE=<CI_REGISTRY_IMAGE> \
+docker compose -f deploy/docker-compose.prod.yml --env-file .env.prod \
+  up -d postgres redis
+
+# Дождаться healthy (обычно 10–30 сек)
+watch -n 3 'docker compose -f deploy/docker-compose.prod.yml --env-file .env.prod ps postgres redis'
+
+# Применить миграции (см. раздел 10)
+docker compose -f deploy/docker-compose.prod.yml --env-file .env.prod \
+  run --rm --no-deps backend alembic upgrade head
+
+# Создать первого администратора (см. раздел 11)
+docker compose -f deploy/docker-compose.prod.yml --env-file .env.prod \
+  run --rm --no-deps \
+  -e ADMIN_EMAIL=<ADMIN_EMAIL> \
+  -e ADMIN_PASSWORD=<ADMIN_PASSWORD> \
+  -e ADMIN_NAME="<ADMIN_FULL_NAME>" \
+  backend python -m app.db.create_admin
+
+# Запустить все остальные сервисы
+IMAGE_TAG=v1.0.0 \
+CI_REGISTRY_IMAGE=<CI_REGISTRY_IMAGE> \
+docker compose -f deploy/docker-compose.prod.yml --env-file .env.prod \
+  up -d --remove-orphans
 
 # Проверить статус
 watch -n 3 'docker compose -f deploy/docker-compose.prod.yml --env-file .env.prod ps'
@@ -231,7 +272,154 @@ sb_frontend      Up X minutes (healthy)
 
 ---
 
-## 10. Схема маршрутизации URL
+## 10. Применение миграций БД
+
+Миграции **не применяются автоматически** при старте контейнера — их нужно запускать явно.
+
+### Ручной запуск
+
+```bash
+DC="docker compose -f deploy/docker-compose.prod.yml --env-file .env.prod"
+
+# Применить все pending миграции
+$DC run --rm --no-deps backend alembic upgrade head
+
+# Проверить текущую ревизию
+$DC run --rm --no-deps backend alembic current
+
+# История миграций
+$DC run --rm --no-deps backend alembic history --verbose
+```
+
+### Важно: alembic.ini и папка migrations должны быть в Docker-образе
+
+Убедиться, что в `backend/.dockerignore` **нет** строк:
+```
+alembic.ini
+migrations
+```
+
+Если они там есть — удалить и пересобрать образ. Без `alembic.ini` внутри контейнера
+команда `alembic` завершится с ошибкой:
+```
+FAILED: No config file 'alembic.ini' found, or file has no '[alembic]' section
+```
+
+**Обходное решение без пересборки** (временно, монтировать с хоста):
+```bash
+$DC run --rm --no-deps \
+  -v /srv/site-builder/backend/alembic.ini:/app/alembic.ini:ro \
+  -v /srv/site-builder/backend/migrations:/app/migrations:ro \
+  backend alembic upgrade head
+```
+
+### Автоматизация в deploy.sh
+
+В `deploy/scripts/deploy.sh` перед `$DC up -d` добавлен шаг миграций:
+
+```bash
+echo "--- Running database migrations ---"
+$DC run --rm --no-deps backend alembic upgrade head
+```
+
+---
+
+## 11. Создание администратора
+
+Пользователи хранятся с **Fernet-шифрованием email** и bcrypt-хешем пароля,
+поэтому создавать администратора нужно через Python-скрипт приложения,
+а не прямым SQL-запросом.
+
+### Скрипт `backend/app/db/create_admin.py`
+
+```python
+#!/usr/bin/env python3
+"""
+Создание администратора.
+Использование:
+  ADMIN_EMAIL=<email> ADMIN_PASSWORD=<password> python -m app.db.create_admin
+"""
+import asyncio
+import os
+import sys
+
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+from app.core.config import settings
+from app.core.security import get_password_hash, encrypt_data, get_blind_index
+from app.db.models.user import User
+
+
+async def create_admin(email: str, password: str, full_name: str = "Admin"):
+    engine = create_async_engine(settings.DATABASE_URL)
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with async_session() as session:
+        user = User(
+            email=encrypt_data(email),
+            email_hash=get_blind_index(email),
+            full_name=encrypt_data(full_name),
+            hashed_password=get_password_hash(password),
+            is_active=True,
+            is_superuser=True,
+            role="admin",
+            auth_provider="local",
+        )
+        session.add(user)
+        await session.commit()
+        print(f"✅ Admin created: {email}")
+
+    await engine.dispose()
+
+
+if __name__ == "__main__":
+    email    = os.environ.get("ADMIN_EMAIL")
+    password = os.environ.get("ADMIN_PASSWORD")
+    name     = os.environ.get("ADMIN_NAME", "Administrator")
+
+    if not email or not password:
+        print("Usage: ADMIN_EMAIL=<email> ADMIN_PASSWORD=<password> python -m app.db.create_admin")
+        sys.exit(1)
+
+    asyncio.run(create_admin(email, password, name))
+```
+
+### Запуск на сервере
+
+```bash
+docker compose -f deploy/docker-compose.prod.yml --env-file .env.prod \
+  run --rm --no-deps \
+  -e ADMIN_EMAIL=<ADMIN_EMAIL> \
+  -e ADMIN_PASSWORD=<ADMIN_PASSWORD> \
+  -e ADMIN_NAME="<ADMIN_FULL_NAME>" \
+  backend python -m app.db.create_admin
+```
+
+### Добавление через deploy.sh (опционально)
+
+```bash
+# В deploy.sh после alembic upgrade head:
+if [ -n "$ADMIN_EMAIL" ] && [ -n "$ADMIN_PASSWORD" ]; then
+    echo "--- Creating admin user ---"
+    $DC run --rm --no-deps \
+      -e ADMIN_EMAIL="$ADMIN_EMAIL" \
+      -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+      backend python -m app.db.create_admin
+fi
+```
+
+Вызов:
+```bash
+ADMIN_EMAIL=<ADMIN_EMAIL> ADMIN_PASSWORD=<ADMIN_PASSWORD> \
+  ./deploy/scripts/deploy.sh v1.0.0 <CI_REGISTRY> <TOKEN_USER> <TOKEN_PASS> <CI_REGISTRY_IMAGE>
+```
+
+> ⚠️ Скрипт не идемпотентен: повторный запуск с тем же email завершится ошибкой
+> уникальности `email_hash`. Запускать только один раз.
+
+---
+
+## 12. Схема маршрутизации URL
 
 ```
 Браузер пользователя
@@ -258,7 +446,7 @@ Nuxt SSR (сервер → Docker-сеть, без TLS)
 
 ---
 
-## 11. Управление контейнерами
+## 13. Управление контейнерами
 
 ```bash
 cd /srv/site-builder
@@ -290,7 +478,7 @@ docker inspect sb_redis | python3 -c "import sys,json; h=json.load(sys.stdin)[0]
 
 ---
 
-## 12. Обновление через пайплайн
+## 14. Обновление через пайплайн
 
 ```bash
 # Создать тег для деплоя
@@ -307,7 +495,88 @@ git push origin v1.2.3
 
 ---
 
-## 13. Troubleshooting
+## 15. Troubleshooting
+
+### Apache 503 — `backend` и `meilisearch` недоступны
+
+```bash
+# Проверить, слушает ли порт 8000 на хосте:
+ss -tlnp | grep 8000
+# Если пусто — в docker-compose.prod.yml используется expose вместо ports.
+# Исправить: заменить expose на ports с биндингом на 127.0.0.1
+```
+
+Правильная конфигурация в `deploy/docker-compose.prod.yml`:
+```yaml
+backend:
+  ports:
+    - "127.0.0.1:8000:8000"   # ← не expose!
+
+meilisearch:
+  ports:
+    - "127.0.0.1:7700:7700"   # ← не expose!
+```
+
+### Healthcheck возвращает 404, воркеры падают с кодом 22
+
+Healthcheck в `deploy/docker-compose.prod.yml` обращается к несуществующему пути.
+Правильный URL эндпоинта `/health` (без префикса `/api/v1/`):
+
+```yaml
+# НЕВЕРНО:
+test: ["CMD-SHELL", "curl -sf http://localhost:8000/api/v1/health || exit 1"]
+
+# ВЕРНО:
+test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+```
+
+Код выхода 22 от воркеров — следствие того, что Docker считает контейнер
+unhealthy и убивает воркеры по сигналу.
+
+### `FAILED: No config file 'alembic.ini' found`
+
+Файлы `alembic.ini` и `migrations/` исключены из Docker-образа через `.dockerignore`.
+Удалить из `backend/.dockerignore` строки:
+```
+alembic.ini
+migrations
+```
+Пересобрать образ и задеплоить заново. Временный обход — монтировать с хоста:
+```bash
+docker compose -f deploy/docker-compose.prod.yml --env-file .env.prod \
+  run --rm --no-deps \
+  -v /srv/site-builder/backend/alembic.ini:/app/alembic.ini:ro \
+  -v /srv/site-builder/backend/migrations:/app/migrations:ro \
+  backend alembic upgrade head
+```
+
+### `relation "blog_posts" does not exist` (500 на все API-запросы)
+
+Миграции не были применены. База данных пустая:
+```bash
+docker compose -f deploy/docker-compose.prod.yml --env-file .env.prod \
+  run --rm --no-deps backend alembic upgrade head
+```
+
+### Celery beat: `Permission denied: 'celerybeat-schedule'`
+
+Beat пытается записать файл расписания в `/app` (read-only). Добавить переменную
+окружения в секцию `celery` в `deploy/docker-compose.prod.yml`:
+
+```yaml
+celery:
+  environment:
+    MEDIA_ROOT: /app/media
+    CELERY_BEAT_SCHEDULE_FILENAME: /tmp/celerybeat-schedule  # ← добавить
+```
+
+Либо передавать явный путь флагом `-s` в команде:
+```yaml
+command: >-
+  celery -A app.tasks.celery_app worker -B
+  -s /tmp/celerybeat-schedule
+  --loglevel=warning --concurrency=2 -E
+```
 
 ### `error in libcrypto` при ssh-add
 ```bash
@@ -319,7 +588,8 @@ cat -A /path/to/key | tail -3  # последняя строка должна з
 ### Docker login: `access forbidden`
 ```bash
 # Проверить JWT endpoint:
-curl -u "TOKEN_USER:TOKEN_PASS" "https://gitlab.wifiobd.ru/jwt/auth?service=container_registry&scope=repository:f2re/wifiobd2-site-modern/backend:pull"
+curl -u "<TOKEN_USER>:<TOKEN_PASS>" \
+  "https://<CI_REGISTRY>/jwt/auth?service=container_registry&scope=repository:<PROJECT_PATH>/backend:pull"
 # Ответ 200 = токен валидный, ответ 403 = нет scope read_registry
 ```
 
@@ -343,7 +613,7 @@ docker compose -f deploy/docker-compose.prod.yml --env-file .env.prod up -d --fo
 # Либо пайплайн копирует compose через scp (см. .gitlab-ci.yml),
 # либо скопировать вручную:
 cd /srv/site-builder
-git clone https://gitlab.wifiobd.ru/f2re/wifiobd2-site-modern.git .
+git clone https://<GITLAB_HOST>/<PROJECT_PATH>.git .
 # или scp с машины разработки
 ```
 
