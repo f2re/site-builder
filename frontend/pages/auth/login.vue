@@ -48,6 +48,7 @@ const loginWithProvider = (provider: string) => {
 
 // Telegram Login Widget handler
 onMounted(() => {
+  // Define callback on window
   // @ts-ignore
   window.onTelegramAuth = async (user: any) => {
     const result = await authStore.handleTelegramAuth(user)
@@ -58,6 +59,29 @@ onMounted(() => {
       toast.error('Ошибка Telegram входа', result.error)
     }
   }
+
+  // Dynamically load Telegram widget
+  const script = document.createElement('script')
+  script.src = 'https://telegram.org/js/telegram-widget.js?22'
+  script.async = true
+  script.setAttribute('data-telegram-login', 'WifiOBD_Bot')
+  script.setAttribute('data-size', 'large')
+  script.setAttribute('data-onauth', 'onTelegramAuth')
+  script.setAttribute('data-request-access', 'write')
+  
+  const container = document.getElementById('telegram-login-container')
+  if (container) {
+    // The placeholder is removed once the widget loads or we can clear it now
+    // Actually, Telegram widget appends an iframe, so clearing might be good
+    // but we can also just leave it and the iframe will appear below/above.
+    // Better to clear it when script loads or just before appending.
+    container.appendChild(script)
+  }
+})
+
+onUnmounted(() => {
+  // @ts-ignore
+  delete window.onTelegramAuth
 })
 </script>
 
@@ -146,15 +170,11 @@ onMounted(() => {
         </div>
 
         <div class="telegram-section">
-          <div class="tg-wrapper">
-             <script 
-              async 
-              src="https://telegram.org/js/telegram-widget.js?22" 
-              data-telegram-login="WifiOBD_Bot" 
-              data-size="large" 
-              data-onauth="onTelegramAuth(user)" 
-              data-request-access="write"
-            ></script>
+          <div id="telegram-login-container" class="tg-wrapper">
+            <div class="tg-placeholder">
+               <Icon name="ph:telegram-logo-duotone" size="24" class="tg-icon" />
+               <span>Вход через Telegram...</span>
+            </div>
           </div>
         </div>
 
@@ -379,16 +399,51 @@ onMounted(() => {
 .telegram-section {
   display: flex;
   justify-content: center;
-  padding: 20px;
-  background: var(--color-bg-subtle);
+  padding: 24px;
+  background: var(--color-surface-2);
   border-radius: var(--radius-lg);
-  border: 1px dashed var(--color-border-strong);
+  border: 1px solid var(--color-border);
+  position: relative;
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+.telegram-section::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: #24A1DE;
 }
 
 .tg-wrapper {
   min-height: 40px;
   display: flex;
   align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.tg-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  animation: pulse 2s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+.tg-icon {
+  color: #24A1DE;
 }
 
 .auth-footer {
