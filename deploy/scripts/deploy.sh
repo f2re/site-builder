@@ -46,6 +46,12 @@ DC="docker compose -f $COMPOSE_FILE --env-file $ENV_FILE"
 echo "--- Pulling new images ---"
 $DC pull
 
+echo "--- Ensuring DB and Redis are up ---"
+$DC up -d postgres redis
+
+echo "--- Running database migrations ---"
+$DC run --rm backend alembic upgrade head
+
 echo "--- Restarting services ---"
 $DC up -d --remove-orphans
 
