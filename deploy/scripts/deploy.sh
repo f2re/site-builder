@@ -55,7 +55,8 @@ $DC run --rm backend alembic upgrade head
 echo "--- Restarting services ---"
 $DC up -d --remove-orphans
 
-echo "--- Pruning old images ---"
-docker image prune -f
+echo "--- Pruning unused containers and images ---"
+docker container prune -f
+docker image prune -a -f
 
 echo "--- Deployment finished: $IMAGE_TAG ---"

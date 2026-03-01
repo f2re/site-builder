@@ -111,7 +111,8 @@ build:backend:
   stage: build
   <<: *docker_login
   script:
-    - docker build -t $IMAGE_BACKEND:$DYNAMIC_TAG -t $IMAGE_BACKEND:latest ./backend
+    - docker pull $IMAGE_BACKEND:latest || true
+    - docker build --cache-from $IMAGE_BACKEND:latest -t $IMAGE_BACKEND:$DYNAMIC_TAG -t $IMAGE_BACKEND:latest ./backend
     - docker push $IMAGE_BACKEND:$DYNAMIC_TAG
     - docker push $IMAGE_BACKEND:latest
 
@@ -119,7 +120,8 @@ build:frontend:
   stage: build
   <<: *docker_login
   script:
-    - docker build -t $IMAGE_FRONTEND:$DYNAMIC_TAG -t $IMAGE_FRONTEND:latest ./frontend
+    - docker pull $IMAGE_FRONTEND:latest || true
+    - docker build --cache-from $IMAGE_FRONTEND:latest -t $IMAGE_FRONTEND:$DYNAMIC_TAG -t $IMAGE_FRONTEND:latest ./frontend
     - docker push $IMAGE_FRONTEND:$DYNAMIC_TAG
     - docker push $IMAGE_FRONTEND:latest
 
