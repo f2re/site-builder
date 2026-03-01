@@ -36,3 +36,8 @@ class TokenPayload(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class TokenRefreshRequest(BaseModel):
+    refresh_token: str
+

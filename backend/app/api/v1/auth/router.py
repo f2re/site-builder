@@ -1,13 +1,13 @@
-# Module: api/v1/auth/router.py | Agent: backend-agent | Task: phase11_backend_admin_blog_refinement
+# Module: api/v1/auth/router.py | Agent: backend-agent | Task: BE-01_products_catalog
 from typing import cast, Dict, Any
 from fastapi import APIRouter, Depends, status, Query
 from fastapi.responses import RedirectResponse
-from app.api.v1.auth.schemas import LoginRequest, Token, UserCreate, UserResponse
+from app.api.v1.auth.schemas import LoginRequest, Token, UserCreate, UserResponse, TokenRefreshRequest
 from app.api.v1.auth.service import AuthService
 from app.core.dependencies import get_auth_service
 from app.core.config import settings
 
-router = APIRouter()
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login", response_model=Token)
 async def login(
@@ -23,6 +23,13 @@ async def register(
 ) -> UserResponse:
     user = await auth_service.register(user_in)
     return cast(UserResponse, user)
+
+@router.post("/refresh", response_model=Token)
+async def refresh_token(
+    refresh_data: TokenRefreshRequest,
+    auth_service: AuthService = Depends(get_auth_service)
+) -> Token:
+    return await auth_service.refresh_token(refresh_data.refresh_token)
 
 @router.get("/{provider}/login")
 async def provider_login(provider: str, redirect_uri: str = Query(...)):

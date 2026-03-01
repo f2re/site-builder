@@ -11,6 +11,8 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const isNuxtLink = computed(() => !!props.to)
+const hasHeader = useSlots().header
+const hasFooter = useSlots().footer
 </script>
 
 <template>
@@ -20,7 +22,17 @@ const isNuxtLink = computed(() => !!props.to)
     class="card"
     :class="{ 'card--clickable': clickable || isNuxtLink }"
   >
-    <slot />
+    <div v-if="hasHeader" class="card__header">
+      <slot name="header" />
+    </div>
+    
+    <div class="card__body">
+      <slot />
+    </div>
+    
+    <div v-if="hasFooter" class="card__footer">
+      <slot name="footer" />
+    </div>
   </component>
 </template>
 
@@ -50,5 +62,28 @@ const isNuxtLink = computed(() => !!props.to)
   transform: translateY(-4px);
   border-color: var(--color-accent);
   box-shadow: var(--shadow-glow-accent);
+}
+
+.card__header {
+  padding: 24px 24px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.card__body {
+  padding: 24px;
+  flex: 1;
+}
+
+.card__footer {
+  padding: 16px 24px 24px;
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-bg-subtle);
+}
+
+/* On mobile, reduce padding slightly */
+@media (max-width: 480px) {
+  .card__header { padding: 20px 20px 12px; }
+  .card__body { padding: 20px; }
+  .card__footer { padding: 12px 20px 20px; }
 }
 </style>

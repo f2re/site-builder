@@ -1,10 +1,12 @@
-# Module: api/v1/auth/service.py | Agent: backend-agent | Task: phase11_backend_admin_blog_refinement
+# Module: api/v1/auth/service.py | Agent: backend-agent | Task: BE-01_products_catalog
 import hmac
 import hashlib
 import time
 from typing import Dict, Any, Optional
+from uuid import UUID
 import httpx
 from fastapi import HTTPException, status
+from jose import jwt, JWTError
 from app.api.v1.auth.schemas import LoginRequest, Token, UserCreate
 from app.api.v1.users.repository import UserRepository
 from app.core.security import (
@@ -215,9 +217,6 @@ class AuthService:
         # Telegram ID is the provider_id
         provider_id = str(tg_data.get("id"))
         # We might not have email from Telegram, so we can use a placeholder or ask later.
-        # But our User model requires email (hashed).
-        # Telegram widget doesn't return email by default.
-        # For now, if no email, we use username@telegram.org or something if email is required by DB.
         # User model has email as nullable=False.
         username = tg_data.get("username", f"user_{provider_id}")
         email = f"{username}@telegram.org"  # Placeholder if not provided
@@ -231,3 +230,43 @@ class AuthService:
             access_token=create_access_token(user.id, role=user.role),
             refresh_token=create_refresh_token(user.id),
         )
+
+    async def refresh_token(self, refresh_token: str) -> Token:
+        try:
+            payload = jwt.decode(
+                refresh_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            )
+            token_type = payload.get("type")
+            if token_type != "refresh":
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid token type",
+                )
+            user_id = payload.get("sub")
+            if not user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid refresh token",
+                )
+
+            user = await self.repo.get_by_id(UUID(user_id))
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="User not found",
+                )
+            if not user.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Inactive user",
+                )
+
+            return Token(
+                access_token=create_access_token(user.id, role=user.role),
+                refresh_token=create_refresh_token(user.id),
+            )
+        except (JWTError, ValueError):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token",
+            )

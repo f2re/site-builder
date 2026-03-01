@@ -7,6 +7,8 @@ interface Props {
   disabled?: boolean
   error?: string
   name?: string
+  id?: string
+  icon?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -24,14 +26,27 @@ const emit = defineEmits<{
 const onInput = (e: Event) => {
   emit('update:modelValue', (e.target as HTMLInputElement).value)
 }
+
+const inputId = computed(() => props.id || props.name || `input-${Math.random().toString(36).slice(2, 9)}`)
 </script>
 
 <template>
-  <div class="input-wrapper" :class="{ 'input-wrapper--error': error, 'input-wrapper--disabled': disabled }">
-    <label v-if="label" :for="name" class="input-label">{{ label }}</label>
+  <div 
+    class="input-wrapper" 
+    :class="{ 
+      'input-wrapper--error': error, 
+      'input-wrapper--disabled': disabled,
+      'input-wrapper--has-icon': icon 
+    }"
+  >
+    <label v-if="label" :for="inputId" class="input-label">{{ label }}</label>
     <div class="input-container">
+      <div v-if="icon" class="input-prefix-icon">
+        <Icon :name="icon" size="18" />
+      </div>
+      
       <input
-        :id="name"
+        :id="inputId"
         :name="name"
         :type="type"
         :value="modelValue"
@@ -42,24 +57,26 @@ const onInput = (e: Event) => {
         @blur="emit('blur', $event)"
         @focus="emit('focus', $event)"
       />
+      
       <!-- Validation Indicators -->
-      <div v-if="error" class="input-icon input-icon--error">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-      </div>
-      <div v-else-if="modelValue && !error" class="input-icon input-icon--success">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
+      <div class="input-status-icons">
+        <Transition name="fade">
+          <div v-if="error" class="input-status-icon input-status-icon--error" title="Ошибка">
+            <Icon name="ph:warning-circle-bold" size="20" />
+          </div>
+          <div v-else-if="modelValue && !error" class="input-status-icon input-status-icon--success" title="Верно">
+            <Icon name="ph:check-circle-bold" size="20" />
+          </div>
+        </Transition>
       </div>
     </div>
-    <span v-if="error" class="input-error-msg">
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
-        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
-      {{ error }}
-    </span>
+    
+    <Transition name="slide-up">
+      <span v-if="error" class="input-error-msg">
+        <Icon name="ph:warning-bold" size="14" style="margin-right: 4px;" />
+        {{ error }}
+      </span>
+    </Transition>
   </div>
 </template>
 
@@ -67,14 +84,15 @@ const onInput = (e: Event) => {
 .input-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   width: 100%;
 }
 
 .input-label {
   font-size: var(--text-sm);
   color: var(--color-text-2);
-  font-weight: 500;
+  font-weight: 600;
+  transition: color var(--transition-fast);
 }
 
 .input-container {
@@ -83,11 +101,23 @@ const onInput = (e: Event) => {
   align-items: center;
 }
 
+.input-prefix-icon {
+  position: absolute;
+  left: 14px;
+  color: var(--color-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  transition: color var(--transition-fast);
+  z-index: 1;
+}
+
 .input-field {
   width: 100%;
-  min-height: 44px;
-  padding: 10px 16px;
-  padding-right: 40px;
+  min-height: 48px;
+  padding: 12px 16px;
+  padding-right: 44px;
   font-size: 16px;
   font-family: var(--font-sans);
   color: var(--color-text);
@@ -97,8 +127,13 @@ const onInput = (e: Event) => {
   transition:
     border-color var(--transition-fast),
     box-shadow var(--transition-fast),
-    background-color var(--transition-theme);
+    background-color var(--transition-theme),
+    color var(--transition-theme);
   outline: none;
+}
+
+.input-wrapper--has-icon .input-field {
+  padding-left: 44px;
 }
 
 .input-field::placeholder { color: var(--color-muted); }
@@ -106,6 +141,15 @@ const onInput = (e: Event) => {
 .input-field:focus {
   border-color: var(--color-accent);
   box-shadow: var(--shadow-glow-accent);
+  background-color: var(--color-surface-3);
+}
+
+.input-field:focus ~ .input-prefix-icon {
+  color: var(--color-accent);
+}
+
+.input-wrapper:focus-within .input-label {
+  color: var(--color-accent);
 }
 
 .input-wrapper--disabled .input-field {
@@ -119,25 +163,41 @@ const onInput = (e: Event) => {
 }
 
 .input-wrapper--error .input-field:focus {
-  box-shadow: 0 0 12px var(--color-error-bg);
+  box-shadow: 0 0 0 4px var(--color-error-bg);
 }
 
-.input-icon {
+.input-status-icons {
   position: absolute;
   right: 12px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 4px;
   pointer-events: none;
 }
 
-.input-icon--error { color: var(--color-error); }
-.input-icon--success { color: var(--color-success); }
+.input-status-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.input-status-icon--error { color: var(--color-error); }
+.input-status-icon--success { color: var(--color-success); }
 
 .input-error-msg {
   font-size: var(--text-xs);
   color: var(--color-error);
+  font-weight: 500;
   display: flex;
   align-items: center;
+  margin-top: 2px;
 }
+
+/* Animations */
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+.slide-up-enter-active, .slide-up-leave-active { transition: all 0.2s ease-out; }
+.slide-up-enter-from { opacity: 0; transform: translateY(-4px); }
+.slide-up-leave-to { opacity: 0; transform: translateY(-4px); }
 </style>
