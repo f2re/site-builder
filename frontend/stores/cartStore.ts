@@ -11,6 +11,8 @@ export interface StoreCartItem {
 
 export const useCartStore = defineStore('cart', () => {
   const items = ref<StoreCartItem[]>([])
+  const selectedPvzCode = ref<string>('')
+  const selectedCityCode = ref<string>('')
 
   const totalCount = computed(() =>
     items.value.reduce((sum, item) => sum + item.quantity, 0)
@@ -20,7 +22,7 @@ export const useCartStore = defineStore('cart', () => {
     items.value.reduce((sum, item) => sum + item.price * item.quantity, 0)
   )
 
-  const addItem = (product: Omit<CartItem, 'quantity'>) => {
+  const addItem = (product: any) => {
     const existing = items.value.find(i => i.id === product.id)
     if (existing) {
       existing.quantity++
@@ -47,14 +49,29 @@ export const useCartStore = defineStore('cart', () => {
     }
   }
 
+  const setPvzCode = (code: string) => {
+    selectedPvzCode.value = code
+    persist()
+  }
+
+  const setCityCode = (code: string) => {
+    selectedCityCode.value = code
+    persist()
+  }
+
   const clearCart = () => {
     items.value = []
+    selectedPvzCode.value = ''
     persist()
   }
 
   const persist = () => {
     if (process.client) {
-      localStorage.setItem('cart', JSON.stringify(items.value))
+      localStorage.setItem('cart', JSON.stringify({
+        items: items.value,
+        selectedPvzCode: selectedPvzCode.value,
+        selectedCityCode: selectedCityCode.value
+      }))
     }
   }
 
@@ -63,7 +80,15 @@ export const useCartStore = defineStore('cart', () => {
       const saved = localStorage.getItem('cart')
       if (saved) {
         try {
-          items.value = JSON.parse(saved)
+          const data = JSON.parse(saved)
+          if (Array.isArray(data)) {
+            // Backward compatibility
+            items.value = data
+          } else {
+            items.value = data.items || []
+            selectedPvzCode.value = data.selectedPvzCode || ''
+            selectedCityCode.value = data.selectedCityCode || ''
+          }
         } catch {
           items.value = []
         }
@@ -73,11 +98,15 @@ export const useCartStore = defineStore('cart', () => {
 
   return {
     items,
+    selectedPvzCode,
+    selectedCityCode,
     totalCount,
     totalPrice,
     addItem,
     removeItem,
     updateQuantity,
+    setPvzCode,
+    setCityCode,
     clearCart,
     init,
   }

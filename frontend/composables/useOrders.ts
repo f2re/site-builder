@@ -60,6 +60,13 @@ export interface PVZ {
   work_hours: string
 }
 
+export interface City {
+  code: string
+  city: string
+  region?: string
+  country?: string
+}
+
 export const useOrders = () => {
   const config = useRuntimeConfig()
   const apiBase = config.public.apiBase
@@ -94,20 +101,29 @@ export const useOrders = () => {
 
   const calculateDelivery = (params: DeliveryCalculateRequest) => {
     return useFetch<DeliveryCalculateResponse>(`${apiBase}/delivery/calculate`, {
-      method: 'GET',
-      params: {
-        to_city_code: params.city_code,
-        weight_grams: Math.round(params.weight_kg * 1000)
+      method: 'POST',
+      body: {
+        city_code: params.city_code,
+        weight_kg: params.weight_kg,
+        dimensions: params.dimensions
       },
       headers: getHeaders()
     })
   }
 
   const getPVZs = (cityCode: string) => {
-    return useFetch<{ items: PVZ[] }>(`${apiBase}/delivery/pickup-points`, {
+    return useFetch<{ items: PVZ[] }>(`${apiBase}/delivery/pvz`, {
       params: { city_code: cityCode },
       headers: getHeaders(),
       key: `pvz-${cityCode}`
+    })
+  }
+
+  const searchCities = (query: string) => {
+    return useFetch<City[]>(`${apiBase}/delivery/cities`, {
+      params: { query },
+      headers: getHeaders(),
+      key: `cities-${query}`
     })
   }
 
@@ -116,6 +132,7 @@ export const useOrders = () => {
     getOrders,
     getOrder,
     calculateDelivery,
-    getPVZs
+    getPVZs,
+    searchCities
   }
 }

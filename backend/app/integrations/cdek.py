@@ -8,15 +8,14 @@ from decimal import Decimal
 from typing import Dict, Any, List
 
 class CDEKClient:
+    """
+    CDEK API v2 client with automatic token management and retry logic.
+    """
     def __init__(self):
-        # Determine base URL based on debug mode or settings
-        # CDEK v2 usually has different URLs for sandbox and production
-        # We prefer using sandbox for DEBUG=True
+        # Sandbox: https://api.edu.cdek.ru/v2
+        # Production: https://api.cdek.ru/v2
         self.base_url = "https://api.edu.cdek.ru/v2" if settings.DEBUG else "https://api.cdek.ru/v2"
         self.timeout = 30.0
-
-    async def _get_client(self) -> httpx.AsyncClient:
-        return httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout)
 
     @retry(
         stop=stop_after_attempt(3),
@@ -60,6 +59,41 @@ class CDEKClient:
         retry=retry_if_exception_type(httpx.HTTPError),
         reraise=True
     )
+    async def search_cities(self, query: str, country_codes: List[str] = ["RU"]) -> List[Dict[str, Any]]:
+        """
+        Search for cities by name via CDEK API.
+        """
+        token = await self.get_token()
+        
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout) as client:
+            response = await client.get(
+                "/location/cities",
+                params={
+                    "city": query,
+                    "country_codes": ",".join(country_codes),
+                    "size": 20
+                },
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            
+            if response.status_code == 401:
+                await redis_client.delete("cdek:token")
+                response.raise_for_status()
+                
+            response.raise_for_status()
+            return response.json()
+
+    # Keep get_cities as alias or just replace it. 
+    # The router currently uses get_cities.
+    async def get_cities(self, name: str, country_codes: List[str] = ["RU"]) -> List[Dict[str, Any]]:
+        return await self.search_cities(query=name, country_codes=country_codes)
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(httpx.HTTPError),
+        reraise=True
+    )
     async def calculate_tariff(
         self, 
         from_city_code: int, 
@@ -88,7 +122,6 @@ class CDEKClient:
             )
             
             if response.status_code == 401:
-                # Token might be invalid, clear cache and retry via tenacity
                 await redis_client.delete("cdek:token")
                 response.raise_for_status()
             
@@ -110,7 +143,7 @@ class CDEKClient:
     )
     async def get_pickup_points(self, city_code: int) -> List[Dict[str, Any]]:
         """
-        PVZ list MUST be cached in Redis with TTL 6h: key `cdek:pvz:{city_code}`
+        PVZ list cached in Redis with TTL 6h: key `cdek:pvz:{city_code}`
         """
         cache_key = f"cdek:pvz:{city_code}"
         cached_pvz = await redis_client.get(cache_key)
@@ -145,6 +178,31 @@ class CDEKClient:
     async def create_order(self, order_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Create delivery order in CDEK.
+        
+        The order_data MUST be a dict compatible with CDEK API v2 POST /orders.
+        Example mapping from internal Order model:
+        {
+            "type": 1,
+            "number": str(order.id),
+            "tariff_code": order.tariff_code,
+            "recipient": {
+                "name": order.user.full_name,
+                "phones": [{"number": order.user.phone}]
+            },
+            "to_location": {
+                "code": order.city_code,
+                "address": order.shipping_address
+            },
+            "packages": [
+                {
+                    "number": "pack-1",
+                    "weight": total_weight,
+                    "items": [
+                        {"name": item.product.name, "ware_key": item.sku, "payment": {"value": 0}, ...}
+                    ]
+                }
+            ]
+        }
         """
         token = await self.get_token()
         

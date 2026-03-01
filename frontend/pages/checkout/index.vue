@@ -10,10 +10,25 @@ const { accessToken } = useAuth()
 const config = useRuntimeConfig()
 const router = useRouter()
 
+// Form state initialized from store
+const form = ref({
+  name: '',
+  email: '',
+  phone: '',
+  cityCode: cartStore.selectedCityCode || '',
+  deliveryType: 'cdek_pvz' as 'cdek_pvz' | 'cdek_door',
+  pvzCode: cartStore.selectedPvzCode || '',
+  address: '',
+})
+
 // Redirect if cart is empty
 onMounted(() => {
   if (cartStore.items.length === 0) {
     router.push('/cart')
+  }
+  // If we already have a city code, fetch PVZs
+  if (form.value.cityCode) {
+    fetchPVZs(form.value.cityCode)
   }
 })
 
@@ -31,17 +46,6 @@ const cities = [
   { label: 'Ростов-на-Дону', value: '131' },
 ]
 
-// Form state
-const form = ref({
-  name: '',
-  email: '',
-  phone: '',
-  cityCode: '',
-  deliveryType: 'cdek_pvz' as 'cdek_pvz' | 'cdek_door',
-  pvzCode: '',
-  address: '',
-})
-
 // Validation
 const errors = ref<Record<string, string>>({})
 
@@ -52,21 +56,36 @@ const isCalculating = ref(false)
 const pvzs = ref<any[]>([])
 const isLoadingPVZs = ref(false)
 
+async function fetchPVZs(cityCode: string) {
+  isLoadingPVZs.value = true
+  try {
+    const { data } = await getPVZs(cityCode)
+    if (data.value) {
+      pvzs.value = data.value.items
+    }
+  } finally {
+    isLoadingPVZs.value = false
+  }
+}
+
 // Fetch PVZs when city changes
 watch(() => form.value.cityCode, async (newCity) => {
-  if (newCity && form.value.deliveryType === 'cdek_pvz') {
-    isLoadingPVZs.value = true
-    try {
-      const { data } = await getPVZs(newCity)
-      if (data.value) {
-        pvzs.value = data.value.items
-        form.value.pvzCode = '' // Reset PVZ
+  if (newCity) {
+    cartStore.setCityCode(newCity)
+    if (form.value.deliveryType === 'cdek_pvz') {
+      await fetchPVZs(newCity)
+      // Check if current pvzCode is valid for this city, if not clear it
+      if (!pvzs.value.some(p => p.code === form.value.pvzCode)) {
+        form.value.pvzCode = ''
+        cartStore.setPvzCode('')
       }
-    } finally {
-      isLoadingPVZs.value = false
     }
   }
   recalculateDelivery()
+})
+
+watch(() => form.value.pvzCode, (newPvz) => {
+  cartStore.setPvzCode(newPvz)
 })
 
 watch(() => form.value.deliveryType, () => {
@@ -178,22 +197,14 @@ const handlePlaceOrder = async () => {
                 </button>
               </div>
 
-              <div v-if="form.deliveryType === 'cdek_pvz'" class="pvz-selection">
-                <USelect
-                  v-if="pvzs.length > 0"
+              <div v-if="form.deliveryType === 'cdek_pvz'" class="pvz-selection-area">
+                <label class="section-label">Выберите пункт выдачи СДЭК</label>
+                <ShopCdekPicker
                   v-model="form.pvzCode"
-                  label="Пункт выдачи (СДЭК)"
-                  :options="pvzs.map(p => ({ label: p.address, value: p.code }))"
-                  :error="errors.pvzCode"
-                  :disabled="isLoadingPVZs"
-                  placeholder="Выберите удобный пункт"
+                  :pvzs="pvzs"
+                  :is-loading="isLoadingPVZs"
                 />
-                <div v-else-if="isLoadingPVZs" class="pvz-loading">
-                  Загрузка пунктов выдачи...
-                </div>
-                <div v-else-if="form.cityCode" class="pvz-empty">
-                  Пункты выдачи не найдены для этого города
-                </div>
+                <div v-if="errors.pvzCode" class="error-text">{{ errors.pvzCode }}</div>
               </div>
 
               <UInput
@@ -334,6 +345,24 @@ const handlePlaceOrder = async () => {
 }
 
 .type-icon { font-size: 1.2rem; }
+
+.pvz-selection-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.error-text {
+  font-size: var(--text-xs);
+  color: var(--color-error);
+  margin-top: 4px;
+}
 
 .delivery-info {
   margin-top: 24px;

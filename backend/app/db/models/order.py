@@ -12,6 +12,7 @@ from app.db.base import Base
 
 class OrderStatus(str, enum.Enum):
     PENDING = "pending"
+    PENDING_PAYMENT = "pending_payment"
     PAID = "paid"
     PROCESSING = "processing"
     SHIPPED = "shipped"
@@ -28,7 +29,7 @@ class Order(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     status: Mapped[OrderStatus] = mapped_column(
-        SAEnum(OrderStatus), default=OrderStatus.PENDING, nullable=False
+        SAEnum(OrderStatus), default=OrderStatus.PENDING_PAYMENT, nullable=False
     )
     total_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="RUB")

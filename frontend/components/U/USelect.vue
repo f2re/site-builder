@@ -12,6 +12,7 @@ interface Props {
   disabled?: boolean
   error?: string
   name?: string
+  icon?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -29,9 +30,20 @@ const onChange = (e: Event) => {
 </script>
 
 <template>
-  <div class="select-wrapper" :class="{ 'select-wrapper--error': error, 'select-wrapper--disabled': disabled }">
+  <div 
+    class="select-wrapper" 
+    :class="{ 
+      'select-wrapper--error': error, 
+      'select-wrapper--disabled': disabled,
+      'select-wrapper--has-icon': icon
+    }"
+  >
     <label v-if="label" :for="name" class="select-label">{{ label }}</label>
     <div class="select-container">
+      <div v-if="icon" class="select-prefix-icon">
+        <Icon :name="icon" size="18" />
+      </div>
+
       <select
         :id="name"
         :name="name"
@@ -49,15 +61,17 @@ const onChange = (e: Event) => {
           {{ opt.label }}
         </option>
       </select>
+      
       <div class="select-arrow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="6 9 12 15 18 9"/>
-        </svg>
+        <Icon name="ph:caret-down-bold" size="16" />
       </div>
     </div>
-    <span v-if="error" class="select-error-msg">
-      {{ error }}
-    </span>
+    <Transition name="slide-up">
+      <span v-if="error" class="select-error-msg">
+        <Icon name="ph:warning-bold" size="14" style="margin-right: 4px;" />
+        {{ error }}
+      </span>
+    </Transition>
   </div>
 </template>
 
@@ -65,14 +79,15 @@ const onChange = (e: Event) => {
 .select-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   width: 100%;
 }
 
 .select-label {
   font-size: var(--text-sm);
   color: var(--color-text-2);
-  font-weight: 500;
+  font-weight: 600;
+  transition: color var(--transition-fast);
 }
 
 .select-container {
@@ -81,10 +96,22 @@ const onChange = (e: Event) => {
   align-items: center;
 }
 
+.select-prefix-icon {
+  position: absolute;
+  left: 14px;
+  color: var(--color-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  transition: color var(--transition-fast);
+  z-index: 1;
+}
+
 .select-field {
   width: 100%;
-  min-height: 44px;
-  padding: 10px 16px;
+  min-height: 48px;
+  padding: 12px 16px;
   padding-right: 40px;
   font-size: 16px;
   font-family: var(--font-sans);
@@ -97,13 +124,27 @@ const onChange = (e: Event) => {
   transition:
     border-color var(--transition-fast),
     box-shadow var(--transition-fast),
-    background-color var(--transition-theme);
+    background-color var(--transition-theme),
+    color var(--transition-theme);
   outline: none;
+}
+
+.select-wrapper--has-icon .select-field {
+  padding-left: 44px;
 }
 
 .select-field:focus {
   border-color: var(--color-accent);
   box-shadow: var(--shadow-glow-accent);
+  background-color: var(--color-surface-3);
+}
+
+.select-field:focus ~ .select-prefix-icon {
+  color: var(--color-accent);
+}
+
+.select-wrapper:focus-within .select-label {
+  color: var(--color-accent);
 }
 
 .select-field:disabled {
@@ -117,6 +158,8 @@ const onChange = (e: Event) => {
   right: 12px;
   pointer-events: none;
   color: var(--color-muted);
+  display: flex;
+  align-items: center;
 }
 
 .select-wrapper--error .select-field {
@@ -126,5 +169,14 @@ const onChange = (e: Event) => {
 .select-error-msg {
   font-size: var(--text-xs);
   color: var(--color-error);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  margin-top: 2px;
 }
+
+/* Animations */
+.slide-up-enter-active, .slide-up-leave-active { transition: all 0.2s ease-out; }
+.slide-up-enter-from { opacity: 0; transform: translateY(-4px); }
+.slide-up-leave-to { opacity: 0; transform: translateY(-4px); }
 </style>

@@ -7,6 +7,7 @@ Create Date: 2026-03-01 14:00:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '20260301_1400'
@@ -30,7 +31,7 @@ def upgrade() -> None:
 
     # ─── ModuleDevice ─────────────────────────────────────────────────────────
     # We need to create the Enum type first
-    device_type_enum = sa.Enum('OBD', 'AFR', name='device_type_enum')
+    device_type_enum = postgresql.ENUM('OBD', 'AFR', name='device_type_enum')
     device_type_enum.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
@@ -38,7 +39,7 @@ def upgrade() -> None:
         sa.Column('id', sa.UUID(), nullable=False),
         sa.Column('token_id', sa.UUID(), nullable=False),
         sa.Column('serial', sa.String(length=255), nullable=False),
-        sa.Column('device_type', device_type_enum, nullable=False),
+        sa.Column('device_type', postgresql.ENUM('OBD', 'AFR', name='device_type_enum', create_type=False), nullable=False),
         sa.Column('comment', sa.Text(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(['token_id'], ['module_tokens.id'], ondelete='CASCADE'),
@@ -78,7 +79,7 @@ def downgrade() -> None:
     op.drop_table('module_devices')
     
     # Drop enum
-    device_type_enum = sa.Enum(name='device_type_enum')
+    device_type_enum = postgresql.ENUM(name='device_type_enum')
     device_type_enum.drop(op.get_bind(), checkfirst=True)
 
     op.drop_index(op.f('ix_module_tokens_token'), table_name='module_tokens')
