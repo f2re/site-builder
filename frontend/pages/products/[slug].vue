@@ -32,10 +32,7 @@ const addToCart = () => {
       image: product.value.images[0]
     })
     
-    toast.success({
-      title: 'Добавлено в корзину',
-      message: `${product.value.name} успешно добавлен.`
-    })
+    toast.success('Добавлено в корзину', `${product.value.name} успешно добавлен.`)
   }
 }
 

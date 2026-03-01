@@ -1,8 +1,23 @@
 <script setup lang="ts">
+import { useBlog } from '~/composables/useBlog'
+import { useProducts } from '~/composables/useProducts'
+import ProductCard from '~/components/catalog/ProductCard.vue'
+import BlogCard from '~/components/blog/BlogCard.vue'
+import USkeleton from '~/components/U/USkeleton.vue'
+
 useSeoMeta({
   title: 'WifiOBD Shop — OBD2 диагностика и IoT мониторинг авто',
   description: 'Магазин профессиональных OBD2 сканеров, WiFi адаптеров и IoT систем мониторинга для вашего автомобиля.',
 })
+
+const { getPosts } = useBlog()
+const { getProducts } = useProducts()
+
+// Fetch featured products (first 4)
+const { data: productsData, pending: productsPending } = getProducts({ per_page: 4 })
+
+// Fetch latest blog posts (first 3)
+const { data: blogData, pending: blogPending } = getPosts({ per_page: 3 })
 
 const features = [
   {
@@ -44,13 +59,7 @@ const stats = [
         </p>
         <div class="hero-actions">
           <NuxtLink to="/products" class="btn btn-primary">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              aria-hidden="true">
-              <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-              <line x1="3" y1="6" x2="21" y2="6"/>
-              <path d="M16 10a4 4 0 0 1-8 0"/>
-            </svg>
+            <Icon name="ph:shopping-bag-bold" size="20" />
             Перейти в каталог
           </NuxtLink>
           <NuxtLink to="/blog" class="btn btn-secondary">Читать блог</NuxtLink>
@@ -100,9 +109,30 @@ const stats = [
       </div>
     </div>
 
+    <!-- Featured Products -->
+    <section class="featured-products section">
+      <div class="section-header">
+        <h2 class="section-title">Популярные товары</h2>
+        <NuxtLink to="/products" class="view-all">
+          Все товары <Icon name="ph:arrow-right-bold" />
+        </NuxtLink>
+      </div>
+
+      <div v-if="productsPending" class="products-grid">
+        <USkeleton v-for="i in 4" :key="i" height="400px" />
+      </div>
+      <div v-else-if="productsData?.items?.length" class="products-grid">
+        <ProductCard
+          v-for="product in productsData.items"
+          :key="product.id"
+          :product="product"
+        />
+      </div>
+    </section>
+
     <!-- Features -->
-    <section class="features" aria-label="Преимущества">
-      <h2 class="section-title">Почему WifiOBD?</h2>
+    <section class="features section" aria-label="Преимущества">
+      <h2 class="section-title text-center">Почему WifiOBD?</h2>
       <div class="features-grid">
         <div
           v-for="f in features"
@@ -116,6 +146,27 @@ const stats = [
       </div>
     </section>
 
+    <!-- Latest News -->
+    <section class="latest-news section">
+      <div class="section-header">
+        <h2 class="section-title">Последнее в блоге</h2>
+        <NuxtLink to="/blog" class="view-all">
+          Все статьи <Icon name="ph:arrow-right-bold" />
+        </NuxtLink>
+      </div>
+
+      <div v-if="blogPending" class="blog-grid">
+        <USkeleton v-for="i in 3" :key="i" height="350px" />
+      </div>
+      <div v-else-if="blogData?.items?.length" class="blog-grid">
+        <BlogCard
+          v-for="post in blogData.items"
+          :key="post.id"
+          :post="post"
+        />
+      </div>
+    </section>
+
     <!-- CTA Banner -->
     <section class="cta-banner" aria-label="Призыв к действию">
       <h2 class="cta-title">Готовы начать диагностику?</h2>
@@ -126,6 +177,41 @@ const stats = [
 </template>
 
 <style scoped>
+.section {
+  padding: 64px 0;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 32px;
+}
+
+.section-title {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.text-center { text-align: center; }
+
+.view-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-accent);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: var(--text-sm);
+  transition: transform var(--transition-fast);
+}
+
+.view-all:hover {
+  transform: translateX(4px);
+}
+
 /* Hero */
 .hero {
   display: grid;
@@ -252,7 +338,7 @@ const stats = [
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 24px;
-  margin: 64px 0;
+  margin: 32px 0 64px;
 }
 
 .stat-card {
@@ -283,18 +369,20 @@ const stats = [
   font-weight: 500;
 }
 
+/* Grids */
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+
+.blog-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
 /* Features */
-.features {
-  margin: 0 0 64px;
-}
-
-.section-title {
-  font-size: var(--text-2xl);
-  font-weight: 800;
-  margin-bottom: 36px;
-  text-align: center;
-}
-
 .features-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -339,7 +427,7 @@ const stats = [
   border-radius: var(--radius-xl);
   padding: 52px 48px;
   text-align: center;
-  margin-bottom: 16px;
+  margin: 64px 0 16px;
   position: relative;
   overflow: hidden;
 }
@@ -366,6 +454,10 @@ const stats = [
 }
 
 /* Responsive */
+@media (max-width: 1024px) {
+  .products-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
 @media (max-width: 900px) {
   .hero {
     grid-template-columns: 1fr;
@@ -377,9 +469,9 @@ const stats = [
   .hero-actions  { justify-content: center; }
   .hero-visual   { display: none; }
 
-  .features-grid {
-    grid-template-columns: 1fr;
-  }
+  .products-grid { grid-template-columns: repeat(2, 1fr); }
+  .blog-grid { grid-template-columns: repeat(2, 1fr); }
+  .features-grid { grid-template-columns: 1fr; }
 
   .cta-banner {
     padding: 36px 24px;
@@ -387,8 +479,14 @@ const stats = [
 }
 
 @media (max-width: 600px) {
-  .stats-grid {
-    grid-template-columns: 1fr;
+  .stats-grid { grid-template-columns: 1fr; }
+  .products-grid { grid-template-columns: 1fr; }
+  .blog-grid { grid-template-columns: 1fr; }
+  
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
   }
 }
 </style>

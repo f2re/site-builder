@@ -37,6 +37,7 @@ class ProductService:
         category_id: Optional[UUID] = None,
         min_price: Optional[Decimal] = None,
         max_price: Optional[Decimal] = None,
+        is_featured: Optional[bool] = None,
         cursor: Optional[UUID] = None,
         per_page: int = 20,
     ) -> ProductPagination:
@@ -44,6 +45,7 @@ class ProductService:
             category_id=category_id,
             min_price=min_price,
             max_price=max_price,
+            is_featured=is_featured,
             cursor=cursor,
             per_page=per_page
         )
@@ -156,6 +158,7 @@ class ProductService:
             "slug": product.slug,
             "description": product.description,
             "category_id": str(product.category_id) if product.category_id else None,
-            "is_active": product.is_active
+            "is_active": product.is_active,
+            "is_featured": product.is_featured
         }
         index_product_task.delay(index_data)

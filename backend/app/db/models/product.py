@@ -44,6 +44,7 @@ class Product(Base):
     og_image_url: Mapped[Optional[str]] = mapped_column(String(1000))
     attributes: Mapped[dict] = mapped_column(JSONB, server_default="{}", default=dict)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_featured: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

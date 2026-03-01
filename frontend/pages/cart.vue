@@ -20,10 +20,7 @@ const updateQuantity = (id: number, delta: number) => {
 
 const removeItem = (id: number, name: string) => {
   cartStore.removeItem(id)
-  toast.info({
-    title: 'Товар удален',
-    message: `${name} удален из корзины`
-  })
+  toast.info('Товар удален', `${name} удален из корзины`)
 }
 
 // SEO

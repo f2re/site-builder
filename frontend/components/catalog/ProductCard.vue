@@ -20,10 +20,7 @@ const handleAddToCart = () => {
     image: props.product.images[0]
   })
   
-  toast.success({
-    title: 'Добавлено',
-    message: `${props.product.name} теперь в корзине`
-  })
+  toast.success('Добавлено', `${props.product.name} теперь в корзине`)
 }
 </script>
 

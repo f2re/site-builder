@@ -2,16 +2,19 @@
 import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCartStore } from '~/stores/cartStore'
+import { useAuthStore } from '~/stores/authStore'
 import UButton from './U/UButton.vue'
 import UThemeToggle from './U/UThemeToggle.vue'
 import USearchModal from './U/USearchModal.vue'
 
 const route = useRoute()
 const cartStore = useCartStore()
+const authStore = useAuthStore()
 const isMenuOpen = ref(false)
 const isSearchOpen = ref(false)
 
 const cartCount = computed(() => cartStore.totalCount)
+const isAuthenticated = computed(() => authStore.isAuthenticated)
 
 const navLinks = [
   { to: '/products', label: 'Каталог' },
@@ -19,6 +22,12 @@ const navLinks = [
 ]
 
 const closeMenu = () => { isMenuOpen.value = false }
+
+const handleLogout = () => {
+  authStore.logout()
+  closeMenu()
+  navigateTo('/')
+}
 </script>
 
 <template>
@@ -57,11 +66,7 @@ const closeMenu = () => { isMenuOpen.value = false }
             @click="isSearchOpen = true"
           >
             <template #icon>
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="11" cy="11" r="8"/>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              </svg>
+              <Icon name="ph:magnifying-glass-bold" size="20" />
             </template>
           </UButton>
 
@@ -74,17 +79,46 @@ const closeMenu = () => { isMenuOpen.value = false }
             class="action-btn cart-btn"
           >
             <template #icon>
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-                <line x1="3" y1="6" x2="21" y2="6"/>
-                <path d="M16 10a4 4 0 0 1-8 0"/>
-              </svg>
+              <Icon name="ph:shopping-cart-simple-bold" size="20" />
             </template>
             <span v-if="cartCount > 0" class="cart-badge">
               {{ cartCount > 99 ? '99+' : cartCount }}
             </span>
           </UButton>
+
+          <!-- Account -->
+          <div class="account-actions hide-mobile">
+            <template v-if="isAuthenticated">
+              <div class="auth-group">
+                <UButton
+                  variant="ghost"
+                  size="sm"
+                  to="/profile"
+                  aria-label="Личный кабинет"
+                  class="action-btn profile-btn"
+                >
+                  <template #icon>
+                    <Icon name="ph:user-bold" size="20" />
+                  </template>
+                </UButton>
+                <UButton
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Выйти"
+                  class="action-btn logout-btn"
+                  @click="handleLogout"
+                >
+                  <template #icon>
+                    <Icon name="ph:sign-out-bold" size="20" />
+                  </template>
+                </UButton>
+              </div>
+            </template>
+            <div v-else class="auth-links">
+              <UButton to="/auth/login" variant="ghost" size="sm">Войти</UButton>
+              <UButton to="/auth/register" variant="primary" size="sm">Регистрация</UButton>
+            </div>
+          </div>
 
           <!-- Theme toggle -->
           <UThemeToggle />
@@ -128,6 +162,25 @@ const closeMenu = () => { isMenuOpen.value = false }
             Корзина
             <span v-if="cartCount > 0" class="cart-badge-inline">{{ cartCount }}</span>
           </NuxtLink>
+          
+          <div class="mobile-auth-section">
+            <template v-if="isAuthenticated">
+              <NuxtLink to="/profile" class="mobile-nav-link" @click="closeMenu">
+                Личный кабинет
+              </NuxtLink>
+              <button @click="handleLogout" class="mobile-nav-link logout-link">
+                Выйти
+              </button>
+            </template>
+            <template v-else>
+              <NuxtLink to="/auth/login" class="mobile-nav-link" @click="closeMenu">
+                Войти
+              </NuxtLink>
+              <NuxtLink to="/auth/register" class="mobile-nav-link" @click="closeMenu">
+                Регистрация
+              </NuxtLink>
+            </template>
+          </div>
         </div>
       </nav>
     </Transition>
@@ -226,6 +279,18 @@ const closeMenu = () => { isMenuOpen.value = false }
   gap: 8px;
 }
 
+.auth-links {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.auth-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
 .cart-btn {
   position: relative;
 }
@@ -243,6 +308,10 @@ const closeMenu = () => { isMenuOpen.value = false }
   min-width: 18px;
   border: 2px solid var(--color-bg);
   box-shadow: 0 0 10px var(--color-accent-glow);
+}
+
+.logout-btn:hover {
+  color: var(--color-error);
 }
 
 /* Burger Button */
@@ -307,6 +376,14 @@ const closeMenu = () => { isMenuOpen.value = false }
   color: var(--color-accent);
 }
 
+.logout-link {
+  color: var(--color-error);
+  text-align: left;
+  background: none;
+  border-bottom: 1px solid var(--color-border);
+  width: 100%;
+}
+
 .cart-badge-inline {
   background-color: var(--color-accent);
   color: var(--color-on-accent);
@@ -322,6 +399,10 @@ const closeMenu = () => { isMenuOpen.value = false }
 .mobile-menu-enter-from, .mobile-menu-leave-to {
   opacity: 0;
   transform: translateX(100%);
+}
+
+@media (max-width: 900px) {
+  .hide-mobile { display: none; }
 }
 
 @media (max-width: 768px) {

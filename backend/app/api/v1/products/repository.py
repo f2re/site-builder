@@ -46,6 +46,7 @@ class ProductRepository:
         category_id: Optional[UUID] = None,
         min_price: Optional[Decimal] = None,
         max_price: Optional[Decimal] = None,
+        is_featured: Optional[bool] = None,
         cursor: Optional[UUID] = None,
         per_page: int = 20,
     ) -> Tuple[list[dict], Optional[str]]:
@@ -75,6 +76,7 @@ class ProductRepository:
                 Product.slug,
                 Product.category_id,
                 Product.is_active,
+                Product.is_featured,
                 cover_image_sq.c.url.label("main_image_url"),
                 min_price_sq.c.min_price
             )
@@ -85,6 +87,9 @@ class ProductRepository:
 
         if category_id:
             stmt = stmt.where(Product.category_id == category_id)
+        
+        if is_featured is not None:
+            stmt = stmt.where(Product.is_featured == is_featured)
         
         if min_price is not None:
             stmt = stmt.where(min_price_sq.c.min_price >= min_price)
@@ -109,7 +114,8 @@ class ProductRepository:
                 "category_id": row.category_id,
                 "main_image_url": row.main_image_url,
                 "min_price": row.min_price if row.min_price is not None else Decimal(0),
-                "is_active": row.is_active
+                "is_active": row.is_active,
+                "is_featured": row.is_featured
             })
             
         next_cursor = None

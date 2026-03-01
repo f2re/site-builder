@@ -61,6 +61,7 @@ class ProductBase(BaseModel):
     og_image_url: Optional[str] = None
     attributes: dict[str, Any] = Field(default_factory=dict)
     is_active: bool = True
+    is_featured: bool = False
 
 class ProductRead(ProductBase):
     id: UUID
@@ -86,6 +87,7 @@ class ProductUpdate(BaseModel):
     og_image_url: Optional[str] = None
     attributes: Optional[dict[str, Any]] = None
     is_active: Optional[bool] = None
+    is_featured: Optional[bool] = None
 
 class ProductShortRead(BaseModel):
     id: UUID
@@ -95,6 +97,7 @@ class ProductShortRead(BaseModel):
     main_image_url: Optional[str] = None
     min_price: Decimal
     is_active: bool
+    is_featured: bool
     model_config = ConfigDict(from_attributes=True)
 
 class PaginatedResponse(BaseModel):

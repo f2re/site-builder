@@ -1,42 +1,64 @@
 <script setup lang="ts">
+import { useAuthStore } from '~/stores/authStore'
+
 const route = useRoute()
+const authStore = useAuthStore()
 
 const navItems = [
   { label: 'Профиль', to: '/profile', icon: 'ph:user-bold' },
   { label: 'Мои заказы', to: '/profile/orders', icon: 'ph:shopping-bag-bold' },
   { label: 'Мои устройства', to: '/profile/devices', icon: 'ph:cpu-bold' },
 ]
+
+const handleLogout = () => {
+  authStore.logout()
+  navigateTo('/')
+}
 </script>
 
 <template>
   <nav class="profile-nav">
-    <NuxtLink
-      v-for="item in navItems"
-      :key="item.to"
-      :to="item.to"
-      class="nav-item"
-      :class="{ active: route.path === item.to }"
-    >
-      <Icon :name="item.icon" size="20" />
-      <span>{{ item.label }}</span>
-    </NuxtLink>
+    <div class="nav-links">
+      <NuxtLink
+        v-for="item in navItems"
+        :key="item.to"
+        :to="item.to"
+        class="nav-item"
+        :class="{ active: route.path === item.to }"
+      >
+        <Icon :name="item.icon" size="20" />
+        <span>{{ item.label }}</span>
+      </NuxtLink>
+    </div>
+    
+    <button @click="handleLogout" class="nav-item logout-btn">
+      <Icon name="ph:sign-out-bold" size="20" />
+      <span>Выйти</span>
+    </button>
   </nav>
 </template>
 
 <style scoped>
 .profile-nav {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
   gap: 8px;
   padding: 4px;
   background: var(--color-surface-2);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   margin-bottom: 24px;
+}
+
+.nav-links {
+  display: flex;
+  gap: 8px;
   overflow-x: auto;
   scrollbar-width: none;
 }
 
-.profile-nav::-webkit-scrollbar {
+.nav-links::-webkit-scrollbar {
   display: none;
 }
 
@@ -51,6 +73,11 @@ const navItems = [
   font-weight: 500;
   white-space: nowrap;
   transition: all var(--transition-fast);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--text-sm);
 }
 
 .nav-item:hover {
@@ -64,12 +91,30 @@ const navItems = [
   box-shadow: var(--shadow-glow-accent);
 }
 
+.logout-btn:hover {
+  color: var(--color-error);
+  background: var(--color-error-bg);
+}
+
 @media (max-width: 768px) {
   .profile-nav {
     border-radius: 0;
     border-inline: none;
     margin-inline: calc(var(--padding-inline) * -1);
     padding-inline: var(--padding-inline);
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .nav-links {
+    flex-direction: column;
+  }
+  
+  .logout-btn {
+    border-top: 1px solid var(--color-border);
+    margin-top: 4px;
+    padding-top: 14px;
+    border-radius: 0;
   }
 }
 </style>
