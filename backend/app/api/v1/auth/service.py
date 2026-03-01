@@ -75,9 +75,15 @@ class AuthService:
         user = await self.repo.get_by_provider_id(provider, provider_id)
         
         if user:
-            # Update user if email changed (rare for OAuth but possible)
+            # Update user if email or full_name changed
+            updates: Dict[str, Any] = {}
             if user.email != email:
-                updated_user = await self.repo.update(user.id, email=email)
+                updates["email"] = email
+            if full_name and user.full_name != full_name:
+                updates["full_name"] = full_name
+            
+            if updates:
+                updated_user = await self.repo.update(user.id, **updates)
                 if not updated_user:
                     raise HTTPException(status_code=500, detail="Failed to update user")
                 return updated_user
@@ -86,12 +92,15 @@ class AuthService:
         # 2. Check by email (if they already have a local account)
         user = await self.repo.get_by_email(email)
         if user:
-            # Link existing user to this provider
-            updated_user = await self.repo.update(
-                user.id,
-                auth_provider=provider,
-                provider_id=provider_id
-            )
+            # Link existing user to this provider and update name if needed
+            updates = {
+                "auth_provider": provider,
+                "provider_id": provider_id
+            }
+            if full_name and not user.full_name:
+                updates["full_name"] = full_name
+                
+            updated_user = await self.repo.update(user.id, **updates)
             if not updated_user:
                 raise HTTPException(status_code=500, detail="Failed to link user")
             return updated_user

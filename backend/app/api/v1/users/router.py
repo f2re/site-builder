@@ -40,6 +40,8 @@ UserDep = Depends(require_customer)
 
 class UserProfileUpdate(BaseModel):
     full_name: str | None = None
+    phone: str | None = None
+    address: str | None = None
 
 
 class DeviceRegisterRequest(BaseModel):
@@ -71,6 +73,8 @@ async def get_my_profile(
         "id": str(current_user.id),
         "email": current_user.email,
         "full_name": current_user.full_name,
+        "phone": current_user.phone,
+        "address": current_user.address,
         "role": current_user.role,
         "is_active": current_user.is_active,
     }
@@ -83,12 +87,23 @@ async def update_my_profile(
     user_repo: UserRepository = Depends(get_user_repository)
 ) -> Any:
     """Update current user profile."""
-    updated_user = await user_repo.update(current_user.id, full_name=body.full_name)
+    update_data = body.model_dump(exclude_unset=True)
+    if not update_data:
+         return {
+            "id": str(current_user.id),
+            "full_name": current_user.full_name,
+            "phone": current_user.phone,
+            "address": current_user.address,
+        }
+
+    updated_user = await user_repo.update(current_user.id, **update_data)
     if updated_user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return {
         "id": str(updated_user.id),
         "full_name": updated_user.full_name,
+        "phone": updated_user.phone,
+        "address": updated_user.address,
     }
 
 

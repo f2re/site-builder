@@ -22,6 +22,9 @@ class User(Base):
     # Fernet ciphertext for 255 chars can be around 380 chars. Text or String(1024) is safer.
     email: Mapped[str] = mapped_column(Text, nullable=False)
     full_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    phone: Mapped[str | None] = mapped_column(Text, nullable=True)
+    phone_hash: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
+    address: Mapped[str | None] = mapped_column(Text, nullable=True)
     
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

@@ -18,6 +18,10 @@ class UserRepository:
             set_committed_value(user, "email", decrypt_data(user.email))
         if user.full_name:
             set_committed_value(user, "full_name", decrypt_data(user.full_name))
+        if user.phone:
+            set_committed_value(user, "phone", decrypt_data(user.phone))
+        if user.address:
+            set_committed_value(user, "address", decrypt_data(user.address))
         return user
 
     async def get_by_email(self, email: str) -> User | None:
@@ -25,6 +29,17 @@ class UserRepository:
         email_hash = get_blind_index(email)
         result = await self.session.execute(
             select(User).where(User.email_hash == email_hash)
+        )
+        user = result.scalars().first()
+        if user:
+            return self._decrypt_user(user)
+        return None
+
+    async def get_by_phone(self, phone: str) -> User | None:
+        """Search by blind index and decrypt result."""
+        phone_hash = get_blind_index(phone)
+        result = await self.session.execute(
+            select(User).where(User.phone_hash == phone_hash)
         )
         user = result.scalars().first()
         if user:
@@ -61,6 +76,11 @@ class UserRepository:
             user_in.email = encrypt_data(user_in.email)
         if user_in.full_name:
             user_in.full_name = encrypt_data(user_in.full_name)
+        if user_in.phone:
+            user_in.phone_hash = get_blind_index(user_in.phone)
+            user_in.phone = encrypt_data(user_in.phone)
+        if user_in.address:
+            user_in.address = encrypt_data(user_in.address)
             
         self.session.add(user_in)
         await self.session.commit()
@@ -72,11 +92,16 @@ class UserRepository:
         if not kwargs:
             return await self.get_by_id(user_id)
             
-        if "email" in kwargs:
+        if "email" in kwargs and kwargs["email"]:
             kwargs["email_hash"] = get_blind_index(kwargs["email"])
             kwargs["email"] = encrypt_data(kwargs["email"])
-        if "full_name" in kwargs:
+        if "full_name" in kwargs and kwargs["full_name"]:
             kwargs["full_name"] = encrypt_data(kwargs["full_name"])
+        if "phone" in kwargs and kwargs["phone"]:
+            kwargs["phone_hash"] = get_blind_index(kwargs["phone"])
+            kwargs["phone"] = encrypt_data(kwargs["phone"])
+        if "address" in kwargs and kwargs["address"]:
+            kwargs["address"] = encrypt_data(kwargs["address"])
             
         await self.session.execute(
             update(User)
