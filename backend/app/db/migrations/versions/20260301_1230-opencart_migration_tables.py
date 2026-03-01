@@ -7,6 +7,7 @@ Create Date: 2026-03-01 12:30:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '20260301_1230'
@@ -16,12 +17,22 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Check and create migrationentity
+    res = op.get_bind().execute(sa.text("SELECT 1 FROM pg_type WHERE typname = 'migrationentity'"))
+    if not res.first():
+        sa.Enum('USERS', 'CATEGORIES', 'PRODUCTS', 'IMAGES', 'ORDERS', 'BLOG', name='migrationentity').create(op.get_bind())
+
+    # Check and create migrationstatus
+    res = op.get_bind().execute(sa.text("SELECT 1 FROM pg_type WHERE typname = 'migrationstatus'"))
+    if not res.first():
+        sa.Enum('PENDING', 'RUNNING', 'PAUSED', 'DONE', 'FAILED', name='migrationstatus').create(op.get_bind())
+
     # ─── migration_jobs ──────────────────────────────────────────────────────
     op.create_table(
         'migration_jobs',
         sa.Column('id', sa.UUID(), nullable=False),
-        sa.Column('entity', sa.Enum('USERS', 'CATEGORIES', 'PRODUCTS', 'IMAGES', 'ORDERS', 'BLOG', name='migrationentity'), nullable=False),
-        sa.Column('status', sa.Enum('PENDING', 'RUNNING', 'PAUSED', 'DONE', 'FAILED', name='migrationstatus'), nullable=False),
+        sa.Column('entity', postgresql.ENUM('USERS', 'CATEGORIES', 'PRODUCTS', 'IMAGES', 'ORDERS', 'BLOG', name='migrationentity', create_type=False), nullable=False),
+        sa.Column('status', postgresql.ENUM('PENDING', 'RUNNING', 'PAUSED', 'DONE', 'FAILED', name='migrationstatus', create_type=False), nullable=False),
         sa.Column('total', sa.Integer(), nullable=False),
         sa.Column('processed', sa.Integer(), nullable=False),
         sa.Column('skipped', sa.Integer(), nullable=False),
@@ -55,5 +66,6 @@ def downgrade() -> None:
     op.drop_column('categories', 'oc_category_id')
     
     op.drop_table('migration_jobs')
-    # Note: Enums are not dropped here to avoid issues if they are shared, 
-    # but in a clean downgrade you might want sa.Enum(...).drop(op.get_bind())
+    
+    op.execute("DROP TYPE IF EXISTS migrationentity")
+    op.execute("DROP TYPE IF EXISTS migrationstatus")

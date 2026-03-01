@@ -8,6 +8,7 @@ from typing import Sequence, Union
 import uuid
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision: str = "0002"
 down_revision: Union[str, None] = "0001"
@@ -19,6 +20,11 @@ ORDER_STATUSES = ["pending", "paid", "processing", "shipped", "delivered", "canc
 
 
 def upgrade() -> None:
+    # Check if orderstatus type exists
+    res = op.get_bind().execute(sa.text("SELECT 1 FROM pg_type WHERE typname = 'orderstatus'"))
+    if not res.first():
+        sa.Enum(*ORDER_STATUSES, name="orderstatus").create(op.get_bind())
+
     # ── orders ────────────────────────────────────────────────────────────────
     op.create_table(
         "orders",
@@ -32,7 +38,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "status",
-            sa.Enum(*ORDER_STATUSES, name="orderstatus"),
+            postgresql.ENUM(*ORDER_STATUSES, name="orderstatus", create_type=False),
             nullable=False,
             server_default="pending",
             index=True,

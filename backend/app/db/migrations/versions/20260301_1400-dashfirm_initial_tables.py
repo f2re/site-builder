@@ -30,9 +30,15 @@ def upgrade() -> None:
     op.create_index(op.f('ix_module_tokens_token'), 'module_tokens', ['token'], unique=True)
 
     # ─── ModuleDevice ─────────────────────────────────────────────────────────
-    # We need to create the Enum type first
-    device_type_enum = postgresql.ENUM('OBD', 'AFR', name='device_type_enum')
-    device_type_enum.create(op.get_bind(), checkfirst=True)
+    # Check if the enum type exists before creating
+    bind = op.get_bind()
+    has_type = bind.execute(
+        sa.text("SELECT 1 FROM pg_type WHERE typname = 'device_type_enum'")
+    ).scalar()
+    
+    if not has_type:
+        device_type_enum = postgresql.ENUM('OBD', 'AFR', name='device_type_enum')
+        device_type_enum.create(bind)
 
     op.create_table(
         'module_devices',
@@ -78,9 +84,14 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_module_devices_serial'), table_name='module_devices')
     op.drop_table('module_devices')
     
-    # Drop enum
-    device_type_enum = postgresql.ENUM(name='device_type_enum')
-    device_type_enum.drop(op.get_bind(), checkfirst=True)
+    # Drop enum safely
+    bind = op.get_bind()
+    has_type = bind.execute(
+        sa.text("SELECT 1 FROM pg_type WHERE typname = 'device_type_enum'")
+    ).scalar()
+    if has_type:
+        device_type_enum = postgresql.ENUM(name='device_type_enum')
+        device_type_enum.drop(bind)
 
     op.drop_index(op.f('ix_module_tokens_token'), table_name='module_tokens')
     op.drop_table('module_tokens')
