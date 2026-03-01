@@ -113,6 +113,7 @@ services:
     env_file: /srv/site-builder/.env.prod
     environment:
       MEDIA_ROOT: /app/media
+      CELERY_BEAT_SCHEDULE_FILENAME: /tmp/celerybeat-schedule
     depends_on:
       - redis
       - postgres
