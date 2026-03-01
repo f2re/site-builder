@@ -12,9 +12,9 @@
 | 2 | **E-Commerce** | Каталог, Корзина, ЮKassa, СДЭК v2 (ПВЗ на карте) | ✅ Готов |
 | 3 | **Dashfirm** | Управление прошивками, серийниками и токенами | ✅ Готов |
 | 4 | **Migration** | Автоматический импорт данных из OpenCart | ✅ Готов |
-| 5 | **IoT Layer** | WebSocket поток, TimescaleDB, Real-time графики | 🔄 В работе |
-| 6 | **SEO & Content** | Dynamic Sitemap, JSON-LD, SSR Meta, Блог | 🔄 В работе |
-| 7 | **QA & Search** | Meilisearch синхронизация, Нагрузочные тесты | ⏳ Ожидает |
+| 5 | **SEO & Content** | Sitemap, Schema.org, SSR Meta, Редиректы | ✅ Готов |
+| 6 | **IoT Layer** | WebSocket поток, TimescaleDB, Real-time графики | 🔄 В работе |
+| 7 | **Search & UX** | Meilisearch синхронизация, Нагрузочные тесты | ⏳ Ожидает |
 
 ---
 
@@ -26,14 +26,14 @@
 - **ORM**: SQLAlchemy 2.0 (Mapped types) + Alembic
 - **Кэш & Очереди**: Redis 7, Celery + Celery Beat
 - **Поиск**: Meilisearch (полнотекстовый поиск)
-- **Безопасность**: Fernet (шифрование 152-ФЗ), JWT (Refresh Rotation)
+- **Безопасность**: Fernet (шифрование PII 152-ФЗ), JWT (Refresh Rotation)
 
 ### Frontend (Nuxt 3)
 - **Framework**: Vue 3 (Composition API), Nuxt 3 (SSR)
 - **State**: Pinia
 - **UI System**: **Race-Style Design** (Custom UI Kit + Design Tokens)
 - **Иконки**: Phosphor Icons (Local bundling через `@nuxt/icon`)
-- **Карты**: Yandex Maps API integration
+- **SEO**: SSR Meta, JSON-LD Structured Data, Dynamic Sitemap
 
 ---
 
@@ -44,17 +44,17 @@ site-builder/
 ├── backend/                # 🐍 FastAPI Backend
 │   ├── app/
 │   │   ├── api/v1/         # Feature-First модули (auth, shop, iot, firmware...)
-│   │   ├── core/           # Глобальные настройки и безопасность
+│   │   ├── core/           # Глобальные настройки и безопасность (Gatekeeper)
 │   │   ├── db/             # Модели SQLAlchemy и миграции Alembic
-│   │   ├── integrations/   # СДЭК, ЮKassa, Meilisearch, CRM
-│   │   └── tasks/          # Фоновые задачи Celery
+│   │   ├── integrations/   # СДЭК, ЮKassa, Meilisearch
+│   │   └── tasks/          # Фоновые задачи Celery (Delivery, SEO, Cleanup)
 │   └── tests/              # Pytest (Unit & Integration)
 ├── frontend/               # ⚡ Nuxt 3 Frontend
 │   ├── components/         # UI Kit (U/) и доменные компоненты
 │   ├── pages/              # Роутинг и логика страниц
 │   ├── stores/             # Состояние Pinia
 │   └── assets/css/         # Design Tokens (tokens.css)
-├── deploy/                 # 🚀 Конфиги Nginx, Monitoring (Prometheus/Loki)
+├── deploy/                 # 🚀 Конфиги Nginx/Apache, Monitoring
 └── .gemini/                # 🤖 Инструкции и задачи для ИИ-агентов
 ```
 
@@ -66,6 +66,7 @@ site-builder/
 - 🧼 **Linting**: Обязательный `ruff` и `mypy` перед каждым коммитом.
 - 🧪 **Testing**: Автоматический запуск `pytest` для верификации критических узлов.
 - 🛡 **Security**: Шифрование PII и защита миграций от дублирования ENUM.
+- 📦 **Dependencies**: Строгий контроль версий в `requirements.txt`.
 
 ---
 
@@ -89,32 +90,15 @@ docker compose exec backend alembic upgrade head
 docker compose run --rm backend python -m app.db.create_admin
 ```
 
-### 3. Локальная разработка
-**Backend**:
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-**Frontend**:
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
----
-
-## ⚡ Полезные команды
-
-- `alembic revision --autogenerate -m "msg"` — создать миграцию.
-- `ruff check app/ --fix` — исправить ошибки линтинга.
-- `npm run lint` — проверить типы и стиль фронтенда.
-- `pytest --cov=app` — запустить тесты с отчетом о покрытии.
+### 3. Вход в Админ-панель
+1. Создайте администратора через команду выше (используйте Email и Password из `.env`).
+2. Авторизуйтесь на сайте.
+3. Перейдите по адресу `/admin`. Если доступа нет — проверьте роль пользователя в БД.
 
 ---
 
 ## 📐 Принципы кодовой базы
 - **152-ФЗ Compliance**: Имена, телефоны и email шифруются в БД (AES-256).
 - **Idempotency**: Все платежные и доставочные операции защищены от повторов.
-- **Race-Style UI**: Интерфейс ориентирован на скорость, адаптивность и спортивную эстетику.
+- **Race-Style UI**: Интерфейс ориентирован на скорость, адаптивность (Mobile-First) и спортивную эстетику.
+- **SEO Ready**: Автоматическая генерация Sitemap, RSS и JSON-LD разметки.

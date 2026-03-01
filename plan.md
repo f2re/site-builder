@@ -1,15 +1,16 @@
 # WifiOBD: Карта проекта
 
-**Статус:** 🟢 Ядро и E-Commerce готовы. Вектор: IoT, SEO, Поиск.
+**Статус:** 🟢 Core, Shop, Migration, Dashfirm, SEO — ГОТОВЫ. Вектор: IoT.
 
 ---
 
 ## 🚀 Реализовано
-- **Инфраструктура**: Docker (dev/prod), CI/CD, PG16, Redis, Meilisearch.
-- **Безопасность**: JWT, шифрование PII (152-ФЗ), Gatekeeper Protocol.
-- **Магазин**: Каталог, корзина, Оплата (ЮKassa), Доставка (СДЭК v2 + карта ПВЗ).
-- **Миграция**: Полный перенос данных из OpenCart.
-- **Dashfirm**: Управление прошивками и устройствами (токены, CLI компилятор).
+- **Инфраструктура**: Docker (prod), CI/CD, PG16, Redis, Meilisearch.
+- **Безопасность**: JWT, 152-ФЗ (Encryption), Gatekeeper Protocol.
+- **Магазин**: ЮKassa, СДЭК v2 (Карта ПВЗ), Резервирование остатков.
+- **Миграция**: Авто-импорт из OpenCart (Users, Catalog, Orders).
+- **Dashfirm**: Прошивки, токены, CLI компилятор.
+- **SEO & Content**: Sitemap, JSON-LD, Редиректы, Reading Time.
 
 ---
 
@@ -17,22 +18,21 @@
 
 ### 1. IoT & Телеметрия
 - WebSocket поток данных (`/ws/iot/`).
-- Хранение в TimescaleDB (hypertable).
+- TimescaleDB hypertable для `telemetry`.
 - Real-time графики в кабинете пользователя.
 
-### 2. SEO & Контент
-- SSR мета-теги, Schema.org (JSON-LD).
-- Динамические `sitemap.xml` и `robots.txt`.
-- Финализация блога и комментариев.
+### 2. Поиск & UX
+- Синхронизация Meilisearch (товары/статьи).
+- Живые фильтры в каталоге.
+- Древовидные комментарии в блоге.
 
-### 3. Поиск & Аналитика
-- Синхронизация Meilisearch.
-- Расширенный поиск с фильтрами.
-- Дашборд продаж и активности в админке.
+### 3. Аналитика
+- Дашборд продаж в админке.
+- Логирование действий администраторов.
 
 ---
 
 ## 📍 Ресурсы
-- **API**: `https://m.wifiobd.ru/api/v1`
+- **API Swagger**: `https://m.wifiobd.ru/docs`
 - **Admin**: `/admin/`
-- **Dashfirm**: `/software/`
+- **Software**: `/software/`
