@@ -1,0 +1,17 @@
+{
+  "task_id": "p7_frontend_telegram_auth",
+  "phase": 7,
+  "agent": "frontend-agent",
+  "title": "Fix Telegram login widget window.onTelegramAuth issue",
+  "description": "Fix the error 'Uncaught ReferenceError: onTelegramAuth is not defined' on the frontend login and register pages. Ensure `window.onTelegramAuth` is defined and accessible to the Telegram widget script loaded dynamically. Use appropriate Nuxt 3 practices to inject the script or register the global callback.",
+  "depends_on": [],
+  "priority": "high",
+  "status": "done",
+  "contracts_required": [],
+  "acceptance_criteria": [
+    "window.onTelegramAuth is defined before the Telegram widget script runs",
+    "Telegram login and registration flows work without ReferenceError",
+    "No multiple popup blocked warnings from the Telegram widget",
+    "Linting passes (npm run lint in frontend)"
+  ]
+}

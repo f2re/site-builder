@@ -74,7 +74,7 @@ onMounted(() => {
   script.async = true
   script.setAttribute('data-telegram-login', botName)
   script.setAttribute('data-size', 'large')
-  script.setAttribute('data-onauth', 'onTelegramAuth')
+  script.setAttribute('data-onauth', 'onTelegramAuth(user)')
   script.setAttribute('data-request-access', 'write')
   
   const container = document.getElementById('telegram-login-container')
