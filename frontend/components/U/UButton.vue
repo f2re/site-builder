@@ -20,10 +20,26 @@ const isNuxtLink = computed(() => !!props.to)
 </script>
 
 <template>
-  <component
-    :is="isNuxtLink ? 'NuxtLink' : 'button'"
+  <NuxtLink
+    v-if="isNuxtLink"
     :to="to"
-    :type="isNuxtLink ? undefined : type"
+    :class="[
+      'btn',
+      `btn--${variant}`,
+      `btn--${size}`,
+      { 'btn--loading': loading, 'btn--disabled': disabled }
+    ]"
+  >
+    <div v-if="loading" class="btn__loader"></div>
+    <div :class="['btn__content', { 'btn__content--hidden': loading }]">
+      <slot name="icon" />
+      <slot />
+      <slot name="iconRight" />
+    </div>
+  </NuxtLink>
+  <button
+    v-else
+    :type="type"
     :disabled="disabled || loading"
     class="btn"
     :class="[
@@ -38,7 +54,7 @@ const isNuxtLink = computed(() => !!props.to)
       <slot />
       <slot name="iconRight" />
     </div>
-  </component>
+  </button>
 </template>
 
 <style scoped>
@@ -73,9 +89,10 @@ const isNuxtLink = computed(() => !!props.to)
   outline-offset: 2px;
 }
 
-.btn:disabled {
+.btn:disabled, .btn--disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  pointer-events: none;
 }
 
 /* Variants */

@@ -13,7 +13,8 @@ const emit = defineEmits<{
 // Simple tree builder for flat categories
 const categoryTree = computed(() => {
   const map = new Map<string | null, Category[]>()
-  props.categories.forEach(cat => {
+  const cats = props.categories || []
+  cats.forEach(cat => {
     const parentId = cat.parent_id
     if (!map.has(parentId)) map.set(parentId, [])
     map.get(parentId)!.push(cat)

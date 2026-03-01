@@ -13,7 +13,7 @@ router = APIRouter(prefix="/pages", tags=["Admin Static Pages"])
 # Admin dependency for all routes in this router
 AdminDep = Depends(require_admin)
 
-@router.get("/", response_model=List[PageRead])
+@router.get("", response_model=List[PageRead])
 async def list_pages(
     _admin: User = AdminDep,
     service: PageService = Depends(get_page_service)
@@ -21,7 +21,7 @@ async def list_pages(
     """Admin endpoint to list all pages (including inactive)."""
     return await service.list_all_pages(active_only=False)
 
-@router.post("/", response_model=PageRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=PageRead, status_code=status.HTTP_201_CREATED)
 async def create_page(
     payload: PageCreate,
     _admin: User = AdminDep,

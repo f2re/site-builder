@@ -8,7 +8,7 @@ import asyncio
 import os
 import sys
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from app.core.config import settings
 from app.core.security import get_password_hash, encrypt_data, get_blind_index
 from app.db.models.user import User

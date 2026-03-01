@@ -7,9 +7,11 @@ interface Crumb {
   icon?: string
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   crumbs: Crumb[]
-}>()
+}>(), {
+  crumbs: () => []
+})
 
 const config = useRuntimeConfig()
 const siteUrl = (config.public.siteUrl as string) || ''

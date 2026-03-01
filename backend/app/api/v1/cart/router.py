@@ -9,7 +9,7 @@ from app.core.dependencies import get_cart_service, get_cart_id
 router = APIRouter(prefix="/cart", tags=["cart"])
 
 
-@router.get("/", response_model=CartResponse)
+@router.get("", response_model=CartResponse)
 async def get_cart(
     cart_id: str = Depends(get_cart_id),
     cart_service: CartService = Depends(get_cart_service),
@@ -57,7 +57,7 @@ async def remove_from_cart(
     return await cart_service.remove_item(cart_id, variant_id)
 
 
-@router.delete("/", status_code=204)
+@router.delete("", status_code=204)
 async def clear_cart(
     cart_id: str = Depends(get_cart_id),
     cart_service: CartService = Depends(get_cart_service),

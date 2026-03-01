@@ -12,7 +12,7 @@ from app.db.models.user import User
 router = APIRouter(prefix="/orders", tags=["orders"])
 
 
-@router.post("/", response_model=OrderRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=OrderRead, status_code=status.HTTP_201_CREATED)
 async def create_order(
     order_data: OrderCreate,
     cart_id: str = Depends(get_cart_id),
@@ -25,7 +25,7 @@ async def create_order(
     return await order_service.create_order(current_user, order_data, cart_id)
 
 
-@router.get("/", response_model=List[OrderRead])
+@router.get("", response_model=List[OrderRead])
 async def list_my_orders(
     current_user: User = Depends(get_current_user),
     order_service: OrderService = Depends(get_order_service),

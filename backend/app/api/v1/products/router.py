@@ -40,7 +40,7 @@ async def search_products(
             detail=f"Meilisearch error: {str(e)}"
         )
 
-@router.get("/", response_model=ProductPagination)
+@router.get("", response_model=ProductPagination)
 async def list_products(
     category_id: Optional[UUID] = Query(None, description="Filter by category ID"),
     min_price: Optional[Decimal] = Query(None, description="Filter by minimum price"),
