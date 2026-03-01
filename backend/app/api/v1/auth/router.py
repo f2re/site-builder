@@ -2,7 +2,15 @@
 from typing import cast, Dict, Any
 from fastapi import APIRouter, Depends, status, Query
 from fastapi.responses import RedirectResponse
-from app.api.v1.auth.schemas import LoginRequest, Token, UserCreate, UserResponse, TokenRefreshRequest
+from app.api.v1.auth.schemas import (
+    LoginRequest, 
+    Token, 
+    UserCreate, 
+    UserResponse, 
+    TokenRefreshRequest,
+    PasswordResetRequest,
+    PasswordResetConfirm
+)
 from app.api.v1.auth.service import AuthService
 from app.core.dependencies import get_auth_service
 from app.core.config import settings
@@ -69,3 +77,19 @@ async def telegram_auth(
     auth_service: AuthService = Depends(get_auth_service)
 ) -> Token:
     return await auth_service.handle_telegram_auth(tg_data)
+
+@router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
+async def forgot_password(
+    data: PasswordResetRequest,
+    auth_service: AuthService = Depends(get_auth_service)
+) -> Dict[str, str]:
+    await auth_service.request_password_reset(data.email)
+    return {"message": "If the email is registered, a password reset link has been sent."}
+
+@router.post("/reset-password", status_code=status.HTTP_200_OK)
+async def reset_password(
+    data: PasswordResetConfirm,
+    auth_service: AuthService = Depends(get_auth_service)
+) -> Dict[str, str]:
+    await auth_service.reset_password(data.token, data.new_password)
+    return {"message": "Password has been successfully reset."}

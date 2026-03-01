@@ -1,8 +1,8 @@
 # Module: core/security.py | Agent: backend-agent | Task: phase7_backend_security
 import hashlib
 from datetime import datetime, timedelta, timezone
-from typing import Any, Union
-from jose import jwt
+from typing import Any, Union, Optional
+from jose import jwt, JWTError
 from passlib.context import CryptContext
 from cryptography.fernet import Fernet, InvalidToken
 from app.core.config import settings
@@ -51,6 +51,26 @@ def create_refresh_token(
     to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
+
+
+def create_password_reset_token(email: str) -> str:
+    """Create a short-lived token for password reset."""
+    delta = timedelta(hours=1)
+    now = datetime.now(timezone.utc)
+    expire = now + delta
+    to_encode = {"exp": expire, "sub": email, "type": "password_reset"}
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def verify_password_reset_token(token: str) -> Optional[str]:
+    """Verify password reset token and return email if valid."""
+    try:
+        decoded_token = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        if decoded_token.get("type") != "password_reset":
+            return None
+        return decoded_token.get("sub")
+    except (JWTError, ValueError):
+        return None
 
 
 def encrypt_data(plain_text: str) -> str:

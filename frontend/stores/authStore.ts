@@ -88,6 +88,30 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function forgotPassword(email: string) {
+    try {
+      await $fetch(`${apiBase}/auth/forgot-password`, {
+        method: 'POST',
+        body: { email }
+      })
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.data?.detail || 'Failed to send reset email' }
+    }
+  }
+
+  async function resetPassword(token: string, new_password: string) {
+    try {
+      await $fetch(`${apiBase}/auth/reset-password`, {
+        method: 'POST',
+        body: { token, new_password }
+      })
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.data?.detail || 'Failed to reset password' }
+    }
+  }
+
   function logout() {
     accessToken.value = null
     refreshTokenCookie.value = null
@@ -130,6 +154,8 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     handleOAuthCallback,
     handleTelegramAuth,
+    forgotPassword,
+    resetPassword,
     logout,
     refreshToken
   }

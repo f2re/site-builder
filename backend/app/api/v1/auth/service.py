@@ -2,6 +2,7 @@
 import hmac
 import hashlib
 import time
+from datetime import datetime
 from typing import Dict, Any, Optional
 from uuid import UUID
 import httpx
@@ -12,11 +13,14 @@ from app.api.v1.users.repository import UserRepository
 from app.core.security import (
     create_access_token,
     create_refresh_token,
+    create_password_reset_token,
+    verify_password_reset_token,
     get_password_hash,
     verify_password,
 )
 from app.db.models.user import User
 from app.core.config import settings
+from app.tasks.notifications.dispatcher import send_email_task
 
 
 class AuthService:
@@ -279,3 +283,42 @@ class AuthService:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid refresh token",
             )
+
+    async def request_password_reset(self, email: str) -> None:
+        """Send password reset email if user exists."""
+        user = await self.repo.get_by_email(email)
+        if not user:
+            # We don't reveal that the user doesn't exist for security reasons
+            return
+
+        token = create_password_reset_token(email)
+        reset_link = f"{settings.NUXT_PUBLIC_SITE_URL}/auth/reset-password?token={token}"
+        
+        send_email_task.delay(
+            recipient=email,
+            subject="Восстановление пароля | WifiOBD Shop",
+            template_name="password_reset.html",
+            context={
+                "email": email,
+                "reset_link": reset_link,
+                "current_year": datetime.now().year
+            }
+        )
+
+    async def reset_password(self, token: str, new_password: str) -> None:
+        """Verify token and update password."""
+        email = verify_password_reset_token(token)
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired password reset token",
+            )
+
+        user = await self.repo.get_by_email(email)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        await self.repo.update(user.id, hashed_password=get_password_hash(new_password))
