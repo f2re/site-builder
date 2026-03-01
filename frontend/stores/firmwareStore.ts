@@ -5,22 +5,22 @@ export interface Device {
   id: string
   serial: string
   type: 'OBD' | 'AFR'
-  added_at: string
+  created_at: string
+  complectations: Complectation[]
 }
 
 export interface Version {
   id: string
   version: string
   changelog: string | null
-  file_path: string
 }
 
 export interface Complectation {
   id: string
-  name: string
-  description: string | null
-  price: number
-  is_active: boolean
+  caption: string
+  label: string
+  code: number
+  simple: boolean
 }
 
 export const useFirmwareStore = defineStore('firmware', () => {

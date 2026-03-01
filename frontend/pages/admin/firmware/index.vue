@@ -67,16 +67,16 @@ const onMergeUsers = async () => {
 
 const openComplectationModal = (comp: Complectation | null = null) => {
   editingComplectation.value = comp ? { ...comp } : {
-    name: '',
-    description: '',
-    price: 0,
-    is_active: true
+    caption: '',
+    label: '',
+    code: 0,
+    simple: true
   }
   showComplectationModal.value = true
 }
 
 const onSaveComplectation = async () => {
-  if (!editingComplectation.value?.name) return
+  if (!editingComplectation.value?.caption || !editingComplectation.value?.label) return
   
   isSavingComplectation.value = true
   try {
@@ -196,10 +196,10 @@ useSeo({ title: 'Управление прошивками (Admin)' })
           <div class="complectations-list">
             <div v-for="comp in allComplectations" :key="comp.id" class="comp-item">
               <div class="comp-info">
-                <span class="comp-name">{{ comp.name }}</span>
-                <span class="comp-price">{{ comp.price }} ₽</span>
-                <UBadge :variant="comp.is_active ? 'success' : 'error'" size="sm">
-                  {{ comp.is_active ? 'Активна' : 'Отключена' }}
+                <span class="comp-name">{{ comp.caption }}</span>
+                <span class="comp-code">Code: {{ comp.code }}</span>
+                <UBadge :variant="comp.simple ? 'secondary' : 'primary'" size="sm">
+                  {{ comp.simple ? 'Simple' : 'Final' }} ({{ comp.label }})
                 </UBadge>
               </div>
               <div class="comp-actions">
@@ -229,8 +229,8 @@ useSeo({ title: 'Управление прошивками (Admin)' })
                 <tr>
                   <th>Серийный номер</th>
                   <th>Тип</th>
+                  <th>Владелец (Email)</th>
                   <th>Дата добавления</th>
-                  <th>ID Пользователя</th>
                 </tr>
               </thead>
               <tbody>
@@ -241,9 +241,9 @@ useSeo({ title: 'Управление прошивками (Admin)' })
                       {{ device.type }}
                     </UBadge>
                   </td>
-                  <td>{{ new Date(device.added_at).toLocaleDateString() }}</td>
-                  <td>{{ device.id }}</td>
-                </tr>
+                  <td>{{ device.owner_email }}</td>
+                  <td>{{ new Date(device.created_at).toLocaleDateString() }}</td>
+                  </tr>
                 <tr v-if="globalDevices.length === 0">
                   <td colspan="4" class="text-center">Устройства не найдены</td>
                 </tr>
@@ -260,17 +260,14 @@ useSeo({ title: 'Управление прошивками (Admin)' })
       :title="editingComplectation?.id ? 'Редактировать комплектацию' : 'Новая комплектация'"
     >
       <div v-if="editingComplectation" class="modal-form">
-        <UInput v-model="editingComplectation.name" label="Название" />
-        <UInput v-model="editingComplectation.price" type="number" label="Цена (₽)" />
+        <UInput v-model="editingComplectation.caption" label="Название (Caption)" placeholder="Base + CAN" />
+        <UInput v-model="editingComplectation.label" label="Системная метка (Label)" placeholder="base_can" />
+        <UInput v-model="editingComplectation.code" type="number" label="Код (Bitmask)" />
         <div class="checkbox-group">
           <label class="checkbox-label">
-            <input type="checkbox" v-model="editingComplectation.is_active">
-            Активна
+            <input type="checkbox" v-model="editingComplectation.simple">
+            Простая опция (Simple)
           </label>
-        </div>
-        <div class="textarea-wrapper">
-          <label class="input-label">Описание</label>
-          <textarea v-model="editingComplectation.description" class="admin-textarea"></textarea>
         </div>
       </div>
       <template #footer>

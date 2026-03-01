@@ -3,7 +3,7 @@ import os
 import secrets
 import subprocess
 import uuid
-from typing import List, Optional, Tuple, Sequence
+from typing import List, Tuple, Sequence
 from fastapi import HTTPException, status, Depends
 from app.api.v1.firmware.repository import FirmwareRepository, get_firmware_repo
 from app.db.models.firmware import DeviceType, ModuleDevice, ModuleComplectation
@@ -32,8 +32,31 @@ class FirmwareService:
             return []
         return await self.repo.get_devices_by_token_id(token_obj.id)
 
-    async def get_all_devices(self) -> Sequence[ModuleDevice]:
-        return await self.repo.list_all_devices()
+    async def get_all_devices(self) -> List[dict]:
+        from app.core.security import decrypt_data
+        devices = await self.repo.list_all_devices()
+        result = []
+        for d in devices:
+            # ModuleDevice has token -> user -> email
+            owner_email = "Unknown"
+            if d.token and d.token.user:
+                try:
+                    owner_email = decrypt_data(d.token.user.email)
+                except Exception:
+                    owner_email = "Error decrypting"
+            
+            # Map to dict compatible with DeviceRead
+            d_dict = {
+                "id": d.id,
+                "serial": d.serial,
+                "device_type": d.device_type,
+                "comment": d.comment,
+                "created_at": d.created_at,
+                "complectations": d.complectations,
+                "owner_email": owner_email
+            }
+            result.append(d_dict)
+        return result
 
     async def add_device(self, user_id: uuid.UUID, serial: str) -> ModuleDevice:
         # This will create token if it doesn't exist
@@ -61,6 +84,21 @@ class FirmwareService:
 
     async def create_complectation(self, caption: str, label: str, code: int, simple: bool) -> ModuleComplectation:
         return await self.repo.create_complectation(caption, label, code, simple)
+
+    async def update_complectation(self, comp_id: uuid.UUID, caption: str, label: str, code: int, simple: bool) -> ModuleComplectation:
+        comp = await self.repo.update_complectation(comp_id, caption, label, code, simple)
+        if not comp:
+            raise HTTPException(status_code=404, detail="Complectation not found")
+        return comp
+
+    async def delete_complectation(self, comp_id: uuid.UUID):
+        success = await self.repo.delete_complectation(comp_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Complectation not found")
+
+    async def add_complectation_to_device(self, serial: str, comp_id: uuid.UUID):
+        await self.repo.add_complectation_to_device(serial, comp_id)
+        await self.repo.session.commit()
 
     async def sum_complectations(self, selected_ids: List[uuid.UUID]) -> str:
         if not selected_ids:
@@ -137,8 +175,21 @@ class FirmwareService:
                 detail=f"Compilation failed: {e.stderr}"
             )
 
-    async def merge_users_firmware(self, source_user_id: uuid.UUID, target_user_id: uuid.UUID):
-        await self.repo.merge_tokens(source_user_id, target_user_id)
+    async def merge_users_firmware(self, source_email: str, target_email: str):
+        source_hash = get_blind_index(source_email)
+        target_hash = get_blind_index(target_email)
+        
+        source_user = await self.repo.get_user_by_email_hash(source_hash)
+        target_user = await self.repo.get_user_by_email_hash(target_hash)
+        
+        if not source_user or not target_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="One or both users not found"
+            )
+            
+        await self.repo.merge_tokens(source_user.id, target_user.id)
+        await self.repo.session.commit()
 
     async def import_excel(self, file_content: bytes) -> Tuple[int, int, List[str]]:
         import io
@@ -152,7 +203,8 @@ class FirmwareService:
         # Headers: 0:Client, 1:Serial, 2:Type, 3:Complectation Label, 4:Code
         # Expecting at least Client and Serial
         for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
-            if not any(row): continue
+            if not any(row):
+                continue
             
             client_name = str(row[0]) if row[0] else None
             serial = str(row[1]) if row[1] else None

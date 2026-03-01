@@ -12,10 +12,16 @@ const { versions } = storeToRefs(useFirmwareStore())
 const toast = useToast()
 
 const selectedVersionId = ref<string>('')
+const selectedComplectationIds = ref<string[]>([])
 const isPending = ref(false)
 const isDownloading = ref(false)
 
 const deviceVersions = computed(() => versions.value[props.device.type] || [])
+
+// Filter complectations to show only those linked to the device and marked as 'simple'
+const allowedOptions = computed(() => 
+  props.device.complectations.filter(c => c.simple)
+)
 
 const versionOptions = computed(() => 
   deviceVersions.value.map(v => ({
@@ -43,13 +49,19 @@ const handleDownload = async () => {
 
   isDownloading.value = true
   try {
-    const response = await downloadFirmware(props.device.id, selectedVersionId.value, [])
-    if (response?.url) {
-      window.open(response.url, '_blank')
-      toast.success({ title: 'Загрузка началась', message: 'Файл прошивки успешно подготовлен' })
-    } else {
-      throw new Error('No download URL returned')
-    }
+    const versionObj = deviceVersions.value.find(v => v.id === selectedVersionId.value)
+    if (!versionObj) throw new Error('Version not found')
+
+    const response = await downloadFirmware(
+      props.device.serial, 
+      props.device.type,
+      versionObj.version, 
+      selectedComplectationIds.value
+    )
+    
+    // In a real app, the browser would handle the FileResponse as a download.
+    // The useFirmware download method should handle the blob if needed or return a URL.
+    toast.success({ title: 'Загрузка началась', message: 'Файл прошивки успешно подготовлен' })
   } catch (err) {
     toast.error({ 
       title: 'Ошибка загрузки', 
@@ -58,6 +70,15 @@ const handleDownload = async () => {
     })
   } finally {
     isDownloading.value = false
+  }
+}
+
+const toggleOption = (id: string) => {
+  const index = selectedComplectationIds.value.indexOf(id)
+  if (index === -1) {
+    selectedComplectationIds.value.push(id)
+  } else {
+    selectedComplectationIds.value.splice(index, 1)
   }
 }
 
@@ -81,7 +102,7 @@ const formatDate = (dateStr: string) => {
           <h3 class="device-serial">{{ device.serial }}</h3>
         </div>
         <div class="device-date">
-          Добавлен: {{ formatDate(device.added_at) }}
+          Добавлен: {{ formatDate(device.created_at) }}
         </div>
       </div>
     </template>
@@ -99,6 +120,23 @@ const formatDate = (dateStr: string) => {
           placeholder="Выберите версию..."
           :disabled="isPending || isDownloading"
         />
+
+        <div v-if="allowedOptions.length > 0" class="options-container">
+          <label class="options-label">Опции прошивки</label>
+          <div class="options-grid">
+            <button 
+              v-for="opt in allowedOptions" 
+              :key="opt.id"
+              type="button"
+              class="option-toggle"
+              :class="{ 'option-toggle--active': selectedComplectationIds.includes(opt.id) }"
+              @click="toggleOption(opt.id)"
+            >
+              <Icon :name="selectedComplectationIds.includes(opt.id) ? 'ph:check-bold' : 'ph:plus-bold'" size="14" />
+              {{ opt.caption }}
+            </button>
+          </div>
+        </div>
         
         <UButton
           class="download-btn"
@@ -171,6 +209,51 @@ const formatDate = (dateStr: string) => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.options-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.options-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.options-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.option-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.option-toggle:hover {
+  border-color: var(--color-accent);
+}
+
+.option-toggle--active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: white;
 }
 
 .download-btn {

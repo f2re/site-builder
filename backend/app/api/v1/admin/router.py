@@ -296,13 +296,42 @@ async def create_complectation(
         payload.caption, payload.label, payload.code, payload.simple
     )
 
+@router.put("/firmware/complectations/{comp_id}", response_model=ComplectationRead)
+async def update_complectation(
+    comp_id: UUID,
+    payload: ComplectationCreate,
+    _admin: User = AdminDep,
+    service: FirmwareService = Depends(get_firmware_service)
+) -> Any:
+    return await service.update_complectation(
+        comp_id, payload.caption, payload.label, payload.code, payload.simple
+    )
+
+@router.delete("/firmware/complectations/{comp_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_complectation(
+    comp_id: UUID,
+    _admin: User = AdminDep,
+    service: FirmwareService = Depends(get_firmware_service)
+) -> None:
+    await service.delete_complectation(comp_id)
+
+@router.post("/firmware/devices/{serial}/complectations/{comp_id}")
+async def link_complectation_to_device(
+    serial: str,
+    comp_id: UUID,
+    _admin: User = AdminDep,
+    service: FirmwareService = Depends(get_firmware_service)
+) -> Any:
+    await service.add_complectation_to_device(serial, comp_id)
+    return {"status": "success"}
+
 @router.post("/firmware/merge-users")
 async def merge_users_firmware(
     payload: UserMergeRequest,
     _admin: User = AdminDep,
     service: FirmwareService = Depends(get_firmware_service)
 ) -> Any:
-    await service.merge_users_firmware(payload.source_user_id, payload.target_user_id)
+    await service.merge_users_firmware(payload.source_email, payload.target_email)
     return {"status": "success"}
 
 @router.post("/firmware/import", response_model=ExcelImportResponse)

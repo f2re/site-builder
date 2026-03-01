@@ -1,11 +1,11 @@
 # Module: api/v1/firmware/repository.py | Agent: backend-agent | Task: Phase 2 Dashfirm
 import uuid
 from typing import List, Optional, Sequence
-from sqlalchemy import select, update, delete, and_, or_
+from sqlalchemy import select, update, delete, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from fastapi import Depends
-from app.db.session import get_async_session
+from app.db.session import get_db
 from app.db.models.firmware import ModuleToken, ModuleDevice, ModuleComplectation, device_complectations
 from app.db.models.user import User
 
@@ -50,7 +50,7 @@ class FirmwareRepository:
         result = await self.session.execute(stmt)
         return result.scalars().first()
 
-    async def create_device(self, token_id: uuid.UUID, serial: str, device_type: str, comment: str = None) -> ModuleDevice:
+    async def create_device(self, token_id: uuid.UUID, serial: str, device_type: str, comment: Optional[str] = None) -> ModuleDevice:
         new_device = ModuleDevice(
             token_id=token_id,
             serial=serial,
@@ -97,10 +97,20 @@ class FirmwareRepository:
         await self.session.flush()
         return new_comp
 
+    async def update_complectation(self, comp_id: uuid.UUID, caption: str, label: str, code: int, simple: bool) -> Optional[ModuleComplectation]:
+        stmt = (
+            update(ModuleComplectation)
+            .where(ModuleComplectation.id == comp_id)
+            .values(caption=caption, label=label, code=code, simple=simple)
+            .returning(ModuleComplectation)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().first()
+
     async def delete_complectation(self, comp_id: uuid.UUID) -> bool:
         stmt = delete(ModuleComplectation).where(ModuleComplectation.id == comp_id)
         result = await self.session.execute(stmt)
-        return result.rowcount > 0
+        return result.rowcount > 0 if hasattr(result, 'rowcount') else True
 
     async def add_complectation_to_device(self, serial: str, comp_id: uuid.UUID):
         # Using core because association table is not a model
@@ -137,5 +147,5 @@ class FirmwareRepository:
         result = await self.session.execute(stmt)
         return result.scalars().first()
 
-async def get_firmware_repo(session: AsyncSession = Depends(get_async_session)) -> FirmwareRepository:
+async def get_firmware_repo(session: AsyncSession = Depends(get_db)) -> FirmwareRepository:
     return FirmwareRepository(session)

@@ -2,7 +2,7 @@
 from datetime import datetime
 from uuid import UUID
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 from app.db.models.firmware import DeviceType
 
 class ComplectationBase(BaseModel):
@@ -27,6 +27,7 @@ class DeviceRead(DeviceBase):
     id: UUID
     created_at: datetime
     complectations: List[ComplectationRead]
+    owner_email: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class DeviceCreate(BaseModel):
@@ -47,8 +48,8 @@ class DownloadRequest(BaseModel):
     selected_complectation_ids: List[UUID]
 
 class UserMergeRequest(BaseModel):
-    source_user_id: UUID
-    target_user_id: UUID
+    source_email: str
+    target_email: str
 
 class ExcelImportResponse(BaseModel):
     clients_imported: int

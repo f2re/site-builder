@@ -1,6 +1,6 @@
 # Module: api/v1/firmware/router.py | Agent: backend-agent | Task: Phase 2 Dashfirm
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from app.core.dependencies import get_current_user
 from app.db.models.user import User
