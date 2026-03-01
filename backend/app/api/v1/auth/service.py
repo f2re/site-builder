@@ -86,6 +86,10 @@ class AuthService:
             if full_name and user.full_name != full_name:
                 updates["full_name"] = full_name
             
+            # Ensure user is active if logging in via OAuth
+            if not user.is_active:
+                updates["is_active"] = True
+            
             if updates:
                 updated_user = await self.repo.update(user.id, **updates)
                 if not updated_user:
@@ -99,7 +103,8 @@ class AuthService:
             # Link existing user to this provider and update name if needed
             updates = {
                 "auth_provider": provider,
-                "provider_id": provider_id
+                "provider_id": provider_id,
+                "is_active": True  # Ensure active on OAuth link
             }
             if full_name and not user.full_name:
                 updates["full_name"] = full_name
@@ -149,7 +154,7 @@ class AuthService:
             
             user_info = user_res.json()
             email = user_info.get("email")
-            provider_id = user_info.get("id")
+            provider_id = str(user_info.get("id"))
             full_name = user_info.get("name")
             
             if not email or not provider_id:
@@ -188,10 +193,22 @@ class AuthService:
                 raise HTTPException(status_code=400, detail="Failed to get Yandex user info")
             
             user_info = user_res.json()
-            email = user_info.get("default_email")
-            provider_id = user_info.get("id")
-            full_name = user_info.get("real_name") or user_info.get("display_name")
             
+            # Yandex returns email in default_email or in emails list
+            email = user_info.get("default_email")
+            if not email and user_info.get("emails"):
+                email = user_info.get("emails")[0]
+            
+            provider_id = str(user_info.get("id"))
+            
+            # Extract full name from various possible fields
+            full_name = user_info.get("real_name") or user_info.get("display_name")
+            if not full_name:
+                first_name = user_info.get("first_name")
+                last_name = user_info.get("last_name")
+                if first_name:
+                    full_name = f"{first_name} {last_name or ''}".strip()
+
             if not email or not provider_id:
                 raise HTTPException(status_code=400, detail="Yandex did not return enough info")
             

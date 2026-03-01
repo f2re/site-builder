@@ -1,6 +1,12 @@
 <script setup lang="ts">
+import { computed, useAttrs } from 'vue'
+
+defineOptions({
+  inheritAttrs: false
+})
+
 interface Props {
-  modelValue: string | number
+  modelValue: string | number | null | undefined
   label?: string
   type?: string
   placeholder?: string
@@ -21,23 +27,38 @@ const emit = defineEmits<{
   'update:modelValue': [value: string | number]
   'blur': [Event]
   'focus': [Event]
+  'input': [Event]
 }>()
 
+const attrs = useAttrs()
+
 const onInput = (e: Event) => {
-  emit('update:modelValue', (e.target as HTMLInputElement).value)
+  const target = e.target as HTMLInputElement
+  emit('update:modelValue', target.value)
+  emit('input', e)
 }
 
 const inputId = computed(() => props.id || props.name || `input-${Math.random().toString(36).slice(2, 9)}`)
+
+// Filter attrs to avoid passing already handled props to the input
+const inputAttrs = computed(() => {
+  const { class: _, style: __, ...rest } = attrs
+  return rest
+})
 </script>
 
 <template>
   <div 
     class="input-wrapper" 
-    :class="{ 
-      'input-wrapper--error': error, 
-      'input-wrapper--disabled': disabled,
-      'input-wrapper--has-icon': icon 
-    }"
+    :class="[
+      $attrs.class,
+      { 
+        'input-wrapper--error': error, 
+        'input-wrapper--disabled': disabled,
+        'input-wrapper--has-icon': icon 
+      }
+    ]"
+    :style="($attrs.style as any)"
   >
     <label v-if="label" :for="inputId" class="input-label">{{ label }}</label>
     <div class="input-container">
@@ -46,10 +67,11 @@ const inputId = computed(() => props.id || props.name || `input-${Math.random().
       </div>
       
       <input
+        v-bind="inputAttrs"
         :id="inputId"
         :name="name"
         :type="type"
-        :value="modelValue"
+        :value="modelValue ?? ''"
         :placeholder="placeholder"
         :disabled="disabled"
         class="input-field"

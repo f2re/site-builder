@@ -184,10 +184,6 @@ onUnmounted(() => {
           </div>
         </template>
       </UCard>
-      
-      <div class="auth-page-footer">
-        <p>© {{ new Date().getFullYear() }} WifiOBD. Все права защищены.</p>
-      </div>
     </div>
   </div>
 </template>
@@ -324,7 +320,6 @@ onUnmounted(() => {
 .btn-race {
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  font-style: italic;
 }
 
 .oauth-divider {
@@ -467,13 +462,6 @@ onUnmounted(() => {
 .register-link:hover {
   color: var(--color-accent-hover);
   gap: 6px;
-}
-
-.auth-page-footer {
-  margin-top: 32px;
-  text-align: center;
-  font-size: var(--text-xs);
-  color: var(--color-muted);
 }
 
 /* Mobile-First Adjustments */

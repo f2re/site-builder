@@ -1,45 +1,69 @@
 <script setup lang="ts">
+import { onMounted, computed } from 'vue'
 import { useUser } from '~/composables/useUser'
 import { useForm } from 'vee-validate'
 import * as zod from 'zod'
 import { toTypedSchema } from '@vee-validate/zod'
+import { useToast } from '~/composables/useToast'
+import UCard from '~/components/U/UCard.vue'
+import UInput from '~/components/U/UInput.vue'
+import UButton from '~/components/U/UButton.vue'
+import USkeleton from '~/components/U/USkeleton.vue'
+import UBadge from '~/components/U/UBadge.vue'
+import ProfileNav from '~/components/profile/ProfileNav.vue'
 
 definePageMeta({
   middleware: 'auth'
 })
 
-const { user, pending, error, fetchProfile, updateProfile } = useUser()
+const { user, pending, fetchProfile, updateProfile } = useUser()
 const toast = useToast()
 
 const schema = zod.object({
-  full_name: zod.string().min(2, 'Минимум 2 символа').max(100, 'Максимум 100 символов').nullable()
+  full_name: zod.string().min(2, 'Минимум 2 символа').max(100, 'Максимум 100 символов').nullable().or(zod.literal('')),
+  phone: zod.string().regex(/^\+?[0-9\s-]{10,20}$/, 'Некорректный номер телефона').nullable().or(zod.literal('')),
+  address: zod.string().max(255, 'Максимум 255 символов').nullable().or(zod.literal(''))
 })
 
 const { handleSubmit, resetForm, errors, defineField } = useForm({
   validationSchema: toTypedSchema(schema),
   initialValues: {
-    full_name: ''
+    full_name: '',
+    phone: '',
+    address: ''
   }
 })
 
 const [full_name, full_nameProps] = defineField('full_name')
+const [phone, phoneProps] = defineField('phone')
+const [address, addressProps] = defineField('address')
+
+const isAdmin = computed(() => user.value?.role === 'admin')
 
 onMounted(async () => {
   try {
     const data = await fetchProfile()
-    resetForm({
-      values: {
-        full_name: data.full_name || ''
-      }
-    })
+    if (data) {
+      resetForm({
+        values: {
+          full_name: data.full_name ?? '',
+          phone: data.phone ?? '',
+          address: data.address ?? ''
+        }
+      })
+    }
   } catch (err) {
-    console.error(err)
+    console.error('Failed to fetch profile:', err)
   }
 })
 
 const onSubmit = handleSubmit(async (values) => {
   try {
-    await updateProfile(values)
+    await updateProfile({
+      full_name: values.full_name || null,
+      phone: values.phone || null,
+      address: values.address || null
+    })
     toast.success('Профиль обновлен', 'Ваши данные успешно сохранены')
   } catch (err) {
     toast.error('Ошибка обновления', 'Не удалось сохранить изменения')
@@ -56,20 +80,21 @@ const onSubmit = handleSubmit(async (values) => {
       <div class="profile-grid">
         <UCard class="profile-card">
           <template #header>
-            <h2 class="card-title">Основные данные</h2>
+            <h2 class="card-title">Личные данные</h2>
           </template>
 
           <div v-if="pending && !user" class="skeletons">
-            <USkeleton height="40px" width="100%" />
-            <USkeleton height="40px" width="100%" />
-            <USkeleton height="40px" width="100%" />
+            <USkeleton height="48px" width="100%" class="mb-4" />
+            <USkeleton height="48px" width="100%" class="mb-4" />
+            <USkeleton height="48px" width="100%" class="mb-4" />
+            <USkeleton height="48px" width="100%" />
           </div>
 
           <form v-else @submit.prevent="onSubmit" class="profile-form">
             <div class="form-group">
               <label>Email</label>
               <UInput
-                :model-value="user?.email"
+                :model-value="user?.email ?? ''"
                 disabled
                 icon="ph:envelope-simple-bold"
               />
@@ -77,13 +102,35 @@ const onSubmit = handleSubmit(async (values) => {
             </div>
 
             <div class="form-group">
-              <label>Полное имя</label>
+              <label>ФИО</label>
               <UInput
                 v-model="full_name"
                 v-bind="full_nameProps"
-                placeholder="Введите ваше имя"
+                placeholder="Иван Иванов"
                 :error="errors.full_name"
                 icon="ph:user-bold"
+              />
+            </div>
+
+            <div class="form-group">
+              <label>Телефон</label>
+              <UInput
+                v-model="phone"
+                v-bind="phoneProps"
+                placeholder="+7 (999) 000-00-00"
+                :error="errors.phone"
+                icon="ph:phone-bold"
+              />
+            </div>
+
+            <div class="form-group">
+              <label>Адрес доставки</label>
+              <UInput
+                v-model="address"
+                v-bind="addressProps"
+                placeholder="г. Москва, ул. Ленина, д. 1"
+                :error="errors.address"
+                icon="ph:map-pin-bold"
               />
             </div>
 
@@ -93,6 +140,7 @@ const onSubmit = handleSubmit(async (values) => {
                 :loading="pending"
                 variant="primary"
                 icon="ph:check-bold"
+                class="btn-save"
               >
                 Сохранить изменения
               </UButton>
@@ -100,14 +148,14 @@ const onSubmit = handleSubmit(async (values) => {
           </form>
         </UCard>
 
-        <UCard class="account-info">
+        <UCard v-if="isAdmin" class="account-info">
           <template #header>
-            <h2 class="card-title">Статус аккаунта</h2>
+            <h2 class="card-title">Статус аккаунта (Admin)</h2>
           </template>
           <div class="info-list">
             <div class="info-item">
               <span class="label">Роль:</span>
-              <UBadge :variant="user?.role === 'admin' ? 'danger' : 'secondary'">
+              <UBadge variant="danger">
                 {{ user?.role }}
               </UBadge>
             </div>
@@ -131,6 +179,7 @@ const onSubmit = handleSubmit(async (values) => {
 <style scoped>
 .profile-page {
   padding: 40px 0;
+  min-height: calc(100vh - 200px);
 }
 
 .page-title {
@@ -183,6 +232,10 @@ const onSubmit = handleSubmit(async (values) => {
   border-top: 1px solid var(--color-border);
 }
 
+.btn-save {
+  width: auto;
+}
+
 .info-list {
   display: flex;
   flex-direction: column;
@@ -209,9 +262,19 @@ const onSubmit = handleSubmit(async (values) => {
   color: var(--color-muted);
 }
 
+.mb-4 {
+  margin-bottom: 1rem;
+}
+
 @media (max-width: 1024px) {
   .profile-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .btn-save {
+    width: 100%;
   }
 }
 </style>

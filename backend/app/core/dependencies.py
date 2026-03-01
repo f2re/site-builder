@@ -73,11 +73,10 @@ async def get_order_service(
 # Current user extraction from JWT
 # ──────────────────────────────────────────────
 
-async def get_current_user(
+async def get_token_payload(
     token: str = Depends(oauth2_scheme),
-    repo: UserRepository = Depends(get_user_repository),
-) -> User:
-    """Decode JWT, validate token type, fetch and return the user."""
+) -> TokenPayload:
+    """Decode JWT and return the payload."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -90,10 +89,43 @@ async def get_current_user(
         token_data = TokenPayload(**payload)
         if token_data.sub is None or token_data.type != "access":
             raise credentials_exception
-    except JWTError:
+        return token_data
+    except (JWTError, ValueError):
         raise credentials_exception
 
-    user = await repo.get_by_id(UUID(token_data.sub))
+
+async def get_optional_token_payload(
+    token: Optional[str] = Depends(oauth2_scheme_optional),
+) -> Optional[TokenPayload]:
+    """Decode JWT if present and return the payload."""
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        token_data = TokenPayload(**payload)
+        if not token_data.sub:
+            return None
+        return token_data
+    except (JWTError, ValueError):
+        return None
+
+
+async def get_current_user(
+    payload: TokenPayload = Depends(get_token_payload),
+    repo: UserRepository = Depends(get_user_repository),
+) -> User:
+    """Fetch and return the user based on token payload."""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        user_id = UUID(payload.sub)
+    except (ValueError, TypeError):
+        raise credentials_exception
+
+    user = await repo.get_by_id(user_id)
     if user is None:
         raise credentials_exception
     if not user.is_active:
@@ -105,16 +137,14 @@ async def get_current_user(
 
 
 async def get_optional_current_user(
-    token: Optional[str] = Depends(oauth2_scheme_optional),
+    payload: Optional[TokenPayload] = Depends(get_optional_token_payload),
     repo: UserRepository = Depends(get_user_repository),
 ) -> Optional[User]:
-    if not token:
+    if not payload or not payload.sub:
         return None
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        token_data = TokenPayload(**payload)
-        return await repo.get_by_id(UUID(token_data.sub))
-    except (JWTError, ValueError):
+        return await repo.get_by_id(UUID(payload.sub))
+    except (ValueError, TypeError):
         return None
 
 
@@ -159,10 +189,12 @@ async def require_customer(
 
 
 async def require_manager(
+    payload: TokenPayload = Depends(get_token_payload),
     current_user: User = Depends(get_current_user),
 ) -> User:
-    """Only manager or admin roles are allowed."""
-    if current_user.role not in ("manager", "admin") and not current_user.is_superuser:
+    """Only manager or admin roles are allowed. Checks both token and DB."""
+    is_manager = payload.role in ("manager", "admin") or current_user.role in ("manager", "admin")
+    if not is_manager and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Manager or Admin access required",
@@ -171,10 +203,13 @@ async def require_manager(
 
 
 async def require_admin(
+    payload: TokenPayload = Depends(get_token_payload),
     current_user: User = Depends(get_current_user),
 ) -> User:
-    """Only admin role / superuser is allowed."""
-    if current_user.role != "admin" and not current_user.is_superuser:
+    """Only admin role / superuser is allowed. Checks both token and DB."""
+    # Look at the role field in the token as requested
+    is_admin = payload.role == "admin" or current_user.role == "admin"
+    if not is_admin and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",

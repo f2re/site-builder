@@ -92,16 +92,31 @@ class UserRepository:
         if not kwargs:
             return await self.get_by_id(user_id)
             
-        if "email" in kwargs and kwargs["email"]:
-            kwargs["email_hash"] = get_blind_index(kwargs["email"])
-            kwargs["email"] = encrypt_data(kwargs["email"])
-        if "full_name" in kwargs and kwargs["full_name"]:
-            kwargs["full_name"] = encrypt_data(kwargs["full_name"])
-        if "phone" in kwargs and kwargs["phone"]:
-            kwargs["phone_hash"] = get_blind_index(kwargs["phone"])
-            kwargs["phone"] = encrypt_data(kwargs["phone"])
-        if "address" in kwargs and kwargs["address"]:
-            kwargs["address"] = encrypt_data(kwargs["address"])
+        if "email" in kwargs:
+            if kwargs["email"]:
+                kwargs["email_hash"] = get_blind_index(kwargs["email"])
+                kwargs["email"] = encrypt_data(kwargs["email"])
+            # Email usually shouldn't be None as it's nullable=False
+            
+        if "full_name" in kwargs:
+            if kwargs["full_name"]:
+                kwargs["full_name"] = encrypt_data(kwargs["full_name"])
+            else:
+                kwargs["full_name"] = None
+                
+        if "phone" in kwargs:
+            if kwargs["phone"]:
+                kwargs["phone_hash"] = get_blind_index(kwargs["phone"])
+                kwargs["phone"] = encrypt_data(kwargs["phone"])
+            else:
+                kwargs["phone_hash"] = None
+                kwargs["phone"] = None
+                
+        if "address" in kwargs:
+            if kwargs["address"]:
+                kwargs["address"] = encrypt_data(kwargs["address"])
+            else:
+                kwargs["address"] = None
             
         await self.session.execute(
             update(User)

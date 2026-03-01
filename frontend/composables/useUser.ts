@@ -6,12 +6,16 @@ export interface UserProfile {
   id: string
   email: string
   full_name: string | null
+  phone: string | null
+  address: string | null
   role: string
   is_active: boolean
 }
 
 export interface UserProfileUpdate {
-  full_name: string | null
+  full_name?: string | null
+  phone?: string | null
+  address?: string | null
 }
 
 export const useUser = () => {

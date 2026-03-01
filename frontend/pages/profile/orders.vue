@@ -13,7 +13,7 @@ onMounted(() => {
   }
 })
 
-const { data: ordersData, pending, error } = getOrders({ per_page: 20 })
+const { data: ordersData, pending, error, refresh } = getOrders({ per_page: 20 })
 
 const formatStatus = (status: string) => {
   const mapping: Record<string, { label: string; variant: any }> = {
@@ -55,7 +55,7 @@ const formatDate = (dateStr: string) => {
         <UButton variant="secondary" @click="() => refresh()">Повторить</UButton>
       </div>
 
-      <div v-else-if="!ordersData?.items.length" class="orders-empty">
+      <div v-else-if="!ordersData?.items?.length" class="orders-empty">
         <div class="empty-icon">🛒</div>
         <h2 class="empty-title">У вас пока нет заказов</h2>
         <p class="empty-text">История ваших покупок появится здесь после оформления заказа.</p>
@@ -83,7 +83,7 @@ const formatDate = (dateStr: string) => {
           <div class="order-footer">
             <div class="order-delivery">
               <span class="delivery-label">Доставка:</span>
-              <span class="delivery-value">{{ order.delivery.type === 'cdek_pvz' ? 'В пункт выдачи' : 'Курьером' }}</span>
+              <span class="delivery-value">{{ order.delivery?.type === 'cdek_pvz' ? 'В пункт выдачи' : 'Курьером' }}</span>
             </div>
             <div class="order-total">
               <span class="total-label">Сумма:</span>

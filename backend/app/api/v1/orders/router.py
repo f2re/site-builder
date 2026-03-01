@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
-from app.api.v1.orders.schemas import OrderCreate, OrderRead
+from app.api.v1.orders.schemas import OrderCreate, OrderRead, OrderList
 from app.api.v1.orders.service import OrderService
 from app.core.dependencies import get_current_user, get_order_service, get_cart_id
 from app.db.models.user import User
@@ -25,7 +25,7 @@ async def create_order(
     return await order_service.create_order(current_user, order_data, cart_id)
 
 
-@router.get("", response_model=List[OrderRead])
+@router.get("", response_model=OrderList)
 async def list_my_orders(
     current_user: User = Depends(get_current_user),
     order_service: OrderService = Depends(get_order_service),

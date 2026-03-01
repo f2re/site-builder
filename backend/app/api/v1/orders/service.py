@@ -1,7 +1,7 @@
 # Module: api/v1/orders/service.py | Agent: backend-agent | Task: phase4_orders_logic
 import uuid
 from decimal import Decimal
-from typing import List
+from typing import List, Dict, Any
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -180,6 +180,7 @@ class OrderService:
             )
         return order
 
-    async def get_my_orders(self, user_id: UUID) -> List[Order]:
+    async def get_my_orders(self, user_id: UUID) -> Dict[str, Any]:
         orders = await self.order_repo.get_user_orders(user_id)
-        return list(orders)
+        items = list(orders)
+        return {"items": items, "total": len(items)}

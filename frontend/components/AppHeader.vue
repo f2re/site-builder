@@ -28,6 +28,18 @@ const handleLogout = () => {
   closeMenu()
   navigateTo('/')
 }
+
+// Watch for route changes to close menu
+watch(() => route.path, () => {
+  closeMenu()
+})
+
+// Body scroll lock
+watch(isMenuOpen, (val) => {
+  if (import.meta.client) {
+    document.body.style.overflow = val ? 'hidden' : ''
+  }
+})
 </script>
 
 <template>
@@ -141,49 +153,75 @@ const handleLogout = () => {
     </div>
 
     <!-- Mobile menu -->
-    <Transition name="mobile-menu">
-      <nav
-        v-if="isMenuOpen"
-        id="mobile-menu"
-        class="mobile-nav"
-        aria-label="Мобильная навигация"
-      >
-        <div class="container mobile-nav-container">
-          <NuxtLink
-            v-for="link in navLinks"
-            :key="link.to"
-            :to="link.to"
-            class="mobile-nav-link"
-            @click="closeMenu"
-          >
-            {{ link.label }}
-          </NuxtLink>
-          <NuxtLink to="/cart" class="mobile-nav-link" @click="closeMenu">
-            Корзина
-            <span v-if="cartCount > 0" class="cart-badge-inline">{{ cartCount }}</span>
-          </NuxtLink>
-          
-          <div class="mobile-auth-section">
-            <template v-if="isAuthenticated">
-              <NuxtLink to="/profile" class="mobile-nav-link" @click="closeMenu">
-                Личный кабинет
-              </NuxtLink>
-              <button @click="handleLogout" class="mobile-nav-link logout-link">
-                Выйти
-              </button>
-            </template>
-            <template v-else>
-              <NuxtLink to="/auth/login" class="mobile-nav-link" @click="closeMenu">
-                Войти
-              </NuxtLink>
-              <NuxtLink to="/auth/register" class="mobile-nav-link" @click="closeMenu">
-                Регистрация
-              </NuxtLink>
-            </template>
+    <Teleport to="body">
+      <Transition name="mobile-menu-overlay">
+        <div v-if="isMenuOpen" class="mobile-nav-overlay" @click="closeMenu"></div>
+      </Transition>
+      
+      <Transition name="mobile-menu">
+        <nav
+          v-if="isMenuOpen"
+          id="mobile-menu"
+          class="mobile-nav"
+          aria-label="Мобильная навигация"
+        >
+          <div class="mobile-nav-header">
+            <span class="logo-text">WIFI<span class="logo-accent">OBD</span></span>
+            <button class="close-menu-btn" @click="closeMenu" aria-label="Закрыть меню">
+              <Icon name="ph:x-bold" size="24" />
+            </button>
           </div>
-        </div>
-      </nav>
-    </Transition>
+
+          <div class="container mobile-nav-container">
+            <NuxtLink
+              v-for="link in navLinks"
+              :key="link.to"
+              :to="link.to"
+              class="mobile-nav-link"
+              @click="closeMenu"
+            >
+              {{ link.label }}
+              <Icon name="ph:caret-right-bold" size="18" class="link-arrow" />
+            </NuxtLink>
+            <NuxtLink to="/cart" class="mobile-nav-link" @click="closeMenu">
+              <div class="link-label-with-badge">
+                Корзина
+                <span v-if="cartCount > 0" class="cart-badge-inline">{{ cartCount }}</span>
+              </div>
+              <Icon name="ph:caret-right-bold" size="18" class="link-arrow" />
+            </NuxtLink>
+            
+            <div class="mobile-auth-section">
+              <template v-if="isAuthenticated">
+                <NuxtLink to="/profile" class="mobile-nav-link" @click="closeMenu">
+                  Личный кабинет
+                  <Icon name="ph:caret-right-bold" size="18" class="link-arrow" />
+                </NuxtLink>
+                <button @click="handleLogout" class="mobile-nav-link logout-link">
+                  Выйти
+                  <Icon name="ph:sign-out-bold" size="18" class="link-arrow" />
+                </button>
+              </template>
+              <template v-else>
+                <NuxtLink to="/auth/login" class="mobile-nav-link" @click="closeMenu">
+                  Войти
+                  <Icon name="ph:sign-in-bold" size="18" class="link-arrow" />
+                </NuxtLink>
+                <NuxtLink to="/auth/register" class="mobile-nav-link" @click="closeMenu">
+                  Регистрация
+                  <Icon name="ph:user-plus-bold" size="18" class="link-arrow" />
+                </NuxtLink>
+              </template>
+            </div>
+          </div>
+          
+          <div class="mobile-nav-footer">
+            <UThemeToggle />
+            <span class="theme-label">Сменить тему</span>
+          </div>
+        </nav>
+      </Transition>
+    </Teleport>
 
     <!-- Search modal -->
     <USearchModal v-if="isSearchOpen" @close="isSearchOpen = false" />
@@ -343,62 +381,129 @@ const handleLogout = () => {
 .burger-btn--open span:last-child { transform: rotate(-45deg); }
 
 /* Mobile nav */
+.mobile-nav-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: var(--color-overlay);
+  backdrop-filter: blur(4px);
+  z-index: calc(var(--z-overlay) + 10);
+}
+
 .mobile-nav {
   position: fixed;
-  top: 72px;
-  left: 0;
+  top: 0;
   right: 0;
   bottom: 0;
+  width: 85%;
+  max-width: 400px;
   background-color: var(--color-bg);
-  z-index: var(--z-overlay);
-  padding: 24px 0;
+  z-index: calc(var(--z-overlay) + 20);
+  box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--color-border);
+}
+
+.mobile-nav-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.close-menu-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  cursor: pointer;
+  padding: 4px;
 }
 
 .mobile-nav-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
 }
 
 .mobile-nav-link {
-  font-size: 24px;
-  font-weight: 800;
+  font-size: 20px;
+  font-weight: 700;
   color: var(--color-text);
   text-decoration: none;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--color-border);
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--color-border-strong);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  transition: background-color var(--transition-fast);
 }
 
-.mobile-nav-link:hover {
-  color: var(--color-accent);
+.mobile-nav-link:active {
+  background-color: var(--color-surface-2);
+}
+
+.link-arrow {
+  color: var(--color-muted);
+  opacity: 0.5;
+}
+
+.link-label-with-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mobile-auth-section {
+  margin-top: 24px;
+  border-top: 8px solid var(--color-surface-2);
 }
 
 .logout-link {
   color: var(--color-error);
   text-align: left;
   background: none;
-  border-bottom: 1px solid var(--color-border);
   width: 100%;
 }
 
 .cart-badge-inline {
   background-color: var(--color-accent);
   color: var(--color-on-accent);
-  padding: 4px 12px;
+  padding: 2px 10px;
   border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.mobile-nav-footer {
+  padding: 24px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.theme-label {
   font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-2);
 }
 
 /* Transitions */
 .mobile-menu-enter-active, .mobile-menu-leave-active {
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .mobile-menu-enter-from, .mobile-menu-leave-to {
-  opacity: 0;
   transform: translateX(100%);
+}
+
+.mobile-menu-overlay-enter-active, .mobile-menu-overlay-leave-active {
+  transition: opacity 0.3s ease;
+}
+.mobile-menu-overlay-enter-from, .mobile-menu-overlay-leave-to {
+  opacity: 0;
 }
 
 @media (max-width: 900px) {
