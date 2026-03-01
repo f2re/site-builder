@@ -66,6 +66,16 @@ const onSubmit = handleSubmit(async (formValues) => {
       address: formValues.address || null
     })
     console.log('[DEBUG] Profile update result:', result)
+    
+    // Sync form state with new values
+    resetForm({
+      values: {
+        full_name: result.full_name || '',
+        phone: result.phone || '',
+        address: result.address || ''
+      }
+    })
+    
     toast.success('Профиль обновлен', 'Ваши данные успешно сохранены')
   } catch (err) {
     console.error('[DEBUG] Profile update error:', err)
