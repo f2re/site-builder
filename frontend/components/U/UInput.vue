@@ -1,9 +1,5 @@
 <script setup lang="ts">
-import { computed, useAttrs } from 'vue'
-
-defineOptions({
-  inheritAttrs: false
-})
+import { computed } from 'vue'
 
 interface Props {
   modelValue: string | number | null | undefined
@@ -27,38 +23,33 @@ const emit = defineEmits<{
   'update:modelValue': [value: string | number]
   'blur': [Event]
   'focus': [Event]
-  'input': [Event]
 }>()
-
-const attrs = useAttrs()
 
 const onInput = (e: Event) => {
   const target = e.target as HTMLInputElement
   emit('update:modelValue', target.value)
-  emit('input', e)
 }
 
 const inputId = computed(() => props.id || props.name || `input-${Math.random().toString(36).slice(2, 9)}`)
 
-// Filter attrs to avoid passing already handled props to the input
-const inputAttrs = computed(() => {
-  const { class: _, style: __, ...rest } = attrs
-  return rest
-})
+// Safe value for the input element
+const displayValue = computed(() => props.modelValue ?? '')
+</script>
+
+<script lang="ts">
+export default {
+  inheritAttrs: false
+}
 </script>
 
 <template>
   <div 
     class="input-wrapper" 
-    :class="[
-      $attrs.class,
-      { 
-        'input-wrapper--error': error, 
-        'input-wrapper--disabled': disabled,
-        'input-wrapper--has-icon': icon 
-      }
-    ]"
-    :style="($attrs.style as any)"
+    :class="{ 
+      'input-wrapper--error': error, 
+      'input-wrapper--disabled': disabled,
+      'input-wrapper--has-icon': icon 
+    }"
   >
     <label v-if="label" :for="inputId" class="input-label">{{ label }}</label>
     <div class="input-container">
@@ -67,11 +58,11 @@ const inputAttrs = computed(() => {
       </div>
       
       <input
-        v-bind="inputAttrs"
         :id="inputId"
+        v-bind="$attrs"
         :name="name"
         :type="type"
-        :value="modelValue ?? ''"
+        :value="displayValue"
         :placeholder="placeholder"
         :disabled="disabled"
         class="input-field"
@@ -86,7 +77,7 @@ const inputAttrs = computed(() => {
           <div v-if="error" class="input-status-icon input-status-icon--error" title="Ошибка">
             <Icon name="ph:warning-circle-bold" size="20" />
           </div>
-          <div v-else-if="modelValue && !error" class="input-status-icon input-status-icon--success" title="Верно">
+          <div v-else-if="displayValue && !error" class="input-status-icon input-status-icon--success" title="Верно">
             <Icon name="ph:check-circle-bold" size="20" />
           </div>
         </Transition>

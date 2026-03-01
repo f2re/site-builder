@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCartStore } from '~/stores/cartStore'
 import { useAuthStore } from '~/stores/authStore'
+import { useUserStore } from '~/stores/userStore'
 import UButton from './U/UButton.vue'
 import UThemeToggle from './U/UThemeToggle.vue'
 import USearchModal from './U/USearchModal.vue'
@@ -10,35 +11,42 @@ import USearchModal from './U/USearchModal.vue'
 const route = useRoute()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
+const userStore = useUserStore()
 const isMenuOpen = ref(false)
 const isSearchOpen = ref(false)
 
 const cartCount = computed(() => cartStore.totalCount)
 const isAuthenticated = computed(() => authStore.isAuthenticated)
+const isAdmin = computed(() => userStore.isAdmin)
 
 const navLinks = [
-  { to: '/products', label: 'Каталог' },
-  { to: '/blog',     label: 'Блог'    },
+  { to: '/products', label: 'Каталог', icon: 'ph:shopping-bag-bold' },
+  { to: '/blog',     label: 'Блог',    icon: 'ph:article-bold' },
 ]
 
-const closeMenu = () => { isMenuOpen.value = false }
-
-const handleLogout = () => {
-  authStore.logout()
-  closeMenu()
-  navigateTo('/')
+const closeMenu = () => { 
+  isMenuOpen.value = false 
 }
 
-// Watch for route changes to close menu
-watch(() => route.path, () => {
-  closeMenu()
-})
+const toggleMenu = () => {
+  isMenuOpen.value = !isMenuOpen.value
+}
 
-// Body scroll lock
+// Lock body scroll when menu is open
 watch(isMenuOpen, (val) => {
   if (import.meta.client) {
     document.body.style.overflow = val ? 'hidden' : ''
   }
+})
+
+const handleLogout = () => {
+  authStore.logout()
+  closeMenu()
+}
+
+// Close menu on route change
+watch(() => route.fullPath, () => {
+  closeMenu()
 })
 </script>
 
@@ -98,7 +106,7 @@ watch(isMenuOpen, (val) => {
             </span>
           </UButton>
 
-          <!-- Account -->
+          <!-- Account (Desktop) -->
           <div class="account-actions hide-mobile">
             <template v-if="isAuthenticated">
               <div class="auth-group">
@@ -132,8 +140,10 @@ watch(isMenuOpen, (val) => {
             </div>
           </div>
 
-          <!-- Theme toggle -->
-          <UThemeToggle />
+          <!-- Theme toggle (Desktop) -->
+          <div class="hide-mobile">
+            <UThemeToggle />
+          </div>
 
           <!-- Burger (mobile) -->
           <button
@@ -142,7 +152,7 @@ watch(isMenuOpen, (val) => {
             :aria-expanded="isMenuOpen"
             aria-controls="mobile-menu"
             aria-label="Открыть меню"
-            @click="isMenuOpen = !isMenuOpen"
+            @click="toggleMenu"
           >
             <span></span>
             <span></span>
@@ -152,27 +162,26 @@ watch(isMenuOpen, (val) => {
       </div>
     </div>
 
-    <!-- Mobile menu -->
-    <Teleport to="body">
-      <Transition name="mobile-menu-overlay">
-        <div v-if="isMenuOpen" class="mobile-nav-overlay" @click="closeMenu"></div>
-      </Transition>
-      
-      <Transition name="mobile-menu">
-        <nav
-          v-if="isMenuOpen"
-          id="mobile-menu"
-          class="mobile-nav"
-          aria-label="Мобильная навигация"
-        >
-          <div class="mobile-nav-header">
-            <span class="logo-text">WIFI<span class="logo-accent">OBD</span></span>
-            <button class="close-menu-btn" @click="closeMenu" aria-label="Закрыть меню">
-              <Icon name="ph:x-bold" size="24" />
-            </button>
-          </div>
+    <!-- Mobile menu overlay -->
+    <Transition name="fade">
+      <div v-if="isMenuOpen" class="mobile-nav-overlay" @click="closeMenu"></div>
+    </Transition>
 
-          <div class="container mobile-nav-container">
+    <!-- Mobile menu drawer -->
+    <Transition name="mobile-menu">
+      <nav
+        v-if="isMenuOpen"
+        id="mobile-menu"
+        class="mobile-nav"
+        aria-label="Мобильная навигация"
+      >
+        <div class="mobile-nav-content">
+          <div class="mobile-nav-header">
+             <span class="mobile-nav-title">Навигация</span>
+             <UThemeToggle />
+          </div>
+          
+          <div class="mobile-nav-links">
             <NuxtLink
               v-for="link in navLinks"
               :key="link.to"
@@ -180,48 +189,52 @@ watch(isMenuOpen, (val) => {
               class="mobile-nav-link"
               @click="closeMenu"
             >
-              {{ link.label }}
-              <Icon name="ph:caret-right-bold" size="18" class="link-arrow" />
-            </NuxtLink>
-            <NuxtLink to="/cart" class="mobile-nav-link" @click="closeMenu">
-              <div class="link-label-with-badge">
-                Корзина
-                <span v-if="cartCount > 0" class="cart-badge-inline">{{ cartCount }}</span>
+              <div class="link-label">
+                <Icon :name="link.icon" size="24" />
+                <span>{{ link.label }}</span>
               </div>
-              <Icon name="ph:caret-right-bold" size="18" class="link-arrow" />
+              <Icon name="ph:caret-right-bold" size="16" class="caret" />
             </NuxtLink>
             
-            <div class="mobile-auth-section">
-              <template v-if="isAuthenticated">
-                <NuxtLink to="/profile" class="mobile-nav-link" @click="closeMenu">
-                  Личный кабинет
-                  <Icon name="ph:caret-right-bold" size="18" class="link-arrow" />
-                </NuxtLink>
-                <button @click="handleLogout" class="mobile-nav-link logout-link">
-                  Выйти
-                  <Icon name="ph:sign-out-bold" size="18" class="link-arrow" />
-                </button>
-              </template>
-              <template v-else>
-                <NuxtLink to="/auth/login" class="mobile-nav-link" @click="closeMenu">
-                  Войти
-                  <Icon name="ph:sign-in-bold" size="18" class="link-arrow" />
-                </NuxtLink>
-                <NuxtLink to="/auth/register" class="mobile-nav-link" @click="closeMenu">
-                  Регистрация
-                  <Icon name="ph:user-plus-bold" size="18" class="link-arrow" />
-                </NuxtLink>
-              </template>
-            </div>
+            <NuxtLink to="/cart" class="mobile-nav-link" @click="closeMenu">
+              <div class="link-label">
+                <Icon name="ph:shopping-cart-bold" size="24" />
+                <span>Корзина</span>
+              </div>
+              <span v-if="cartCount > 0" class="cart-badge-inline">{{ cartCount }}</span>
+            </NuxtLink>
+
+            <div v-if="isAdmin" class="admin-divider">Администрирование</div>
+            <NuxtLink v-if="isAdmin" to="/admin" class="mobile-nav-link admin-link" @click="closeMenu">
+              <div class="link-label">
+                <Icon name="ph:gauge-bold" size="24" />
+                <span>Панель управления</span>
+              </div>
+              <Icon name="ph:caret-right-bold" size="16" class="caret" />
+            </NuxtLink>
           </div>
           
           <div class="mobile-nav-footer">
-            <UThemeToggle />
-            <span class="theme-label">Сменить тему</span>
+            <template v-if="isAuthenticated">
+              <NuxtLink to="/profile" class="mobile-auth-btn profile-btn" @click="closeMenu">
+                <Icon name="ph:user-circle-bold" size="24" />
+                <span>Личный кабинет</span>
+              </NuxtLink>
+              <button @click="handleLogout" class="mobile-auth-btn logout-btn">
+                <Icon name="ph:sign-out-bold" size="24" />
+                <span>Выйти из аккаунта</span>
+              </button>
+            </template>
+            <template v-else>
+              <div class="auth-grid">
+                <UButton to="/auth/login" variant="secondary" size="lg" class="w-full">Войти</UButton>
+                <UButton to="/auth/register" variant="primary" size="lg" class="w-full">Регистрация</UButton>
+              </div>
+            </template>
           </div>
-        </nav>
-      </Transition>
-    </Teleport>
+        </div>
+      </nav>
+    </Transition>
 
     <!-- Search modal -->
     <USearchModal v-if="isSearchOpen" @close="isSearchOpen = false" />
@@ -267,7 +280,6 @@ watch(isMenuOpen, (val) => {
 
 .logo-accent {
   color: var(--color-accent);
-  text-shadow: 0 0 10px var(--color-accent-glow);
 }
 
 .logo-indicator {
@@ -276,7 +288,6 @@ watch(isMenuOpen, (val) => {
   background: linear-gradient(90deg, var(--color-accent), var(--color-neon));
   border-radius: var(--radius-full);
   margin-top: -2px;
-  box-shadow: 0 2px 8px var(--color-accent-glow);
 }
 
 /* Desktop nav */
@@ -307,7 +318,6 @@ watch(isMenuOpen, (val) => {
 .nav-link.router-link-active {
   color: var(--color-on-accent);
   background-color: var(--color-accent);
-  box-shadow: var(--shadow-glow-accent);
 }
 
 /* Actions */
@@ -345,150 +355,185 @@ watch(isMenuOpen, (val) => {
   border-radius: var(--radius-full);
   min-width: 18px;
   border: 2px solid var(--color-bg);
-  box-shadow: 0 0 10px var(--color-accent-glow);
-}
-
-.logout-btn:hover {
-  color: var(--color-error);
 }
 
 /* Burger Button */
 .burger-btn {
   display: none;
   flex-direction: column;
-  justify-content: space-around;
-  width: 32px;
-  height: 24px;
-  background: transparent;
-  border: none;
+  justify-content: center;
+  gap: 6px;
+  width: 40px;
+  height: 40px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  padding: 0;
-  z-index: 10;
+  padding: 0 10px;
+  z-index: var(--z-modal);
+  transition: all var(--transition-fast);
 }
 
 .burger-btn span {
-  width: 32px;
-  height: 3px;
+  display: block;
+  width: 100%;
+  height: 2px;
   background: var(--color-text);
-  border-radius: 10px;
-  transition: all 0.3s linear;
-  position: relative;
-  transform-origin: 1px;
+  border-radius: 2px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.burger-btn--open span:first-child { transform: rotate(45deg); }
-.burger-btn--open span:nth-child(2) { opacity: 0; transform: translateX(20px); }
-.burger-btn--open span:last-child { transform: rotate(-45deg); }
+.burger-btn--open {
+  background: var(--color-surface-3);
+  border-color: var(--color-accent);
+}
+
+.burger-btn--open span:nth-child(1) { transform: translateY(8px) rotate(45deg); }
+.burger-btn--open span:nth-child(2) { opacity: 0; transform: translateX(10px); }
+.burger-btn--open span:nth-child(3) { transform: translateY(-8px) rotate(-45deg); }
 
 /* Mobile nav */
 .mobile-nav-overlay {
   position: fixed;
   inset: 0;
-  background-color: var(--color-overlay);
-  backdrop-filter: blur(4px);
-  z-index: calc(var(--z-overlay) + 10);
+  background: var(--color-overlay);
+  backdrop-filter: blur(8px);
+  z-index: calc(var(--z-overlay) - 1);
 }
 
 .mobile-nav {
   position: fixed;
   top: 0;
   right: 0;
-  bottom: 0;
   width: 85%;
-  max-width: 400px;
+  max-width: 320px;
+  height: 100vh;
   background-color: var(--color-bg);
-  z-index: calc(var(--z-overlay) + 20);
-  box-shadow: -10px 0 30px rgba(0,0,0,0.5);
-  display: flex;
-  flex-direction: column;
+  z-index: var(--z-overlay);
+  box-shadow: -10px 0 30px rgba(0,0,0,0.3);
   border-left: 1px solid var(--color-border);
 }
 
+.mobile-nav-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 80px 20px 40px;
+}
+
 .mobile-nav-header {
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--color-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 32px;
 }
 
-.close-menu-btn {
-  background: transparent;
-  border: none;
-  color: var(--color-text);
-  cursor: pointer;
-  padding: 4px;
+.mobile-nav-title {
+  font-size: var(--text-xs);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-muted);
 }
 
-.mobile-nav-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px 0;
+.mobile-nav-links {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+  flex: 1;
 }
 
 .mobile-nav-link {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--color-text);
-  text-decoration: none;
-  padding: 16px 24px;
-  border-bottom: 1px solid var(--color-border-strong);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  transition: background-color var(--transition-fast);
+  padding: 16px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text);
+  text-decoration: none;
+  font-weight: 700;
+  transition: all var(--transition-fast);
 }
 
 .mobile-nav-link:active {
-  background-color: var(--color-surface-2);
+  transform: scale(0.98);
+  border-color: var(--color-accent);
 }
 
-.link-arrow {
-  color: var(--color-muted);
-  opacity: 0.5;
-}
-
-.link-label-with-badge {
+.link-label {
   display: flex;
   align-items: center;
+  gap: 16px;
+}
+
+.caret {
+  color: var(--color-muted);
+  transition: transform var(--transition-fast);
+}
+
+.mobile-nav-link:hover .caret {
+  color: var(--color-accent);
+  transform: translateX(4px);
+}
+
+.admin-divider {
+  margin: 24px 0 8px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  letter-spacing: 0.1em;
+}
+
+.admin-link {
+  border-color: var(--color-accent-glow);
+}
+
+.mobile-nav-footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 
-.mobile-auth-section {
-  margin-top: 24px;
-  border-top: 8px solid var(--color-surface-2);
+.mobile-auth-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  font-weight: 700;
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  border: 1px solid transparent;
 }
 
-.logout-link {
+.profile-btn {
+  background: var(--color-surface-3);
+  color: var(--color-text);
+}
+
+.logout-btn {
+  background: var(--color-error-bg);
   color: var(--color-error);
-  text-align: left;
-  background: none;
-  width: 100%;
+  border-color: var(--color-error-bg);
+}
+
+.auth-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
 }
 
 .cart-badge-inline {
   background-color: var(--color-accent);
   color: var(--color-on-accent);
-  padding: 2px 10px;
+  padding: 2px 8px;
   border-radius: var(--radius-full);
   font-size: var(--text-xs);
   font-weight: 800;
-}
-
-.mobile-nav-footer {
-  padding: 24px;
-  border-top: 1px solid var(--color-border);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.theme-label {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--color-text-2);
 }
 
 /* Transitions */
@@ -499,12 +544,8 @@ watch(isMenuOpen, (val) => {
   transform: translateX(100%);
 }
 
-.mobile-menu-overlay-enter-active, .mobile-menu-overlay-leave-active {
-  transition: opacity 0.3s ease;
-}
-.mobile-menu-overlay-enter-from, .mobile-menu-overlay-leave-to {
-  opacity: 0;
-}
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 
 @media (max-width: 900px) {
   .hide-mobile { display: none; }
@@ -514,4 +555,6 @@ watch(isMenuOpen, (val) => {
   .nav { display: none; }
   .burger-btn { display: flex; }
 }
+
+.w-full { width: 100%; }
 </style>

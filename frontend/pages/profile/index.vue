@@ -1,16 +1,10 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
 import { useUser } from '~/composables/useUser'
 import { useForm } from 'vee-validate'
 import * as zod from 'zod'
 import { toTypedSchema } from '@vee-validate/zod'
 import { useToast } from '~/composables/useToast'
-import UCard from '~/components/U/UCard.vue'
-import UInput from '~/components/U/UInput.vue'
-import UButton from '~/components/U/UButton.vue'
-import USkeleton from '~/components/U/USkeleton.vue'
-import UBadge from '~/components/U/UBadge.vue'
-import ProfileNav from '~/components/profile/ProfileNav.vue'
+import { onMounted } from 'vue'
 
 definePageMeta({
   middleware: 'auth'
@@ -20,12 +14,12 @@ const { user, pending, fetchProfile, updateProfile } = useUser()
 const toast = useToast()
 
 const schema = zod.object({
-  full_name: zod.string().min(2, 'Минимум 2 символа').max(100, 'Максимум 100 символов').nullable().or(zod.literal('')),
-  phone: zod.string().regex(/^\+?[0-9\s-]{10,20}$/, 'Некорректный номер телефона').nullable().or(zod.literal('')),
-  address: zod.string().max(255, 'Максимум 255 символов').nullable().or(zod.literal(''))
+  full_name: zod.string().max(100, 'Максимум 100 символов').optional().nullable().or(zod.literal('')),
+  phone: zod.string().regex(/^\+?[0-9\s-]{10,20}$/, 'Некорректный номер телефона').optional().nullable().or(zod.literal('')),
+  address: zod.string().max(255, 'Максимум 255 символов').optional().nullable().or(zod.literal(''))
 })
 
-const { handleSubmit, resetForm, errors, defineField } = useForm({
+const { handleSubmit, resetForm, errors, defineField, values } = useForm({
   validationSchema: toTypedSchema(schema),
   initialValues: {
     full_name: '',
@@ -46,23 +40,23 @@ onMounted(async () => {
     if (data) {
       resetForm({
         values: {
-          full_name: data.full_name ?? '',
-          phone: data.phone ?? '',
-          address: data.address ?? ''
+          full_name: data.full_name || '',
+          phone: data.phone || '',
+          address: data.address || ''
         }
       })
     }
   } catch (err) {
-    console.error('Failed to fetch profile:', err)
+    console.error('Failed to load profile:', err)
   }
 })
 
-const onSubmit = handleSubmit(async (values) => {
+const onSubmit = handleSubmit(async (formValues) => {
   try {
     await updateProfile({
-      full_name: values.full_name || null,
-      phone: values.phone || null,
-      address: values.address || null
+      full_name: formValues.full_name || null,
+      phone: formValues.phone || null,
+      address: formValues.address || null
     })
     toast.success('Профиль обновлен', 'Ваши данные успешно сохранены')
   } catch (err) {
@@ -84,17 +78,17 @@ const onSubmit = handleSubmit(async (values) => {
           </template>
 
           <div v-if="pending && !user" class="skeletons">
-            <USkeleton height="48px" width="100%" class="mb-4" />
-            <USkeleton height="48px" width="100%" class="mb-4" />
-            <USkeleton height="48px" width="100%" class="mb-4" />
-            <USkeleton height="48px" width="100%" />
+            <USkeleton height="40px" width="100%" class="mb-4" />
+            <USkeleton height="40px" width="100%" class="mb-4" />
+            <USkeleton height="40px" width="100%" class="mb-4" />
+            <USkeleton height="40px" width="100%" />
           </div>
 
           <form v-else @submit.prevent="onSubmit" class="profile-form">
             <div class="form-group">
               <label>Email</label>
               <UInput
-                :model-value="user?.email ?? ''"
+                :model-value="user?.email || ''"
                 disabled
                 icon="ph:envelope-simple-bold"
               />
@@ -139,29 +133,32 @@ const onSubmit = handleSubmit(async (values) => {
                 type="submit"
                 :loading="pending"
                 variant="primary"
-                icon="ph:check-bold"
                 class="btn-save"
               >
+                <template #icon>
+                  <Icon name="ph:check-bold" size="20" />
+                </template>
                 Сохранить изменения
               </UButton>
             </div>
           </form>
         </UCard>
 
+        <!-- Admin Only Section -->
         <UCard v-if="isAdmin" class="account-info">
           <template #header>
-            <h2 class="card-title">Статус аккаунта (Admin)</h2>
+            <h2 class="card-title">Техническая информация (Admin)</h2>
           </template>
           <div class="info-list">
             <div class="info-item">
               <span class="label">Роль:</span>
-              <UBadge variant="danger">
+              <UBadge variant="accent">
                 {{ user?.role }}
               </UBadge>
             </div>
             <div class="info-item">
               <span class="label">Статус:</span>
-              <UBadge :variant="user?.is_active ? 'success' : 'danger'">
+              <UBadge :variant="user?.is_active ? 'success' : 'error'">
                 {{ user?.is_active ? 'Активен' : 'Заблокирован' }}
               </UBadge>
             </div>
@@ -179,7 +176,6 @@ const onSubmit = handleSubmit(async (values) => {
 <style scoped>
 .profile-page {
   padding: 40px 0;
-  min-height: calc(100vh - 200px);
 }
 
 .page-title {

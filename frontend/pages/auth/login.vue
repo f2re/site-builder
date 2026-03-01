@@ -253,7 +253,6 @@ onUnmounted(() => {
   font-weight: 900;
   color: var(--color-text);
   letter-spacing: -0.04em;
-  font-style: italic;
   text-transform: uppercase;
 }
 
@@ -320,6 +319,7 @@ onUnmounted(() => {
 .btn-race {
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  font-weight: 800;
 }
 
 .oauth-divider {

@@ -4,6 +4,7 @@ import { useForm } from 'vee-validate'
 import * as zod from 'zod'
 import { toTypedSchema } from '@vee-validate/zod'
 import { useToast } from '~/composables/useToast'
+import { onMounted, onUnmounted } from 'vue'
 
 definePageMeta({
   layout: 'default'
@@ -211,10 +212,6 @@ onUnmounted(() => {
           </div>
         </template>
       </UCard>
-      
-      <div class="auth-page-footer">
-        <p>© {{ new Date().getFullYear() }} WifiOBD. Все права защищены.</p>
-      </div>
     </div>
   </div>
 </template>
@@ -284,7 +281,6 @@ onUnmounted(() => {
   font-weight: 900;
   color: var(--color-text);
   letter-spacing: -0.04em;
-  font-style: italic;
   text-transform: uppercase;
 }
 
@@ -344,7 +340,7 @@ onUnmounted(() => {
 .btn-race {
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  font-style: italic;
+  font-weight: 800;
 }
 
 .oauth-divider {
@@ -487,13 +483,6 @@ onUnmounted(() => {
 .login-link:hover {
   color: var(--color-accent-hover);
   gap: 6px;
-}
-
-.auth-page-footer {
-  margin-top: 32px;
-  text-align: center;
-  font-size: var(--text-xs);
-  color: var(--color-muted);
 }
 
 @media (max-width: 480px) {
