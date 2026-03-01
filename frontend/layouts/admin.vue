@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const navItems = [
   { label: 'Дашборд', icon: 'ph:chart-line-bold', to: '/admin' },
+  { label: 'Пользователи', icon: 'ph:users-bold', to: '/admin/users' },
   { label: 'Товары', icon: 'ph:package-bold', to: '/admin/products' },
   { label: 'Заказы', icon: 'ph:shopping-cart-bold', to: '/admin/orders' },
   { label: 'Блог', icon: 'ph:article-bold', to: '/admin/blog' },

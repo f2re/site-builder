@@ -26,9 +26,6 @@ export const useAuthStore = defineStore('auth', () => {
       
       if (data.access_token) {
         accessToken.value = data.access_token
-        // Note: according to api_contracts.md, refresh_token is set as httpOnly cookie by backend.
-        // But if it's returned in JSON, we can save it to cookie if needed (though it says httpOnly).
-        // Let's stick with what's in the store already.
         if (data.refresh_token) {
            refreshTokenCookie.value = data.refresh_token
         }
@@ -44,11 +41,50 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       await $fetch<any>(`${apiBase}/auth/register`, {
         method: 'POST',
-        body: { name, email, password }
+        body: { full_name: name, email, password }
       })
       return { success: true }
     } catch (err: any) {
       return { success: false, error: err.data?.detail || err.data?.message || 'Registration failed' }
+    }
+  }
+
+  async function handleOAuthCallback(provider: string, code: string, redirectUri: string) {
+    try {
+      const data = await $fetch<any>(`${apiBase}/auth/${provider}/callback`, {
+        params: { code, redirect_uri: redirectUri }
+      })
+      
+      if (data.access_token) {
+        accessToken.value = data.access_token
+        if (data.refresh_token) {
+           refreshTokenCookie.value = data.refresh_token
+        }
+        return { success: true }
+      }
+      return { success: false, error: 'Invalid response' }
+    } catch (err: any) {
+      return { success: false, error: err.data?.detail || err.data?.message || 'OAuth login failed' }
+    }
+  }
+
+  async function handleTelegramAuth(tgData: any) {
+    try {
+      const data = await $fetch<any>(`${apiBase}/auth/telegram`, {
+        method: 'POST',
+        body: tgData
+      })
+      
+      if (data.access_token) {
+        accessToken.value = data.access_token
+        if (data.refresh_token) {
+           refreshTokenCookie.value = data.refresh_token
+        }
+        return { success: true }
+      }
+      return { success: false, error: 'Invalid response' }
+    } catch (err: any) {
+      return { success: false, error: err.data?.detail || err.data?.message || 'Telegram auth failed' }
     }
   }
 
@@ -92,6 +128,8 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     login,
     register,
+    handleOAuthCallback,
+    handleTelegramAuth,
     logout,
     refreshToken
   }

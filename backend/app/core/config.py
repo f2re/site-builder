@@ -40,7 +40,14 @@ class Settings(BaseSettings):
 
     # ── Telegram ──────────────────────────────────────────────────────────────
     TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_BOT_NAME: str = "WifiOBD_Bot"
     TELEGRAM_CHAT_ID: str = ""  # Admin chat ID for notifications
+
+    # ── OAuth ─────────────────────────────────────────────────────────────────
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    YANDEX_CLIENT_ID: str = ""
+    YANDEX_CLIENT_SECRET: str = ""
 
     # ── External APIs ─────────────────────────────────────────────────────────
     YOOMONEY_SHOP_ID: str = ""

@@ -1,6 +1,7 @@
-# Module: api/v1/users/repository.py | Agent: backend-agent | Task: phase7_backend_security
+# Module: api/v1/users/repository.py | Agent: backend-agent | Task: phase11_backend_admin_blog_refinement
 from uuid import UUID
-from sqlalchemy import select, update
+from typing import List, Optional, Any
+from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import set_committed_value
 from app.db.models.user import User
@@ -30,6 +31,19 @@ class UserRepository:
             return self._decrypt_user(user)
         return None
 
+    async def get_by_provider_id(self, auth_provider: str, provider_id: str) -> User | None:
+        """Get user by OAuth provider and provider_id."""
+        result = await self.session.execute(
+            select(User).where(
+                User.auth_provider == auth_provider,
+                User.provider_id == provider_id
+            )
+        )
+        user = result.scalars().first()
+        if user:
+            return self._decrypt_user(user)
+        return None
+
     async def get_by_id(self, user_id: UUID) -> User | None:
         """Get by ID and decrypt result."""
         result = await self.session.execute(
@@ -53,7 +67,7 @@ class UserRepository:
         await self.session.refresh(user_in)
         return self._decrypt_user(user_in)
 
-    async def update(self, user_id: UUID, **kwargs) -> User | None:
+    async def update(self, user_id: UUID, **kwargs: Any) -> User | None:
         """Encrypt PII data before updating."""
         if not kwargs:
             return await self.get_by_id(user_id)
@@ -71,3 +85,60 @@ class UserRepository:
         )
         await self.session.commit()
         return await self.get_by_id(user_id)
+
+    async def list_users(
+        self,
+        search: Optional[str] = None,
+        role: Optional[str] = None,
+        is_active: Optional[bool] = None,
+        offset: int = 0,
+        limit: int = 100
+    ) -> List[User]:
+        """List users with filtering and search (by email hash)."""
+        query = select(User)
+        
+        if search:
+            # We can only search by exact email hash or ID
+            # For a more advanced search, we'd need more blind indices
+            email_hash = get_blind_index(search)
+            query = query.where(User.email_hash == email_hash)
+            
+        if role:
+            query = query.where(User.role == role)
+        if is_active is not None:
+            query = query.where(User.is_active == is_active)
+            
+        query = query.offset(offset).limit(limit).order_by(User.created_at.desc())
+        
+        result = await self.session.execute(query)
+        users = result.scalars().all()
+        return [self._decrypt_user(u) for u in users]
+
+    async def count_users(
+        self,
+        search: Optional[str] = None,
+        role: Optional[str] = None,
+        is_active: Optional[bool] = None
+    ) -> int:
+        """Count users with filtering."""
+        query = select(func.count(User.id))
+        
+        if search:
+            email_hash = get_blind_index(search)
+            query = query.where(User.email_hash == email_hash)
+            
+        if role:
+            query = query.where(User.role == role)
+        if is_active is not None:
+            query = query.where(User.is_active == is_active)
+            
+        result = await self.session.execute(query)
+        return int(result.scalar() or 0)
+
+    async def get_all_users_for_export(self) -> List[User]:
+        """Get all users for Excel export, decrypted."""
+        result = await self.session.execute(
+            select(User).order_by(User.created_at.desc())
+        )
+        users = result.scalars().all()
+        return [self._decrypt_user(u) for u in users]

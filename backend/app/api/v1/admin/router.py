@@ -1,15 +1,19 @@
-# Module: api/v1/admin/router.py | Agent: backend-agent | Task: admin_router_complete
+# Module: api/v1/admin/router.py | Agent: backend-agent | Task: phase11_backend_admin_blog_refinement
+import io
+import openpyxl
 from uuid import UUID
-from fastapi import APIRouter, Depends, status, HTTPException
+from typing import Any, List, Optional
+from fastapi import APIRouter, Depends, status, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Any, List
 from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import require_admin, get_product_repo, get_db
 from app.db.models.order import Order, OrderStatus, OrderItem
 from app.db.models.product import ProductVariant, Product
 from app.db.models.user import User
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.api.v1.auth.schemas import UserResponse
 
 # Services & Repositories
 from app.api.v1.products.service import ProductService
@@ -165,6 +169,65 @@ async def delete_blog_post(
         raise HTTPException(status_code=404, detail="Post not found")
 
 # ─── Customers ───────────────────────────────────────────────────────────────
+@router.get("/users")
+async def list_users(
+    search: Optional[str] = None,
+    role: Optional[str] = None,
+    is_active: Optional[bool] = None,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    _admin: User = AdminDep,
+    repo: UserRepository = Depends(get_user_repo)
+) -> Any:
+    offset = (page - 1) * per_page
+    users = await repo.list_users(search, role, is_active, offset, per_page)
+    total = await repo.count_users(search, role, is_active)
+    
+    return {
+        "items": [UserResponse.model_validate(u) for u in users],
+        "total": total,
+        "page": page,
+        "per_page": per_page
+    }
+
+@router.get("/users/export")
+async def export_users(
+    _admin: User = AdminDep,
+    repo: UserRepository = Depends(get_user_repo)
+) -> StreamingResponse:
+    users = await repo.get_all_users_for_export()
+    
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Users"
+    
+    # Headers
+    headers = ["ID", "Email", "Full Name", "Role", "Active", "Provider", "Created At"]
+    ws.append(headers)
+    
+    # Data
+    for user in users:
+        ws.append([
+            str(user.id),
+            user.email,
+            user.full_name or "",
+            user.role,
+            user.is_active,
+            user.auth_provider,
+            user.created_at.replace(tzinfo=None) if user.created_at else ""
+        ])
+    
+    # Save to BytesIO
+    file_stream = io.BytesIO()
+    wb.save(file_stream)
+    file_stream.seek(0)
+    
+    return StreamingResponse(
+        file_stream,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=users_export.xlsx"}
+    )
+
 @router.put("/users/{user_id}/block")
 async def block_user(
     user_id: UUID,
