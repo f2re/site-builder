@@ -68,15 +68,9 @@ export default defineNuxtConfig({
   },
 
   icon: {
-    // Enable local bundling for common icon sets
-    collections: ['ph', 'logos', 'simple-icons'],
-    // Use server provider with local bundle to avoid external API calls
-    // and use CSS mode for better performance and to bypass API path issues
-    provider: 'server',
+    // Local bundling for performance and reliability
     serverBundle: 'local',
-    mode: 'css',
-    // Explicitly set the endpoint to avoid potential prefixing issues
-    // (though mode: 'css' should minimize the need for this)
-    endpoint: '/_nuxt_icon',
+    collections: ['ph', 'logos', 'simple-icons'],
+    endpoint: '/_nuxt_icon'
   }
 })

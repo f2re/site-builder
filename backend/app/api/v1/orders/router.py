@@ -1,5 +1,4 @@
 # Module: api/v1/orders/router.py | Agent: backend-agent | Task: phase4_orders_logic
-from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status

@@ -1,7 +1,7 @@
 # Module: api/v1/orders/service.py | Agent: backend-agent | Task: phase4_orders_logic
 import uuid
 from decimal import Decimal
-from typing import List, Dict, Any
+from typing import Dict, Any
 from uuid import UUID
 from datetime import datetime, timezone
 

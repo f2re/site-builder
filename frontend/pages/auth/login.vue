@@ -48,6 +48,13 @@ const loginWithProvider = (provider: string) => {
 
 // Telegram Login Widget handler
 onMounted(() => {
+  const botName = config.public.telegramBotName
+  console.log('[DEBUG] Login Page - Telegram Bot Name:', botName)
+  
+  if (!botName || botName === 'WifiOBD_Bot') {
+    console.warn('[DEBUG] Warning: Telegram Bot Name is missing or using default. Check .env')
+  }
+  
   // Define callback on window
   // @ts-ignore
   window.onTelegramAuth = async (user: any) => {
