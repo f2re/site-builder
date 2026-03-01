@@ -1,7 +1,9 @@
 # Module: api/v1/orders/service.py | Agent: backend-agent | Task: phase4_orders_logic
+import uuid
 from decimal import Decimal
 from typing import List
 from uuid import UUID
+from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +18,7 @@ from app.integrations.yoomoney import yoomoney_client
 from app.integrations.redis_inventory import inventory
 from app.tasks.notifications.dispatcher import send_email_task
 from app.core.config import settings
+from app.core.logging import logger
 
 
 class OrderService:
@@ -42,71 +45,99 @@ class OrderService:
             )
 
         # 2. Stock reservation via Redis (Lua)
-        for item in cart["items"]:
-            success = await inventory.reserve_stock(
-                variant_id=item["variant_id"], 
-                quantity=item["quantity"]
+        reserved_items = []
+        try:
+            for item in cart["items"]:
+                success = await inventory.reserve_stock(
+                    variant_id=item["variant_id"], 
+                    quantity=item["quantity"]
+                )
+                if not success:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Insufficient stock for item: {item['name']}"
+                    )
+                reserved_items.append(item)
+
+            # 3. Create Order
+            total_amount = Decimal(str(cart["total_price"]))
+            order = Order(
+                id=uuid.uuid4(),
+                user_id=user.id if user else None,
+                status=OrderStatus.PENDING_PAYMENT,
+                total_amount=total_amount,
+                shipping_address=order_data.shipping_address,
+                currency="RUB"
             )
-            if not success:
+
+            for item in cart["items"]:
+                order_item = OrderItem(
+                    product_variant_id=item["variant_id"],
+                    quantity=item["quantity"],
+                    price=Decimal(str(item["price"]))
+                )
+                order.items.append(order_item)
+
+            # 4. Save Order to DB
+            created_order = await self.order_repo.create(order)
+            await self.session.flush()
+
+            # 5. Generate Payment
+            try:
+                payment_data = await yoomoney_client.create_payment(
+                    amount=total_amount,
+                    order_id=str(created_order.id),
+                    return_url=f"{settings.NUXT_PUBLIC_SITE_URL}/orders/success?id={created_order.id}",
+                    description=f"Order {created_order.id} at WifiOBD Shop"
+                )
+                created_order.payment_id = payment_data["payment_id"]
+                created_order.payment_url = payment_data["payment_url"]
+            except Exception as e:
+                logger.error("payment_creation_failed", order_id=str(created_order.id), error=str(e))
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Insufficient stock for item: {item['name']}"
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to create payment: {str(e)}"
                 )
 
-        # 3. Create Order
-        total_amount = Decimal(str(cart["total_price"]))
-        order = Order(
-            user_id=user.id if user else None,
-            status=OrderStatus.PENDING,
-            total_amount=total_amount,
-            shipping_address=order_data.shipping_address,
-            currency="RUB"
-        )
+            # 7. Clear Cart
+            await self.cart_service.clear_cart(cart_id)
 
-        for item in cart["items"]:
-            order_item = OrderItem(
-                product_variant_id=item["variant_id"],
-                quantity=item["quantity"],
-                price=Decimal(str(item["price"]))
+            # 8. Commit transaction
+            await self.session.commit()
+            await self.session.refresh(created_order)
+
+            # 9. Trigger Notification (Async via Celery)
+            recipient_email = user.email if user else order_data.email
+            if recipient_email:
+                send_email_task.delay(
+                    recipient=recipient_email,
+                    subject=f"Заказ №{created_order.id} принят",
+                    template_name="order_created.html",
+                    context={
+                        "full_name": (user.full_name if user else None) or recipient_email,
+                        "order_id": str(created_order.id),
+                        "total_amount": str(created_order.total_amount),
+                        "shipping_address": created_order.shipping_address,
+                        "payment_url": created_order.payment_url
+                    }
+                )
+
+            return created_order
+
+        except Exception as e:
+            # Release reserved stock in Redis on error
+            for item in reserved_items:
+                await inventory.release_stock(item["variant_id"], item["quantity"])
+            
+            # Rollback DB transaction (though it would happen anyway on uncaught exception)
+            await self.session.rollback()
+            
+            if isinstance(e, HTTPException):
+                raise e
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to create order: {str(e)}"
             )
-            order.items.append(order_item)
-
-        # 5. Generate Payment
-        payment_data = await yoomoney_client.create_payment(
-            amount=total_amount,
-            order_id=str(order.id),
-            return_url=f"{settings.NUXT_PUBLIC_SITE_URL}/orders/{order.id}",
-            description=f"Order {order.id} at WifiOBD Shop"
-        )
-        order.payment_id = payment_data["payment_id"]
-        order.payment_url = payment_data["payment_url"]
-
-        created_order = await self.order_repo.create(order)
-
-        # 7. Clear Cart
-        await self.cart_service.clear_cart(cart_id)
-
-        # 8. Commit transaction
-        await self.session.commit()
-        await self.session.refresh(created_order)
-
-        # 9. Trigger Notification (Async via Celery)
-        recipient_email = user.email if user else order_data.email # assume email in order_data for guests
-        if recipient_email:
-            send_email_task.delay(
-                recipient=recipient_email,
-                subject=f"Заказ №{created_order.id} принят",
-                template_name="order_created.html",
-                context={
-                    "full_name": (user.full_name if user else None) or recipient_email,
-                    "order_id": str(created_order.id),
-                    "total_amount": str(created_order.total_amount),
-                    "shipping_address": created_order.shipping_address,
-                    "payment_url": created_order.payment_url
-                }
-            )
-
-        return created_order
 
     async def update_order_status(self, order_id: UUID, new_status: OrderStatus) -> Order:
         order = await self.order_repo.get_by_id(order_id)
@@ -114,6 +145,9 @@ class OrderService:
             raise HTTPException(status_code=404, detail="Order not found")
 
         order.status = new_status
+        if new_status == OrderStatus.PAID:
+            order.paid_at = datetime.now(timezone.utc)
+            
         await self.order_repo.update(order)
         await self.session.commit()
         await self.session.refresh(order)
@@ -121,7 +155,7 @@ class OrderService:
         if order.user:
             send_email_task.delay(
                 recipient=order.user.email,
-                subject=f"Status zakaza #{order.id} obnovlen",
+                subject=f"Статус заказа #{order.id} обновлен",
                 template_name="order_status_updated.html",
                 context={
                     "full_name": order.user.full_name or order.user.email,

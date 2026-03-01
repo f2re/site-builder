@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Request, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 import json
+from datetime import datetime, timezone
 
 from app.core.config import settings
 from app.core.logging import logger
@@ -21,9 +22,13 @@ async def yoomoney_webhook(
     db: AsyncSession = Depends(get_db)
 ):
     body_bytes = await request.body()
+    # YooKassa might use X-Kassa-Signature or X-Signature
     signature = request.headers.get("X-YooKassa-Signature") or request.headers.get("X-Signature")
+    
     if signature and not yoomoney_client.verify_webhook_signature(settings.YOOMONEY_SECRET, body_bytes, signature):
         logger.warning("invalid_payment_signature", signature=signature)
+        # In production we might return 200 even for invalid signature to avoid probing
+        # but here we follow the instruction to verify.
         raise HTTPException(status_code=400, detail="Invalid signature")
 
     try:
@@ -37,6 +42,7 @@ async def yoomoney_webhook(
     if not payment_id:
         return {"status": "ignored"}
 
+    # Idempotency: avoid processing same payment_id twice
     idempotency_key = f"payments:processed:{payment_id}"
     is_new = await redis_client.set(idempotency_key, "1", nx=True, ex=86400)
     if not is_new:
@@ -56,24 +62,23 @@ async def yoomoney_webhook(
             return {"status": "error", "message": "order not found"}
 
         if order.status == OrderStatus.PAID:
+            logger.info("order_already_paid", order_id=order_id)
             return {"status": "ok"}
 
+        # Update order status
         order.status = OrderStatus.PAID
         order.payment_id = payment_id
+        order.paid_at = datetime.now(timezone.utc)
+        
         await order_repo.update(order)
         await db.commit()
         logger.info("payment_processed_successfully", order_id=order_id, payment_id=payment_id)
 
-        if order.shipping_address:
-            try:
-                pass
-            except Exception as e:
-                logger.error("cdek_order_creation_failed", order_id=order_id, error=str(e))
-
+        # Trigger notifications or other downstream processes
         if order.user:
             send_email_task.delay(
                 recipient=order.user.email,
-                subject=f"Zakazat #{order.id} oplachen",
+                subject=f"Заказ #{order.id} оплачен",
                 template_name="order_paid.html",
                 context={
                     "full_name": order.user.full_name or order.user.email,
@@ -81,5 +86,9 @@ async def yoomoney_webhook(
                     "total_amount": str(order.total_amount)
                 }
             )
+            
+    elif event == "payment.canceled":
+        # Optional: handle cancellation, release stock?
+        logger.info("payment_canceled", payment_id=payment_id)
 
     return {"status": "ok"}

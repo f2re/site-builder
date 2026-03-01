@@ -20,19 +20,19 @@ def upgrade() -> None:
     # Check and create migrationentity
     res = op.get_bind().execute(sa.text("SELECT 1 FROM pg_type WHERE typname = 'migrationentity'"))
     if not res.first():
-        sa.Enum('USERS', 'CATEGORIES', 'PRODUCTS', 'IMAGES', 'ORDERS', 'BLOG', name='migrationentity').create(op.get_bind())
+        sa.Enum('users', 'categories', 'products', 'images', 'orders', 'blog', name='migrationentity').create(op.get_bind())
 
     # Check and create migrationstatus
     res = op.get_bind().execute(sa.text("SELECT 1 FROM pg_type WHERE typname = 'migrationstatus'"))
     if not res.first():
-        sa.Enum('PENDING', 'RUNNING', 'PAUSED', 'DONE', 'FAILED', name='migrationstatus').create(op.get_bind())
+        sa.Enum('pending', 'running', 'paused', 'done', 'failed', name='migrationstatus').create(op.get_bind())
 
     # ─── migration_jobs ──────────────────────────────────────────────────────
     op.create_table(
         'migration_jobs',
         sa.Column('id', sa.UUID(), nullable=False),
-        sa.Column('entity', postgresql.ENUM('USERS', 'CATEGORIES', 'PRODUCTS', 'IMAGES', 'ORDERS', 'BLOG', name='migrationentity', create_type=False), nullable=False),
-        sa.Column('status', postgresql.ENUM('PENDING', 'RUNNING', 'PAUSED', 'DONE', 'FAILED', name='migrationstatus', create_type=False), nullable=False),
+        sa.Column('entity', postgresql.ENUM('users', 'categories', 'products', 'images', 'orders', 'blog', name='migrationentity', create_type=False), nullable=False),
+        sa.Column('status', postgresql.ENUM('pending', 'running', 'paused', 'done', 'failed', name='migrationstatus', create_type=False), nullable=False),
         sa.Column('total', sa.Integer(), nullable=False),
         sa.Column('processed', sa.Integer(), nullable=False),
         sa.Column('skipped', sa.Integer(), nullable=False),

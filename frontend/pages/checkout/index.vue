@@ -143,13 +143,21 @@ const handlePlaceOrder = async () => {
       return
     }
 
-    if (data.value?.payment_url) {
-      // Clear cart before redirecting
+    if (data.value) {
+      // SUCCESSFUL RESPONSE RECEIVED: Clear cart ONLY now
       cartStore.clearCart()
-      window.location.href = data.value.payment_url
+
+      if (data.value.payment_url) {
+        // Redirect to payment
+        window.location.href = data.value.payment_url
+      } else {
+        // Redirect to success page if no payment URL (e.g. for testing)
+        router.push(`/orders/success?order_id=${data.value.order_id}`)
+      }
     }
   } catch (err) {
     console.error('Order creation failed', err)
+    alert('Произошла ошибка при оформлении заказа. Пожалуйста, попробуйте еще раз.')
   } finally {
     isPending.value = false
   }
