@@ -6,6 +6,7 @@ interface Props {
   disabled?: boolean
   to?: string
   type?: 'button' | 'submit' | 'reset'
+  block?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -14,6 +15,7 @@ const props = withDefaults(defineProps<Props>(), {
   loading: false,
   disabled: false,
   type: 'button',
+  block: false,
 })
 
 const isNuxtLink = computed(() => !!props.to)
@@ -27,7 +29,7 @@ const isNuxtLink = computed(() => !!props.to)
       'btn',
       `btn--${variant}`,
       `btn--${size}`,
-      { 'btn--loading': loading, 'btn--disabled': disabled }
+      { 'btn--loading': loading, 'btn--disabled': disabled, 'btn--block': block }
     ]"
   >
     <div v-if="loading" class="btn__loader"></div>
@@ -45,7 +47,7 @@ const isNuxtLink = computed(() => !!props.to)
     :class="[
       `btn--${variant}`,
       `btn--${size}`,
-      { 'btn--loading': loading }
+      { 'btn--loading': loading, 'btn--block': block }
     ]"
   >
     <div v-if="loading" class="btn__loader"></div>
@@ -78,6 +80,11 @@ const isNuxtLink = computed(() => !!props.to)
   white-space: nowrap;
   user-select: none;
   outline: none;
+}
+
+.btn--block {
+  display: flex;
+  width: 100%;
 }
 
 .btn:active:not(:disabled) {

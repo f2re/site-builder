@@ -1,9 +1,9 @@
-# Module: api/v1/admin/router.py | Agent: backend-agent | Task: phase11_backend_admin_blog_refinement
+# Module: api/v1/admin/router.py | Agent: backend-agent | Task: Phase 2 Dashfirm
 import io
 import openpyxl
 from uuid import UUID
 from typing import Any, List, Optional
-from fastapi import APIRouter, Depends, status, HTTPException, Query
+from fastapi import APIRouter, Depends, status, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select, func
@@ -26,6 +26,11 @@ from app.api.v1.orders.repository import OrderRepository
 from app.api.v1.users.repository import UserRepository
 from app.api.v1.iot.repository import IoTRepository
 from app.api.v1.cart.service import CartService
+from app.api.v1.firmware.service import FirmwareService, get_firmware_service
+from app.api.v1.firmware.schemas import (
+    DeviceRead, ComplectationCreate, ComplectationRead, 
+    UserMergeRequest, ExcelImportResponse
+)
 from .pages_router import router as pages_admin_router
 
 # Migration
@@ -272,6 +277,47 @@ async def list_all_devices(
             "is_active": d.is_active
         } for d in devices
     ]}
+
+# ─── Firmware Admin ──────────────────────────────────────────────────────────
+@router.get("/firmware/devices", response_model=List[DeviceRead])
+async def list_firmware_devices(
+    _admin: User = AdminDep,
+    service: FirmwareService = Depends(get_firmware_service)
+) -> Any:
+    return await service.get_all_devices()
+
+@router.post("/firmware/complectations", response_model=ComplectationRead, status_code=status.HTTP_201_CREATED)
+async def create_complectation(
+    payload: ComplectationCreate,
+    _admin: User = AdminDep,
+    service: FirmwareService = Depends(get_firmware_service)
+) -> Any:
+    return await service.create_complectation(
+        payload.caption, payload.label, payload.code, payload.simple
+    )
+
+@router.post("/firmware/merge-users")
+async def merge_users_firmware(
+    payload: UserMergeRequest,
+    _admin: User = AdminDep,
+    service: FirmwareService = Depends(get_firmware_service)
+) -> Any:
+    await service.merge_users_firmware(payload.source_user_id, payload.target_user_id)
+    return {"status": "success"}
+
+@router.post("/firmware/import", response_model=ExcelImportResponse)
+async def import_firmware_excel(
+    file: UploadFile = File(...),
+    _admin: User = AdminDep,
+    service: FirmwareService = Depends(get_firmware_service)
+) -> Any:
+    content = await file.read()
+    clients, devices, errors = await service.import_excel(content)
+    return {
+        "clients_imported": clients,
+        "devices_imported": devices,
+        "errors": errors
+    }
 
 # ─── Migration ───────────────────────────────────────────────────────────────
 @router.post("/migration/start", response_model=MigrationJobResponse)

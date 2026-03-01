@@ -82,6 +82,9 @@ class Settings(BaseSettings):
     MEILISEARCH_HOST: str = "http://localhost:7700"
     MEILISEARCH_API_KEY: str = "masterKey"
 
+    # ── Dashfirm Compiler ────────────────────────────────────────────────────
+    COMPILER_PATH: str = "./compiler/compiler"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
 
 

@@ -1,4 +1,4 @@
-# Module: db/models/user.py | Agent: backend-agent | Task: phase7_backend_security
+# Module: db/models/user.py | Agent: backend-agent | Task: Phase 1 Dashfirm
 from datetime import datetime, timezone
 import uuid
 from typing import TYPE_CHECKING
@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
-    pass
+    from app.db.models.firmware import ModuleToken
 
 
 class User(Base):
@@ -51,3 +51,6 @@ class User(Base):
     
     # Blog relationships
     blog_author = relationship("Author", back_populates="user", uselist=False, lazy="selectin")
+
+    # Firmware Management
+    module_token: Mapped["ModuleToken"] = relationship("ModuleToken", back_populates="user", uselist=False)

@@ -1,7 +1,7 @@
 """opencart migration tables
 
 Revision ID: 20260301_1230
-Revises: 20260301_1105
+Revises: f07d615f2f2f
 Create Date: 2026-03-01 12:30:00.000000
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '20260301_1230'
-down_revision = '20260301_1105'
+down_revision = 'f07d615f2f2f'
 branch_labels = None
 depends_on = None
 

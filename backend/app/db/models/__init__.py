@@ -1,4 +1,4 @@
-# Module: db/models/__init__.py | Agent: backend-agent | Task: BE-03
+# Module: db/models/__init__.py | Agent: backend-agent | Task: Phase 1 Dashfirm
 # Import all models here so that Alembic autogenerate can discover them
 # via Base.metadata when env.py imports this package.
 from app.db.models.user import User          # noqa: F401
@@ -11,3 +11,4 @@ from app.db.models.notification import NotificationLog, UserNotificationSettings
 from app.db.models.page import StaticPage  # noqa: F401
 from app.db.models.cart import Cart, CartItem  # noqa: F401
 from app.db.models.migration import MigrationJob  # noqa: F401
+from app.db.models.firmware import ModuleToken, ModuleDevice, ModuleComplectation, device_complectations # noqa: F401
