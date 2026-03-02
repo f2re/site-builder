@@ -8,7 +8,7 @@ from uuid import UUID
 import httpx
 from fastapi import HTTPException, status
 from jose import jwt, JWTError
-from app.api.v1.auth.schemas import LoginRequest, Token, UserCreate
+from app.api.v1.auth.schemas import LoginRequest, Token, UserCreate, UserResponse
 from app.api.v1.users.repository import UserRepository
 from app.core.security import (
     create_access_token,
@@ -47,6 +47,7 @@ class AuthService:
         return Token(
             access_token=create_access_token(user.id, role=user.role),
             refresh_token=create_refresh_token(user.id),
+            user=UserResponse.model_validate(user)
         )
 
     async def register(self, user_in: UserCreate) -> User:
@@ -82,7 +83,11 @@ class AuthService:
             # Update user if email or full_name changed
             updates: Dict[str, Any] = {}
             if user.email != email:
-                updates["email"] = email
+                # Fix point 1 & 4: Don't overwrite real email with telegram placeholder
+                # But do update if both are same type or if new one is real (non-placeholder)
+                if not email.endswith("@telegram.org") or user.email.endswith("@telegram.org"):
+                    updates["email"] = email
+                    
             if full_name and user.full_name != full_name:
                 updates["full_name"] = full_name
             
@@ -164,6 +169,7 @@ class AuthService:
             return Token(
                 access_token=create_access_token(user.id, role=user.role),
                 refresh_token=create_refresh_token(user.id),
+                user=UserResponse.model_validate(user)
             )
 
     async def handle_yandex_callback(self, code: str) -> Token:
@@ -216,6 +222,7 @@ class AuthService:
             return Token(
                 access_token=create_access_token(user.id, role=user.role),
                 refresh_token=create_refresh_token(user.id),
+                user=UserResponse.model_validate(user)
             )
 
     async def handle_telegram_auth(self, tg_data: Dict[str, Any]) -> Token:
@@ -259,6 +266,7 @@ class AuthService:
         return Token(
             access_token=create_access_token(user.id, role=user.role),
             refresh_token=create_refresh_token(user.id),
+            user=UserResponse.model_validate(user)
         )
 
     async def refresh_token(self, refresh_token: str) -> Token:
@@ -294,6 +302,7 @@ class AuthService:
             return Token(
                 access_token=create_access_token(user.id, role=user.role),
                 refresh_token=create_refresh_token(user.id),
+                user=UserResponse.model_validate(user)
             )
         except (JWTError, ValueError):
             raise HTTPException(
@@ -325,7 +334,7 @@ class AuthService:
     async def reset_password(self, token: str, new_password: str) -> None:
         """Verify token and update password."""
         email = verify_password_reset_token(token)
-        if not email:
+        if email is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid or expired password reset token",

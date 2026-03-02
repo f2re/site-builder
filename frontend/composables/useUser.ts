@@ -20,7 +20,7 @@ export interface UserProfileUpdate {
 
 export const useUser = () => {
   const config = useRuntimeConfig()
-  const { token } = useAuth()
+  const { accessToken } = useAuth()
   
   const user = ref<UserProfile | null>(null)
   const pending = ref(false)
@@ -32,7 +32,7 @@ export const useUser = () => {
     try {
       const response = await $fetch<UserProfile>(`${config.public.apiBase}/users/me`, {
         headers: {
-          Authorization: `Bearer ${token.value}`
+          Authorization: `Bearer ${accessToken.value}`
         }
       })
       user.value = response
@@ -53,7 +53,7 @@ export const useUser = () => {
         method: 'PUT',
         body: data,
         headers: {
-          Authorization: `Bearer ${token.value}`
+          Authorization: `Bearer ${accessToken.value}`
         }
       })
       user.value = response

@@ -1,4 +1,4 @@
-# Module: api/v1/auth/schemas.py | Agent: backend-agent | Task: stage2_rbac
+# Module: api/v1/auth/schemas.py | Agent: backend-agent | Task: BE-01_products_catalog
 from pydantic import BaseModel, EmailStr, ConfigDict, Field
 from uuid import UUID
 
@@ -25,6 +25,7 @@ class Token(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+    user: UserResponse
 
 
 class TokenPayload(BaseModel):

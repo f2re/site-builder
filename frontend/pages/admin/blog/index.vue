@@ -5,14 +5,14 @@ definePageMeta({
 })
 
 const config = useRuntimeConfig()
-const { data: posts, pending, refresh } = await useFetch('/api/v1/blog/posts', {
+const { data: posts, pending, refresh } = await useFetch('/blog/posts', {
   baseURL: config.public.apiBase,
 })
 
 async function deletePost(slug: string) {
   if (!confirm('Удалить статью?')) return
   try {
-    await $fetch(`/api/v1/blog/posts/${slug}`, {
+    await $fetch(`/blog/posts/${slug}`, {
       method: 'DELETE',
       baseURL: config.public.apiBase,
       headers: useRequestHeaders(['authorization']),

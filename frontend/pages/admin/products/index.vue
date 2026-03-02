@@ -5,7 +5,7 @@ definePageMeta({
 })
 
 const config = useRuntimeConfig()
-const { data: products, pending, refresh } = await useFetch('/api/v1/products', {
+const { data: products, pending, refresh } = await useFetch('/products', {
   baseURL: config.public.apiBase,
 })
 </script>

@@ -110,6 +110,21 @@ watch(() => route.fullPath, () => {
           <div class="account-actions hide-mobile">
             <template v-if="isAuthenticated">
               <div class="auth-group">
+                <!-- Admin Dashboard Link -->
+                <UButton
+                  v-if="isAdmin"
+                  variant="ghost"
+                  size="sm"
+                  to="/admin"
+                  aria-label="Панель управления"
+                  class="action-btn admin-btn"
+                  title="Админ-панель"
+                >
+                  <template #icon>
+                    <Icon name="ph:gauge-bold" size="20" />
+                  </template>
+                </UButton>
+
                 <UButton
                   variant="ghost"
                   size="sm"
@@ -358,6 +373,10 @@ watch(() => route.fullPath, () => {
   border-radius: var(--radius-full);
   min-width: 18px;
   border: 2px solid var(--color-bg);
+}
+
+.admin-btn:hover {
+  color: var(--color-accent);
 }
 
 /* Burger Button */

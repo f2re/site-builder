@@ -26,7 +26,7 @@ const buildParams = () => {
   return params
 }
 
-const { data, pending, error, refresh } = await useFetch('/api/v1/admin/users', {
+const { data, pending, error, refresh } = await useFetch('/admin/users', {
   baseURL: config.public.apiBase,
   headers: {
     Authorization: `Bearer ${authStore.accessToken}`
@@ -50,7 +50,7 @@ const total = computed(() => data.value?.total || 0)
 
 const downloadExcel = async () => {
   try {
-    const response = await $fetch('/api/v1/admin/users/export', {
+    const response = await $fetch('/admin/users/export', {
       baseURL: config.public.apiBase,
       headers: {
         Authorization: `Bearer ${authStore.accessToken}`
