@@ -24,6 +24,7 @@ class FirmwareService:
         # Generate 40-char hex token
         new_token_str = secrets.token_hex(20) # 20 bytes = 40 hex chars
         token_obj = await self.repo.create_token(user_id, new_token_str)
+        await self.repo.session.commit()
         return token_obj.token
 
     async def get_my_devices(self, user_id: uuid.UUID) -> Sequence[ModuleDevice]:
@@ -80,21 +81,27 @@ class FirmwareService:
         if serial.upper().startswith("A"):
             device_type = DeviceType.AFR
             
-        return await self.repo.create_device(token_obj.id, serial, device_type)
+        device = await self.repo.create_device(token_obj.id, serial, device_type)
+        await self.repo.session.commit()
+        return device
 
     async def create_complectation(self, caption: str, label: str, code: int, simple: bool) -> ModuleComplectation:
-        return await self.repo.create_complectation(caption, label, code, simple)
+        comp = await self.repo.create_complectation(caption, label, code, simple)
+        await self.repo.session.commit()
+        return comp
 
     async def update_complectation(self, comp_id: uuid.UUID, caption: str, label: str, code: int, simple: bool) -> ModuleComplectation:
         comp = await self.repo.update_complectation(comp_id, caption, label, code, simple)
         if not comp:
             raise HTTPException(status_code=404, detail="Complectation not found")
+        await self.repo.session.commit()
         return comp
 
     async def delete_complectation(self, comp_id: uuid.UUID):
         success = await self.repo.delete_complectation(comp_id)
         if not success:
             raise HTTPException(status_code=404, detail="Complectation not found")
+        await self.repo.session.commit()
 
     async def add_complectation_to_device(self, serial: str, comp_id: uuid.UUID):
         await self.repo.add_complectation_to_device(serial, comp_id)

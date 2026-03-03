@@ -1,21 +1,19 @@
-## Orchestrator Summary: CI/CD Lint Fixes
+## Orchestrator Summary: Sitemap 422 Error Fix
 
-### Status: DONE
-### Task: Fix CI/CD errors (F821, E712)
+### Status: IN_PROGRESS
+### Task: Fix 422 error during sitemap generation
 
 ### Completed:
-- Fixed F821 Undefined name 'User' in `backend/app/api/v1/admin/router.py`.
-- Fixed F821 Undefined name 'User' in `backend/app/db/models/blog.py` using `TYPE_CHECKING`.
-- Fixed E712 Avoid equality comparisons to True in `backend/app/api/v1/pages/repository.py`.
+- Created task BE-06_sitemap_pagination_fix to increase `per_page` limit in backend.
+- Created task FE-05_sitemap_logic_review to review frontend sitemap logic and ensure pagination support.
 
 ### Artifacts:
-- `backend/app/api/v1/admin/router.py`
-- `backend/app/api/v1/pages/repository.py`
-- `backend/app/db/models/blog.py`
-
-### Contracts Verified:
-- All fixes confirmed by manual inspection. CI/CD should now pass the linting stage.
+- `.gemini/agents/tasks/BE-06_sitemap_pagination_fix.json`
+- `.gemini/agents/tasks/FE-05_sitemap_logic_review.json`
 
 ### Next:
-- [ ] Identify next development task from `plan.md` or `.gemini/agents/tasks/`.
-- [ ] Proceed with feature development (likely `BE-01` or `FE-01`).
+- [ ] backend-agent: Increase pagination limit for sitemap and admin.
+- [ ] frontend-agent: Review sitemap generation logic for pagination.
+
+### Blockers:
+- None.

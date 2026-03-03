@@ -206,6 +206,7 @@ class BlogService:
         )
         
         created_post = await self.repo.create(post)
+        await self.repo.session.commit()
         
         # Search indexing
         index_data = {
@@ -218,7 +219,9 @@ class BlogService:
         }
         index_blog_post_task.delay(index_data)
         
-        return BlogPostRead.model_validate(created_post)
+        # Reload with relationships to avoid MissingGreenlet during validation
+        loaded_post = await self.repo.get_by_id(created_post.id)
+        return BlogPostRead.model_validate(loaded_post)
 
     async def update_post(self, post_id: UUID, data: BlogPostUpdate) -> BlogPostRead:
         """
@@ -249,6 +252,8 @@ class BlogService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Blog post not found"
             )
+        
+        await self.repo.session.commit()
             
         # Update search index
         plain_text = tiptap_to_text(updated_post.content_json)
@@ -262,7 +267,9 @@ class BlogService:
         }
         index_blog_post_task.delay(index_data)
         
-        return BlogPostRead.model_validate(updated_post)
+        # Reload with relationships
+        loaded_post = await self.repo.get_by_id(updated_post.id)
+        return BlogPostRead.model_validate(loaded_post)
 
     async def delete_post(self, post_id: UUID) -> bool:
         """
@@ -270,6 +277,7 @@ class BlogService:
         """
         success = await self.repo.delete(post_id)
         if success:
+            await self.repo.session.commit()
             remove_blog_post_from_index_task.delay(str(post_id))
         return success
 

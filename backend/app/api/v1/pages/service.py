@@ -42,7 +42,9 @@ class PageService:
             )
         
         page = StaticPage(**data.model_dump())
-        return await self.repo.create(page)
+        created = await self.repo.create(page)
+        await self.repo.session.commit()
+        return created
 
     async def update_page(self, page_id: UUID, data: PageUpdate) -> StaticPage:
         update_data = data.model_dump(exclude_unset=True)
@@ -60,6 +62,8 @@ class PageService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Page not found"
             )
+        
+        await self.repo.session.commit()
         return page
 
     async def delete_page(self, page_id: UUID) -> None:
@@ -69,6 +73,7 @@ class PageService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Page not found"
             )
+        await self.repo.session.commit()
 
 
 async def get_page_service(repo: PageRepository = Depends(get_page_repo)) -> PageService:

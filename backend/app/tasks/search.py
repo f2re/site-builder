@@ -15,9 +15,8 @@ def index_product_task(product_data: dict):
             index = client.index('products')
             await index.add_documents([product_data])
             
-    loop = asyncio.get_event_loop()
     try:
-        loop.run_until_complete(_index())
+        asyncio.run(_index())
     except Exception as e:
         logger.error("meilisearch_indexing_failed", domain="products", error=str(e))
         raise
@@ -32,9 +31,8 @@ def remove_product_from_index_task(product_id: str):
             index = client.index('products')
             await index.delete_document(product_id)
             
-    loop = asyncio.get_event_loop()
     try:
-        loop.run_until_complete(_remove())
+        asyncio.run(_remove())
     except Exception as e:
         logger.error("meilisearch_removal_failed", domain="products", error=str(e))
         raise
@@ -49,9 +47,8 @@ def index_blog_post_task(post_data: dict):
             index = client.index('blog_posts')
             await index.add_documents([post_data])
             
-    loop = asyncio.get_event_loop()
     try:
-        loop.run_until_complete(_index())
+        asyncio.run(_index())
     except Exception as e:
         logger.error("meilisearch_indexing_failed", domain="blog", error=str(e))
         raise
@@ -66,9 +63,8 @@ def remove_blog_post_from_index_task(post_id: str):
             index = client.index('blog_posts')
             await index.delete_document(post_id)
             
-    loop = asyncio.get_event_loop()
     try:
-        loop.run_until_complete(_remove())
+        asyncio.run(_remove())
     except Exception as e:
         logger.error("meilisearch_removal_failed", domain="blog", error=str(e))
         raise

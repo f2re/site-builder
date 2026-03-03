@@ -24,6 +24,7 @@ const isNuxtLink = computed(() => !!props.to)
 <template>
   <NuxtLink
     v-if="isNuxtLink"
+    v-bind="$attrs"
     :to="to"
     :class="[
       'btn',
@@ -41,6 +42,7 @@ const isNuxtLink = computed(() => !!props.to)
   </NuxtLink>
   <button
     v-else
+    v-bind="$attrs"
     :type="type"
     :disabled="disabled || loading"
     class="btn"

@@ -1,0 +1,15 @@
+{
+  "task_id": "FE-05_sitemap_logic_review",
+  "phase": 4,
+  "agent": "frontend-agent",
+  "title": "Review sitemap generation logic for pagination",
+  "description": "Review and update frontend/server/routes/sitemap.xml.ts to ensure it handles pagination if the backend returns more than 1000 items, and confirm that the 422 error is resolved after the backend change. Consider adding proper pagination if the backend limits are still too low.",
+  "depends_on": ["BE-06_sitemap_pagination_fix"],
+  "priority": "medium",
+  "contracts_required": [".gemini/agents/contracts/api_contracts.md"],
+  "acceptance_criteria": [
+    "Sitemap generates correctly without 422 error",
+    "Handles more than 1000 items if applicable",
+    "Local linting and type checking pass"
+  ]
+}

@@ -89,6 +89,7 @@ class ProductService:
     async def create_category(self, data: CategoryCreate) -> CategoryRead:
         category = Category(**data.model_dump())
         created = await self.repo.create_category(category)
+        await self.repo.session.commit()
         return CategoryRead.model_validate(created)
 
     async def update_category(self, category_id: UUID, data: CategoryUpdate) -> CategoryRead:
@@ -98,6 +99,7 @@ class ProductService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Category not found"
             )
+        await self.repo.session.commit()
         return CategoryRead.model_validate(updated)
 
     async def delete_category(self, category_id: UUID) -> None:
@@ -107,6 +109,7 @@ class ProductService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Category not found"
             )
+        await self.repo.session.commit()
 
     async def create_product(self, data: ProductCreate) -> ProductRead:
         """
@@ -135,11 +138,15 @@ class ProductService:
             product.variants = [ProductVariant(**var.model_dump()) for var in data.variants]
             
         created_product = await self.repo.create(product)
+        await self.repo.session.commit()
+        
+        # Reload with relationships to avoid MissingGreenlet during validation
+        loaded_product = await self.repo.get_by_id(created_product.id)
         
         # Prepare data for search indexing
-        self._trigger_indexing(created_product)
+        self._trigger_indexing(loaded_product)
         
-        return ProductRead.model_validate(created_product)
+        return ProductRead.model_validate(loaded_product)
 
     async def update_product(self, product_id: UUID, data: ProductUpdate) -> ProductRead:
         """
@@ -162,11 +169,16 @@ class ProductService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Product not found"
             )
-            
-        # Update search index
-        self._trigger_indexing(updated_product)
         
-        return ProductRead.model_validate(updated_product)
+        await self.repo.session.commit()
+            
+        # Reload with relationships
+        loaded_product = await self.repo.get_by_id(updated_product.id)
+        
+        # Update search index
+        self._trigger_indexing(loaded_product)
+        
+        return ProductRead.model_validate(loaded_product)
 
     async def delete_product(self, product_id: UUID) -> None:
         """
@@ -178,6 +190,8 @@ class ProductService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Product not found"
             )
+        
+        await self.repo.session.commit()
         
         # Remove from search index
         remove_product_from_index_task.delay(str(product_id))
