@@ -46,7 +46,7 @@ class ProductVariantBase(BaseModel):
     sku: str
     price: Decimal
     stock_quantity: int = 0
-    attributes: dict[str, Any] = Field(default_factory=dict)
+    attributes: dict[str, Any] = Field(default_factory=lambda: {})
 
 class ProductVariantRead(ProductVariantBase):
     id: UUID
@@ -66,11 +66,11 @@ class ProductBase(BaseModel):
     slug: Optional[str] = None
     description: Optional[str] = None
     description_html: Optional[str] = None
-    content_json: Any = Field(default_factory=dict, description="TipTap JSON content")
+    content_json: Any = Field(default_factory=lambda: {}, description="TipTap JSON content")
     meta_title: Optional[str] = Field(None, max_length=255)
     meta_description: Optional[str] = Field(None, max_length=500)
     og_image_url: Optional[str] = None
-    attributes: dict[str, Any] = Field(default_factory=dict)
+    attributes: dict[str, Any] = Field(default_factory=lambda: {})
     is_active: bool = True
     is_featured: bool = False
 

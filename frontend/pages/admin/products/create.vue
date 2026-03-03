@@ -9,6 +9,7 @@ import UCard from '~/components/U/UCard.vue'
 import USelect from '~/components/U/USelect.vue'
 import UTextarea from '~/components/U/UTextarea.vue'
 import TipTapEditor from '~/components/blog/TipTapEditor.vue'
+import ProductMediaManager from '~/components/Admin/ProductMediaManager.vue'
 
 definePageMeta({
   layout: 'admin',
@@ -32,6 +33,7 @@ const form = ref<ProductCreate>({
   content_json: null,
   is_active: true,
   is_featured: false,
+  images: [],
   variants: [
     { name: 'По умолчанию', sku: '', price: 0, stock_quantity: 0 }
   ]
@@ -121,6 +123,10 @@ const handleCreate = async () => {
               rows="2"
             />
           </div>
+        </UCard>
+
+        <UCard title="Изображения">
+          <ProductMediaManager v-model="form.images" />
         </UCard>
 
         <UCard title="Полное описание (Rich Text)">

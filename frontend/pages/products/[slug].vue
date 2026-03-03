@@ -1,24 +1,25 @@
 <script setup lang="ts">
 import { useProducts } from '~/composables/useProducts'
 import { useCartStore } from '~/stores/cartStore'
-import { useProductSeo } from '~/composables/useSeo'
+import { useProductSchema } from '~/composables/useSchemaOrg'
 import { useToast } from '~/composables/useToast'
 import AppBreadcrumbs from '~/components/AppBreadcrumbs.vue'
-import { ref, computed, watch, watchEffect } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 
 const route = useRoute()
-const { getProduct } = useProducts()
+const { getProductBySlug } = useProducts()
 const cartStore = useCartStore()
 const toast = useToast()
 
 const slug = route.params.slug as string
-const { data: product, pending, error } = await getProduct(slug)
+const { data: product, pending, error } = await getProductBySlug(slug)
 
 const activeImage = ref('')
 
 watch(product, (newVal) => {
   if (newVal?.images?.length) {
-    activeImage.value = newVal.images[0]
+    const cover = newVal.images.find(img => img.is_cover) || newVal.images[0]
+    activeImage.value = cover.url
   }
 }, { immediate: true })
 
@@ -28,25 +29,70 @@ const addToCart = () => {
       id: product.value.id as any,
       name: product.value.name,
       price: product.value.price_display,
-      image: product.value.images[0]
+      image: product.value.images[0]?.url || '/placeholder-product.png'
     })
     
     toast.success('Добавлено в корзину', `${product.value.name} успешно добавлен.`)
   }
 }
 
-// SEO & Schema.org (handled by composable)
-watchEffect(() => {
-  if (product.value) {
-    useProductSeo(product)
+// SEO & Schema.org
+useHead(() => {
+  if (!product.value) return {}
+  
+  const title = product.value.meta_title || `${product.value.name} — Купить в магазине WifiOBD`
+  const description = product.value.meta_description || product.value.description
+  const image = product.value.og_image_url || product.value.images[0]?.url
+
+  return {
+    title,
+    meta: [
+      { name: 'description', content: description },
+      { property: 'og:title', content: title },
+      { property: 'og:description', content: description },
+      { property: 'og:image', content: image },
+      { property: 'og:type', content: 'product' },
+      { name: 'twitter:card', content: 'summary_large_image' },
+    ]
   }
 })
+
+watch(product, (val) => {
+  if (val) {
+    useProductSchema({
+      name: val.name,
+      description: val.description,
+      images: val.images.map(img => img.url),
+      price_rub: val.price_rub || (val.variants[0]?.price || 0),
+      stock: val.stock,
+      sku: val.variants[0]?.sku
+    })
+  }
+}, { immediate: true })
 
 const breadcrumbCrumbs = computed(() => [
   { label: 'Каталог', to: '/products' },
   { label: product.value?.category?.name || '...', to: `/products?category=${product.value?.category?.slug}` },
   { label: product.value?.name || '...', to: `/products/${slug}` }
 ])
+
+// Sticky Buy Bar logic
+const buyBtnRef = ref<HTMLElement | null>(null)
+const showStickyBar = ref(false)
+
+const handleScroll = () => {
+  if (!buyBtnRef.value) return
+  const rect = buyBtnRef.value.getBoundingClientRect()
+  showStickyBar.value = rect.bottom < 0
+}
+
+onMounted(() => {
+  window.addEventListener('scroll', handleScroll)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleScroll)
+})
 
 // Variant mock
 const selectedVariant = ref('Standard')
@@ -96,12 +142,12 @@ const variants = ['Standard', 'Premium', 'Pro']
           <div v-if="product.images.length > 1" class="product-gallery__thumbs">
             <button
               v-for="img in product.images"
-              :key="img"
+              :key="img.url"
               class="product-gallery__thumb"
-              :class="{ 'is-active': activeImage === img }"
-              @click="activeImage = img"
+              :class="{ 'is-active': activeImage === img.url }"
+              @click="activeImage = img.url"
             >
-              <NuxtImg :src="img" :alt="product.name" width="80" height="80" fit="contain" format="webp" />
+              <NuxtImg :src="img.url" :alt="product.name" width="80" height="80" fit="contain" format="webp" />
             </button>
           </div>
         </div>
@@ -144,7 +190,7 @@ const variants = ['Standard', 'Premium', 'Pro']
             </div>
           </div>
 
-          <div class="product-info__actions">
+          <div class="product-info__actions" ref="buyBtnRef">
             <button
               class="btn btn--primary btn--lg btn-add-cart"
               :disabled="product.stock <= 0"
@@ -160,7 +206,8 @@ const variants = ['Standard', 'Premium', 'Pro']
 
           <div class="product-info__description">
             <h3 class="section-title">Описание</h3>
-            <p>{{ product.description }}</p>
+            <div class="description-content" v-if="product.description_html" v-html="product.description_html"></div>
+            <p v-else>{{ product.description }}</p>
           </div>
 
           <div v-if="product.attributes && Object.keys(product.attributes).length" class="product-info__attributes">
@@ -175,6 +222,28 @@ const variants = ['Standard', 'Premium', 'Pro']
         </div>
       </div>
     </div>
+
+    <!-- Sticky Buy Bar -->
+    <Transition name="sticky-bar">
+      <div v-if="showStickyBar && product" class="sticky-buy-bar">
+        <div class="container sticky-buy-bar__container">
+          <div class="sticky-buy-bar__product">
+            <NuxtImg :src="product.images[0]?.url" width="48" height="48" fit="cover" class="sticky-buy-bar__image" />
+            <div class="sticky-buy-bar__info">
+              <div class="sticky-buy-bar__name">{{ product.name }}</div>
+              <div class="sticky-buy-bar__price">{{ product.price_display }} {{ product.currency }}</div>
+            </div>
+          </div>
+          <button 
+            class="btn btn--primary btn--md" 
+            :disabled="product.stock <= 0"
+            @click="addToCart"
+          >
+            В корзину
+          </button>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -201,8 +270,13 @@ const variants = ['Standard', 'Premium', 'Pro']
   display: flex;
   flex-direction: column;
   gap: 16px;
-  position: sticky;
-  top: 100px;
+}
+
+@media (min-width: 1024px) {
+  .product-gallery {
+    position: sticky;
+    top: 100px;
+  }
 }
 
 .product-gallery__main {
@@ -228,7 +302,9 @@ const variants = ['Standard', 'Premium', 'Pro']
   gap: 12px;
   overflow-x: auto;
   padding: 4px;
+  scrollbar-width: none;
 }
+.product-gallery__thumbs::-webkit-scrollbar { display: none; }
 
 .product-gallery__thumb {
   width: 80px;
@@ -270,6 +346,7 @@ const variants = ['Standard', 'Premium', 'Pro']
   font-weight: 800;
   color: var(--color-text);
   line-height: 1.1;
+  font-family: var(--font-sans);
 }
 
 .product-info__price-block {
@@ -293,6 +370,7 @@ const variants = ['Standard', 'Premium', 'Pro']
   font-size: var(--text-3xl);
   font-weight: 800;
   color: var(--color-text);
+  font-family: var(--font-mono);
 }
 
 .product-info__price-currency {
@@ -398,28 +476,42 @@ const variants = ['Standard', 'Premium', 'Pro']
   margin-bottom: 40px;
 }
 
-.product-info__description p {
+.product-info__description p,
+.description-content {
   color: var(--color-text-2);
   line-height: 1.6;
   white-space: pre-line;
+  font-size: var(--text-base);
 }
 
 .attributes-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 
 .attribute-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.attribute-row:last-child {
+  border-bottom: none;
+}
+
+.attribute-row:nth-child(even) {
+  background: var(--color-bg-subtle);
 }
 
 .attribute-key {
-  color: var(--color-muted);
+  color: var(--color-text-2);
   font-size: var(--text-sm);
+  font-weight: 500;
 }
 
 .attribute-value {
@@ -427,6 +519,83 @@ const variants = ['Standard', 'Premium', 'Pro']
   font-size: var(--text-sm);
   font-weight: 600;
 }
+
+/* Sticky Buy Bar */
+.sticky-buy-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  padding: 12px 0;
+  z-index: var(--z-overlay);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(12px);
+}
+
+[data-theme="dark"] .sticky-buy-bar {
+  background: rgba(17, 17, 24, 0.8);
+}
+
+.sticky-buy-bar__container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sticky-buy-bar__product {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sticky-buy-bar__image {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+}
+
+.sticky-buy-bar__info {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .sticky-buy-bar__info {
+    display: block;
+  }
+}
+
+.sticky-buy-bar__name {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+.sticky-buy-bar__price {
+  font-size: var(--text-xs);
+  color: var(--color-accent);
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+/* Transitions */
+.sticky-bar-enter-active,
+.sticky-bar-leave-active {
+  transition: transform var(--transition-normal);
+}
+
+.sticky-bar-enter-from,
+.sticky-bar-leave-to {
+  transform: translateY(100%);
+}
+
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 
 /* Skeletons */
 .product-page__skeleton-wrapper {
@@ -461,8 +630,4 @@ const variants = ['Standard', 'Premium', 'Pro']
 
 .error-card h2 { margin: 24px 0 12px; }
 .error-card p { color: var(--color-text-2); margin-bottom: 32px; }
-
-/* Animations */
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>

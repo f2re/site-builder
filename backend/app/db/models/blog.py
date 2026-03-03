@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Optional, Any, TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, Table, Column, Integer
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, Table, Column, Integer, JSON
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -98,7 +98,7 @@ class BlogPost(Base):
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # Content fields - Task BE-11 refinement
-    content_json: Mapped[Any] = mapped_column(JSONB, nullable=False, server_default='{}')
+    content_json: Mapped[Any] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False, server_default='{}')
     content_html: Mapped[str] = mapped_column(Text, nullable=False, server_default='')
     
     status: Mapped[BlogPostStatus] = mapped_column(

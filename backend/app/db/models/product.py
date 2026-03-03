@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional, Any
 
-from sqlalchemy import String, ForeignKey, Integer, Numeric, Boolean, DateTime, func, Text
+from sqlalchemy import String, ForeignKey, Integer, Numeric, Boolean, DateTime, func, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -40,11 +40,11 @@ class Product(Base):
     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
     description_html: Mapped[Optional[str]] = mapped_column(Text)
-    content_json: Mapped[Any] = mapped_column(JSONB, nullable=False, server_default='{}')
+    content_json: Mapped[Any] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False, server_default='{}')
     meta_title: Mapped[Optional[str]] = mapped_column(String(255))
     meta_description: Mapped[Optional[str]] = mapped_column(String(500))
     og_image_url: Mapped[Optional[str]] = mapped_column(String(1000))
-    attributes: Mapped[dict] = mapped_column(JSONB, server_default="{}", default=dict)
+    attributes: Mapped[dict] = mapped_column(JSON().with_variant(JSONB, "postgresql"), server_default="{}", default=dict)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_featured: Mapped[bool] = mapped_column(Boolean, default=False)
     oc_product_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
@@ -75,7 +75,7 @@ class ProductVariant(Base):
     sku: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
     price: Mapped[float] = mapped_column(Numeric(precision=10, scale=2), nullable=False)
     stock_quantity: Mapped[int] = mapped_column(Integer, default=0)
-    attributes: Mapped[dict] = mapped_column(JSONB, server_default="{}", default=dict)
+    attributes: Mapped[dict] = mapped_column(JSON().with_variant(JSONB, "postgresql"), server_default="{}", default=dict)
 
     product: Mapped["Product"] = relationship("Product", back_populates="variants")
     stock_movements: Mapped[List["StockMovement"]] = relationship(

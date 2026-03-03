@@ -21,7 +21,7 @@ from app.api.v1.products.service import ProductService
 from app.api.v1.products.repository import ProductRepository
 from app.api.v1.products.schemas import (
     ProductCreate, ProductUpdate, ProductRead, ProductPagination,
-    CategoryRead, CategoryCreate, CategoryUpdate
+    CategoryRead, CategoryCreate, CategoryUpdate, ProductImageRead
 )
 from app.api.v1.blog.service import BlogService, get_blog_service
 from app.api.v1.blog.schemas import BlogPostCreate, BlogPostUpdate
@@ -128,8 +128,8 @@ async def get_dashboard(
             Product.name,
             func.sum(OrderItem.quantity).label("sold_quantity")
         )
+        .join(ProductVariant, Product.id == ProductVariant.product_id)
         .join(OrderItem, ProductVariant.id == OrderItem.product_variant_id)
-        .join(Product, Product.id == ProductVariant.product_id)
         .join(Order, Order.id == OrderItem.order_id)
         .where(Order.status.in_(paid_statuses))
         .group_by(Product.name)
@@ -189,6 +189,33 @@ async def delete_product(
     service: ProductService = Depends()
 ) -> None:
     await service.delete_product(product_id)
+
+# ─── Product Gallery ───
+@router.post("/products/{product_id}/images", response_model=ProductImageRead, status_code=status.HTTP_201_CREATED)
+async def upload_product_image(
+    product_id: UUID,
+    file: UploadFile = File(...),
+    _admin: User = AdminDep,
+    service: ProductService = Depends()
+) -> Any:
+    return await service.upload_image(product_id, file)
+
+@router.delete("/products/images/{image_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_product_image(
+    image_id: UUID,
+    _admin: User = AdminDep,
+    service: ProductService = Depends()
+) -> None:
+    await service.delete_image(image_id)
+
+@router.put("/products/{product_id}/images/{image_id}/cover", response_model=ProductImageRead)
+async def set_product_cover_image(
+    product_id: UUID,
+    image_id: UUID,
+    _admin: User = AdminDep,
+    service: ProductService = Depends()
+) -> Any:
+    return await service.set_cover_image(product_id, image_id)
 
 # ─── Categories ─────────────────────────────────────────────────────────────
 @router.get("/categories", response_model=List[CategoryRead])

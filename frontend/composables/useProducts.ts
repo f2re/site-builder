@@ -42,6 +42,12 @@ export interface Product {
   attributes: Record<string, any>
   created_at: string
   updated_at: string
+  
+  // Dynamic fields added by backend / computed
+  price_display: string
+  currency: string
+  stock: number
+  price_rub?: number // for Schema.org
 }
 
 export interface ProductShort {
@@ -55,6 +61,11 @@ export interface ProductShort {
   is_featured: boolean
   created_at: string
   updated_at: string
+  
+  // Dynamic fields
+  price_display: string
+  currency: string
+  stock: number
 }
 
 export interface ProductListResponse {
@@ -165,7 +176,7 @@ export const useProducts = () => {
   }
 
   const adminUpdateCategory = async (id: string, data: any) => {
-    return await apiFetch<ProductCategory>(`/admin/categories/${id}`, {
+    return await apiFetch<ProductCategory>('/admin/categories', {
       method: 'PUT',
       body: data
     })

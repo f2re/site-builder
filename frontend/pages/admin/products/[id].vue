@@ -10,6 +10,7 @@ import USelect from '~/components/U/USelect.vue'
 import UTextarea from '~/components/U/UTextarea.vue'
 import USkeleton from '~/components/U/USkeleton.vue'
 import TipTapEditor from '~/components/blog/TipTapEditor.vue'
+import ProductMediaManager from '~/components/Admin/ProductMediaManager.vue'
 
 definePageMeta({
   layout: 'admin',
@@ -46,6 +47,12 @@ watch(product, (newVal) => {
       is_featured: newVal.is_featured,
       meta_title: newVal.meta_title,
       meta_description: newVal.meta_description,
+      images: newVal.images.map(img => ({
+        url: img.url,
+        alt: img.alt,
+        is_cover: img.is_cover,
+        sort_order: img.sort_order
+      })),
       variants: newVal.variants.map(v => ({
         name: v.name,
         sku: v.sku,
@@ -162,6 +169,10 @@ const handleDelete = async () => {
                 rows="2"
               />
             </div>
+          </UCard>
+
+          <UCard title="Изображения">
+            <ProductMediaManager v-model="form.images" />
           </UCard>
 
           <UCard title="Полное описание (Rich Text)">

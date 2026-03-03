@@ -252,5 +252,52 @@ class ProductRepository:
             return True
         return False
 
+    # Image Management
+    async def add_image(self, product_id: UUID, url: str, alt: str = "", is_cover: bool = False) -> ProductImage:
+        if is_cover:
+            # Unset other cover images
+            await self.session.execute(
+                update(ProductImage)
+                .where(ProductImage.product_id == product_id)
+                .values(is_cover=False)
+            )
+            
+        new_image = ProductImage(
+            product_id=product_id,
+            url=url,
+            alt=alt,
+            is_cover=is_cover
+        )
+        self.session.add(new_image)
+        await self.session.flush()
+        return new_image
+
+    async def delete_image(self, image_id: UUID) -> Optional[ProductImage]:
+        stmt = select(ProductImage).where(ProductImage.id == image_id)
+        res = await self.session.execute(stmt)
+        image = res.scalar_one_or_none()
+        if image:
+            await self.session.delete(image)
+            await self.session.flush()
+        return image
+
+    async def set_cover_image(self, product_id: UUID, image_id: UUID) -> Optional[ProductImage]:
+        # Unset other cover images
+        await self.session.execute(
+            update(ProductImage)
+            .where(ProductImage.product_id == product_id)
+            .values(is_cover=False)
+        )
+        
+        stmt = (
+            update(ProductImage)
+            .where(ProductImage.id == image_id)
+            .where(ProductImage.product_id == product_id)
+            .values(is_cover=True)
+            .returning(ProductImage)
+        )
+        res = await self.session.execute(stmt)
+        return res.scalar_one_or_none()
+
 async def get_product_repo(session: AsyncSession = Depends(get_db)) -> ProductRepository:
     return ProductRepository(session)

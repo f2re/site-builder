@@ -81,7 +81,7 @@ class Settings(BaseSettings):
 
     # ── Meilisearch ───────────────────────────────────────────────────────────
     MEILISEARCH_HOST: str = Field(
-        "http://meilisearch:7700",
+        default="http://meilisearch:7700",
         validation_alias=AliasChoices("MEILI_URL", "MEILISEARCH_URL", "MEILISEARCH_HOST")
     )
     MEILISEARCH_API_KEY: str = "masterKey"

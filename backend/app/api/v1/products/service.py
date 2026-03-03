@@ -1,9 +1,10 @@
 # Module: api/v1/products/service.py | Agent: backend-agent | Task: BE-01
 import bleach
+import io
 from typing import List, Optional
 from uuid import UUID
 from decimal import Decimal
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, UploadFile
 
 from pydantic import TypeAdapter
 from app.api.v1.products.repository import ProductRepository, get_product_repo
@@ -16,11 +17,13 @@ from app.api.v1.products.schemas import (
     CategoryUpdate,
     ProductCreate,
     ProductUpdate,
-    ProductShortRead
+    ProductShortRead,
+    ProductImageRead
 )
 from app.db.models.product import Product, ProductImage, ProductVariant, Category
 from app.tasks.search import index_product_task, remove_product_from_index_task
-from app.core.utils import generate_slug
+from app.core.utils import generate_slug, extract_text_from_tiptap
+from app.integrations.minio import minio_client
 
 # Allowed tags and attributes for sanitization
 ALLOWED_TAGS = bleach.sanitizer.ALLOWED_TAGS | {
@@ -146,6 +149,9 @@ class ProductService:
         # Handle variants
         if data.variants:
             product.variants = [ProductVariant(**var.model_dump()) for var in data.variants]
+        
+        # Apply Auto-SEO before creation
+        self._apply_auto_seo(product)
             
         created_product = await self.repo.create(product)
         await self.repo.session.commit()
@@ -190,6 +196,10 @@ class ProductService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Product not found"
             )
+
+        # Apply Auto-SEO logic
+        # We need to reload to have access to current fields for logic
+        self._apply_auto_seo(updated_product)
         
         await self.repo.session.commit()
             
@@ -222,6 +232,18 @@ class ProductService:
         # Remove from search index
         remove_product_from_index_task.delay(str(product_id))
 
+    def _apply_auto_seo(self, product: Product) -> None:
+        """Apply automatic SEO data if fields are empty."""
+        if not product.meta_description and product.content_json:
+            product.meta_description = extract_text_from_tiptap(product.content_json, 250)
+            
+        if not product.og_image_url and product.images:
+            cover = next((img for img in product.images if img.is_cover), None)
+            if not cover and product.images:
+                cover = product.images[0]
+            if cover:
+                product.og_image_url = cover.url
+
     def _trigger_indexing(self, product: Product) -> None:
         index_data = {
             "id": str(product.id),
@@ -233,3 +255,55 @@ class ProductService:
             "is_featured": product.is_featured
         }
         index_product_task.delay(index_data)
+
+    # ─── Image Management ───
+    async def upload_image(self, product_id: UUID, file: UploadFile) -> ProductImageRead:
+        product = await self.repo.get_by_id(product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+
+        # Prepare file for upload
+        object_name = f"products/{product_id}/{UUID(int=0).hex[:8]}_{file.filename}"
+        
+        content = await file.read()
+        await minio_client.put_object(
+            bucket=minio_client.media_bucket,
+            object_name=object_name,
+            data=io.BytesIO(content),
+            length=len(content),
+            content_type=file.content_type or "image/jpeg"
+        )
+        
+        url = minio_client.get_public_url(object_name)
+        
+        # Check if this is the first image, if so, make it cover
+        is_cover = len(product.images) == 0
+        
+        new_image = await self.repo.add_image(product_id, url, alt=product.name, is_cover=is_cover)
+        await self.repo.session.commit()
+        
+        return ProductImageRead.model_validate(new_image)
+
+    async def delete_image(self, image_id: UUID) -> None:
+        image = await self.repo.delete_image(image_id)
+        if not image:
+            raise HTTPException(status_code=404, detail="Image not found")
+        
+        # Optional: remove from MinIO
+        # object_name = image.url.split("/media/")[-1]
+        # await minio_client.remove_object(minio_client.media_bucket, object_name)
+        
+        await self.repo.session.commit()
+
+    async def set_cover_image(self, product_id: UUID, image_id: UUID) -> ProductImageRead:
+        image = await self.repo.set_cover_image(product_id, image_id)
+        if not image:
+            raise HTTPException(status_code=404, detail="Image not found or not belonging to product")
+        
+        # Re-apply Auto-SEO to update og_image_url if it was empty
+        product = await self.repo.get_by_id(product_id)
+        if product:
+            self._apply_auto_seo(product)
+            
+        await self.repo.session.commit()
+        return ProductImageRead.model_validate(image)
