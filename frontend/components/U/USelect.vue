@@ -1,11 +1,13 @@
 <script setup lang="ts">
 interface Option {
-  label: string
-  value: string | number
+  label?: string
+  value?: string | number
+  id?: string | number
+  name?: string
 }
 
 interface Props {
-  modelValue: string | number | undefined
+  modelValue: string | number | null | undefined
   options: Option[]
   label?: string
   placeholder?: string
@@ -21,11 +23,12 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  'update:modelValue': [value: string | number]
+  'update:modelValue': [value: string | number | null]
 }>()
 
 const onChange = (e: Event) => {
-  emit('update:modelValue', (e.target as HTMLSelectElement).value)
+  const val = (e.target as HTMLSelectElement).value
+  emit('update:modelValue', val === '' ? null : val)
 }
 </script>
 
@@ -47,18 +50,18 @@ const onChange = (e: Event) => {
       <select
         :id="name"
         :name="name"
-        :value="modelValue"
+        :value="modelValue || ''"
         :disabled="disabled"
         class="select-field"
         @change="onChange"
       >
-        <option value="" disabled selected>{{ placeholder }}</option>
+        <option value="" disabled>{{ placeholder }}</option>
         <option
           v-for="opt in options"
-          :key="opt.value"
-          :value="opt.value"
+          :key="opt.id || opt.value"
+          :value="opt.id !== undefined ? opt.id : opt.value"
         >
-          {{ opt.label }}
+          {{ opt.name || opt.label }}
         </option>
       </select>
       

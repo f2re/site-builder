@@ -1,4 +1,4 @@
-# Module: api/v1/blog/schemas.py | Agent: backend-agent | Task: p3_be_blog_fix
+# Module: api/v1/blog/schemas.py | Agent: backend-agent | Task: p13_backend_blog_refinement
 from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field, EmailStr
 from uuid import UUID
@@ -59,15 +59,18 @@ class BlogPostUpdate(BaseModel):
     slug: Optional[str] = None
     summary: Optional[str] = None
     content_json: Optional[Any] = None
+    content_html: Optional[str] = None  # Frontend might send HTML directly
     status: Optional[BlogStatus] = None
     is_featured: Optional[bool] = None
     category_id: Optional[UUID] = None
     cover_image: Optional[str] = None
     meta_title: Optional[str] = None
     meta_description: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 class BlogPostCreate(BlogPostBase):
     category_id: Optional[UUID] = None
+    tags: Optional[List[str]] = None
 
 class BlogPostRead(BlogPostBase):
     id: UUID

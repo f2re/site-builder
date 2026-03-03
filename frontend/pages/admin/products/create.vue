@@ -16,12 +16,11 @@ definePageMeta({
 
 const router = useRouter()
 const toast = useToast()
-const { getCategories, createProduct } = useProducts()
+const { adminGetCategories, createProduct } = useProducts()
 
-const { data: categoriesData } = await getCategories()
-const categories = computed(() => categoriesData.value?.items || [])
+const { data: categoriesData } = await adminGetCategories()
 const categoryOptions = computed(() => 
-  categories.value.map(c => ({ label: c.name, value: c.id }))
+  (categoriesData.value || []).map(c => ({ id: c.id, name: c.name }))
 )
 
 const form = ref<ProductCreate>({
@@ -58,8 +57,8 @@ const handleCreate = async () => {
 
   isPending.value = true
   try {
-    // Backend expects null instead of empty string for category_id
     const payload = { ...form.value }
+    // If it's an empty string from select, make it null
     if (payload.category_id === '') payload.category_id = null
     
     const product = await createProduct(payload)

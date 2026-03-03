@@ -1,4 +1,4 @@
-# Module: api/v1/orders/repository.py | Agent: backend-agent | Task: phase4_orders_logic
+# Module: api/v1/orders/repository.py | Agent: backend-agent | Task: p13_backend_blog_refinement
 from typing import Optional, Sequence
 from uuid import UUID
 
@@ -22,7 +22,10 @@ class OrderRepository:
         stmt = (
             select(Order)
             .where(Order.id == order_id)
-            .options(selectinload(Order.items))
+            .options(
+                selectinload(Order.items),
+                selectinload(Order.user)
+            )
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
@@ -31,7 +34,10 @@ class OrderRepository:
         stmt = (
             select(Order)
             .where(Order.user_id == user_id)
-            .options(selectinload(Order.items))
+            .options(
+                selectinload(Order.items),
+                selectinload(Order.user)
+            )
             .order_by(Order.created_at.desc())
         )
         result = await self.session.execute(stmt)

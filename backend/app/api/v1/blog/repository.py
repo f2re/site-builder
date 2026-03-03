@@ -1,4 +1,4 @@
-# Module: api/v1/blog/repository.py | Agent: backend-agent | Task: p3_be_blog_fix
+# Module: api/v1/blog/repository.py | Agent: backend-agent | Task: p13_backend_blog_refinement
 from typing import List, Optional, Tuple
 from uuid import UUID
 
@@ -132,6 +132,17 @@ class BlogRepository:
         stmt = select(Tag).order_by(Tag.name)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_tag_by_name(self, name: str) -> Optional[Tag]:
+        stmt = select(Tag).where(Tag.name == name)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def create_tag(self, tag: Tag) -> Tag:
+        self.session.add(tag)
+        await self.session.flush()
+        await self.session.refresh(tag)
+        return tag
 
     async def get_author_by_user_id(self, user_id: UUID) -> Optional[Author]:
         stmt = select(Author).where(Author.user_id == user_id)

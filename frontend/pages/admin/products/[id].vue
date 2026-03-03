@@ -18,15 +18,15 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
-const { getCategories, adminGetProductById, updateProduct, deleteProduct } = useProducts()
+const { adminGetCategories, adminGetProductById, updateProduct, deleteProduct } = useProducts()
 
 const productId = route.params.id as string
 
-const { data: categoriesData } = await getCategories()
-const categories = computed(() => categoriesData.value?.items || [])
-const categoryOptions = computed(() => 
-  categories.value.map(c => ({ label: c.name, value: c.id }))
-)
+const { data: categoriesData } = await adminGetCategories()
+const categoryOptions = computed(() => {
+  const base = (categoriesData.value || []).map(c => ({ id: c.id, name: c.name }))
+  return [{ id: null, name: 'Без категории' }, ...base]
+})
 
 const { data: product, pending, error } = await adminGetProductById(productId)
 

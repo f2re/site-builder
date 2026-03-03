@@ -1,0 +1,19 @@
+{
+  "task_id": "p13_backend_blog_refinement",
+  "phase": 13,
+  "agent": "backend-agent",
+  "title": "Blog Refinement: Tags, Content HTML, and Published Date",
+  "description": "Add tag support in schemas, implement tag sync in service, handle publication date on status change, and audit user relationship loading across all models.",
+  "depends_on": [],
+  "priority": "high",
+  "contracts_required": [".gemini/agents/contracts/api_contracts.md"],
+  "acceptance_criteria": [
+    "BlogPostCreate and BlogPostUpdate schemas include 'tags: List[str]'",
+    "BlogPostUpdate includes 'content_html: Optional[str]'",
+    "BlogService.create_post syncs tags (creates missing ones, links to post)",
+    "BlogService.update_post syncs tags (adds new, removes old links)",
+    "BlogService.update_post sets published_at = now() when status transitions to PUBLISHED",
+    "Audit of all models with user_id completed; eager loading confirmed for necessary relationships (e.g. BlogPost.author)",
+    "Local linting and type checking passed (ruff, mypy)"
+  ]
+}

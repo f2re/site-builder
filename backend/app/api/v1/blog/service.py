@@ -1,7 +1,8 @@
-# Module: api/v1/blog/service.py | Agent: backend-agent | Task: BE-02
+# Module: api/v1/blog/service.py | Agent: backend-agent | Task: p13_backend_blog_refinement
 import bleach
 from typing import List, Optional, Any, Union
 from uuid import UUID
+from datetime import datetime, timezone
 from fastapi import Depends, HTTPException, status
 import structlog
 
@@ -18,7 +19,7 @@ from app.api.v1.blog.schemas import (
     TagRead,
     BlogPostShortRead
 )
-from app.db.models.blog import BlogPost, BlogPostStatus, Comment, CommentStatus, Author
+from app.db.models.blog import BlogPost, BlogPostStatus, Comment, CommentStatus, Author, Tag
 from app.tasks.search import index_blog_post_task, remove_blog_post_from_index_task
 from app.core.security import encrypt_data, decrypt_data
 from app.core.utils import generate_slug
@@ -120,6 +121,23 @@ class BlogService:
     def __init__(self, repo: BlogRepository = Depends(get_blog_repo)):
         self.repo = repo
 
+    async def _sync_tags(self, post: BlogPost, tag_names: List[str]) -> None:
+        """Synchronize post tags (create new tags if they don't exist)."""
+        tags = []
+        for name in tag_names:
+            name = name.strip()
+            if not name:
+                continue
+            
+            tag = await self.repo.get_tag_by_name(name)
+            if not tag:
+                # Use name for slug too, generate_slug will clean it
+                tag = Tag(name=name, slug=generate_slug(name))
+                tag = await self.repo.create_tag(tag)
+            tags.append(tag)
+        
+        post.tags = tags
+
     async def list_posts(
         self,
         category_slug: Optional[str] = None,
@@ -189,6 +207,10 @@ class BlogService:
         word_count = len(plain_text.split())
         reading_time = max(1, word_count // 200)
         
+        published_at = None
+        if data.status == BlogPostStatus.PUBLISHED:
+            published_at = datetime.now(timezone.utc)
+
         post = BlogPost(
             title=data.title,
             slug=slug,
@@ -202,8 +224,12 @@ class BlogService:
             cover_image=data.cover_image,
             meta_title=data.meta_title,
             meta_description=data.meta_description,
-            reading_time=reading_time
+            reading_time=reading_time,
+            published_at=published_at
         )
+        
+        if data.tags:
+            await self._sync_tags(post, data.tags)
         
         created_post = await self.repo.create(post)
         await self.repo.session.commit()
@@ -214,26 +240,51 @@ class BlogService:
             "title": created_post.title,
             "slug": created_post.slug,
             "summary": created_post.summary,
-            "content": plain_text[:5000], # Index first 5000 chars of plain text
+            "content": plain_text[:5000],
             "status": created_post.status
         }
         index_blog_post_task.delay(index_data)
         
         # Reload with relationships to avoid MissingGreenlet during validation
         loaded_post = await self.repo.get_by_id(created_post.id)
+        if not loaded_post:
+             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found after creation")
         return BlogPostRead.model_validate(loaded_post)
 
     async def update_post(self, post_id: UUID, data: BlogPostUpdate) -> BlogPostRead:
         """
         Update blog post, regenerate HTML if JSON changed, and update search index.
         """
+        post = await self.repo.get_by_id(post_id)
+        if not post:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Blog post not found"
+            )
+
         update_data = data.model_dump(exclude_unset=True)
         
+        # 1. Sync tags
+        if "tags" in update_data:
+            tag_names = update_data.pop("tags")
+            if tag_names is not None:
+                await self._sync_tags(post, tag_names)
+
+        # 2. Handle status and published_at
+        if "status" in update_data:
+            new_status = update_data["status"]
+            if new_status == BlogPostStatus.PUBLISHED and post.status != BlogPostStatus.PUBLISHED:
+                post.published_at = datetime.now(timezone.utc)
+            post.status = new_status
+            del update_data["status"]
+
+        # 3. Handle content (JSON or HTML)
         if "content_json" in update_data and update_data["content_json"]:
+            post.content_json = update_data["content_json"]
             # Generate HTML from JSON
             content_html = tiptap_to_html(update_data["content_json"])
             # Sanitize HTML
-            update_data["content_html"] = bleach.clean(
+            post.content_html = bleach.clean(
                 content_html,
                 tags=ALLOWED_TAGS,
                 attributes=ALLOWED_ATTRS,
@@ -241,38 +292,54 @@ class BlogService:
             # Recalculate reading time
             plain_text = tiptap_to_text(update_data["content_json"])
             word_count = len(plain_text.split())
-            update_data["reading_time"] = max(1, word_count // 200)
-        
-        if "title" in update_data or "slug" in update_data:
-             current_post = await self.repo.get_by_id(post_id)
-             if current_post:
-                 title = update_data.get("title", current_post.title)
-                 slug = update_data.get("slug", current_post.slug)
-                 update_data["slug"] = generate_slug(title, slug)
-
-        updated_post = await self.repo.update(post_id, **update_data)
-        if not updated_post:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Blog post not found"
+            post.reading_time = max(1, word_count // 200)
+            del update_data["content_json"]
+        elif "content_html" in update_data and update_data["content_html"]:
+            # Direct HTML update (sanitize first)
+            post.content_html = bleach.clean(
+                update_data["content_html"],
+                tags=ALLOWED_TAGS,
+                attributes=ALLOWED_ATTRS,
             )
-        
+            del update_data["content_html"]
+
+        # 4. Handle slug generation if title or slug changed
+        if "title" in update_data or "slug" in update_data:
+            title = update_data.get("title", post.title)
+            slug = update_data.get("slug", post.slug)
+            post.slug = generate_slug(title, slug)
+            if "title" in update_data:
+                post.title = update_data.pop("title")
+            if "slug" in update_data:
+                del update_data["slug"]
+
+        # 5. Apply remaining fields
+        for key, value in update_data.items():
+            setattr(post, key, value)
+
         await self.repo.session.commit()
             
-        # Update search index
-        plain_text = tiptap_to_text(updated_post.content_json)
+        # 6. Update search index
+        # Fallback text if JSON is missing or empty
+        plain_text = tiptap_to_text(post.content_json) if post.content_json else ""
+        if not plain_text and post.content_html:
+            # Very crude strip tags for HTML if JSON is not available
+            plain_text = post.content_html[:5000]
+
         index_data = {
-            "id": str(updated_post.id),
-            "title": updated_post.title,
-            "slug": updated_post.slug,
-            "summary": updated_post.summary,
+            "id": str(post.id),
+            "title": post.title,
+            "slug": post.slug,
+            "summary": post.summary,
             "content": plain_text[:5000],
-            "status": updated_post.status
+            "status": post.status
         }
         index_blog_post_task.delay(index_data)
         
-        # Reload with relationships
-        loaded_post = await self.repo.get_by_id(updated_post.id)
+        # Reload with relationships to avoid MissingGreenlet
+        loaded_post = await self.repo.get_by_id(post.id)
+        if not loaded_post:
+             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found after update")
         return BlogPostRead.model_validate(loaded_post)
 
     async def delete_post(self, post_id: UUID) -> bool:
@@ -302,6 +369,7 @@ class BlogService:
             status=CommentStatus.PENDING
         )
         created_comment = await self.repo.create_comment(comment)
+        await self.repo.session.commit()
         return CommentRead.model_validate(created_comment)
 
     async def get_comments(self, post_id: UUID, is_admin: bool = False) -> Union[List[CommentRead], List[CommentAdminRead]]:
@@ -325,12 +393,16 @@ class BlogService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Comment not found"
             )
+        await self.repo.session.commit()
         res = CommentAdminRead.model_validate(updated_comment)
         res.author_email = decrypt_data(updated_comment.author_email)
         return res
 
     async def delete_comment(self, comment_id: UUID) -> bool:
-        return await self.repo.delete_comment(comment_id)
+        success = await self.repo.delete_comment(comment_id)
+        if success:
+            await self.repo.session.commit()
+        return success
 
     async def get_pending_comments(self) -> List[CommentAdminRead]:
         comments = await self.repo.get_pending_comments()

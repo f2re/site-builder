@@ -1,0 +1,17 @@
+{
+  "task_id": "p13_frontend_blog_refinement",
+  "phase": 13,
+  "agent": "frontend-agent",
+  "title": "Admin Blog Frontend Refinement: Tags Mapping and Save Logic",
+  "description": "Correct tag loading/mapping, switch to PUT by ID, send content_html, and verify publication date in UI.",
+  "depends_on": ["p13_backend_blog_refinement"],
+  "priority": "high",
+  "contracts_required": [".gemini/agents/contracts/api_contracts.md"],
+  "acceptance_criteria": [
+    "Tags correctly loaded from API and mapped for the form (post.tags.map(t => t.name))",
+    "Save operation uses PUT /api/v1/blog/posts/{post_id} instead of PATCH by slug",
+    "Request payload includes 'content_html' from TipTap editor",
+    "Publication date is visible in blog list if set",
+    "Local linting and type checking passed (npm run lint / vue-tsc)"
+  ]
+}

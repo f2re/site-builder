@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, toRaw } from 'vue'
 import { useUser, type UserCreate, type UserProfile } from '~/composables/useUser'
 import { useToast } from '~/composables/useToast'
 import UButton from '~/components/U/UButton.vue'
@@ -39,7 +39,12 @@ const onSearchInput = () => {
   }, 500)
 }
 
-const users = computed(() => data.value?.items || [])
+// Fix for TypeError: cyclic object value by mapping to clean objects
+const users = computed(() => {
+  if (!data.value?.items) return []
+  // Create shallow copies of user objects to break potential circular references during serialization
+  return data.value.items.map(u => ({ ...toRaw(u) }))
+})
 const total = computed(() => data.value?.total || 0)
 
 // User Creation

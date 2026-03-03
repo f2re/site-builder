@@ -1,8 +1,9 @@
-# Module: api/v1/users/repository.py | Agent: backend-agent | Task: phase11_backend_admin_blog_refinement
+# Module: api/v1/users/repository.py | Agent: backend-agent | Task: p13_backend_blog_refinement
 from uuid import UUID
 from typing import List, Optional, Any
 from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 from app.db.models.user import User
 from app.core.security import encrypt_data, decrypt_data, get_blind_index
@@ -28,7 +29,12 @@ class UserRepository:
         """Search by blind index and decrypt result."""
         email_hash = get_blind_index(email)
         result = await self.session.execute(
-            select(User).where(User.email_hash == email_hash)
+            select(User)
+            .where(User.email_hash == email_hash)
+            .options(
+                selectinload(User.blog_author),
+                selectinload(User.devices)
+            )
         )
         user = result.scalars().first()
         if user:
@@ -39,7 +45,12 @@ class UserRepository:
         """Search by blind index and decrypt result."""
         phone_hash = get_blind_index(phone)
         result = await self.session.execute(
-            select(User).where(User.phone_hash == phone_hash)
+            select(User)
+            .where(User.phone_hash == phone_hash)
+            .options(
+                selectinload(User.blog_author),
+                selectinload(User.devices)
+            )
         )
         user = result.scalars().first()
         if user:
@@ -49,9 +60,14 @@ class UserRepository:
     async def get_by_provider_id(self, auth_provider: str, provider_id: str) -> User | None:
         """Get user by OAuth provider and provider_id."""
         result = await self.session.execute(
-            select(User).where(
+            select(User)
+            .where(
                 User.auth_provider == auth_provider,
                 User.provider_id == provider_id
+            )
+            .options(
+                selectinload(User.blog_author),
+                selectinload(User.devices)
             )
         )
         user = result.scalars().first()
@@ -62,7 +78,12 @@ class UserRepository:
     async def get_by_id(self, user_id: UUID) -> User | None:
         """Get by ID and decrypt result."""
         result = await self.session.execute(
-            select(User).where(User.id == user_id)
+            select(User)
+            .where(User.id == user_id)
+            .options(
+                selectinload(User.blog_author),
+                selectinload(User.devices)
+            )
         )
         user = result.scalars().first()
         if user:
@@ -148,7 +169,15 @@ class UserRepository:
         if is_active is not None:
             query = query.where(User.is_active == is_active)
             
-        query = query.offset(offset).limit(limit).order_by(User.created_at.desc())
+        query = (
+            query.offset(offset)
+            .limit(limit)
+            .order_by(User.created_at.desc())
+            .options(
+                selectinload(User.blog_author),
+                selectinload(User.devices)
+            )
+        )
         
         result = await self.session.execute(query)
         users = result.scalars().all()
@@ -178,7 +207,12 @@ class UserRepository:
     async def get_all_users_for_export(self) -> List[User]:
         """Get all users for Excel export, decrypted."""
         result = await self.session.execute(
-            select(User).order_by(User.created_at.desc())
+            select(User)
+            .order_by(User.created_at.desc())
+            .options(
+                selectinload(User.blog_author),
+                selectinload(User.devices)
+            )
         )
         users = result.scalars().all()
         return [self._decrypt_user(u) for u in users]

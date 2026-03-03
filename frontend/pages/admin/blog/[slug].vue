@@ -15,18 +15,18 @@ const { data: post, pending: loading } = await useApi<any>(`/blog/posts/${route.
 
 const form = reactive({
   title: '',
-  content_md: '',
+  content_html: '',
   tags: [] as string[],
-  cover_url: '',
+  cover_image: '',
   status: 'draft' as 'draft' | 'published',
 })
 
 watchEffect(() => {
   if (post.value) {
     form.title = post.value.title
-    form.content_md = post.value.content_html || '' // Use HTML from API as base for editor
-    form.tags = [...post.value.tags]
-    form.cover_url = post.value.cover_url || ''
+    form.content_html = post.value.content_html || ''
+    form.tags = post.value.tags.map((t: any) => typeof t === 'string' ? t : t.name)
+    form.cover_image = post.value.cover_image || ''
     form.status = post.value.status || 'draft'
   }
 })
@@ -47,10 +47,12 @@ function removeTag(tag: string) {
 const pending = ref(false)
 
 async function save() {
+  if (!post.value?.id) return
+  
   pending.value = true
   try {
-    await apiFetch(`/blog/posts/${route.params.slug}`, {
-      method: 'PATCH',
+    await apiFetch(`/blog/posts/${post.value.id}`, {
+      method: 'PUT',
       body: form,
     })
     toast.success('Пост обновлен')
@@ -85,7 +87,7 @@ async function save() {
           
           <div class="form-group">
             <label class="label">Содержимое</label>
-            <BlogEditor v-model="form.content_md" />
+            <BlogEditor v-model="form.content_html" />
           </div>
         </div>
       </UCard>
@@ -93,7 +95,7 @@ async function save() {
       <UCard>
         <div class="space-y-4">
           <UInput
-            v-model="form.cover_url"
+            v-model="form.cover_image"
             label="URL обложки"
             placeholder="https://..."
           />

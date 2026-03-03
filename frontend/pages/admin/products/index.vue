@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import UButton from '~/components/U/UButton.vue'
+import UCard from '~/components/U/UCard.vue'
+import UBadge from '~/components/U/UBadge.vue'
+import USkeleton from '~/components/U/USkeleton.vue'
+
 definePageMeta({
   layout: 'admin',
   middleware: 'auth',
@@ -35,11 +40,14 @@ const { data: products, pending, refresh } = await useFetch('/products', {
           <tr v-for="product in products?.items" :key="product.id">
             <td>
               <div class="product-cell">
-                <img :src="product.images[0]" :alt="product.name" width="40" height="40" />
+                <img v-if="product.images?.length" :src="product.images[0]" :alt="product.name" width="40" height="40" />
+                <div v-else class="image-placeholder">
+                  <Icon name="ph:package-bold" size="20" />
+                </div>
                 <span>{{ product.name }}</span>
               </div>
             </td>
-            <td>{{ product.category.name }}</td>
+            <td>{{ product.category?.name || '—' }}</td>
             <td>{{ product.price_display }} {{ product.currency }}</td>
             <td>
               <UBadge :variant="product.stock > 0 ? 'success' : 'danger'">
@@ -48,7 +56,7 @@ const { data: products, pending, refresh } = await useFetch('/products', {
             </td>
             <td>
               <div class="actions">
-                <UButton variant="ghost" size="sm" :to="`/admin/products/${product.slug}`">
+                <UButton variant="ghost" size="sm" :to="`/admin/products/${product.id}`">
                   <Icon name="ph:pencil-simple-bold" />
                 </UButton>
                 <UButton variant="ghost" size="sm" color="danger">
@@ -91,9 +99,20 @@ const { data: products, pending, refresh } = await useFetch('/products', {
   gap: 12px;
 }
 
-.product-cell img {
+.product-cell img, .image-placeholder {
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-sm);
   object-fit: cover;
+  flex-shrink: 0;
+}
+
+.image-placeholder {
+  background: var(--color-surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
 }
 
 .actions {
