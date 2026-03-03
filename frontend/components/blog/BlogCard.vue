@@ -38,19 +38,19 @@ const formatDate = (dateString: string) => {
       <div class="blog-card__footer">
         <div class="blog-card__author">
           <img
-            v-if="post.author.avatar_url"
+            v-if="post.author?.avatar_url"
             :src="post.author.avatar_url"
-            :alt="post.author.name"
+            :alt="post.author?.name || 'Аноним'"
             class="blog-card__author-avatar"
           />
           <div v-else class="blog-card__author-avatar-placeholder">
-            {{ post.author.name.charAt(0) }}
+            {{ post.author?.name?.charAt(0) || '?' }}
           </div>
-          <span class="blog-card__author-name">{{ post.author.name }}</span>
+          <span class="blog-card__author-name">{{ post.author?.name || 'Аноним' }}</span>
         </div>
 
         <div class="blog-card__tags">
-          <span v-for="tag in post.tags.slice(0, 2)" :key="tag" class="blog-card__tag">
+          <span v-for="tag in post.tags?.slice(0, 2)" :key="tag" class="blog-card__tag">
             #{{ tag }}
           </span>
         </div>

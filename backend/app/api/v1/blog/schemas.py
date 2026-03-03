@@ -1,4 +1,4 @@
-# Module: api/v1/blog/schemas.py | Agent: backend-agent | Task: BE-02
+# Module: api/v1/blog/schemas.py | Agent: backend-agent | Task: p3_be_blog_fix
 from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field, EmailStr
 from uuid import UUID
@@ -32,9 +32,10 @@ class TagRead(BaseModel):
 class AuthorRead(BaseModel):
     id: UUID
     display_name: str
+    name: str = Field(validation_alias="display_name")
     bio: Optional[str] = None
     avatar_url: Optional[str] = None
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 class AuthorCreate(BaseModel):
     display_name: str

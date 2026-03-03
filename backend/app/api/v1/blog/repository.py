@@ -1,4 +1,4 @@
-# Module: api/v1/blog/repository.py | Agent: backend-agent | Task: BE-02
+# Module: api/v1/blog/repository.py | Agent: backend-agent | Task: p3_be_blog_fix
 from typing import List, Optional, Tuple
 from uuid import UUID
 
