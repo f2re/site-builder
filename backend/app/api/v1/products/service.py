@@ -142,6 +142,11 @@ class ProductService:
         
         # Reload with relationships to avoid MissingGreenlet during validation
         loaded_product = await self.repo.get_by_id(created_product.id)
+        if not loaded_product:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Product could not be reloaded after creation"
+            )
         
         # Prepare data for search indexing
         self._trigger_indexing(loaded_product)
@@ -174,6 +179,11 @@ class ProductService:
             
         # Reload with relationships
         loaded_product = await self.repo.get_by_id(updated_product.id)
+        if not loaded_product:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Product could not be reloaded after update"
+            )
         
         # Update search index
         self._trigger_indexing(loaded_product)
