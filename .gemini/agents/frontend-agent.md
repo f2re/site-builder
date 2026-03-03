@@ -467,6 +467,9 @@ interface Toast {
 
 ## 🧩 Component Standards
 
+### General Rule: Attribute Fallthrough
+- **Multi-root components** (e.g., using `v-if/v-else` at the top level) **MUST** use `v-bind="$attrs"` on ALL possible root elements to ensure event listeners like `@click` and custom classes work correctly. Failing to do this results in silent failures of event listeners.
+
 ### Buttons (`components/ui/UButton.vue`)
 Props: `variant` (primary|secondary|ghost|danger), `size` (sm|md|lg), `loading`, `disabled`, `icon`, `iconRight`.
 - Primary: `background: var(--color-accent)`, `color: var(--color-on-accent)`.

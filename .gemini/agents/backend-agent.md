@@ -153,9 +153,14 @@ backend/
 
 ### Services and Repositories
 - Services NEVER import from `db/` directly — only through repository methods
+- **Mandatory Commit**: All service methods that modify data (create, update, delete) MUST call `await self.repo.session.commit()`.
+- **Async Safety**: Always reload the model with its relationships (using `repo.get_by_id` with `selectinload`) after a commit and before returning it or validating with Pydantic to avoid `MissingGreenlet`.
 - Repository methods are async: `async def get_by_id(self, id: UUID) -> Model | None`
 - External API calls: wrap with `tenacity`, `stop_after_attempt(3)`, `wait_exponential(min=1, max=10)`
 - Service DI pattern: `def __init__(self, repo: XRepo = Depends(get_x_repo))`
+
+### Tasks & Celery
+- **Asyncio execution**: Within synchronous Celery tasks, always use `asyncio.run(_async_func())` to execute asynchronous code. NEVER use `asyncio.get_event_loop().run_until_complete()`.
 
 ### Authentication
 - JWT: `access_token` (15 min TTL) + `refresh_token` (7 days, rotation on use)
