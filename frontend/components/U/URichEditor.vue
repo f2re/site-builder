@@ -208,7 +208,12 @@ function setLink() {
       </button>
     </div>
     
-    <EditorContent :editor="editor" class="editor-content" />
+    <div class="editor-body" @click="editor?.chain().focus().run()">
+      <EditorContent 
+        :editor="editor" 
+        class="editor-content" 
+      />
+    </div>
     
     <!-- Hidden file input for image upload -->
     <input
@@ -298,11 +303,15 @@ function setLink() {
   margin: 4px 4px;
 }
 
-.editor-content {
-  padding: 16px;
+.editor-body {
+  padding: 24px;
   min-height: 300px;
   max-height: 600px;
   overflow-y: auto;
+  cursor: text;
+}
+
+.editor-content {
   color: var(--color-text);
   line-height: 1.6;
 }

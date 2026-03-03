@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProducts, type ProductCreate } from '~/composables/useProducts'
 import { useToast } from '~/composables/useToast'
@@ -38,7 +38,7 @@ watch(product, (newVal) => {
     form.value = {
       name: newVal.name,
       slug: newVal.slug,
-      category_id: newVal.category_id,
+      category_id: newVal.category_id || null,
       description: newVal.description,
       is_active: newVal.is_active,
       is_featured: newVal.is_featured,
@@ -60,7 +60,10 @@ const isPending = ref(false)
 const handleUpdate = async () => {
   isPending.value = true
   try {
-    await updateProduct(productId, form.value)
+    const payload = { ...form.value }
+    if (payload.category_id === '') payload.category_id = null
+    
+    await updateProduct(productId, payload)
     toast.success('Успех', 'Товар успешно обновлен')
   } catch (err: any) {
     console.error('Error updating product:', err)

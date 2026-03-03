@@ -8,12 +8,10 @@ definePageMeta({
 
 const route = useRoute()
 const router = useRouter()
-const config = useRuntimeConfig()
 const toast = useToast()
+const apiFetch = useApiFetch()
 
-const { data: post, pending: loading } = await useFetch(`/api/v1/blog/posts/${route.params.slug}`, {
-  baseURL: config.public.apiBase,
-})
+const { data: post, pending: loading } = await useApi<any>(`/blog/posts/${route.params.slug}`)
 
 const form = reactive({
   title: '',
@@ -51,11 +49,9 @@ const pending = ref(false)
 async function save() {
   pending.value = true
   try {
-    await $fetch(`/api/v1/blog/posts/${route.params.slug}`, {
+    await apiFetch(`/blog/posts/${route.params.slug}`, {
       method: 'PATCH',
-      baseURL: config.public.apiBase,
       body: form,
-      headers: useRequestHeaders(['authorization']),
     })
     toast.success('Пост обновлен')
     router.push('/admin/blog')

@@ -16,6 +16,15 @@ class CategoryRead(CategoryBase):
     id: UUID
     model_config = ConfigDict(from_attributes=True)
 
+class CategoryCreate(CategoryBase):
+    pass
+
+class CategoryUpdate(BaseModel):
+    name: Optional[str] = None
+    slug: Optional[str] = None
+    is_active: Optional[bool] = None
+    parent_id: Optional[UUID] = None
+
 class CategoryTreeRead(CategoryRead):
     children: List[CategoryTreeRead] = []
 

@@ -9,15 +9,11 @@ definePageMeta({
 const router = useRouter()
 const config = useRuntimeConfig()
 const toast = useToast()
+const apiFetch = useApiFetch()
 
 const form = reactive({
   title: '',
-  content_md: '', // The editor uses HTML, but the API might expect MD or HTML? 
-  // Contract says: Request: { title: str, content_md: str, ... }
-  // Response says: { ... content_html: str }
-  // I will use content_md as the field name but send HTML for now if the backend converts it.
-  // Wait, if I send HTML to a field named content_md, it might be weird.
-  // Let's assume the backend handles both or the contract meant content.
+  content_md: '', 
   tags: [] as string[],
   cover_url: '',
   status: 'draft' as 'draft' | 'published',
@@ -41,11 +37,9 @@ const pending = ref(false)
 async function save() {
   pending.value = true
   try {
-    await $fetch('/api/v1/blog/posts', {
+    await apiFetch('/blog/posts', {
       method: 'POST',
-      baseURL: config.public.apiBase,
       body: form,
-      headers: useRequestHeaders(['authorization']),
     })
     toast.success('Пост создан')
     router.push('/admin/blog')

@@ -4,18 +4,14 @@ definePageMeta({
   middleware: 'auth',
 })
 
-const config = useRuntimeConfig()
-const { data: posts, pending, refresh } = await useFetch('/blog/posts', {
-  baseURL: config.public.apiBase,
-})
+const { data: posts, pending, refresh } = await useApi<any>('/blog/posts')
+const apiFetch = useApiFetch()
 
 async function deletePost(slug: string) {
   if (!confirm('Удалить статью?')) return
   try {
-    await $fetch(`/blog/posts/${slug}`, {
+    await apiFetch(`/blog/posts/${slug}`, {
       method: 'DELETE',
-      baseURL: config.public.apiBase,
-      headers: useRequestHeaders(['authorization']),
     })
     await refresh()
   } catch (e) {
@@ -46,7 +42,7 @@ async function deletePost(slug: string) {
         </thead>
         <tbody>
           <tr v-for="post in posts?.items" :key="post.id">
-            <td>{{ post.title }}</td>
+            <td class="title-cell">{{ post.title }}</td>
             <td>
               <UBadge :variant="post.status === 'published' ? 'success' : 'warning'">
                 {{ post.status === 'published' ? 'Опубликован' : 'Черновик' }}
@@ -74,10 +70,10 @@ async function deletePost(slug: string) {
 .admin-table {
   width: 100%;
   border-collapse: collapse;
-  text-align: left;
 }
 
 .admin-table th {
+  text-align: left;
   padding: 12px 16px;
   background: var(--color-surface-2);
   font-size: var(--text-xs);
@@ -91,6 +87,20 @@ async function deletePost(slug: string) {
   border-bottom: 1px solid var(--color-border);
 }
 
-.actions { display: flex; gap: 4px; }
+.title-cell {
+  font-weight: 500;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.mb-6 { margin-bottom: 24px; }
+.flex { display: flex; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
 .overflow-hidden { overflow: hidden; }
+.p-4 { padding: 16px; }
+.space-y-4 > * + * { margin-top: 16px; }
 </style>

@@ -30,6 +30,7 @@ export interface PageUpdate {
 
 export function usePages() {
   const config = useRuntimeConfig()
+  const apiFetch = useApiFetch()
 
   // Public: Get page by slug
   const getPageBySlug = (slug: string) => {
@@ -40,7 +41,7 @@ export function usePages() {
 
   // Admin: List all pages
   const getPages = () => {
-    return useFetch<Page[]>(`${config.public.apiBase}/admin/pages`, {
+    return useApi<Page[]>(`/admin/pages`, {
       key: 'admin-pages-list',
       watch: false
     })
@@ -48,14 +49,14 @@ export function usePages() {
 
   // Admin: Get page by ID
   const getPageById = (id: string) => {
-    return useFetch<Page>(`${config.public.apiBase}/admin/pages/${id}`, {
+    return useApi<Page>(`/admin/pages/${id}`, {
       key: `admin-page-${id}`
     })
   }
 
   // Admin: Create page
   const createPage = async (data: PageCreate) => {
-    return await $fetch<Page>(`${config.public.apiBase}/admin/pages`, {
+    return await apiFetch<Page>(`/admin/pages`, {
       method: 'POST',
       body: data
     })
@@ -63,7 +64,7 @@ export function usePages() {
 
   // Admin: Update page
   const updatePage = async (id: string, data: PageUpdate) => {
-    return await $fetch<Page>(`${config.public.apiBase}/admin/pages/${id}`, {
+    return await apiFetch<Page>(`/admin/pages/${id}`, {
       method: 'PATCH',
       body: data
     })
@@ -71,7 +72,7 @@ export function usePages() {
 
   // Admin: Delete page
   const deletePage = async (id: string) => {
-    return await $fetch(`${config.public.apiBase}/admin/pages/${id}`, {
+    return await apiFetch(`/admin/pages/${id}`, {
       method: 'DELETE'
     })
   }

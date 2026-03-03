@@ -4,11 +4,8 @@ definePageMeta({
   middleware: 'auth',
 })
 
-const config = useRuntimeConfig()
-const { data: orders, pending, refresh } = await useFetch('/api/v1/admin/orders', {
-  baseURL: config.public.apiBase,
-  headers: useRequestHeaders(['authorization']),
-})
+const { data: orders, pending, refresh } = await useApi<any>('/admin/orders')
+const apiFetch = useApiFetch()
 
 const statusMap = {
   pending: { label: 'Новый', variant: 'warning' },
@@ -20,11 +17,9 @@ const statusMap = {
 
 async function updateStatus(orderId: string, status: string) {
   try {
-    await $fetch(`/api/v1/admin/orders/${orderId}`, {
+    await apiFetch(`/admin/orders/${orderId}`, {
       method: 'PATCH',
-      baseURL: config.public.apiBase,
       body: { status },
-      headers: useRequestHeaders(['authorization']),
     })
     await refresh()
   } catch (e) {

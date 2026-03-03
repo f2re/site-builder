@@ -1,19 +1,20 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useAuthStore } from '~/stores/authStore'
+import { useUser, type UserCreate, type UserProfile } from '~/composables/useUser'
 import { useToast } from '~/composables/useToast'
 import UButton from '~/components/U/UButton.vue'
 import UInput from '~/components/U/UInput.vue'
 import UCard from '~/components/U/UCard.vue'
+import UModal from '~/components/U/UModal.vue'
+import USelect from '~/components/U/USelect.vue'
 
 definePageMeta({
   layout: 'admin',
   middleware: 'auth',
 })
 
-const config = useRuntimeConfig()
-const authStore = useAuthStore()
 const toast = useToast()
+const { adminGetUsers, adminCreateUser, adminSetUserBlockStatus, adminExportUsers } = useUser()
 
 const searchQuery = ref('')
 const selectedRole = ref('')
@@ -26,16 +27,9 @@ const buildParams = () => {
   return params
 }
 
-const { data, pending, error, refresh } = await useFetch('/admin/users', {
-  baseURL: config.public.apiBase,
-  headers: {
-    Authorization: `Bearer ${authStore.accessToken}`
-  },
-  query: computed(() => buildParams()),
-  watch: [currentPage, selectedRole]
-})
+const { data, pending, error, refresh } = await adminGetUsers(computed(() => buildParams()))
 
-// Quick debounced search
+// Debounced search
 let searchTimeout: any
 const onSearchInput = () => {
   clearTimeout(searchTimeout)
@@ -48,18 +42,60 @@ const onSearchInput = () => {
 const users = computed(() => data.value?.items || [])
 const total = computed(() => data.value?.total || 0)
 
+// User Creation
+const isModalOpen = ref(false)
+const isSubmitting = ref(false)
+const userForm = ref<UserCreate>({
+  email: '',
+  full_name: '',
+  password: '',
+  role: 'customer'
+})
+
+const roleOptions = [
+  { label: 'Покупатель', value: 'customer' },
+  { label: 'Менеджер', value: 'manager' },
+  { label: 'Админ', value: 'admin' }
+]
+
+const handleCreateUser = async () => {
+  if (!userForm.value.email || !userForm.value.password) {
+    toast.error('Ошибка', 'Email и пароль обязательны')
+    return
+  }
+
+  isSubmitting.value = true
+  try {
+    await adminCreateUser(userForm.value)
+    toast.success('Успех', 'Пользователь создан')
+    isModalOpen.value = false
+    refresh()
+    userForm.value = { email: '', full_name: '', password: '', role: 'customer' }
+  } catch (err: any) {
+    toast.error('Ошибка', err.data?.message || 'Не удалось создать пользователя')
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+// Block/Unblock
+const handleBlockStatus = async (user: UserProfile) => {
+  const newStatus = !user.is_active
+  try {
+    await adminSetUserBlockStatus(user.id, newStatus)
+    toast.success('Успех', `Пользователь ${newStatus ? 'разблокирован' : 'заблокирован'}`)
+    refresh()
+  } catch (err: any) {
+    toast.error('Ошибка', err.data?.message || 'Не удалось изменить статус')
+  }
+}
+
 const downloadExcel = async () => {
   try {
-    const response = await $fetch('/admin/users/export', {
-      baseURL: config.public.apiBase,
-      headers: {
-        Authorization: `Bearer ${authStore.accessToken}`
-      },
-      responseType: 'blob'
-    })
+    const blob = await adminExportUsers()
     
     // Create a link to download the blob
-    const url = window.URL.createObjectURL(response as Blob)
+    const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
     a.download = `users_export_${new Date().toISOString().split('T')[0]}.xlsx`
@@ -79,9 +115,14 @@ const downloadExcel = async () => {
   <div class="admin-users-page">
     <div class="page-header">
       <h1 class="page-title">Пользователи</h1>
-      <UButton variant="primary" @click="downloadExcel" icon="ph:file-xls-bold">
-        Экспорт в Excel
-      </UButton>
+      <div class="flex gap-3">
+        <UButton variant="ghost" @click="downloadExcel" icon="ph:file-xls-bold">
+          Экспорт
+        </UButton>
+        <UButton variant="primary" @click="isModalOpen = true" icon="ph:user-plus-bold">
+          Создать пользователя
+        </UButton>
+      </div>
     </div>
 
     <UCard class="filters-card">
@@ -125,6 +166,7 @@ const downloadExcel = async () => {
               <th>Роль</th>
               <th>Статус</th>
               <th>Регистрация</th>
+              <th class="actions-col">Действия</th>
             </tr>
           </thead>
           <tbody>
@@ -141,6 +183,26 @@ const downloadExcel = async () => {
               </td>
               <td class="date-cell">
                 {{ user.created_at ? new Date(user.created_at).toLocaleDateString('ru-RU') : '—' }}
+              </td>
+              <td class="actions-cell">
+                <UButton 
+                  v-if="user.is_active"
+                  variant="ghost" 
+                  size="sm" 
+                  color="danger"
+                  @click="handleBlockStatus(user)"
+                >
+                  Заблокировать
+                </UButton>
+                <UButton 
+                  v-else
+                  variant="ghost" 
+                  size="sm" 
+                  color="success"
+                  @click="handleBlockStatus(user)"
+                >
+                  Разблокировать
+                </UButton>
               </td>
             </tr>
           </tbody>
@@ -165,6 +227,46 @@ const downloadExcel = async () => {
         Вперед
       </UButton>
     </div>
+
+    <!-- Modal for new user -->
+    <UModal v-model="isModalOpen" title="Создать пользователя">
+      <div class="space-y-4 pt-4">
+        <UInput 
+          v-model="userForm.email" 
+          label="Email" 
+          placeholder="user@example.com"
+          required
+        />
+        <UInput 
+          v-model="userForm.full_name" 
+          label="Имя" 
+          placeholder="Иван Иванов"
+        />
+        <UInput 
+          v-model="userForm.password" 
+          type="password"
+          label="Пароль" 
+          placeholder="********"
+          required
+        />
+        <USelect 
+          v-model="userForm.role" 
+          label="Роль" 
+          :options="roleOptions"
+        />
+        
+        <div class="flex justify-end gap-3 mt-6">
+          <UButton variant="ghost" @click="isModalOpen = false">Отмена</UButton>
+          <UButton 
+            variant="primary" 
+            :loading="isSubmitting"
+            @click="handleCreateUser"
+          >
+            Создать
+          </UButton>
+        </div>
+      </div>
+    </UModal>
   </div>
 </template>
 
@@ -220,6 +322,7 @@ const downloadExcel = async () => {
 }
 
 .users-table-card {
+  padding: 0;
   overflow: hidden;
 }
 
@@ -262,6 +365,14 @@ const downloadExcel = async () => {
   color: var(--color-text-2);
 }
 
+.actions-col {
+  text-align: right;
+}
+
+.actions-cell {
+  text-align: right;
+}
+
 .role-badge {
   display: inline-block;
   padding: 4px 8px;
@@ -296,4 +407,13 @@ const downloadExcel = async () => {
   font-size: var(--text-sm);
   font-weight: 600;
 }
+
+.flex { display: flex; }
+.items-center { align-items: center; }
+.gap-2 { gap: 0.5rem; }
+.gap-3 { gap: 0.75rem; }
+.justify-end { justify-content: flex-end; }
+.space-y-4 > * + * { margin-top: 1rem; }
+.pt-4 { padding-top: 1rem; }
+.mt-6 { margin-top: 1.5rem; }
 </style>

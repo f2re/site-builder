@@ -3,9 +3,11 @@ const navItems = [
   { label: 'Дашборд', icon: 'ph:chart-line-bold', to: '/admin' },
   { label: 'Пользователи', icon: 'ph:users-bold', to: '/admin/users' },
   { label: 'Товары', icon: 'ph:package-bold', to: '/admin/products' },
+  { label: 'Категории', icon: 'ph:folders-bold', to: '/admin/products/categories' },
   { label: 'Заказы', icon: 'ph:shopping-cart-bold', to: '/admin/orders' },
   { label: 'Блог', icon: 'ph:article-bold', to: '/admin/blog' },
   { label: 'Страницы', icon: 'ph:files-bold', to: '/admin/pages' },
+  { label: 'Миграция', icon: 'ph:database-bold', to: '/admin/migration' },
   { label: 'Назад на сайт', icon: 'ph:arrow-left-bold', to: '/' },
 ]
 </script>

@@ -11,11 +11,14 @@ from app.api.v1.products.schemas import (
     ProductPagination, 
     ProductRead, 
     CategoryTreeRead,
+    CategoryRead,
+    CategoryCreate,
+    CategoryUpdate,
     ProductCreate,
     ProductUpdate,
     ProductShortRead
 )
-from app.db.models.product import Product, ProductImage, ProductVariant
+from app.db.models.product import Product, ProductImage, ProductVariant, Category
 from app.tasks.search import index_product_task, remove_product_from_index_task
 
 # Allowed tags and attributes for sanitization
@@ -78,6 +81,32 @@ class ProductService:
     async def get_categories_tree(self) -> List[CategoryTreeRead]:
         categories = await self.repo.get_categories_tree()
         return [CategoryTreeRead.model_validate(cat) for cat in categories]
+
+    async def list_categories(self, active_only: bool = False) -> List[CategoryRead]:
+        categories = await self.repo.list_categories(active_only=active_only)
+        return [CategoryRead.model_validate(cat) for cat in categories]
+
+    async def create_category(self, data: CategoryCreate) -> CategoryRead:
+        category = Category(**data.model_dump())
+        created = await self.repo.create_category(category)
+        return CategoryRead.model_validate(created)
+
+    async def update_category(self, category_id: UUID, data: CategoryUpdate) -> CategoryRead:
+        updated = await self.repo.update_category(category_id, **data.model_dump(exclude_unset=True))
+        if not updated:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Category not found"
+            )
+        return CategoryRead.model_validate(updated)
+
+    async def delete_category(self, category_id: UUID) -> None:
+        success = await self.repo.delete_category(category_id)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Category not found"
+            )
 
     async def create_product(self, data: ProductCreate) -> ProductRead:
         """

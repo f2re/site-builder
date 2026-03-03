@@ -3,40 +3,31 @@ import type { Device, Version, Complectation } from '~/stores/firmwareStore'
 
 export const useFirmware = () => {
   const store = useFirmwareStore()
-  const config = useRuntimeConfig()
-  const authStore = useAuthStore()
+  const apiFetch = useApiFetch()
 
   const fetchToken = async () => {
-    const data = await $fetch<any>(`${config.public.apiBase}/api/v1/firmware/my-token`, {
-      headers: { Authorization: `Bearer ${authStore.accessToken}` }
-    })
+    const data = await apiFetch<any>('/firmware/my-token')
     if (data) store.setToken(data.token)
     return data
   }
 
   const fetchMyDevices = async () => {
-    const data = await $fetch<Device[]>(`${config.public.apiBase}/api/v1/firmware/my-devices`, {
-      headers: { Authorization: `Bearer ${authStore.accessToken}` }
-    })
+    const data = await apiFetch<Device[]>('/firmware/my-devices')
     if (data) store.setDevices(data)
     return data
   }
 
   const addDevice = async (serial: string) => {
-    const data = await $fetch<Device>(`${config.public.apiBase}/api/v1/firmware/add-device`, {
+    const data = await apiFetch<Device>('/firmware/add-device', {
       method: 'POST',
-      body: { serial },
-      headers: { Authorization: `Bearer ${authStore.accessToken}` }
+      body: { serial }
     })
     if (data) await fetchMyDevices()
     return data
   }
 
   const fetchVersions = async (type: string) => {
-    const data = await $fetch<any>(`${config.public.apiBase}/api/v1/firmware/versions/${type}`, {
-      headers: { Authorization: `Bearer ${authStore.accessToken}` }
-    })
-    // data.versions is an array of strings
+    const data = await apiFetch<any>(`/firmware/versions/${type}`)
     if (data?.versions) {
       const versionObjs: Version[] = data.versions.map((v: string) => ({
         id: v,
@@ -49,8 +40,7 @@ export const useFirmware = () => {
   }
 
   const downloadFirmware = async (serial: string, deviceType: string, version: string, selectedIds: string[]) => {
-    // This returns a blob/file stream
-    const response = await $fetch<Blob>(`${config.public.apiBase}/api/v1/firmware/download`, {
+    const response = await apiFetch<Blob>('/firmware/download', {
       method: 'POST',
       body: { 
         serial, 
@@ -58,11 +48,9 @@ export const useFirmware = () => {
         version, 
         selected_complectation_ids: selectedIds 
       },
-      headers: { Authorization: `Bearer ${authStore.accessToken}` },
       responseType: 'blob'
     })
 
-    // Create a temporary link to trigger download
     const url = window.URL.createObjectURL(response)
     const link = document.createElement('a')
     link.href = url
@@ -77,17 +65,13 @@ export const useFirmware = () => {
 
   // Admin methods
   const fetchGlobalDevices = async () => {
-    const data = await $fetch<Device[]>(`${config.public.apiBase}/api/v1/admin/firmware/devices`, {
-      headers: { Authorization: `Bearer ${authStore.accessToken}` }
-    })
+    const data = await apiFetch<Device[]>('/admin/firmware/devices')
     if (data) store.setGlobalDevices(data)
     return data
   }
 
   const fetchAllComplectations = async () => {
-    const data = await $fetch<Complectation[]>(`${config.public.apiBase}/api/v1/admin/firmware/complectations`, {
-      headers: { Authorization: `Bearer ${authStore.accessToken}` }
-    })
+    const data = await apiFetch<Complectation[]>('/admin/firmware/complectations')
     if (data) store.setAllComplectations(data)
     return data
   }
@@ -95,41 +79,36 @@ export const useFirmware = () => {
   const importExcel = async (file: File) => {
     const formData = new FormData()
     formData.append('file', file)
-    return await $fetch<any>(`${config.public.apiBase}/api/v1/admin/firmware/import`, {
+    return await apiFetch<any>('/admin/firmware/import', {
       method: 'POST',
-      body: formData,
-      headers: { Authorization: `Bearer ${authStore.accessToken}` }
+      body: formData
     })
   }
 
   const mergeUsers = async (sourceEmail: string, targetEmail: string) => {
-    return await $fetch<any>(`${config.public.apiBase}/api/v1/admin/firmware/merge-users`, {
+    return await apiFetch<any>('/admin/firmware/merge-users', {
       method: 'POST',
-      body: { source_email: sourceEmail, target_email: targetEmail },
-      headers: { Authorization: `Bearer ${authStore.accessToken}` }
+      body: { source_email: sourceEmail, target_email: targetEmail }
     })
   }
 
   const createComplectation = async (data: Omit<Complectation, 'id'>) => {
-    return await $fetch<Complectation>(`${config.public.apiBase}/api/v1/admin/firmware/complectations`, {
+    return await apiFetch<Complectation>('/admin/firmware/complectations', {
       method: 'POST',
-      body: data,
-      headers: { Authorization: `Bearer ${authStore.accessToken}` }
+      body: data
     })
   }
 
   const updateComplectation = async (id: string, data: Partial<Complectation>) => {
-    return await $fetch<Complectation>(`${config.public.apiBase}/api/v1/admin/firmware/complectations/${id}`, {
+    return await apiFetch<Complectation>(`/admin/firmware/complectations/${id}`, {
       method: 'PUT',
-      body: data,
-      headers: { Authorization: `Bearer ${authStore.accessToken}` }
+      body: data
     })
   }
 
   const deleteComplectation = async (id: string) => {
-    return await $fetch<any>(`${config.public.apiBase}/api/v1/admin/firmware/complectations/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${authStore.accessToken}` }
+    return await apiFetch<any>(`/admin/firmware/complectations/${id}`, {
+      method: 'DELETE'
     })
   }
 

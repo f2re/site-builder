@@ -1,5 +1,5 @@
 # Module: api/v1/products/repository.py | Agent: backend-agent | Task: BE-01
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from uuid import UUID
 from decimal import Decimal
 
@@ -159,6 +159,14 @@ class ProductRepository:
         result = await self.session.execute(stmt)
         return getattr(result, "rowcount", 0) > 0
 
+    async def list_categories(self, active_only: bool = False) -> List[Category]:
+        stmt = select(Category)
+        if active_only:
+            stmt = stmt.where(Category.is_active)
+        stmt = stmt.order_by(Category.name)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def get_categories_tree(self) -> list[Category]:
         stmt = (
             select(Category)
@@ -167,6 +175,35 @@ class ProductRepository:
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_category_by_id(self, category_id: UUID) -> Optional[Category]:
+        stmt = select(Category).where(Category.id == category_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def create_category(self, category: Category) -> Category:
+        self.session.add(category)
+        await self.session.flush()
+        await self.session.refresh(category)
+        return category
+
+    async def update_category(self, category_id: UUID, **kwargs) -> Optional[Category]:
+        if not kwargs:
+            return await self.get_category_by_id(category_id)
+        
+        stmt = (
+            update(Category)
+            .where(Category.id == category_id)
+            .values(**kwargs)
+            .returning(Category)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def delete_category(self, category_id: UUID) -> bool:
+        stmt = delete(Category).where(Category.id == category_id)
+        result = await self.session.execute(stmt)
+        return getattr(result, "rowcount", 0) > 0
 
     async def decrement_stock(self, variant_id: UUID, quantity: int, reason: str = "order") -> bool:
         """

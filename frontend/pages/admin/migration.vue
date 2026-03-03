@@ -33,11 +33,12 @@ const isActionPending = ref(false)
 const refreshInterval = ref<NodeJS.Timeout | null>(null)
 
 const { add: addToast } = useToast()
+const apiFetch = useApiFetch()
 
 // API Methods
 const fetchStatus = async () => {
   try {
-    const { data, error } = await useApi<MigrationStatus>('/api/v1/admin/migration/status')
+    const { data, error } = await useApi<MigrationStatus>('/admin/migration/status')
     if (error.value) throw error.value
     if (data.value) {
       status.value = data.value
@@ -62,8 +63,7 @@ const fetchStatus = async () => {
 const startMigration = async () => {
   isActionPending.value = true
   try {
-    const { error } = await useApi('/api/v1/admin/migration/start', { method: 'POST' })
-    if (error.value) throw error.value
+    await apiFetch('/admin/migration/start', { method: 'POST' })
     addToast({ type: 'success', title: 'Миграция запущена' })
     await fetchStatus()
   } catch (err: any) {
@@ -76,8 +76,7 @@ const startMigration = async () => {
 const pauseMigration = async () => {
   isActionPending.value = true
   try {
-    const { error } = await useApi('/api/v1/admin/migration/pause', { method: 'POST' })
-    if (error.value) throw error.value
+    await apiFetch('/admin/migration/pause', { method: 'POST' })
     addToast({ type: 'info', title: 'Миграция приостановлена' })
     await fetchStatus()
   } catch (err: any) {
@@ -90,8 +89,7 @@ const pauseMigration = async () => {
 const resumeMigration = async () => {
   isActionPending.value = true
   try {
-    const { error } = await useApi('/api/v1/admin/migration/resume', { method: 'POST' })
-    if (error.value) throw error.value
+    await apiFetch('/admin/migration/resume', { method: 'POST' })
     addToast({ type: 'success', title: 'Миграция возобновлена' })
     await fetchStatus()
   } catch (err: any) {

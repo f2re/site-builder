@@ -5,7 +5,7 @@ from uuid import UUID
 from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, status, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,11 +14,15 @@ from app.db.models.order import Order, OrderStatus, OrderItem
 from app.db.models.product import ProductVariant, Product
 from app.db.models.user import User
 from app.api.v1.auth.schemas import UserResponse
+from app.core.security import get_password_hash
 
 # Services & Repositories
 from app.api.v1.products.service import ProductService
 from app.api.v1.products.repository import ProductRepository
-from app.api.v1.products.schemas import ProductCreate, ProductUpdate, ProductRead, ProductPagination
+from app.api.v1.products.schemas import (
+    ProductCreate, ProductUpdate, ProductRead, ProductPagination,
+    CategoryRead, CategoryCreate, CategoryUpdate
+)
 from app.api.v1.blog.service import BlogService, get_blog_service
 from app.api.v1.blog.schemas import BlogPostCreate, BlogPostUpdate
 from app.api.v1.orders.service import OrderService
@@ -79,6 +83,12 @@ class SalesAnalytics(BaseModel):
 
 class UserBlockRequest(BaseModel):
     is_active: bool
+
+class AdminUserCreate(BaseModel):
+    email: EmailStr
+    full_name: Optional[str] = None
+    password: str
+    role: str = "customer"
 
 # ─── Dashboard / Analytics ───────────────────────────────────────────────────
 @router.get("/dashboard", response_model=SalesAnalytics)
@@ -166,6 +176,39 @@ async def delete_product(
 ) -> None:
     await service.delete_product(product_id)
 
+# ─── Categories ─────────────────────────────────────────────────────────────
+@router.get("/categories", response_model=List[CategoryRead])
+async def list_categories(
+    _admin: User = AdminDep,
+    service: ProductService = Depends()
+) -> Any:
+    return await service.list_categories(active_only=False)
+
+@router.post("/categories", response_model=CategoryRead, status_code=status.HTTP_201_CREATED)
+async def create_category(
+    payload: CategoryCreate,
+    _admin: User = AdminDep,
+    service: ProductService = Depends()
+) -> Any:
+    return await service.create_category(payload)
+
+@router.put("/categories/{category_id}", response_model=CategoryRead)
+async def update_category(
+    category_id: UUID,
+    payload: CategoryUpdate,
+    _admin: User = AdminDep,
+    service: ProductService = Depends()
+) -> Any:
+    return await service.update_category(category_id, payload)
+
+@router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_category(
+    category_id: UUID,
+    _admin: User = AdminDep,
+    service: ProductService = Depends()
+) -> None:
+    await service.delete_category(category_id)
+
 # ─── Orders ──────────────────────────────────────────────────────────────────
 @router.put("/orders/{order_id}/status")
 async def update_order_status(
@@ -225,6 +268,28 @@ async def list_users(
         "page": page,
         "per_page": per_page
     }
+
+@router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def create_user(
+    payload: AdminUserCreate,
+    _admin: User = AdminDep,
+    repo: UserRepository = Depends(get_user_repo)
+) -> Any:
+    # Check if user already exists
+    existing_user = await repo.get_by_email(payload.email)
+    if existing_user:
+        raise HTTPException(status_code=400, detail="User with this email already exists")
+    
+    hashed_password = get_password_hash(payload.password)
+    new_user = User(
+        email=payload.email,
+        full_name=payload.full_name,
+        hashed_password=hashed_password,
+        role=payload.role,
+        is_active=True
+    )
+    created_user = await repo.create(new_user)
+    return UserResponse.model_validate(created_user)
 
 @router.get("/users/export")
 async def export_users(
@@ -366,12 +431,13 @@ async def import_firmware_excel(
     }
 
 # ─── Migration ───────────────────────────────────────────────────────────────
-@router.post("/migration/start", response_model=MigrationJobResponse)
+@router.post("/migration/start")
 async def start_migration(
-    payload: MigrationStartRequest,
+    payload: MigrationStartRequest = MigrationStartRequest(),
     _admin: User = AdminDep,
     service: MigrationService = Depends(get_migration_service)
 ) -> Any:
+    """Start migration for specific entity or all entities."""
     return await service.start_migration(payload.entity)
 
 @router.get("/migration/status", response_model=MigrationStatusResponse)
@@ -379,11 +445,29 @@ async def get_migration_status(
     _admin: User = AdminDep,
     service: MigrationService = Depends(get_migration_service)
 ) -> Any:
-    jobs = await service.get_all_jobs()
-    return MigrationStatusResponse(jobs=[MigrationJobResponse.model_validate(j) for j in jobs])
+    """Get overall migration status summary."""
+    return await service.get_migration_summary()
+
+@router.post("/migration/pause")
+async def pause_all_migrations(
+    _admin: User = AdminDep,
+    service: MigrationService = Depends(get_migration_service)
+) -> Any:
+    """Pause all active migration jobs."""
+    await service.pause_all()
+    return {"status": "paused"}
+
+@router.post("/migration/resume")
+async def resume_all_migrations(
+    _admin: User = AdminDep,
+    service: MigrationService = Depends(get_migration_service)
+) -> Any:
+    """Resume all paused migration jobs."""
+    await service.resume_all()
+    return {"status": "resumed"}
 
 @router.post("/migration/{job_id}/pause", response_model=MigrationJobResponse)
-async def pause_migration(
+async def pause_specific_migration(
     job_id: UUID,
     _admin: User = AdminDep,
     service: MigrationService = Depends(get_migration_service)
@@ -394,7 +478,7 @@ async def pause_migration(
     return job
 
 @router.post("/migration/{job_id}/resume", response_model=MigrationJobResponse)
-async def resume_migration(
+async def resume_specific_migration(
     job_id: UUID,
     _admin: User = AdminDep,
     service: MigrationService = Depends(get_migration_service)

@@ -36,7 +36,7 @@ export interface Product {
   og_image_url?: string
   is_active: boolean
   is_featured: boolean
-  category_id?: string
+  category_id?: string | null
   category?: ProductCategory
   images: ProductImage[]
   variants: ProductVariant[]
@@ -49,7 +49,7 @@ export interface ProductShort {
   id: string
   name: string
   slug: string
-  category_id?: string
+  category_id?: string | null
   main_image_url?: string
   min_price: number
   is_active: boolean
@@ -67,7 +67,7 @@ export interface ProductListResponse {
 export interface ProductCreate {
   name: string
   slug: string
-  category_id?: string
+  category_id?: string | null
   description?: string
   description_html?: string
   meta_title?: string
@@ -150,6 +150,33 @@ export const useProducts = () => {
     })
   }
 
+  // Admin: CRUD categories
+  const adminGetCategories = () => {
+    return useApi<{ items: ProductCategory[] }>('/admin/categories', {
+      key: 'admin-categories'
+    })
+  }
+
+  const adminCreateCategory = async (data: any) => {
+    return await apiFetch<ProductCategory>('/admin/categories', {
+      method: 'POST',
+      body: data
+    })
+  }
+
+  const adminUpdateCategory = async (id: string, data: any) => {
+    return await apiFetch<ProductCategory>(`/admin/categories/${id}`, {
+      method: 'PUT',
+      body: data
+    })
+  }
+
+  const adminDeleteCategory = async (id: string) => {
+    return await apiFetch(`/admin/categories/${id}`, {
+      method: 'DELETE'
+    })
+  }
+
   return {
     getProducts,
     getProductBySlug,
@@ -158,6 +185,10 @@ export const useProducts = () => {
     createProduct,
     updateProduct,
     deleteProduct,
-    getCategories
+    getCategories,
+    adminGetCategories,
+    adminCreateCategory,
+    adminUpdateCategory,
+    adminDeleteCategory
   }
 }

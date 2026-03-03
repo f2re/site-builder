@@ -3,13 +3,13 @@
  */
 
 export const useMediaUpload = () => {
-  const config = useRuntimeConfig()
   const toast = useToast()
+  const apiFetch = useApiFetch()
 
   async function uploadImage(
     file: File,
     alt: string,
-    context: 'blog' | 'product',
+    context: 'blog' | 'product' | 'content',
     entityId?: number
   ): Promise<string> {
     try {
@@ -21,17 +21,15 @@ export const useMediaUpload = () => {
         formData.append('entity_id', entityId.toString())
       }
 
-      const data = await $fetch<{
-        id: number
-        public_url: string
+      const data = await apiFetch<{
+        url: string
       }>('/media/upload', {
         method: 'POST',
-        baseURL: config.public.apiBase,
-        headers: useRequestHeaders(['authorization']),
         body: formData,
       })
 
-      return data.public_url
+      // The backend returns { url: string } according to api_contracts.md section 11
+      return data.url
     } catch (error: any) {
       console.error('Image upload failed:', error)
       toast.error('Ошибка загрузки изображения')

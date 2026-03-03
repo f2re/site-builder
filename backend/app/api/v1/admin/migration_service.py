@@ -6,9 +6,9 @@ import traceback
 from uuid import UUID
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any, Type, TypeVar
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -25,19 +25,38 @@ from app.db.models.order import Order, OrderItem, OrderStatus
 from app.db.models.migration import MigrationJob, MigrationStatus, MigrationEntity
 from .migration_repository import MigrationRepository
 
+T = TypeVar("T")
+
 class MigrationService:
     def __init__(self, repo: MigrationRepository, session: AsyncSession):
         self.repo = repo
         self.session = session
         self.batch_size = 50
 
-    async def start_migration(self, entity: MigrationEntity) -> MigrationJob:
-        # Check if there is an active job for this entity
-        active_job = await self.repo.get_active_job_by_entity(entity)
-        if active_job:
-            return active_job
-            
-        return await self.repo.create_job(entity)
+    async def start_migration(self, entity: Optional[MigrationEntity] = None) -> List[MigrationJob]:
+        """Start migration for one or all entities."""
+        if entity:
+            entities = [entity]
+        else:
+            # All entities in recommended order
+            entities = [
+                MigrationEntity.USERS, 
+                MigrationEntity.CATEGORIES, 
+                MigrationEntity.PRODUCTS, 
+                MigrationEntity.ORDERS
+            ]
+        
+        jobs = []
+        for ent in entities:
+            active_job = await self.repo.get_active_job_by_entity(ent)
+            if active_job:
+                jobs.append(active_job)
+            else:
+                jobs.append(await self.repo.create_job(ent))
+        
+        # In a real app, this would trigger Celery tasks here
+        # For now, we return the jobs
+        return jobs
 
     async def get_all_jobs(self) -> List[MigrationJob]:
         return await self.repo.get_all_jobs()
@@ -51,7 +70,107 @@ class MigrationService:
     async def resume_migration(self, job_id: UUID) -> Optional[MigrationJob]:
         return await self.repo.update_job_status(job_id, MigrationStatus.PENDING)
 
-    async def run_batch(self, job_id: UUID):
+    async def pause_all(self) -> None:
+        """Pause all running or pending jobs."""
+        stmt = (
+            update(MigrationJob)
+            .where(MigrationJob.status.in_([MigrationStatus.RUNNING, MigrationStatus.PENDING]))
+            .values(status=MigrationStatus.PAUSED)
+        )
+        await self.session.execute(stmt)
+        await self.session.commit()
+
+    async def resume_all(self) -> None:
+        """Resume all paused jobs."""
+        stmt = (
+            update(MigrationJob)
+            .where(MigrationJob.status == MigrationStatus.PAUSED)
+            .values(status=MigrationStatus.PENDING)
+        )
+        await self.session.execute(stmt)
+        await self.session.commit()
+
+    async def get_migration_summary(self) -> Dict[str, Any]:
+        """Get summary compatible with frontend MigrationStatus interface."""
+        jobs = await self.get_all_jobs()
+        # Group by entity, take latest job per entity
+        entity_jobs: Dict[MigrationEntity, MigrationJob] = {}
+        for job in sorted(jobs, key=lambda x: x.updated_at or datetime.min.replace(tzinfo=timezone.utc)):
+            entity_jobs[job.entity] = job
+        
+        entities_data = {}
+        total_items = 0
+        processed_items = 0
+        
+        required_entities = [
+            MigrationEntity.USERS, 
+            MigrationEntity.CATEGORIES, 
+            MigrationEntity.PRODUCTS, 
+            MigrationEntity.IMAGES, 
+            MigrationEntity.ORDERS
+        ]
+        
+        any_running = False
+        any_paused = False
+        any_failed = False
+        all_completed = True
+        any_started = False
+        
+        for ent in required_entities:
+            job_opt: Optional[MigrationJob] = entity_jobs.get(ent)
+            if job_opt:
+                any_started = True
+                status_str = job_opt.status.value.upper()
+                if status_str == "DONE":
+                    status_str = "COMPLETED"
+                
+                entities_data[ent.value] = {
+                    "total": job_opt.total,
+                    "processed": job_opt.processed,
+                    "status": status_str,
+                    "error": job_opt.errors[-1] if job_opt.errors else None
+                }
+                total_items += job_opt.total
+                processed_items += job_opt.processed
+                
+                if job_opt.status == MigrationStatus.RUNNING:
+                    any_running = True
+                if job_opt.status == MigrationStatus.PAUSED:
+                    any_paused = True
+                if job_opt.status == MigrationStatus.FAILED:
+                    any_failed = True
+                if job_opt.status != MigrationStatus.DONE:
+                    all_completed = False
+            else:
+                entities_data[ent.value] = {
+                    "total": 0,
+                    "processed": 0,
+                    "status": "PENDING",
+                    "error": None
+                }
+                all_completed = False
+
+        overall_status = "IDLE"
+        if any_running:
+            overall_status = "RUNNING"
+        elif any_paused:
+            overall_status = "PAUSED"
+        elif any_failed:
+            overall_status = "FAILED"
+        elif all_completed and any_started:
+            overall_status = "COMPLETED"
+        
+        progress = (processed_items / total_items * 100) if total_items > 0 else 0
+        if all_completed and any_started:
+            progress = 100.0
+        
+        return {
+            "overall_status": overall_status,
+            "overall_progress": progress,
+            "entities": entities_data
+        }
+
+    async def run_batch(self, job_id: UUID) -> None:
         """
         Main logic for running a migration batch.
         This is called by Celery tasks.
@@ -104,7 +223,7 @@ class MigrationService:
             )
             raise
 
-    async def migrate_users(self, job: MigrationJob):
+    async def migrate_users(self, job: MigrationJob) -> None:
         async with OCAsyncSessionLocal() as oc_session:
             stmt = (
                 select(OCCustomer)
@@ -157,7 +276,7 @@ class MigrationService:
             if len(customers) < self.batch_size:
                 await self.repo.update_job_status(job.id, MigrationStatus.DONE)
 
-    async def migrate_catalog(self, job: MigrationJob):
+    async def migrate_catalog(self, job: MigrationJob) -> None:
         # 1. Handle hierarchical categories first (recursive)
         await self._migrate_categories()
 
@@ -221,6 +340,7 @@ class MigrationService:
                         link_stmt = select(OCProductToCategory.category_id).where(
                             OCProductToCategory.product_id == oc_prod.product_id
                         )
+
                         link_res = await oc_session.execute(link_stmt)
                         oc_cat_id = link_res.scalar()
                         if oc_cat_id and oc_cat_id in cat_map:
@@ -265,7 +385,7 @@ class MigrationService:
             if len(products) < self.batch_size:
                 await self.repo.update_job_status(job.id, MigrationStatus.DONE)
 
-    async def migrate_orders(self, job: MigrationJob):
+    async def migrate_orders(self, job: MigrationJob) -> None:
         async with OCAsyncSessionLocal() as oc_session:
             stmt = (
                 select(OCOrder)
@@ -351,7 +471,7 @@ class MigrationService:
             if len(orders) < self.batch_size:
                 await self.repo.update_job_status(job.id, MigrationStatus.DONE)
 
-    async def _migrate_categories(self):
+    async def _migrate_categories(self) -> None:
         """Migrate all categories recursively if they don't exist"""
         async with OCAsyncSessionLocal() as oc_session:
             stmt = select(OCCategory).order_by(OCCategory.parent_id, OCCategory.sort_order)
@@ -359,12 +479,13 @@ class MigrationService:
             oc_categories = result.scalars().all()
             
             oc_id_map = {cat.category_id: cat for cat in oc_categories}
-            migrated_map = {}
+            migrated_map: Dict[int, UUID] = {}
             
             existing_stmt = select(Category).where(Category.oc_category_id.is_not(None))
             existing_res = await self.session.execute(existing_stmt)
             for cat in existing_res.scalars().all():
-                migrated_map[cat.oc_category_id] = cat.id
+                if cat.oc_category_id is not None:
+                    migrated_map[cat.oc_category_id] = cat.id
 
             async def get_or_create_category(oc_id: int) -> Optional[UUID]:
                 if oc_id == 0:
@@ -434,11 +555,12 @@ class MigrationService:
         text = re.sub(r'[^\w\s-]', '', text)
         return re.sub(r'[-\s]+', '-', text).strip('-')
 
-    async def _ensure_unique_slug(self, model, slug: str) -> str:
+    async def _ensure_unique_slug(self, model: Type[T], slug: str) -> str:
         orig_slug = slug
         counter = 1
         while True:
-            stmt = select(model).where(model.slug == slug)
+            # We assume model has a .slug attribute
+            stmt = select(model).where(model.slug == slug)  # type: ignore[attr-defined]
             res = await self.session.execute(stmt)
             if not res.scalar_one_or_none():
                 return slug

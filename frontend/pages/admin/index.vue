@@ -1,14 +1,10 @@
 <script setup lang="ts">
 definePageMeta({
   layout: 'admin',
-  middleware: 'auth', // Assuming auth middleware exists or will be added
+  middleware: 'auth',
 })
 
-const config = useRuntimeConfig()
-const { data: stats, pending } = await useFetch('/api/v1/admin/stats', {
-  baseURL: config.public.apiBase,
-  headers: useRequestHeaders(['authorization']),
-})
+const { data: stats, pending } = await useApi<any>('/admin/stats')
 
 const statCards = computed(() => [
   { 

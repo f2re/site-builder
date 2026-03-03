@@ -27,7 +27,7 @@ const categoryOptions = computed(() =>
 const form = ref<ProductCreate>({
   name: '',
   slug: '',
-  category_id: '',
+  category_id: null,
   description: '',
   is_active: true,
   is_featured: false,
@@ -58,7 +58,11 @@ const handleCreate = async () => {
 
   isPending.value = true
   try {
-    const product = await createProduct(form.value)
+    // Backend expects null instead of empty string for category_id
+    const payload = { ...form.value }
+    if (payload.category_id === '') payload.category_id = null
+    
+    const product = await createProduct(payload)
     toast.success('Успех', 'Товар успешно создан')
     router.push(`/admin/products/${product.id}`)
   } catch (err: any) {
