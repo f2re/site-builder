@@ -1,16 +1,32 @@
 <script setup lang="ts">
 import type { BlogPost } from '~/composables/useBlog'
 
-defineProps<{
+const props = defineProps<{
   post: BlogPost
 }>()
 
-const formatDate = (dateString: string) => {
-  return new Date(dateString).toLocaleDateString('ru-RU', {
+const formatDate = (dateString?: string | null) => {
+  if (!dateString) return '—'
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return '—'
+  // Check if date is too old (e.g. 1970)
+  if (date.getFullYear() <= 1970) return '—'
+  
+  return date.toLocaleDateString('ru-RU', {
     day: 'numeric',
     month: 'long',
     year: 'numeric'
   })
+}
+
+const getTagName = (tag: any) => {
+  if (typeof tag === 'string') return tag
+  return tag.name || 'Тег'
+}
+
+const getTagKey = (tag: any, index: number) => {
+  if (typeof tag === 'string') return tag + index
+  return tag.id || tag.name || index
 }
 </script>
 
@@ -29,7 +45,7 @@ const formatDate = (dateString: string) => {
       <div class="blog-card__meta">
         <span class="blog-card__date">{{ formatDate(post.published_at) }}</span>
         <span class="blog-card__divider">·</span>
-        <span class="blog-card__reading-time">{{ post.reading_time_min }} мин. чтения</span>
+        <span class="blog-card__reading-time">{{ post.reading_time_minutes || 0 }} мин. чтения</span>
       </div>
 
       <h3 class="blog-card__title">{{ post.title }}</h3>
@@ -50,8 +66,8 @@ const formatDate = (dateString: string) => {
         </div>
 
         <div class="blog-card__tags">
-          <span v-for="tag in post.tags?.slice(0, 2)" :key="tag" class="blog-card__tag">
-            #{{ tag }}
+          <span v-for="(tag, index) in post.tags?.slice(0, 2)" :key="getTagKey(tag, index)" class="blog-card__tag">
+            #{{ getTagName(tag) }}
           </span>
         </div>
       </div>
@@ -100,7 +116,7 @@ const formatDate = (dateString: string) => {
 }
 
 .blog-card__content {
-  padding: 20px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
   flex-grow: 1;
@@ -188,6 +204,9 @@ const formatDate = (dateString: string) => {
 .blog-card__tag {
   font-size: var(--text-xs);
   color: var(--color-accent);
-  font-weight: 500;
+  font-weight: 600;
+  background: var(--color-accent-glow);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
 }
 </style>

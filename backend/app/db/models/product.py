@@ -1,7 +1,7 @@
 # Module: db/models/product.py | Agent: backend-agent | Task: BE-01
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from sqlalchemy import String, ForeignKey, Integer, Numeric, Boolean, DateTime, func, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -40,8 +40,9 @@ class Product(Base):
     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
     description_html: Mapped[Optional[str]] = mapped_column(Text)
-    meta_title: Mapped[Optional[str]] = mapped_column(String(60))
-    meta_description: Mapped[Optional[str]] = mapped_column(String(160))
+    content_json: Mapped[Any] = mapped_column(JSONB, nullable=False, server_default='{}')
+    meta_title: Mapped[Optional[str]] = mapped_column(String(255))
+    meta_description: Mapped[Optional[str]] = mapped_column(String(500))
     og_image_url: Mapped[Optional[str]] = mapped_column(String(1000))
     attributes: Mapped[dict] = mapped_column(JSONB, server_default="{}", default=dict)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

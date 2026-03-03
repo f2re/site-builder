@@ -8,6 +8,7 @@ import UInput from '~/components/U/UInput.vue'
 import UCard from '~/components/U/UCard.vue'
 import USelect from '~/components/U/USelect.vue'
 import UTextarea from '~/components/U/UTextarea.vue'
+import TipTapEditor from '~/components/blog/TipTapEditor.vue'
 
 definePageMeta({
   layout: 'admin',
@@ -28,6 +29,7 @@ const form = ref<ProductCreate>({
   slug: '',
   category_id: null,
   description: '',
+  content_json: null,
   is_active: true,
   is_featured: false,
   variants: [
@@ -114,11 +116,15 @@ const handleCreate = async () => {
             />
             <UTextarea 
               v-model="form.description" 
-              label="Описание" 
-              placeholder="Краткое описание товара"
-              rows="4"
+              label="Краткое описание" 
+              placeholder="Краткое описание товара (для карточки)"
+              rows="2"
             />
           </div>
+        </UCard>
+
+        <UCard title="Полное описание (Rich Text)">
+          <TipTapEditor v-model="form.content_json" placeholder="Расскажите о товаре подробно..." />
         </UCard>
 
         <UCard title="Цена и склад">

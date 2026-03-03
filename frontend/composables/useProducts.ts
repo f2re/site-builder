@@ -1,5 +1,3 @@
-import { type UUID } from 'crypto'
-
 export interface ProductCategory {
   id: string
   slug: string
@@ -31,6 +29,7 @@ export interface Product {
   name: string
   description?: string
   description_html?: string
+  content_json?: any // TipTap JSON content
   meta_title?: string
   meta_description?: string
   og_image_url?: string
@@ -70,6 +69,7 @@ export interface ProductCreate {
   category_id?: string | null
   description?: string
   description_html?: string
+  content_json?: any // TipTap JSON content
   meta_title?: string
   meta_description?: string
   is_active?: boolean

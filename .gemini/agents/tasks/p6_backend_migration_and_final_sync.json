@@ -1,0 +1,9 @@
+{
+  "task_id": "p6_backend_migration_and_final_sync",
+  "name": "Backend: Migration and Service Polish",
+  "description": "1. Generate and apply Alembic migration for products.content_json. 2. Verify ProductService.get_product_by_slug returns the rich content. 3. Ensure validation logic correctly handles TipTap JSON structure.",
+  "status": "todo",
+  "priority": "high",
+  "agent": "backend-agent",
+  "depends_on": []
+}

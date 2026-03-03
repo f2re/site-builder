@@ -1,0 +1,274 @@
+# Qwen Agents Configuration
+# Автоматическая регистрация агентов для проекта WifiOBD Site
+# Версия: 1.0.0
+
+version: "1.0"
+project: "WifiOBD Site"
+
+# Глобальные настройки для всех агентов
+defaults:
+  approval_mode: "auto_edit"
+  output_language: "ru"
+  working_directory: "."
+  max_iterations: 50
+
+# Регистрация агентов
+agents:
+  - id: "orchestrator"
+    name: "Оркестратор"
+    description: "Агент-координатор мультиагентной системы разработки"
+    file: ".qwen/agents/orchestrator.md"
+    kind: "local"
+    priority: 100
+    tools:
+      - "read_file"
+      - "write_file"
+      - "list_directory"
+      - "glob"
+      - "grep_search"
+      - "task"
+    commands:
+      - "/agents:plan"
+      - "/agents:status"
+      - "/agents:report"
+      - "/agents:validate"
+      - "/agents:contract"
+    active: true
+
+  - id: "devops-agent"
+    name: "DevOps Агент"
+    description: "Docker, Nginx, GitLab CI/CD, мониторинг, инфраструктура"
+    file: ".qwen/agents/devops-agent.md"
+    kind: "local"
+    priority: 90
+    tools:
+      - "read_file"
+      - "write_file"
+      - "run_shell_command"
+      - "list_directory"
+      - "glob"
+      - "grep_search"
+    commands:
+      - "/devops:init"
+      - "/devops:docker"
+      - "/devops:ci"
+      - "/devops:monitoring"
+    depends_on: []
+    active: true
+
+  - id: "backend-agent"
+    name: "Backend Агент"
+    description: "FastAPI, SQLAlchemy, Alembic, REST API, WebSocket, IoT"
+    file: ".qwen/agents/backend-agent.md"
+    kind: "local"
+    priority: 85
+    tools:
+      - "read_file"
+      - "write_file"
+      - "run_shell_command"
+      - "list_directory"
+      - "glob"
+      - "grep_search"
+      - "task"
+    commands:
+      - "/backend:init"
+      - "/backend:api"
+      - "/backend:models"
+      - "/backend:migrate"
+      - "/backend:iot"
+    depends_on:
+      - "devops-agent"
+    active: true
+
+  - id: "cdek-agent"
+    name: "Интеграции Агент"
+    description: "СДЭК v2, ЮKassa, ЦБ РФ, Celery-задачи интеграций"
+    file: ".qwen/agents/cdek-agent.md"
+    kind: "local"
+    priority: 80
+    tools:
+      - "read_file"
+      - "write_file"
+      - "run_shell_command"
+      - "list_directory"
+      - "glob"
+      - "grep_search"
+    commands:
+      - "/integration:cdek"
+      - "/integration:payment"
+      - "/integration:rates"
+    depends_on:
+      - "backend-agent"
+    active: true
+
+  - id: "frontend-agent"
+    name: "Frontend Агент"
+    description: "Nuxt 3, Vue 3, Pinia, UI kit, темы, PWA, админ-панель"
+    file: ".qwen/agents/frontend-agent.md"
+    kind: "local"
+    priority: 75
+    tools:
+      - "read_file"
+      - "write_file"
+      - "run_shell_command"
+      - "list_directory"
+      - "glob"
+      - "grep_search"
+      - "js-architecture-expert"
+      - "js-performance-optimizer"
+    commands:
+      - "/frontend:init"
+      - "/frontend:components"
+      - "/frontend:pages"
+      - "/frontend:theme"
+      - "/frontend:pwa"
+    depends_on:
+      - "backend-agent"
+    active: true
+
+  - id: "testing-agent"
+    name: "Testing Агент"
+    description: "pytest, интеграционные тесты, WebSocket, Locust"
+    file: ".qwen/agents/testing-agent.md"
+    kind: "local"
+    priority: 70
+    tools:
+      - "read_file"
+      - "write_file"
+      - "run_shell_command"
+      - "list_directory"
+      - "glob"
+      - "grep_search"
+    commands:
+      - "/test:unit"
+      - "/test:integration"
+      - "/test:load"
+      - "/test:coverage"
+    depends_on:
+      - "backend-agent"
+      - "cdek-agent"
+    active: true
+
+  - id: "security-agent"
+    name: "Security Агент"
+    description: "OWASP, 152-ФЗ, аудит (READ-ONLY, код не меняет)"
+    file: ".qwen/agents/security-agent.md"
+    kind: "local"
+    priority: 65
+    tools:
+      - "read_file"
+      - "write_file"
+      - "list_directory"
+      - "glob"
+      - "grep_search"
+    commands:
+      - "/security:audit"
+      - "/security:owasp"
+      - "/security:152fz"
+    depends_on:
+      - "testing-agent"
+    read_only: true
+    active: true
+
+# Slash-команды проекта
+commands:
+  # Инициализация фаз
+  - name: "/shop:init"
+    description: "Инициализировать новую фазу разработки магазина"
+    handler: ".qwen/commands/shop/init.sh"
+    agent: "orchestrator"
+    
+  - name: "/blog:init"
+    description: "Инициализировать новую фазу разработки блога"
+    handler: ".qwen/commands/blog/init.sh"
+    agent: "orchestrator"
+    
+  - name: "/iot:init"
+    description: "Инициализировать новую фазу разработки IoT-дашборда"
+    handler: ".qwen/commands/iot/init.sh"
+    agent: "orchestrator"
+    
+  - name: "/admin:init"
+    description: "Инициализировать новую фазу разработки админ-панели"
+    handler: ".qwen/commands/admin/init.sh"
+    agent: "orchestrator"
+
+  # Команды магазина
+  - name: "/shop:cart"
+    description: "Инициализировать разработку функционала корзины"
+    handler: ".qwen/commands/shop/cart.sh"
+    agent: "orchestrator"
+    
+  - name: "/shop:checkout"
+    description: "Инициализировать разработку оформления заказа"
+    handler: ".qwen/commands/shop/checkout.sh"
+    agent: "orchestrator"
+    
+  - name: "/shop:delivery"
+    description: "Интеграция со СДЭК v2 API"
+    handler: ".qwen/commands/shop/delivery.sh"
+    agent: "cdek-agent"
+    
+  - name: "/shop:payment"
+    description: "Интеграция с ЮKassa"
+    handler: ".qwen/commands/shop/payment.sh"
+    agent: "cdek-agent"
+    
+  - name: "/shop:catalog"
+    description: "Разработка каталога товаров"
+    handler: ".qwen/commands/shop/catalog.sh"
+    agent: "backend-agent"
+    
+  - name: "/shop:orders"
+    description: "Управление заказами"
+    handler: ".qwen/commands/shop/orders.sh"
+    agent: "backend-agent"
+
+  # Команды агентов
+  - name: "/agents:plan"
+    description: "Декомпозиция задачи на подзадачи для агентов"
+    handler: ".qwen/commands/agents/plan.sh"
+    agent: "orchestrator"
+    
+  - name: "/agents:status"
+    description: "Показать статус текущих задач и агентов"
+    handler: ".qwen/commands/agents/status.sh"
+    agent: "orchestrator"
+    
+  - name: "/agents:report"
+    description: "Получить отчёт по выполненной задаче"
+    handler: ".qwen/commands/agents/report.sh"
+    agent: "orchestrator"
+    
+  - name: "/agents:validate"
+    description: "Запустить финальную валидацию проекта (Gatekeeper)"
+    handler: ".qwen/commands/agents/validate.sh"
+    agent: "orchestrator"
+    
+  - name: "/agents:contract"
+    description: "Показать контракты для домена"
+    handler: ".qwen/commands/agents/contract.sh"
+    agent: "orchestrator"
+
+# Авто-загрузка
+auto_load:
+  enabled: true
+  directory: ".qwen/agents"
+  pattern: "*.md"
+  register_commands: true
+
+# Валидация
+validation:
+  pre_commit:
+    enabled: true
+    checks:
+      - "alembic heads"
+      - "alembic check"
+      - "ruff check backend/app"
+      - "mypy backend/app"
+      - "npm run lint"
+      - "pytest"
+  gatekeeper:
+    enabled: true
+    require_all_agents: false
+    min_agents: 3

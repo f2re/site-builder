@@ -1,5 +1,6 @@
 # Module: core/config.py | Agent: backend-agent | Task: phase11_backend_admin_blog_refinement
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, AliasChoices
 from typing import List
 
 
@@ -79,7 +80,10 @@ class Settings(BaseSettings):
     MINIO_DELETE_ORIGINAL: bool = False  # Delete original after WebP conversion
 
     # ── Meilisearch ───────────────────────────────────────────────────────────
-    MEILISEARCH_HOST: str = "http://localhost:7700"
+    MEILISEARCH_HOST: str = Field(
+        "http://meilisearch:7700",
+        validation_alias=AliasChoices("MEILI_URL", "MEILISEARCH_URL", "MEILISEARCH_HOST")
+    )
     MEILISEARCH_API_KEY: str = "masterKey"
 
     # ── Dashfirm Compiler ────────────────────────────────────────────────────

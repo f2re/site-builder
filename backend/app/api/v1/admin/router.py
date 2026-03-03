@@ -79,6 +79,7 @@ class SalesAnalytics(BaseModel):
     total_revenue: float
     orders_count: int
     paid_orders_count: int
+    users_count: int
     top_products: List[dict]
 
 class UserBlockRequest(BaseModel):
@@ -98,8 +99,15 @@ async def get_dashboard(
     session: AsyncSession = Depends(get_db)
 ) -> Any:
     """Return real sales analytics summary from DB."""
-    # Total revenue from paid orders
-    revenue_stmt = select(func.sum(Order.total_amount)).where(Order.status.in_([OrderStatus.PAID, OrderStatus.PROCESSING, OrderStatus.SHIPPED, OrderStatus.DELIVERED]))
+    # Paid statuses for aggregation
+    paid_statuses = [
+        OrderStatus.PAID, 
+        OrderStatus.PROCESSING, 
+        OrderStatus.SHIPPED, 
+        OrderStatus.DELIVERED
+    ]
+    
+    revenue_stmt = select(func.sum(Order.total_amount)).where(Order.status.in_(paid_statuses))
     revenue_res = await session.execute(revenue_stmt)
     total_revenue = float(revenue_res.scalar() or 0.0)
 
@@ -110,6 +118,10 @@ async def get_dashboard(
     paid_count_stmt = select(func.count(Order.id)).where(Order.status == OrderStatus.PAID)
     paid_orders = (await session.execute(paid_count_stmt)).scalar() or 0
 
+    # Users count
+    users_count_stmt = select(func.count(User.id))
+    total_users = (await session.execute(users_count_stmt)).scalar() or 0
+
     # Top products aggregation
     top_products_stmt = (
         select(
@@ -119,7 +131,7 @@ async def get_dashboard(
         .join(OrderItem, ProductVariant.id == OrderItem.product_variant_id)
         .join(Product, Product.id == ProductVariant.product_id)
         .join(Order, Order.id == OrderItem.order_id)
-        .where(Order.status.in_([OrderStatus.PAID, OrderStatus.PROCESSING, OrderStatus.SHIPPED, OrderStatus.DELIVERED]))
+        .where(Order.status.in_(paid_statuses))
         .group_by(Product.name)
         .order_by(func.sum(OrderItem.quantity).desc())
         .limit(5)
@@ -131,6 +143,7 @@ async def get_dashboard(
         total_revenue=total_revenue,
         orders_count=total_orders,
         paid_orders_count=paid_orders,
+        users_count=total_users,
         top_products=top_products
     )
 

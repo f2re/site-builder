@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, unref, isRef } from 'vue'
 import { useRuntimeConfig } from '#app'
 import { useAuth } from './useAuth'
 
@@ -79,7 +79,8 @@ export const useUser = () => {
   const adminGetUsers = (params: any) => {
     return useApi<{ items: UserProfile[], total: number }>('/admin/users', {
       params,
-      key: `admin-users-${JSON.stringify(params)}`
+      // Use unref to ensure we don't stringify reactive proxies which can be cyclic
+      key: `admin-users-${JSON.stringify(isRef(params) ? unref(params) : params)}`
     })
   }
 

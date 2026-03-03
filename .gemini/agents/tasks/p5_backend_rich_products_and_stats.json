@@ -1,0 +1,9 @@
+{
+  "task_id": "p5_backend_rich_products_and_stats",
+  "name": "Backend: Fix Stats 500 and Implement Rich Product Model",
+  "description": "1. Fix Enum values in /admin/stats (PAID error). Use .value or string constants in queries. 2. Add users_count calculation to SalesAnalytics and /stats response. 3. Add content_json (JSONB) to Product DB model and update Pydantic schemas (Read, Create, Update). 4. Ensure GET /api/v1/products works without 500 errors.",
+  "status": "todo",
+  "priority": "high",
+  "agent": "backend-agent",
+  "depends_on": ["p5_devops_meilisearch_fix"]
+}

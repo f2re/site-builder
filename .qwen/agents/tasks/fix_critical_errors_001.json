@@ -1,0 +1,16 @@
+{
+  "task_id": "fix_critical_errors_001",
+  "phase": 1,
+  "agent": "backend-agent",
+  "title": "Исправление критических ошибок сериализации и ENUM",
+  "description": "Две критические ошибки в production:\n1. PydanticSerializationError для MigrationJob - эндпоинты pause/resume возвращают ORM-объект вместо Pydantic схемы\n2. PostgreSQL ENUM error для orderstatus - передача 'PAID' вместо 'paid'",
+  "depends_on": [],
+  "priority": "critical",
+  "contracts_required": [".qwen/agents/contracts/api_contracts.md"],
+  "acceptance_criteria": [
+    "Эндпоинты /migration/{job_id}/pause и /resume возвращают корректный JSON",
+    "Отсутствуют ошибки сериализации MigrationJob в логах",
+    "Отсутствуют ошибки 'invalid input value for enum orderstatus' в логах PostgreSQL",
+    "Все эндпоинты админки работают корректно"
+  ]
+}

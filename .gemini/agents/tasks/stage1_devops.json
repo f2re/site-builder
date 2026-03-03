@@ -1,9 +1,0 @@
-{
-  "task_id": "stage1_devops",
-  "agent": "devops-agent",
-  "description": "Создать docker-compose.yml для development окружения согласно плану (api, postgres, redis, celery_worker, celery_beat, frontend, meilisearch).",
-  "target_paths": [
-    "docker-compose.yml"
-  ],
-  "status": "done"
-}

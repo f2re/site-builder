@@ -1,9 +1,25 @@
 {
   "model": {
-    "name": "qwen-max"
+    "name": "claude-sonnet-4-5-20250929"
   },
   "general": {
     "defaultApprovalMode": "auto_edit"
+  },
+  "skills": {
+    "enabled": true,
+    "directory": ".qwen/skills",
+    "autoLoad": true
+  },
+  "agents": {
+    "enabled": true,
+    "configFile": ".qwen/agents.yaml",
+    "autoLoad": true,
+    "registerCommands": true
+  },
+  "slashCommands": {
+    "enabled": true,
+    "autoRegister": true,
+    "directory": ".qwen/commands"
   },
   "$version": 3
 }

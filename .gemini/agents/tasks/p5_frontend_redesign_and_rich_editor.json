@@ -1,0 +1,9 @@
+{
+  "task_id": "p5_frontend_redesign_and_rich_editor",
+  "name": "Frontend: Blog Redesign, Fix 500 errors, Rich Product Editor",
+  "description": "1. Resolve 'cyclic object value' on Users page by mapping data with toRaw(). 2. Redesign Blog list and article pages: fix 1970 dates (Intl.DateTimeFormat), fix tag display (use tag.name), add consistent padding and CSS variables from tokens.css. 3. Integrate TipTap (BlogEditor) into Product create/edit forms for 'content_json' field. 4. Create a rich display layout for products that renders TipTap content.",
+  "status": "todo",
+  "priority": "high",
+  "agent": "frontend-agent",
+  "depends_on": ["p5_backend_rich_products_and_stats"]
+}
