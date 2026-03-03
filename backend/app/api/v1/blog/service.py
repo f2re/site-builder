@@ -4,7 +4,6 @@ from typing import List, Optional, Any, Union
 from uuid import UUID
 from fastapi import Depends, HTTPException, status
 import structlog
-from slugify import slugify
 
 from pydantic import TypeAdapter
 from app.api.v1.blog.repository import BlogRepository, get_blog_repo
@@ -22,6 +21,7 @@ from app.api.v1.blog.schemas import (
 from app.db.models.blog import BlogPost, BlogPostStatus, Comment, CommentStatus, Author
 from app.tasks.search import index_blog_post_task, remove_blog_post_from_index_task
 from app.core.security import encrypt_data, decrypt_data
+from app.core.utils import generate_slug
 
 logger = structlog.get_logger()
 
@@ -170,10 +170,10 @@ class BlogService:
         """
         Create a new blog post, generate HTML from JSON, calculate reading time, and index in search.
         """
-        slug = data.slug or slugify(data.title)
+        slug = generate_slug(data.title, data.slug)
         
         # Ensure author exists for this user
-        author = await self.get_or_create_author(user_id, display_name=data.title) # Using title as default display name for now if not found
+        author = await self.get_or_create_author(user_id, display_name=data.title)
         
         # Generate HTML from JSON
         content_html = tiptap_to_html(data.content_json)
@@ -243,8 +243,12 @@ class BlogService:
             word_count = len(plain_text.split())
             update_data["reading_time"] = max(1, word_count // 200)
         
-        if "title" in update_data and not update_data.get("slug"):
-             update_data["slug"] = slugify(update_data["title"])
+        if "title" in update_data or "slug" in update_data:
+             current_post = await self.repo.get_by_id(post_id)
+             if current_post:
+                 title = update_data.get("title", current_post.title)
+                 slug = update_data.get("slug", current_post.slug)
+                 update_data["slug"] = generate_slug(title, slug)
 
         updated_post = await self.repo.update(post_id, **update_data)
         if not updated_post:

@@ -92,6 +92,7 @@ class AdminUserCreate(BaseModel):
 
 # ─── Dashboard / Analytics ───────────────────────────────────────────────────
 @router.get("/dashboard", response_model=SalesAnalytics)
+@router.get("/stats", response_model=SalesAnalytics)
 async def get_dashboard(
     _admin: User = AdminDep,
     session: AsyncSession = Depends(get_db)

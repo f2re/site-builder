@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useProducts, type ProductCategory } from '~/composables/useProducts'
 import { useToast } from '~/composables/useToast'
 import UButton from '~/components/U/UButton.vue'
@@ -16,7 +16,7 @@ const toast = useToast()
 const { adminGetCategories, adminCreateCategory, adminUpdateCategory, adminDeleteCategory } = useProducts()
 
 const { data, pending, error, refresh } = await adminGetCategories()
-const categories = computed(() => data.value?.items || [])
+const categories = computed(() => data.value || [])
 
 const isModalOpen = ref(false)
 const isSubmitting = ref(false)
@@ -78,7 +78,7 @@ const handleSubmit = async () => {
       await adminUpdateCategory(editingId.value, form.value)
       toast.success('Успех', 'Категория обновлена')
     }
-    refresh()
+    await refresh()
     closeModal()
   } catch (err: any) {
     toast.error('Ошибка', err.data?.message || 'Не удалось сохранить категорию')
@@ -93,7 +93,7 @@ const handleDelete = async (id: string) => {
   try {
     await adminDeleteCategory(id)
     toast.success('Успех', 'Категория удалена')
-    refresh()
+    await refresh()
   } catch (err: any) {
     toast.error('Ошибка', err.data?.message || 'Не удалось удалить категорию')
   }

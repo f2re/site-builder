@@ -6,7 +6,7 @@ from typing import Optional
 
 
 class PageBase(BaseModel):
-    slug: str = Field(..., max_length=255)
+    slug: Optional[str] = Field(None, max_length=255)
     title: str = Field(..., max_length=255)
     content: str
     meta_title: Optional[str] = Field(None, max_length=255)
@@ -29,6 +29,7 @@ class PageUpdate(BaseModel):
 
 class PageRead(PageBase):
     id: UUID
+    slug: str  # Mandatory in Read
     created_at: datetime
     updated_at: datetime
 

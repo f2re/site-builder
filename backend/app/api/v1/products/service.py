@@ -20,6 +20,7 @@ from app.api.v1.products.schemas import (
 )
 from app.db.models.product import Product, ProductImage, ProductVariant, Category
 from app.tasks.search import index_product_task, remove_product_from_index_task
+from app.core.utils import generate_slug
 
 # Allowed tags and attributes for sanitization
 ALLOWED_TAGS = bleach.sanitizer.ALLOWED_TAGS | {
@@ -87,13 +88,21 @@ class ProductService:
         return [CategoryRead.model_validate(cat) for cat in categories]
 
     async def create_category(self, data: CategoryCreate) -> CategoryRead:
-        category = Category(**data.model_dump())
+        category_dict = data.model_dump()
+        category_dict["slug"] = generate_slug(data.name, data.slug)
+        category = Category(**category_dict)
         created = await self.repo.create_category(category)
         await self.repo.session.commit()
         return CategoryRead.model_validate(created)
 
     async def update_category(self, category_id: UUID, data: CategoryUpdate) -> CategoryRead:
-        updated = await self.repo.update_category(category_id, **data.model_dump(exclude_unset=True))
+        update_data = data.model_dump(exclude_unset=True)
+        if "slug" in update_data:
+            update_data["slug"] = generate_slug(update_data.get("name", ""), update_data["slug"])
+        elif "name" in update_data:
+            update_data["slug"] = generate_slug(update_data["name"])
+            
+        updated = await self.repo.update_category(category_id, **update_data)
         if not updated:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -116,6 +125,7 @@ class ProductService:
         Create a new product, sanitize description, and index in search.
         """
         product_dict = data.model_dump(exclude={"images", "variants"})
+        product_dict["slug"] = generate_slug(data.name, data.slug)
         
         if product_dict.get("description"):
             product_dict["description"] = bleach.clean(product_dict["description"])
@@ -158,6 +168,12 @@ class ProductService:
         Update product, sanitize description, and update search index.
         """
         update_data = data.model_dump(exclude_unset=True)
+        
+        if "slug" in update_data:
+            update_data["slug"] = generate_slug(update_data.get("name", ""), update_data["slug"])
+        elif "name" in update_data:
+            update_data["slug"] = generate_slug(update_data["name"])
+
         if "description" in update_data and update_data["description"]:
             update_data["description"] = bleach.clean(update_data["description"])
             

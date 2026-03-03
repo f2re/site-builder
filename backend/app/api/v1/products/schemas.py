@@ -8,12 +8,13 @@ from decimal import Decimal
 
 class CategoryBase(BaseModel):
     name: str
-    slug: str
+    slug: Optional[str] = None
     is_active: bool = True
     parent_id: Optional[UUID] = None
 
 class CategoryRead(CategoryBase):
     id: UUID
+    slug: str  # Mandatory in Read
     model_config = ConfigDict(from_attributes=True)
 
 class CategoryCreate(CategoryBase):
@@ -62,7 +63,7 @@ class StockMovementRead(BaseModel):
 class ProductBase(BaseModel):
     category_id: Optional[UUID] = None
     name: str
-    slug: str
+    slug: Optional[str] = None
     description: Optional[str] = None
     description_html: Optional[str] = None
     meta_title: Optional[str] = Field(None, max_length=60)
@@ -74,6 +75,7 @@ class ProductBase(BaseModel):
 
 class ProductRead(ProductBase):
     id: UUID
+    slug: str  # Mandatory in Read
     created_at: datetime
     updated_at: datetime
     category: Optional[CategoryRead] = None

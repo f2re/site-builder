@@ -152,7 +152,7 @@ export const useProducts = () => {
 
   // Admin: CRUD categories
   const adminGetCategories = () => {
-    return useApi<{ items: ProductCategory[] }>('/admin/categories', {
+    return useApi<ProductCategory[]>('/admin/categories', {
       key: 'admin-categories'
     })
   }

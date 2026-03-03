@@ -23,16 +23,26 @@ router = APIRouter(prefix="/blog", tags=["Blog"])
 
 @router.get("/posts", response_model=BlogPagination)
 async def list_posts(
-    status: Optional[BlogPostStatus] = Query(BlogPostStatus.PUBLISHED, description="Filter by status: DRAFT|PUBLISHED|ARCHIVED"),
+    status: Optional[BlogPostStatus] = Query(None, description="Filter by status: DRAFT|PUBLISHED|ARCHIVED. Default is PUBLISHED for guests, all for admins."),
     category: Optional[str] = Query(None, description="Filter by category slug"),
     tag: Optional[str] = Query(None, description="Filter by tag slug"),
     after: Optional[UUID] = Query(None, description="Cursor for pagination"),
     limit: int = Query(12, ge=1, le=100),
+    current_user: Optional[User] = Depends(get_current_user),
     service: BlogService = Depends(get_blog_service),
 ):
     """List blog posts with pagination and filters."""
+    # Logic: if status is not provided:
+    # - admins see all
+    # - guests see only PUBLISHED
+    effective_status = status
+    is_admin = current_user and current_user.role == "admin"
+    
+    if effective_status is None and not is_admin:
+        effective_status = BlogPostStatus.PUBLISHED
+        
     return await service.list_posts(
-        status=status,
+        status=effective_status,
         category_slug=category,
         tag_slug=tag,
         cursor=after,
@@ -91,6 +101,26 @@ async def create_post(
 ):
     """Create new blog post (admin only)."""
     return await service.create_post(data, user_id=current_user.id)
+
+
+@router.get("/posts/admin", response_model=BlogPagination)
+async def list_posts_admin(
+    status: Optional[BlogPostStatus] = Query(None),
+    category: Optional[str] = Query(None),
+    tag: Optional[str] = Query(None),
+    after: Optional[UUID] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(require_admin),
+    service: BlogService = Depends(get_blog_service),
+):
+    """Admin-specific list of posts (defaults to all statuses)."""
+    return await service.list_posts(
+        status=status,
+        category_slug=category,
+        tag_slug=tag,
+        cursor=after,
+        per_page=limit,
+    )
 
 
 @router.put("/posts/{post_id}", response_model=BlogPostRead)

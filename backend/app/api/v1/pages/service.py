@@ -5,6 +5,7 @@ from fastapi import Depends, HTTPException, status
 from app.api.v1.pages.repository import PageRepository, get_page_repo
 from app.api.v1.pages.schemas import PageCreate, PageUpdate
 from app.db.models.page import StaticPage
+from app.core.utils import generate_slug
 
 
 class PageService:
@@ -33,6 +34,9 @@ class PageService:
         return page
 
     async def create_page(self, data: PageCreate) -> StaticPage:
+        # Generate slug if missing or invalid
+        data.slug = generate_slug(data.title, data.slug)
+        
         # Check if slug exists
         existing = await self.repo.get_by_slug(data.slug)
         if existing:
@@ -48,6 +52,12 @@ class PageService:
 
     async def update_page(self, page_id: UUID, data: PageUpdate) -> StaticPage:
         update_data = data.model_dump(exclude_unset=True)
+        
+        if "slug" in update_data:
+            update_data["slug"] = generate_slug(update_data.get("title", ""), update_data["slug"])
+        elif "title" in update_data:
+            update_data["slug"] = generate_slug(update_data["title"])
+
         if "slug" in update_data:
             existing = await self.repo.get_by_slug(update_data["slug"])
             if existing and existing.id != page_id:
