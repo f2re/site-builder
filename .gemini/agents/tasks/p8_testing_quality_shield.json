@@ -1,0 +1,9 @@
+{
+  "task_id": "p8_testing_quality_shield",
+  "name": "Testing: Quality Shield Implementation",
+  "description": "1. Implement full Backend Integration tests for Auth, Blog, and Pages. 2. Setup Playwright for Frontend E2E testing of critical user/admin paths. 3. Add Vitest for UI components validation. Ensure >70% coverage for core logic.",
+  "status": "todo",
+  "priority": "high",
+  "agent": "testing-agent",
+  "depends_on": []
+}

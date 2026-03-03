@@ -1,9 +1,0 @@
-{
-  "task_id": "p5_testing_revision_and_coverage",
-  "name": "Testing: Audit and New Feature Coverage",
-  "description": "1. Conduct a full audit of existing tests in /tests. Fix broken execution flow if needed. 2. Add coverage for Admin Stats Enum handling. 3. Add tests for Rich Product CRUD operations and validation. Ensure all tests run successfully in CI/CD pipeline.",
-  "status": "todo",
-  "priority": "medium",
-  "agent": "testing-agent",
-  "depends_on": ["p5_frontend_redesign_and_rich_editor"]
-}

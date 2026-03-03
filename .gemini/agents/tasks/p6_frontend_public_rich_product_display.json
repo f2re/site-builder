@@ -1,9 +1,0 @@
-{
-  "task_id": "p6_frontend_public_rich_product_display",
-  "name": "Frontend: Public Rich Product Page and SEO",
-  "description": "1. Update products/[slug].vue to render TipTap JSON content. 2. Ensure rich media (large photos, videos) follows Race-style UI guidelines. 3. Update SEO and OpenGraph tags to support rich product descriptions and images.",
-  "status": "todo",
-  "priority": "high",
-  "agent": "frontend-agent",
-  "depends_on": ["p6_backend_migration_and_final_sync"]
-}

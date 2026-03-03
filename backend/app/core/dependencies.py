@@ -20,6 +20,7 @@ from app.api.v1.orders.repository import OrderRepository
 from app.api.v1.products.repository import ProductRepository, get_product_repo
 from app.api.v1.orders.service import OrderService
 from app.api.v1.iot.repository import IoTRepository
+from app.integrations.redis_inventory import RedisInventory, get_inventory
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
@@ -44,8 +45,9 @@ async def get_auth_service(
 async def get_cart_service(
     redis: Redis = Depends(get_redis),
     session: AsyncSession = Depends(get_db),
+    inventory: RedisInventory = Depends(get_inventory),
 ) -> CartService:
-    return CartService(redis, session)
+    return CartService(redis, session, inventory)
 
 
 async def get_order_repository(

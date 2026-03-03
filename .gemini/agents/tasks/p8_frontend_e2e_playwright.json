@@ -1,0 +1,9 @@
+{
+  "task_id": "p8_frontend_e2e_playwright",
+  "name": "Testing: Playwright E2E Integration",
+  "description": "1. Initialize Playwright in /frontend. 2. Implement E2E test for the Rich Product flow (Admin to Public). 3. Verify mobile-first UI stability via Playwright emulators.",
+  "status": "todo",
+  "priority": "medium",
+  "agent": "testing-agent",
+  "depends_on": ["p8_backend_di_and_test_finalization"]
+}

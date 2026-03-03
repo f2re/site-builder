@@ -1,9 +1,0 @@
-{
-  "task_id": "p7_backend_rich_media_and_seo",
-  "name": "Backend: Rich Media Upload and SEO Logic",
-  "description": "1. Fix/Implement product image upload endpoint (ensure MinIO/Local storage works). 2. Enhance Product schemas to include rich metadata for OpenGraph. 3. Implement logic to extract SEO snippets from content_json if meta fields are empty.",
-  "status": "todo",
-  "priority": "high",
-  "agent": "backend-agent",
-  "depends_on": []
-}

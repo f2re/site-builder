@@ -9,7 +9,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import require_admin, get_product_repo, get_db
+from app.core.dependencies import require_admin, get_product_repo, get_db, get_cart_service
 from app.db.models.order import Order, OrderStatus, OrderItem
 from app.db.models.product import ProductVariant, Product
 from app.db.models.user import User
@@ -60,10 +60,11 @@ def get_iot_repo(session: AsyncSession = Depends(get_db)) -> IoTRepository:
 async def get_admin_order_service(
     order_repo: OrderRepository = Depends(get_order_repo),
     product_repo: ProductRepository = Depends(get_product_repo),
+    cart_service: CartService = Depends(get_cart_service),
     session: AsyncSession = Depends(get_db)
 ) -> OrderService:
-    # CartService not strictly needed for admin status updates, but required by OrderService constructor
-    return OrderService(order_repo, CartService(None, session), product_repo, session)
+    """Dependency factory for admin order management."""
+    return OrderService(order_repo, cart_service, product_repo, session)
 
 def get_migration_repo(session: AsyncSession = Depends(get_db)) -> MigrationRepository:
     return MigrationRepository(session)

@@ -1,6 +1,7 @@
 # Module: integrations/redis_inventory.py | Agent: backend-agent | Task: BE-01
 import redis.asyncio as redis
-from app.db.redis import redis_client
+from fastapi import Depends
+from app.db.redis import redis_client, get_redis
 from uuid import UUID
 
 
@@ -64,6 +65,10 @@ class RedisInventory:
         key = f"stock:{variant_id}"
         val = await self.client.get(key)
         return int(val) if val is not None else 0
+
+
+def get_inventory(client: redis.Redis = Depends(get_redis)) -> RedisInventory:
+    return RedisInventory(client)
 
 
 inventory = RedisInventory(redis_client)

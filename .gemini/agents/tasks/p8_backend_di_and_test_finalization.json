@@ -1,0 +1,9 @@
+{
+  "task_id": "p8_backend_di_and_test_finalization",
+  "name": "Backend: Finalize DI and Integration Tests",
+  "description": "1. Update dependencies.py to use get_inventory for CartService. 2. Verify and fix all backend integration tests in /tests/integration/ using fakeredis. 3. Ensure 100% pass rate for pytest.",
+  "status": "todo",
+  "priority": "high",
+  "agent": "backend-agent",
+  "depends_on": []
+}

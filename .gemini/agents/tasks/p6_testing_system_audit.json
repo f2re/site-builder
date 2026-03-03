@@ -1,9 +1,0 @@
-{
-  "task_id": "p6_testing_system_audit",
-  "name": "Testing: System Audit and Integration Coverage",
-  "description": "1. Audit all existing tests in /tests and fix the execution flow. 2. Write integration tests for Rich Product creation and retrieval. 3. Test Admin Stats calculation and Enum handling. Ensure tests run in the project environment.",
-  "status": "todo",
-  "priority": "medium",
-  "agent": "testing-agent",
-  "depends_on": ["p6_frontend_public_rich_product_display"]
-}

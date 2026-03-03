@@ -1,9 +1,0 @@
-{
-  "task_id": "p5_devops_meilisearch_fix",
-  "name": "Fix Meilisearch Connectivity",
-  "description": "Investigate and fix MeilisearchCommunicationError in Celery and Backend. Ensure MEILISEARCH_URL is correctly configured for docker network and the service is reachable.",
-  "status": "todo",
-  "priority": "high",
-  "agent": "devops-agent",
-  "depends_on": []
-}

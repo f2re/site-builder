@@ -1,9 +1,0 @@
-{
-  "task_id": "p7_testing_total_audit",
-  "name": "Testing: Full Audit and Rich Product Coverage",
-  "description": "1. Audit existing test suite and fix broken execution flow (conftest, migrations in tests). 2. Add integration tests for the full Rich Product lifecycle: Create -> Media Upload -> SEO Verification.",
-  "status": "todo",
-  "priority": "medium",
-  "agent": "testing-agent",
-  "depends_on": ["p7_frontend_landing_page_ui"]
-}

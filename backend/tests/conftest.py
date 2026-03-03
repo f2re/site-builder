@@ -9,6 +9,7 @@ from redis.asyncio import Redis
 from app.main import app
 from app.db.base import Base
 from app.db.session import get_db
+from app.db.redis import get_redis
 from app.core.config import settings
 
 # Test database URL - using a separate database for testing
@@ -50,21 +51,44 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
         await session.rollback()
 
 @pytest_asyncio.fixture
-async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+async def client(db_session: AsyncSession, redis_client: Redis) -> AsyncGenerator[AsyncClient, None]:
     def _get_test_db():
         yield db_session
+    
+    async def _get_test_redis():
+        yield redis_client
 
     app.dependency_overrides[get_db] = _get_test_db
+    app.dependency_overrides[get_redis] = _get_test_redis
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
     app.dependency_overrides.clear()
 
 @pytest_asyncio.fixture
 async def redis_client() -> AsyncGenerator[Redis, None]:
-    # In a real integration test, we might want a real Redis (e.g. db 15)
-    # For now, let's assume we use a real one or mock it if needed.
-    # Given the constraints, I'll try to connect to the configured Redis.
-    client = Redis.from_url(settings.REDIS_URL, decode_responses=True)
+    from fakeredis.aioredis import FakeRedis
+    client = FakeRedis(decode_responses=True)
     yield client
     await client.flushdb()
     await client.close()
+
+@pytest_asyncio.fixture
+async def admin_token(db_session: AsyncSession) -> str:
+    from app.db.models.user import User
+    from app.core.security import create_access_token, get_password_hash, get_blind_index
+    import uuid
+    
+    admin_id = uuid.uuid4()
+    email = "admin-test@example.com"
+    admin = User(
+        id=admin_id,
+        email=email,
+        email_hash=get_blind_index(email),
+        hashed_password=get_password_hash("admin-password"),
+        role="admin",
+        is_active=True
+    )
+    db_session.add(admin)
+    await db_session.commit()
+    
+    return create_access_token(subject=str(admin_id), role="admin")

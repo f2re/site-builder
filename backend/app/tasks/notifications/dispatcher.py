@@ -7,6 +7,10 @@ from app.core.config import settings
 from aiogram import Bot
 from app.core.logging import logger
 
+# Using dynamic path relative to this file to avoid errors during tests
+BASE_PATH = Path(__file__).resolve().parents[2]
+TEMPLATE_FOLDER = BASE_PATH / "templates" / "email"
+
 mail_conf = ConnectionConfig(
     MAIL_USERNAME=settings.SMTP_USER,
     MAIL_PASSWORD=settings.SMTP_PASSWORD,
@@ -16,7 +20,7 @@ mail_conf = ConnectionConfig(
     MAIL_STARTTLS=True,
     MAIL_SSL_TLS=False,
     USE_CREDENTIALS=True,
-    TEMPLATE_FOLDER=Path('app/templates/email')
+    TEMPLATE_FOLDER=TEMPLATE_FOLDER
 )
 
 @celery_app.task(name="tasks.send_email")
@@ -40,8 +44,8 @@ def send_email_task(recipient: str, subject: str, template_name: str, context: D
 @celery_app.task(name="tasks.send_telegram")
 def send_telegram_task(chat_id: str, message: str):
     """Celery task to send telegram messages using aiogram."""
-    bot = Bot(token=settings.YOOMONEY_SHOP_ID) # Placeholder for bot token in settings if not present
-    # Better to use settings.TELEGRAM_BOT_TOKEN if we add it
+    # Better to use settings.TELEGRAM_BOT_TOKEN
+    bot = Bot(token=settings.YOOMONEY_SHOP_ID)
     
     async def _send():
         async with bot:

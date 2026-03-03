@@ -10,30 +10,38 @@ from fastapi import HTTPException, status
 
 from app.api.v1.cart.schemas import CartItemCreate, CartItemUpdate
 from app.db.models.product import ProductVariant
-from app.integrations.redis_inventory import inventory
+from app.integrations.redis_inventory import RedisInventory
 
 
 class CartService:
-    def __init__(self, redis: Optional[Redis], session: AsyncSession):
+    def __init__(self, redis: Optional[Redis], session: AsyncSession, inventory: RedisInventory):
         self.redis = redis
         self.session = session
+        self.inventory = inventory
         self.ttl = 60 * 60 * 24 * 7  # 7 days
 
     def _get_key(self, cart_id: str) -> str:
         return f"cart:{cart_id}"
 
     async def get_cart(self, cart_id: str) -> Dict[str, Any]:
+        empty_cart = {
+            "cart_id": UUID(cart_id),
+            "items": [],
+            "subtotal_rub": 0.0,
+            "reserved_until": None
+        }
+        
         if not self.redis:
-            return {"items": [], "total_quantity": 0, "total_price": 0.0}
+            return empty_cart
         
         key = self._get_key(cart_id)
         cart_data = await self.redis.get(key)
         if not cart_data:
-            return {"items": [], "total_quantity": 0, "total_price": 0.0}
+            return empty_cart
         
         items_dict = json.loads(cart_data)
         if not items_dict:
-            return {"items": [], "total_quantity": 0, "total_price": 0.0}
+            return empty_cart
 
         variant_ids = [UUID(vid) for vid in items_dict.keys()]
         
@@ -47,28 +55,30 @@ class CartService:
         
         cart_items = []
         total_price = 0.0
-        total_quantity = 0
         
-        # Sort variants to maintain consistent order if needed, or just follow items_dict
+        # We iterate over variants that were actually found in DB
         for variant in variants:
             qty = items_dict[str(variant.id)]
             subtotal = float(variant.price) * qty
             
+            # Get current stock
+            stock_available = await self.inventory.get_stock(variant.id)
+
             cart_items.append({
-                "variant_id": variant.id,
+                "product_id": variant.id,
+                "slug": variant.product.slug,
                 "name": f"{variant.product.name} ({variant.sku})",
-                "price": float(variant.price),
                 "quantity": qty,
-                "subtotal": round(subtotal, 2),
-                "image_url": None  # Simplified
+                "price_rub": float(variant.price),
+                "stock_available": stock_available
             })
             total_price += subtotal
-            total_quantity += qty
             
         return {
+            "cart_id": UUID(cart_id),
             "items": cart_items,
-            "total_quantity": total_quantity,
-            "total_price": round(total_price, 2)
+            "subtotal_rub": round(total_price, 2),
+            "reserved_until": None
         }
 
     async def add_item(self, cart_id: str, item: CartItemCreate) -> Dict[str, Any]:
@@ -76,7 +86,7 @@ class CartService:
              raise HTTPException(status_code=500, detail="Redis client not initialized")
         
         # Check stock before adding
-        current_stock = await inventory.get_stock(item.variant_id)
+        current_stock = await self.inventory.get_stock(item.variant_id)
         
         key = self._get_key(cart_id)
         cart_data = await self.redis.get(key)
@@ -103,7 +113,7 @@ class CartService:
             return None
             
         # Check stock
-        current_stock = await inventory.get_stock(variant_id)
+        current_stock = await self.inventory.get_stock(variant_id)
         if current_stock < item.quantity:
              raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

@@ -1,9 +1,0 @@
-{
-  "task_id": "p7_frontend_landing_page_ui",
-  "name": "Frontend: Landing Page UI and Media Manager",
-  "description": "1. Admin: Implement image upload/gallery for products. Add video block support to TipTap. 2. Public: Create a landing-page style product template with full-width images, video inserts, and compatibility tables. 3. SEO: Implement Schema.org JSON-LD and dynamic OpenGraph tags for rich products.",
-  "status": "todo",
-  "priority": "high",
-  "agent": "frontend-agent",
-  "depends_on": ["p7_backend_rich_media_and_seo"]
-}
