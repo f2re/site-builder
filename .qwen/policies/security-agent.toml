@@ -1,0 +1,79 @@
+# Security-agent — READ-ONLY аудитор
+# NEVER пишет production файлы в ЛЮБОМ режиме
+# Пишет только в .qwen/agents/reports/security/
+
+# --- DENY production writes in ALL modes ---
+
+[[rules]]
+toolName = "write_file"
+decision = "deny"
+priority = 1000
+
+[[rules]]
+toolName = "replace"
+decision = "deny"
+priority = 1000
+
+[[rules]]
+toolName = "delete_file"
+decision = "deny"
+priority = 1000
+
+# --- ALLOW writing ONLY to reports directory ---
+
+[[rules]]
+toolName = "write_file"
+pathPrefix = ".qwen/agents/reports/security/"
+decision = "allow"
+priority = 900
+
+# --- ALLOW audit tools ---
+
+[[rules]]
+toolName = "run_shell_command"
+commandPrefix = "bandit"
+decision = "allow"
+priority = 300
+
+[[rules]]
+toolName = "run_shell_command"
+commandPrefix = "safety"
+decision = "allow"
+priority = 300
+
+[[rules]]
+toolName = "run_shell_command"
+commandPrefix = "npm audit"
+decision = "allow"
+priority = 300
+
+[[rules]]
+toolName = "run_shell_command"
+commandPrefix = "npx axe-cli"
+decision = "allow"
+priority = 300
+
+[[rules]]
+toolName = "run_shell_command"
+commandPrefix = "grep -r"
+decision = "allow"
+priority = 300
+
+[[rules]]
+toolName = "run_shell_command"
+commandPrefix = "grep -rn"
+decision = "allow"
+priority = 300
+
+[[rules]]
+toolName = "run_shell_command"
+commandPrefix = "git ls-files"
+decision = "allow"
+priority = 300
+
+# --- DENY all other shell commands ---
+
+[[rules]]
+toolName = "run_shell_command"
+decision = "deny"
+priority = 100

@@ -1,0 +1,45 @@
+# Игнорирование файлов для Qwen Code
+
+# Отчёты агентов (генерируются автоматически)
+.qwen/agents/reports/
+
+# Активные задачи (генерируются оркестратором)
+.qwen/agents/tasks/*.json
+
+# Временные файлы
+.qwen/*.tmp
+.qwen/*.log
+
+# Кэш и временные данные
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.Python
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/node_modules/
+**/.nuxt/
+**/.output/
+
+# Логи
+**/*.log
+logs/
+
+# Переменные окружения (не коммитить)
+.env
+.env.local
+.env.prod
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
