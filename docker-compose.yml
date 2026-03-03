@@ -116,7 +116,7 @@ services:
 
   # ── Meilisearch ──────────────────────────────────────────────────────────
   meilisearch:
-    image: getmeili/meilisearch:latest
+    image: getmeili/meilisearch:v1.36.0
     container_name: sb_meilisearch
     restart: unless-stopped
     environment:

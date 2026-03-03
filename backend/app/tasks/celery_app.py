@@ -20,7 +20,6 @@ celery_app.conf.update(
         "app.tasks.inventory",
         "app.tasks.search",
         "app.tasks.migration_tasks",
-        "app.tasks.delivery",
     ]
 )
 

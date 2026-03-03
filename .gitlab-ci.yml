@@ -163,8 +163,7 @@ deploy:staging:
   environment:
     name: staging
     url: https://m.wifiobd.ru
-  rules:
-    - when: manual
+
 
 # ── Deploy Production ─────────────────────────────────────────────────────────
 deploy:production:

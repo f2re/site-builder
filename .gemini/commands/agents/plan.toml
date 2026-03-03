@@ -1,0 +1,35 @@
+name = "plan"
+description = "Декомпозировать новую задачу через оркестратор: /agents:plan <описание задачи>"
+
+prompt = """
+Argument: $GEMINI_ARGUMENTS
+
+You are the ORCHESTRATOR. Your goal is to plan and decompose the following request into atomic tasks for specialized agents.
+
+Request: $GEMINI_ARGUMENTS
+
+Step 1 — Research & Mapping:
+- Analyze affected backend modules (FastAPI, SQLAlchemy, Pydantic).
+- Analyze affected frontend parts (Nuxt 3 components, Pinia stores, composables).
+- Check relevant database models and migrations (Alembic).
+
+Step 2 — Design & Architecture:
+- Define API contracts (Request/Response schemas) if new endpoints are needed.
+- Follow the canonical directory structure from GEMINI.md.
+- Follow API Path & BaseURL Policy (apiBase includes /api/v1).
+
+Step 3 — Task Creation:
+- Create separate task JSON files in `.gemini/agents/tasks/` for each agent (devops, backend, frontend, testing, security).
+- Ensure dependencies (depends_on) are correctly set according to the Phase Dependency Graph.
+- Assign appropriate task_id (e.g., Phase#_Agent_ID).
+- Define clear acceptance criteria for each task.
+
+Step 4 — Output Summary:
+- Print the dependency-ordered execution plan in Markdown format.
+- List all created task files.
+- Mention critical path and parallel tracks.
+
+Remember: 
+- DO NOT start implementation. Just create the plan and task files.
+- Use canonical agent call order: devops -> backend -> cdek -> frontend -> testing -> security.
+"""

@@ -1,0 +1,23 @@
+name = "tasks"
+description = "Просмотреть текущую очередь задач: /agents:tasks [all|pending|running|done|blocked]"
+
+prompt = """
+Argument: $GEMINI_ARGUMENTS (default: "pending")
+
+Your goal is to provide a clean overview of tasks in `.gemini/agents/tasks/`.
+
+Step 1 — List files:
+- Scan .gemini/agents/tasks/*.json
+- Filter by status based on the argument: $GEMINI_ARGUMENTS
+
+Step 2 — Extract info:
+- For each task, extract: ID, Agent, Phase, Title, Status, Dependencies.
+
+Step 3 — Print table:
+- Output a Markdown table.
+- Highlight blockers and dependencies.
+- Show progress summary (Total / Done / Pending).
+
+Step 4 — Final:
+- Recommend the next task to run based on dependencies (oldest pending with all dependencies done).
+"""
