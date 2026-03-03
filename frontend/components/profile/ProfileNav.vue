@@ -14,6 +14,13 @@ const handleLogout = () => {
   authStore.logout()
   navigateTo('/')
 }
+
+const isLinkActive = (path: string) => {
+  if (path === '/profile/orders') {
+    return route.path.startsWith(path)
+  }
+  return route.path === path
+}
 </script>
 
 <template>
@@ -24,7 +31,7 @@ const handleLogout = () => {
         :key="item.to"
         :to="item.to"
         class="nav-item"
-        :class="{ active: route.path === item.to }"
+        :class="{ active: isLinkActive(item.to) }"
       >
         <Icon :name="item.icon" size="20" />
         <span>{{ item.label }}</span>

@@ -1,7 +1,7 @@
-# Module: api/v1/orders/service.py | Agent: backend-agent | Task: phase4_orders_logic
+# Module: api/v1/orders/service.py | Agent: backend-agent | Task: phase13_profile_orders_refactoring
 import uuid
 from decimal import Decimal
-from typing import Dict, Any
+from typing import Dict, Any, cast
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -94,10 +94,8 @@ class OrderService:
                 created_order.payment_url = payment_data["payment_url"]
             except Exception as e:
                 logger.error("payment_creation_failed", order_id=str(created_order.id), error=str(e))
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to create payment: {str(e)}"
-                )
+                # Even if payment creation fails, the order is created.
+                # User can retry payment later via get_payment_link.
 
             # 7. Clear Cart
             await self.cart_service.clear_cart(cart_id)
@@ -184,3 +182,81 @@ class OrderService:
         orders = await self.order_repo.get_user_orders(user_id)
         items = list(orders)
         return {"items": items, "total": len(items)}
+
+    async def cancel_order(self, order_id: UUID, user_id: UUID) -> Order:
+        """Cancel an order and release stock in Redis."""
+        order = await self.order_repo.get_by_id(order_id)
+        if not order:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Order not found"
+            )
+        if order.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to cancel this order"
+            )
+
+        if order.status not in [OrderStatus.PENDING, OrderStatus.PENDING_PAYMENT]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot cancel order in status: {order.status.value}"
+            )
+
+        # 1. Release stock in Redis
+        for item in order.items:
+            await inventory.release_stock(item.product_variant_id, item.quantity)
+
+        # 2. Update order status
+        order.status = OrderStatus.CANCELLED
+        await self.order_repo.update(order)
+        await self.session.commit()
+        await self.session.refresh(order)
+
+        logger.info("order_cancelled", order_id=str(order.id), user_id=str(user_id))
+        return order
+
+    async def get_payment_link(self, order_id: UUID, user_id: UUID) -> str:
+        """Return existing payment link or generate a new one."""
+        order = await self.order_repo.get_by_id(order_id)
+        if not order:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Order not found"
+            )
+        if order.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized"
+            )
+
+        if order.status != OrderStatus.PENDING_PAYMENT:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Order is in status {order.status.value}, payment link not available"
+            )
+
+        if order.payment_url:
+            return cast(str, order.payment_url)
+
+        # Generate new payment
+        try:
+            payment_data = await yoomoney_client.create_payment(
+                amount=order.total_amount,
+                order_id=str(order.id),
+                return_url=f"{settings.NUXT_PUBLIC_SITE_URL}/orders/success?id={order.id}",
+                description=f"Order {order.id} at WifiOBD Shop"
+            )
+            order.payment_id = payment_data["payment_id"]
+            order.payment_url = payment_data["payment_url"]
+            
+            await self.order_repo.update(order)
+            await self.session.commit()
+            
+            return cast(str, order.payment_url)
+        except Exception as e:
+            logger.error("payment_regeneration_failed", order_id=str(order.id), error=str(e))
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to generate payment link"
+            )

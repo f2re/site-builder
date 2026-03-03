@@ -21,6 +21,7 @@ export interface Order {
   items: OrderItem[]
   delivery: DeliveryInfo
   created_at: string
+  payment_url?: string
 }
 
 export interface CreateOrderRequest {
@@ -99,6 +100,19 @@ export const useOrders = () => {
     })
   }
 
+  const cancelOrder = (orderId: string) => {
+    return useFetch<Order>(`${apiBase}/orders/${orderId}/cancel`, {
+      method: 'POST',
+      headers: getHeaders()
+    })
+  }
+
+  const getPaymentLink = (orderId: string) => {
+    return useFetch<{ payment_url: string }>(`${apiBase}/orders/${orderId}/payment-link`, {
+      headers: getHeaders()
+    })
+  }
+
   const calculateDelivery = (params: DeliveryCalculateRequest) => {
     return useFetch<DeliveryCalculateResponse>(`${apiBase}/delivery/calculate`, {
       method: 'POST',
@@ -131,6 +145,8 @@ export const useOrders = () => {
     createOrder,
     getOrders,
     getOrder,
+    cancelOrder,
+    getPaymentLink,
     calculateDelivery,
     getPVZs,
     searchCities

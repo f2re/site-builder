@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/QwenLM/qwen-code/main/schemas/settings.schema.json",
+  "model": {
+    "name": "qwen-max"
+  },
+  "general": {
+    "defaultApprovalMode": "auto_edit"
+  },
+  "experimental": {
+    "enableAgents": true
+  },
+  "policyPaths": [
+    ".qwen/policies"
+  ]
+}

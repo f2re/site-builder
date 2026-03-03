@@ -1,11 +1,22 @@
 <script setup lang="ts">
-import { useRoute } from 'vue-router'
+import { useAuth } from '~/composables/useAuth'
+
+const route = useRoute()
+const { accessToken } = useAuth()
+const orderId = route.params.id as string
+
+// If user is logged in, redirect to the new profile-based order page
+if (accessToken.value) {
+  await navigateTo(`/profile/orders/${orderId}`, { replace: true })
+}
+
+// For guests, we keep this page as a public order view if the backend allows it.
+// If not, useOrders.getOrder will fail and we show the error state below.
+
 import { useIntervalFn } from '@vueuse/core'
 import { useOrders } from '~/composables/useOrders'
 import OrderStatus from '~/components/shop/OrderStatus.vue'
 
-const route = useRoute()
-const orderId = route.params.id as string
 const { getOrder } = useOrders()
 
 const { data: order, refresh, error } = await getOrder(orderId)
@@ -24,7 +35,7 @@ useSeoMeta({
 
 const breadcrumbs = computed(() => [
   { label: 'Главная', to: '/' },
-  { label: 'Мои заказы', to: '/profile' },
+  { label: 'Мои заказы', to: accessToken.value ? '/profile/orders' : '/auth/login' },
   { label: `Заказ #${orderId}`, to: `/orders/${orderId}` },
 ])
 </script>
@@ -42,7 +53,7 @@ const breadcrumbs = computed(() => [
 
       <div v-else-if="order" class="order-content">
         <div class="order-header">
-          <h1 class="page-title">Заказ #{{ orderId }}</h1>
+          <h1 class="page-title">Заказ #{{ orderId.split('-')[0].toUpperCase() }}</h1>
           <div class="order-date">от {{ new Date(order.created_at).toLocaleDateString() }}</div>
         </div>
 

@@ -1,4 +1,4 @@
-# Module: api/v1/orders/schemas.py | Agent: backend-agent | Task: phase4_backend_ecommerce
+# Module: api/v1/orders/schemas.py | Agent: backend-agent | Task: phase13_profile_orders_refactoring
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
@@ -46,3 +46,7 @@ class OrderList(BaseModel):
 
 class OrderUpdateStatus(BaseModel):
     status: OrderStatus
+
+
+class PaymentLinkResponse(BaseModel):
+    payment_url: str

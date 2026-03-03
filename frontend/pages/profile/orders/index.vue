@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { useOrders } from '~/composables/useOrders'
+import { useOrders, type Order } from '~/composables/useOrders'
 import { useAuth } from '~/composables/useAuth'
+import { useProducts } from '~/composables/useProducts'
+import { useCartStore } from '~/stores/cartStore'
 
 const { getOrders } = useOrders()
+const { getProductBySlug } = useProducts()
 const { accessToken } = useAuth()
+const cartStore = useCartStore()
 const router = useRouter()
+const isRepeating = ref<string | null>(null)
 
 useHead({
+  title: 'Мои заказы — WifiOBD',
   meta: [
     { name: 'robots', content: 'noindex' }
   ]
@@ -42,18 +48,41 @@ const formatDate = (dateStr: string) => {
     minute: '2-digit'
   })
 }
+
+const handleRepeatOrder = async (order: Order) => {
+  isRepeating.value = order.id
+  try {
+    for (const item of order.items) {
+      const { data: product } = await getProductBySlug(item.slug)
+      if (product.value) {
+        const cartItem = {
+          id: product.value.id,
+          name: product.value.name,
+          price: product.value.variants[0]?.price || 0,
+          image: product.value.images.find(img => img.is_cover)?.url || product.value.images[0]?.url
+        }
+        for (let i = 0; i < item.quantity; i++) {
+          cartStore.addItem(cartItem)
+        }
+      }
+    }
+    router.push('/cart')
+  } catch (err) {
+    console.error('Failed to repeat order:', err)
+  } finally {
+    isRepeating.value = null
+  }
+}
 </script>
 
 <template>
   <div class="profile-orders-page">
     <div class="container">
-      <div class="profile-header">
-        <h1 class="page-title">Мои заказы</h1>
-        <NuxtLink to="/products" class="btn btn-ghost btn-sm">Вернуться в магазин</NuxtLink>
-      </div>
+      <h1 class="page-title">Мои заказы</h1>
+      <ProfileNav />
 
       <div v-if="pending" class="orders-loading">
-        <USkeleton v-for="i in 3" :key="i" height="120px" style="margin-bottom: 16px; border-radius: var(--radius-lg)" />
+        <USkeleton v-for="i in 3" :key="i" height="160px" style="margin-bottom: 16px; border-radius: var(--radius-lg)" />
       </div>
 
       <div v-else-if="error" class="orders-error">
@@ -72,7 +101,9 @@ const formatDate = (dateStr: string) => {
         <UCard v-for="order in ordersData.items" :key="order.id" class="order-card">
           <div class="order-header">
             <div class="order-info">
-              <span class="order-id">Заказ #{{ order.id.split('-')[0].toUpperCase() }}</span>
+              <NuxtLink :to="`/profile/orders/${order.id}`" class="order-id">
+                Заказ #{{ order.id.split('-')[0].toUpperCase() }}
+              </NuxtLink>
               <span class="order-date">{{ formatDate(order.created_at) }}</span>
             </div>
             <UBadge :variant="formatStatus(order.status).variant">
@@ -82,18 +113,28 @@ const formatDate = (dateStr: string) => {
 
           <div class="order-items">
             <div v-for="item in order.items" :key="item.product_id" class="order-item">
-              {{ item.name }} × {{ item.quantity }}
+              <span class="item-name">{{ item.name }}</span>
+              <span class="item-qty">× {{ item.quantity }}</span>
             </div>
           </div>
 
           <div class="order-footer">
-            <div class="order-delivery">
-              <span class="delivery-label">Доставка:</span>
-              <span class="delivery-value">{{ order.delivery?.type === 'cdek_pvz' ? 'В пункт выдачи' : 'Курьером' }}</span>
-            </div>
             <div class="order-total">
               <span class="total-label">Сумма:</span>
               <span class="total-value">{{ order.total_rub }} ₽</span>
+            </div>
+            <div class="order-actions">
+              <UButton 
+                variant="ghost" 
+                size="sm" 
+                :loading="isRepeating === order.id"
+                @click="handleRepeatOrder(order)"
+              >
+                Повторить заказ
+              </UButton>
+              <UButton :to="`/profile/orders/${order.id}`" variant="secondary" size="sm">
+                Детали
+              </UButton>
             </div>
           </div>
         </UCard>
@@ -108,17 +149,10 @@ const formatDate = (dateStr: string) => {
   min-height: calc(100vh - 200px);
 }
 
-.profile-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 32px;
-}
-
 .page-title {
   font-size: var(--text-2xl);
   font-weight: 800;
-  margin: 0;
+  margin-bottom: 24px;
   letter-spacing: -1px;
 }
 
@@ -126,6 +160,7 @@ const formatDate = (dateStr: string) => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  max-width: 900px;
 }
 
 .order-card {
@@ -149,6 +184,12 @@ const formatDate = (dateStr: string) => {
   font-size: var(--text-base);
   font-weight: 700;
   color: var(--color-text);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.order-id:hover {
+  color: var(--color-accent);
 }
 
 .order-date {
@@ -166,6 +207,15 @@ const formatDate = (dateStr: string) => {
   color: var(--color-text-2);
 }
 
+.order-item {
+  display: flex;
+  justify-content: space-between;
+}
+
+.item-qty {
+  color: var(--color-muted);
+}
+
 .order-footer {
   border-top: 1px solid var(--color-border);
   padding-top: 16px;
@@ -173,15 +223,6 @@ const formatDate = (dateStr: string) => {
   justify-content: space-between;
   align-items: center;
 }
-
-.order-delivery {
-  font-size: var(--text-xs);
-  display: flex;
-  gap: 6px;
-}
-
-.delivery-label { color: var(--color-muted); }
-.delivery-value { font-weight: 500; color: var(--color-text-2); }
 
 .order-total {
   display: flex;
@@ -200,6 +241,11 @@ const formatDate = (dateStr: string) => {
   color: var(--color-accent);
 }
 
+.order-actions {
+  display: flex;
+  gap: 12px;
+}
+
 .orders-empty {
   text-align: center;
   padding: 80px 0;
@@ -211,6 +257,8 @@ const formatDate = (dateStr: string) => {
 
 @media (max-width: 600px) {
   .order-header { flex-direction: column; gap: 12px; }
-  .order-footer { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .order-footer { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .order-actions { width: 100%; justify-content: space-between; }
+  .order-actions > * { flex: 1; }
 }
 </style>
