@@ -4,7 +4,8 @@ import { z } from 'zod'
 import { toFormValidator } from '@vee-validate/zod'
 
 definePageMeta({
-  layout: 'admin'
+  layout: 'admin',
+  middleware: 'auth'
 })
 
 const route = useRoute()
@@ -25,7 +26,7 @@ const schema = z.object({
   is_active: z.boolean().default(true)
 })
 
-const { handleSubmit, resetForm, values, setFieldValue, errors, isSubmitting } = useForm({
+const { handleSubmit, resetForm, setFieldValue, errors, isSubmitting, defineField } = useForm({
   validationSchema: toFormValidator(schema),
   initialValues: {
     title: '',
@@ -37,12 +38,21 @@ const { handleSubmit, resetForm, values, setFieldValue, errors, isSubmitting } =
   }
 })
 
+const [title, titleProps] = defineField('title')
+const [slug, slugProps] = defineField('slug')
+const [content] = defineField('content')
+const [is_active] = defineField('is_active')
+const [meta_title] = defineField('meta_title')
+const [meta_description] = defineField('meta_description')
+
 // Loading existing data
 const isLoading = ref(isEdit)
 onMounted(async () => {
   if (isEdit && pageId) {
     try {
-      const { data: page } = await getPageById(pageId)
+      const { data: page, error } = await getPageById(pageId)
+      if (error.value) throw error.value
+      
       if (page.value) {
         resetForm({
           values: {
@@ -57,6 +67,7 @@ onMounted(async () => {
       }
     } catch (e: any) {
       toast.error('Не удалось загрузить данные страницы')
+      console.error(e)
     } finally {
       isLoading.value = false
     }
@@ -74,15 +85,16 @@ const onSubmit = handleSubmit(async (formValues) => {
     }
     router.push('/admin/pages')
   } catch (e: any) {
-    toast.error(e.message || 'Ошибка при сохранении')
+    toast.error(e.data?.detail || e.message || 'Ошибка при сохранении')
   }
 })
 
 // Helper to auto-generate slug from title
 const generateSlug = () => {
-  if (!values.title || (isEdit && values.slug)) return
+  // Only generate if title exists and slug is empty
+  if (!title.value || (isEdit && slug.value)) return
   
-  const slug = values.title
+  const generated = title.value
     .toLowerCase()
     .replace(/[а-яё]/g, (match) => {
       const map: Record<string, string> = {
@@ -93,13 +105,17 @@ const generateSlug = () => {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
   
-  setFieldValue('slug', slug)
+  slug.value = generated
 }
 </script>
 
 <template>
   <div class="admin-page-editor">
     <div class="mb-6">
+      <NuxtLink to="/admin/pages" class="text-sm text-muted hover:text-accent flex items-center gap-1 mb-2">
+        <Icon name="ph:arrow-left" />
+        К списку страниц
+      </NuxtLink>
       <h1>{{ isEdit ? 'Редактирование страницы' : 'Создание страницы' }}</h1>
     </div>
 
@@ -115,7 +131,8 @@ const generateSlug = () => {
             <label for="title">Заголовок страницы</label>
             <input 
               id="title" 
-              v-model="values.title" 
+              v-model="title" 
+              v-bind="titleProps"
               @blur="generateSlug"
               type="text" 
               class="u-input"
@@ -131,7 +148,8 @@ const generateSlug = () => {
               <span class="url-prefix">/</span>
               <input 
                 id="slug" 
-                v-model="values.slug" 
+                v-model="slug" 
+                v-bind="slugProps"
                 type="text" 
                 class="u-input"
                 :class="{ 'is-error': errors.slug }"
@@ -144,8 +162,7 @@ const generateSlug = () => {
           <div class="field-group">
             <label>Содержимое страницы</label>
             <URichEditor 
-              :modelValue="values.content" 
-              @update:modelValue="setFieldValue('content', $event)"
+              v-model="content"
               class="page-editor"
             />
             <span v-if="errors.content" class="error-msg">{{ errors.content }}</span>
@@ -159,7 +176,7 @@ const generateSlug = () => {
           
           <div class="field-group checkbox">
             <label class="toggle">
-              <input type="checkbox" v-model="values.is_active" />
+              <input type="checkbox" v-model="is_active" />
               <span class="slider"></span>
               <span class="label">Опубликована</span>
             </label>
@@ -173,7 +190,7 @@ const generateSlug = () => {
             <label for="meta_title">Meta Title</label>
             <input 
               id="meta_title" 
-              v-model="values.meta_title" 
+              v-model="meta_title" 
               type="text" 
               class="u-input"
               placeholder="SEO заголовок"
@@ -184,7 +201,7 @@ const generateSlug = () => {
             <label for="meta_description">Meta Description</label>
             <textarea 
               id="meta_description" 
-              v-model="values.meta_description" 
+              v-model="meta_description" 
               class="u-textarea"
               placeholder="SEO описание (рекомендуется 150-160 символов)"
               rows="4"

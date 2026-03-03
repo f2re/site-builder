@@ -40,6 +40,7 @@ class ProductService:
         is_featured: Optional[bool] = None,
         cursor: Optional[UUID] = None,
         per_page: int = 20,
+        active_only: bool = True,
     ) -> ProductPagination:
         items, next_cursor = await self.repo.list_products(
             category_id=category_id,
@@ -47,7 +48,8 @@ class ProductService:
             max_price=max_price,
             is_featured=is_featured,
             cursor=cursor,
-            per_page=per_page
+            per_page=per_page,
+            active_only=active_only
         )
         return ProductPagination(
             items=TypeAdapter(List[ProductShortRead]).validate_python(items),

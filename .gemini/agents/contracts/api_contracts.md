@@ -254,9 +254,21 @@ Contract: graceful disconnect MUST clean up Redis connection tracking `iot:ws:co
 
 ### GET /api/v1/admin/users
 Auth: Bearer + role `admin`
-Request: `search?, role?, page_cursor?, per_page?`
-Response: `{ items: AdminUser[], next_cursor, total }`
-AdminUser schema: User schema + `{ orders_count: int, total_spent_rub: Decimal, is_blocked: bool }`
+Request: `search?, role?, page?, per_page?`
+Response: `{ items: UserResponse[], total: int, page: int, per_page: int }`
+UserResponse schema: `{ id: UUID, email: str, full_name: str, role: str, is_active: bool, created_at: datetime }`
+
+### GET /api/v1/admin/pages
+Auth: Bearer + role `admin`
+Request: `none`
+Response: `PageRead[]`
+Contract: Returns all static pages. Use WITHOUT trailing slash.
+
+### POST /api/v1/media/upload
+Auth: Bearer
+Request: `multipart/form-data` (file, context, alt)
+Response: `{ url: str, width: int, height: int }`
+Contract: Direct upload to storage. (Replaces upload-url/confirm flow)
 
 ### PATCH /api/v1/admin/users/{user_id}
 Auth: Bearer + role `admin`

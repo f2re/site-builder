@@ -40,7 +40,7 @@ export function usePages() {
 
   // Admin: List all pages
   const getPages = () => {
-    return useFetch<Page[]>(`${config.public.apiBase}/admin/pages/`, {
+    return useFetch<Page[]>(`${config.public.apiBase}/admin/pages`, {
       key: 'admin-pages-list',
       watch: false
     })
@@ -55,7 +55,7 @@ export function usePages() {
 
   // Admin: Create page
   const createPage = async (data: PageCreate) => {
-    return await $fetch<Page>(`${config.public.apiBase}/admin/pages/`, {
+    return await $fetch<Page>(`${config.public.apiBase}/admin/pages`, {
       method: 'POST',
       body: data
     })

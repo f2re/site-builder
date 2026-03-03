@@ -49,6 +49,7 @@ class ProductRepository:
         is_featured: Optional[bool] = None,
         cursor: Optional[UUID] = None,
         per_page: int = 20,
+        active_only: bool = True,
     ) -> Tuple[list[dict], Optional[str]]:
         # Subqueries for prices and cover images
         min_price_sq = (
@@ -82,8 +83,10 @@ class ProductRepository:
             )
             .outerjoin(min_price_sq, Product.id == min_price_sq.c.product_id)
             .outerjoin(cover_image_sq, Product.id == cover_image_sq.c.product_id)
-            .where(Product.is_active)
         )
+
+        if active_only:
+            stmt = stmt.where(Product.is_active)
 
         if category_id:
             stmt = stmt.where(Product.category_id == category_id)

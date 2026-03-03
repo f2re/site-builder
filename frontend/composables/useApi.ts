@@ -41,3 +41,20 @@ export function useApi<T>(
     $fetch: apiFetch
   })
 }
+
+// Helper for standalone fetch requests (POST/PUT/DELETE)
+export const useApiFetch = () => {
+  const authStore = useAuthStore()
+  const config = useRuntimeConfig()
+  const apiBase = config.public.apiBase as string
+
+  return $fetch.create({
+    baseURL: apiBase,
+    onRequest({ options }) {
+      if (authStore.accessToken) {
+        options.headers = new Headers(options.headers)
+        options.headers.set('Authorization', `Bearer ${authStore.accessToken}`)
+      }
+    }
+  })
+}

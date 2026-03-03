@@ -18,7 +18,7 @@ from app.api.v1.auth.schemas import UserResponse
 # Services & Repositories
 from app.api.v1.products.service import ProductService
 from app.api.v1.products.repository import ProductRepository
-from app.api.v1.products.schemas import ProductCreate, ProductUpdate, ProductRead
+from app.api.v1.products.schemas import ProductCreate, ProductUpdate, ProductRead, ProductPagination
 from app.api.v1.blog.service import BlogService, get_blog_service
 from app.api.v1.blog.schemas import BlogPostCreate, BlogPostUpdate
 from app.api.v1.orders.service import OrderService
@@ -124,6 +124,23 @@ async def get_dashboard(
     )
 
 # ─── Products ────────────────────────────────────────────────────────────────
+@router.get("/products", response_model=ProductPagination)
+async def list_products(
+    cursor: Optional[UUID] = None,
+    per_page: int = Query(20, ge=1, le=100),
+    _admin: User = AdminDep,
+    service: ProductService = Depends()
+) -> Any:
+    return await service.get_products(cursor=cursor, per_page=per_page, active_only=False)
+
+@router.get("/products/{product_id}", response_model=ProductRead)
+async def get_product(
+    product_id: UUID,
+    _admin: User = AdminDep,
+    service: ProductService = Depends()
+) -> Any:
+    return await service.get_product_detail(product_id)
+
 @router.post("/products", response_model=ProductRead, status_code=status.HTTP_201_CREATED)
 async def create_product(
     payload: ProductCreate,

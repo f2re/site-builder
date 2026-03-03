@@ -1,6 +1,7 @@
 # Module: api/v1/auth/schemas.py | Agent: backend-agent | Task: BE-01_products_catalog
 from pydantic import BaseModel, EmailStr, ConfigDict, Field
 from uuid import UUID
+from datetime import datetime
 
 
 class UserBase(BaseModel):
@@ -17,6 +18,7 @@ class UserResponse(UserBase):
     is_active: bool
     is_superuser: bool
     role: str
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 

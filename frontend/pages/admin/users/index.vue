@@ -139,7 +139,9 @@ const downloadExcel = async () => {
                 <span v-if="user.is_active" class="status-active">Активен</span>
                 <span v-else class="status-blocked">Заблокирован</span>
               </td>
-              <td class="date-cell">{{ new Date(user.created_at).toLocaleDateString('ru-RU') }}</td>
+              <td class="date-cell">
+                {{ user.created_at ? new Date(user.created_at).toLocaleDateString('ru-RU') : '—' }}
+              </td>
             </tr>
           </tbody>
         </table>

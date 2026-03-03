@@ -2,13 +2,17 @@
 import { onMounted } from 'vue'
 import { useThemeStore } from '~/stores/themeStore'
 import { useCartStore } from '~/stores/cartStore'
+import { useUserStore } from '~/stores/userStore'
 
 const themeStore = useThemeStore()
 const cartStore  = useCartStore()
+const userStore  = useUserStore()
 
-onMounted(() => {
+onMounted(async () => {
   themeStore.init()
   cartStore.init()
+  // Restore user profile to keep isAdmin state after page refresh
+  await userStore.fetchProfile()
 })
 </script>
 
