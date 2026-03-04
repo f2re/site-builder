@@ -17,6 +17,11 @@ The interface MUST support **dark and light themes** with seamless animated swit
 
 - ALL API calls MUST go through composables: `composables/use*.ts`
 - ALL state MUST be in Pinia stores: `stores/*.ts`
+- **Types & Naming**:
+    - **ЗАПРЕЩЕНО** называть интерфейс/тип просто `Device` во избежание конфликтов авто-импорта Nuxt 3.
+    - Используй `IoTDevice` для телеметрии (`useIoT.ts`) и `FirmwareDevice` для прошивок (`firmwareStore.ts`).
+- **Dependencies**:
+    - При добавлении новых библиотек (особенно TipTap) использовать `npm install --legacy-peer-deps`.
 - ALL forms MUST have client-side validation (`vee-validate` + `zod` schemas)
 - NO hardcoded API URLs — use `useRuntimeConfig()` everywhere
 - Component hierarchy: `pages/` → `layouts/` → `components/`

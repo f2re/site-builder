@@ -632,3 +632,10 @@ grep NUXT_PUBLIC /srv/site-builder/.env.prod
 # Перезапустить фронтенд после изменения .env.prod:
 docker compose -f deploy/docker-compose.prod.yml --env-file .env.prod up -d --force-recreate frontend
 ```
+
+### Frontend Build Failures (TipTap/Peer Dependencies)
+Если сборка фронтенда падает на этапе `npm install` из-за конфликтов версий (особенно с расширениями TipTap), необходимо использовать:
+```bash
+npm install --legacy-peer-deps
+```
+Это поведение зафиксировано в `GEMINI.md` и обязательно для всех сред развертывания.

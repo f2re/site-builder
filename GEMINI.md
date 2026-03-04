@@ -193,9 +193,14 @@ site-builder/
 #### 📱 UI Parity Rule
 - Любая навигационная ссылка, добавленная в мобильное меню (Drawer), **ДОЛЖНА** иметь аналог в десктопной версии (Header/Sidebar), если иное не оговорено.
 
+#### 🏷️ Frontend Naming Conventions (Types & Interfaces)
+1. **Device Conflicts**: Во избежание конфликтов авто-импортов Nuxt 3, запрещено использовать общее имя `Device`.
+   - Для IoT/Телеметрии использовать `IoTDevice` (в `useIoT.ts`).
+   - Для Магазина/Прошивок использовать `FirmwareDevice` (в `firmwareStore.ts`).
+2. **Shared Types**: Общие типы данных (User, Order) должны быть единственными в `stores/` или `composables/`.
+
 ### Общие правила
 1. Все эндпоинты **MUST** иметь Pydantic-схемы (отдельные Request + Response)
-
 2. Все сервисы **MUST** принимать зависимости через `Depends` (DI)
 3. Все внешние API-вызовы **MUST** иметь retry через `tenacity` (3 попытки, exponential backoff)
 4. Все репозитории **MUST** использовать параметризованные запросы (no raw SQL)
@@ -205,6 +210,9 @@ site-builder/
 8. **ЗАПРЕЩЕНО**: хардкодить цвета в `.vue`-компонентах — только CSS-переменные из `tokens.css`
 9. Модели SQLAlchemy **MUST** жить только в `backend/app/db/models/`
 10. Нет дублирования: **ЗАПРЕЩЕНЫ** top-level `app/models/`, `app/schemas/`, `app/services/`
+11. **Frontend Build**: При установке пакетов использовать `npm install --legacy-peer-deps` (критично для TipTap расширений).
+12. **Testing**: Для интеграционных тестов бэкенда использовать `fakeredis[lua]>=2.20.0`.
+
 
 ### Feature-First структура backend
 Каждая фича в `backend/app/api/v1/{feature}/` **MUST** содержать:

@@ -170,9 +170,18 @@ backend/
 
 ### Cart (Redis + PostgreSQL)
 - Redis Hash `stock:{product_id}` — real-time stock reads
+- **Dependency Injection**: `CartService` MUST use `RedisInventory` via `get_inventory` dependency in `dependencies.py`.
 - Reservation: atomic Lua script for stock decrement (prevents race conditions)
 - Cart reservation TTL: 30 min — auto-released via Redis `EXPIRE`
 - PostgreSQL = source of truth; Redis = cache + reservation layer
+
+---
+
+## 🧪 Testing Contract
+
+- **Isolation**: Для интеграционных тестов (`tests/integration/`) ОБЯЗАТЕЛЬНО использовать `fakeredis[lua]>=2.20.0` в `conftest.py`.
+- **Database**: Использовать SQLite в памяти или `test.db` для тестов, обеспечивая совместимость типов (JSON вместо JSONB).
+- **Coverage**: Минимум 70% для API и 80% для бизнес-логики (Services).
 
 ---
 
