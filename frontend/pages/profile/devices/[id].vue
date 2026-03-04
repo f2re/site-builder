@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useIoT, type Device, type TelemetryEvent } from '~/composables/useIoT'
+import { useIoT, type IoTDevice, type TelemetryEvent } from '~/composables/useIoT'
 
 definePageMeta({
   middleware: 'auth'
@@ -9,7 +9,7 @@ const route = useRoute()
 const { getDevice, connectDevice } = useIoT()
 const toast = useToast()
 
-const device = ref<Device | null>(null)
+const device = ref<IoTDevice | null>(null)
 const status = ref<'connecting' | 'connected' | 'error' | 'disconnected'>('connecting')
 const telemetry = ref<any>({})
 const logs = ref<{ts: string, type: string, data: any}[]>([])

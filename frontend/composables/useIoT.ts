@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { useRuntimeConfig } from '#app'
 import { useAuth } from './useAuth'
 
-export interface Device {
+export interface IoTDevice {
   id: string
   device_uid: string
   name: string | null
@@ -29,7 +29,7 @@ export const useIoT = () => {
   const config = useRuntimeConfig()
   const { token } = useAuth()
   
-  const devices = ref<Device[]>([])
+  const devices = ref<IoTDevice[]>([])
   const pending = ref(false)
   const error = ref<any>(null)
 
@@ -37,7 +37,7 @@ export const useIoT = () => {
     pending.value = true
     error.value = null
     try {
-      const response = await $fetch<Device[]>(`${config.public.apiBase}/users/me/devices`, {
+      const response = await $fetch<IoTDevice[]>(`${config.public.apiBase}/users/me/devices`, {
         headers: {
           Authorization: `Bearer ${token.value}`
         }
@@ -56,7 +56,7 @@ export const useIoT = () => {
     pending.value = true
     error.value = null
     try {
-      const response = await $fetch<Device>(`${config.public.apiBase}/users/me/devices`, {
+      const response = await $fetch<IoTDevice>(`${config.public.apiBase}/users/me/devices`, {
         method: 'POST',
         body: data,
         headers: {
@@ -77,7 +77,7 @@ export const useIoT = () => {
     pending.value = true
     error.value = null
     try {
-      const response = await $fetch<Device>(`${config.public.apiBase}/users/me/devices/${id}`, {
+      const response = await $fetch<IoTDevice>(`${config.public.apiBase}/users/me/devices/${id}`, {
         headers: {
           Authorization: `Bearer ${token.value}`
         }

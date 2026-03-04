@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-export interface Device {
+export interface FirmwareDevice {
   id: string
   serial: string
   type: 'OBD' | 'AFR'
@@ -25,19 +25,19 @@ export interface Complectation {
 
 export const useFirmwareStore = defineStore('firmware', () => {
   const token = ref<string | null>(null)
-  const devices = ref<Device[]>([])
+  const devices = ref<FirmwareDevice[]>([])
   const versions = ref<Record<string, Version[]>>({})
   const complectations = ref<Record<string, Complectation[]>>({})
 
   // Admin state
-  const globalDevices = ref<Device[]>([])
+  const globalDevices = ref<FirmwareDevice[]>([])
   const allComplectations = ref<Complectation[]>([])
 
   function setToken(t: string) {
     token.value = t
   }
 
-  function setDevices(d: Device[]) {
+  function setDevices(d: FirmwareDevice[]) {
     devices.value = d
   }
 
@@ -49,7 +49,7 @@ export const useFirmwareStore = defineStore('firmware', () => {
     complectations.value[deviceId] = c
   }
 
-  function setGlobalDevices(d: Device[]) {
+  function setGlobalDevices(d: FirmwareDevice[]) {
     globalDevices.value = d
   }
 

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { Device } from '~/stores/firmwareStore'
+import type { FirmwareDevice } from '~/stores/firmwareStore'
 
 interface Props {
-  device: Device
+  device: FirmwareDevice
 }
 
 const props = defineProps<Props>()
