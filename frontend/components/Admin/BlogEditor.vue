@@ -207,7 +207,7 @@ function setLink() {
       </button>
     </div>
     
-    <EditorContent :editor="editor" class="editor-content" />
+    <EditorContent :editor="editor" class="editor-content" data-testid="admin-blog-editor" />
     
     <!-- Hidden file input for image upload -->
     <input

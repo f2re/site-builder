@@ -31,7 +31,7 @@ const getTagKey = (tag: any, index: number) => {
 </script>
 
 <template>
-  <NuxtLink :to="`/blog/${post.slug}`" class="blog-card">
+  <NuxtLink :to="`/blog/${post.slug}`" class="blog-card" data-testid="blog-post-card">
     <div class="blog-card__image-wrapper">
       <img
         :src="post.cover_url || '/placeholder-blog.png'"
@@ -48,7 +48,7 @@ const getTagKey = (tag: any, index: number) => {
         <span class="blog-card__reading-time">{{ post.reading_time_minutes || 0 }} мин. чтения</span>
       </div>
 
-      <h3 class="blog-card__title">{{ post.title }}</h3>
+      <h3 class="blog-card__title" data-testid="blog-post-title">{{ post.title }}</h3>
       <p class="blog-card__excerpt">{{ post.excerpt }}</p>
 
       <div class="blog-card__footer">

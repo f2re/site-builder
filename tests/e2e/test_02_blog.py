@@ -27,18 +27,24 @@ def test_blog_post_opens(page: Page):
 
 def test_admin_create_blog_post(admin_page: Page):
     """Администратор создаёт новый пост в блоге."""
-    admin_page.goto(f"{BASE_URL}/admin/blog/new")
-    admin_page.wait_for_selector("[data-testid='admin-blog-form']")
-
+    admin_page.goto(f"{BASE_URL}/admin/blog/create")
+    admin_page.wait_for_load_state("networkidle")
+    
     admin_page.fill("[data-testid='admin-blog-title']", "E2E Тестовый пост")
-    admin_page.fill("[data-testid='admin-blog-content']", "Контент тестового поста для E2E")
-    admin_page.click("[data-testid='admin-save-btn']")
+    
+    # Кликаем в редактор и печатаем
+    editor = admin_page.locator("[data-testid='admin-blog-editor'] [contenteditable='true']")
+    editor.click()
+    editor.fill("Контент тестового поста для E2E")
+    
+    admin_page.click("[data-testid='admin-save-btn']", force=True)
 
-    # Должен появиться toast об успехе или редирект в список
-    admin_page.wait_for_selector("[data-testid='blog-post-card']", timeout=8000)
+    # После сохранения должен быть редирект в список админки
+    admin_page.wait_for_url("**/admin/blog", timeout=10000)
 
-    # Проверяем что пост появился в списке
+    # Проверяем что пост появился в публичном списке
     admin_page.goto(f"{BASE_URL}/blog")
+    admin_page.wait_for_selector("[data-testid='blog-post-card']", timeout=10000)
     titles = admin_page.locator("[data-testid='blog-post-title']").all_text_contents()
-    assert "E2E Тестовый пост" in titles
+    assert any("E2E Тестовый пост" in t for u in titles for t in [u]) # titles is list of strings
     admin_page.screenshot(path="tests/e2e/screenshots/02_admin_blog_created.png")

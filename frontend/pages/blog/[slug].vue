@@ -52,7 +52,7 @@ const breadcrumbs = [
       <AppBreadcrumbs :crumbs="breadcrumbs" />
 
       <header class="post-header">
-        <h1 class="post-title">{{ post.title }}</h1>
+        <h1 class="post-title" data-testid="blog-post-title">{{ post.title }}</h1>
         
         <div class="post-meta">
           <time :datetime="post.published_at" class="post-date">
@@ -82,7 +82,7 @@ const breadcrumbs = [
         />
       </header>
 
-      <div class="post-content" v-html="post.content_html" />
+      <div class="post-content" v-html="post.content_html" data-testid="blog-post-content" />
 
       <footer class="post-footer">
         <div v-if="post.tags?.length" class="post-tags">
