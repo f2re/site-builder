@@ -185,6 +185,7 @@ onUnmounted(() => {
                 placeholder="••••••••"
                 :error="errors.confirmPassword"
                 icon="ph:lock-simple-bold"
+                data-testid="confirm-password-input"
               />
             </div>
           </div>

@@ -78,9 +78,11 @@ def get_migration_service(
 # ─── Schemas ─────────────────────────────────────────────────────────────────
 class SalesAnalytics(BaseModel):
     total_revenue: float
+    revenue_rub: float          # alias for frontend compatibility
     orders_count: int
     paid_orders_count: int
     users_count: int
+    products_count: int
     top_products: List[dict]
 
 class UserBlockRequest(BaseModel):
@@ -123,6 +125,10 @@ async def get_dashboard(
     # Users count
     users_count_stmt = select(func.count(User.id))
     total_users = (await session.execute(users_count_stmt)).scalar() or 0
+
+    # Products count
+    products_count_stmt = select(func.count(Product.id)).where(Product.is_active.is_(True))
+    total_products = (await session.execute(products_count_stmt)).scalar() or 0
 
     # Top products aggregation
     top_products_stmt = (

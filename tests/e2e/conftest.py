@@ -36,7 +36,7 @@ def _inject_token(page: Page, token: str) -> Page:
     page.context.add_cookies([{
         "name": "access_token",
         "value": token,
-        "url": BASE_URL,
+        "domain": "localhost",
         "path": "/"
     }])
     page.goto(BASE_URL)
