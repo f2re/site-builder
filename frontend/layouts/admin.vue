@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
@@ -25,6 +25,19 @@ watch(() => route.fullPath, () => {
 const toggleMobileMenu = () => {
   isMobileMenuOpen.value = !isMobileMenuOpen.value
 }
+
+// Block scroll when menu is open
+watch(isMobileMenuOpen, (val) => {
+  if (val) {
+    document.body.style.overflow = 'hidden'
+  } else {
+    document.body.style.overflow = ''
+  }
+})
+
+onUnmounted(() => {
+  document.body.style.overflow = ''
+})
 </script>
 
 <template>
@@ -43,6 +56,7 @@ const toggleMobileMenu = () => {
           class="nav-item"
           active-class="active"
           :exact="item.to === '/admin'"
+          data-testid="admin-nav-item"
         >
           <Icon :name="item.icon" size="20" />
           <span>{{ item.label }}</span>
@@ -50,7 +64,7 @@ const toggleMobileMenu = () => {
       </nav>
       
       <div class="admin-footer">
-        <UThemeToggle />
+        <UThemeToggle data-testid="theme-toggle" />
       </div>
     </aside>
 
@@ -64,7 +78,7 @@ const toggleMobileMenu = () => {
       <aside v-if="isMobileMenuOpen" class="admin-sidebar mobile-drawer">
         <div class="logo">
           <span class="logo-text">ADMIN<span class="dot">.</span></span>
-          <button class="close-btn" @click="isMobileMenuOpen = false">
+          <button class="close-btn" @click="isMobileMenuOpen = false" aria-label="Закрыть меню">
             <Icon name="ph:x-bold" size="24" />
           </button>
         </div>
@@ -77,6 +91,7 @@ const toggleMobileMenu = () => {
             class="nav-item"
             active-class="active"
             :exact="item.to === '/admin'"
+            @click="isMobileMenuOpen = false"
           >
             <Icon :name="item.icon" size="20" />
             <span>{{ item.label }}</span>
@@ -92,10 +107,17 @@ const toggleMobileMenu = () => {
     <main class="admin-main">
       <header class="admin-header">
         <div class="header-left">
-          <button class="menu-btn mobile-only" @click="toggleMobileMenu">
+          <button 
+            class="menu-btn mobile-only" 
+            @click="toggleMobileMenu" 
+            aria-label="Открыть меню"
+            data-testid="mobile-menu-btn"
+          >
             <Icon name="ph:list-bold" size="24" />
           </button>
-          <slot name="header-title" />
+          <div class="header-title">
+            <slot name="header-title" />
+          </div>
         </div>
         <div class="header-right">
           <slot name="header-actions" />
@@ -114,6 +136,7 @@ const toggleMobileMenu = () => {
   display: flex;
   min-height: 100vh;
   background: var(--color-bg);
+  position: relative;
 }
 
 .admin-sidebar {
@@ -126,6 +149,7 @@ const toggleMobileMenu = () => {
   top: 0;
   height: 100vh;
   z-index: var(--z-modal);
+  transition: background-color var(--transition-theme), border-color var(--transition-theme);
 }
 
 .desktop-only {
@@ -143,7 +167,9 @@ const toggleMobileMenu = () => {
   left: 0;
   top: 0;
   bottom: 0;
+  width: min(280px, 85vw);
   box-shadow: var(--shadow-modal);
+  z-index: var(--z-modal);
 }
 
 .mobile-overlay {
@@ -173,15 +199,23 @@ const toggleMobileMenu = () => {
   border: none;
   color: var(--color-text);
   cursor: pointer;
-  padding: 4px;
+  padding: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color var(--transition-fast);
+  transition: color var(--transition-fast), transform var(--transition-fast), background-color var(--transition-fast);
+  border-radius: var(--radius-md);
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .close-btn:hover, .menu-btn:hover {
   color: var(--color-accent);
+  background: var(--color-surface-2);
+}
+
+.close-btn:active, .menu-btn:active {
+  transform: scale(0.95);
 }
 
 .admin-nav {
@@ -190,17 +224,20 @@ const toggleMobileMenu = () => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  overflow-y: auto;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 12px;
   border-radius: var(--radius-md);
   color: var(--color-text-2);
   text-decoration: none;
   transition: all var(--transition-fast);
+  font-weight: 500;
+  min-height: 44px;
 }
 
 .nav-item:hover {
@@ -216,13 +253,15 @@ const toggleMobileMenu = () => {
 .admin-footer {
   padding: 16px;
   border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: center;
 }
 
 .admin-main {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-width: 0; /* Important for overflow containment */
+  min-width: 0;
 }
 
 .admin-header {
@@ -236,6 +275,7 @@ const toggleMobileMenu = () => {
   position: sticky;
   top: 0;
   z-index: var(--z-raised);
+  backdrop-filter: blur(12px);
 }
 
 @media (min-width: 769px) {
@@ -250,9 +290,28 @@ const toggleMobileMenu = () => {
   gap: 12px;
 }
 
+.header-title {
+  font-weight: 600;
+  color: var(--color-text);
+  font-size: var(--text-base);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+@media (min-width: 769px) {
+  .header-title {
+    max-width: 400px;
+  }
+}
+
 .admin-content {
   padding: 16px;
   flex: 1;
+  max-width: 1440px;
+  width: 100%;
+  margin: 0 auto;
 }
 
 @media (min-width: 769px) {

@@ -79,20 +79,25 @@ const handleCreate = async () => {
 
 <template>
   <div class="product-create-page">
-    <div class="mb-6 flex items-center justify-between">
-      <div class="flex items-center gap-4">
-        <UButton variant="ghost" to="/admin/products" icon="ph:arrow-left-bold" />
-        <h1 class="text-2xl font-bold">Новый товар</h1>
+    <template #header-title>
+      <div class="flex items-center gap-2">
+        <UButton variant="ghost" to="/admin/products" icon="ph:arrow-left-bold" size="sm" class="mobile-only" />
+        <span>Новый товар</span>
       </div>
+    </template>
+
+    <template #header-actions>
       <UButton 
         variant="primary" 
         :loading="isPending"
         icon="ph:floppy-disk-bold"
+        size="sm"
         @click="handleCreate"
+        data-testid="admin-save-btn"
       >
-        Сохранить
+        <span class="desktop-only">Сохранить</span>
       </UButton>
-    </div>
+    </template>
 
     <div class="grid gap-6 lg:grid-cols-3">
       <div class="lg:col-span-2 space-y-6">
@@ -103,6 +108,7 @@ const handleCreate = async () => {
               label="Название" 
               placeholder="Введите название товара"
               required
+              data-testid="admin-product-name"
             />
             <UInput 
               v-model="form.slug" 
@@ -135,18 +141,20 @@ const handleCreate = async () => {
 
         <UCard title="Цена и склад">
           <div v-for="(variant, index) in form.variants" :key="index" class="space-y-4">
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <UInput 
                 v-model.number="variant.price" 
                 type="number" 
                 label="Цена" 
                 placeholder="0.00"
+                data-testid="admin-product-price"
               />
               <UInput 
                 v-model.number="variant.stock_quantity" 
                 type="number" 
                 label="Количество на складе" 
                 placeholder="0"
+                data-testid="admin-product-stock"
               />
             </div>
             <UInput 
@@ -236,9 +244,12 @@ const handleCreate = async () => {
 .flex { display: flex; }
 .items-center { align-items: center; }
 .justify-between { justify-content: space-between; }
-.mb-6 { margin-bottom: 1.5rem; }
-.text-2xl { font-size: 1.5rem; line-height: 2rem; }
-.font-bold { font-weight: 700; }
 .text-sm { font-size: 0.875rem; line-height: 1.25rem; }
 .font-medium { font-weight: 500; }
+
+.mobile-only { display: none; }
+@media (max-width: 768px) {
+  .mobile-only { display: flex; }
+  .desktop-only { display: none; }
+}
 </style>

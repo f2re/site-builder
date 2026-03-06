@@ -39,10 +39,8 @@ const onSearchInput = () => {
   }, 500)
 }
 
-// Fix for TypeError: cyclic object value by mapping to clean objects
 const users = computed(() => {
   if (!data.value?.items) return []
-  // Create shallow copies of user objects to break potential circular references during serialization
   return data.value.items.map(u => ({ ...toRaw(u) }))
 })
 const total = computed(() => data.value?.total || 0)
@@ -65,19 +63,19 @@ const roleOptions = [
 
 const handleCreateUser = async () => {
   if (!userForm.value.email || !userForm.value.password) {
-    toast.error('Ошибка', 'Email и пароль обязательны')
+    toast.error('Email и пароль обязательны')
     return
   }
 
   isSubmitting.value = true
   try {
     await adminCreateUser(userForm.value)
-    toast.success('Успех', 'Пользователь создан')
+    toast.success('Пользователь создан')
     isModalOpen.value = false
     refresh()
     userForm.value = { email: '', full_name: '', password: '', role: 'customer' }
   } catch (err: any) {
-    toast.error('Ошибка', err.data?.message || 'Не удалось создать пользователя')
+    toast.error(err.data?.message || 'Не удалось создать пользователя')
   } finally {
     isSubmitting.value = false
   }
@@ -88,18 +86,16 @@ const handleBlockStatus = async (user: UserProfile) => {
   const newStatus = !user.is_active
   try {
     await adminSetUserBlockStatus(user.id, newStatus)
-    toast.success('Успех', `Пользователь ${newStatus ? 'разблокирован' : 'заблокирован'}`)
+    toast.success(`Пользователь ${newStatus ? 'разблокирован' : 'заблокирован'}`)
     refresh()
   } catch (err: any) {
-    toast.error('Ошибка', err.data?.message || 'Не удалось изменить статус')
+    toast.error(err.data?.message || 'Не удалось изменить статус')
   }
 }
 
 const downloadExcel = async () => {
   try {
     const blob = await adminExportUsers()
-    
-    // Create a link to download the blob
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -108,167 +104,133 @@ const downloadExcel = async () => {
     a.click()
     window.URL.revokeObjectURL(url)
     document.body.removeChild(a)
-    
-    toast.success('Экспорт завершен', 'Файл успешно скачан.')
+    toast.success('Экспорт завершен')
   } catch (err) {
-    toast.error('Ошибка экспорта', 'Не удалось скачать файл.')
+    toast.error('Не удалось скачать файл')
   }
 }
 </script>
 
 <template>
   <div class="admin-users-page">
-    <div class="page-header">
-      <h1 class="page-title">Пользователи</h1>
-      <div class="flex gap-3">
-        <UButton variant="ghost" @click="downloadExcel" icon="ph:file-xls-bold">
+    <template #header-title>Пользователи</template>
+    <template #header-actions>
+      <div class="flex gap-2">
+        <UButton variant="ghost" @click="downloadExcel" icon="ph:file-xls-bold" class="desktop-only">
           Экспорт
         </UButton>
-        <UButton variant="primary" @click="isModalOpen = true" icon="ph:user-plus-bold">
-          Создать пользователя
+        <UButton variant="primary" @click="isModalOpen = true" icon="ph:user-plus-bold" data-testid="admin-add-user-btn">
+          <span class="desktop-only">Создать</span>
         </UButton>
       </div>
-    </div>
+    </template>
 
     <UCard class="filters-card">
       <div class="filters">
         <div class="search-box">
           <UInput
             v-model="searchQuery"
-            placeholder="Поиск по email или имени..."
+            placeholder="Поиск..."
             icon="ph:magnifying-glass-bold"
             @input="onSearchInput"
           />
         </div>
         <div class="role-filter">
-          <select v-model="selectedRole" class="native-select">
+          <select v-model="selectedRole" class="native-select" @change="refresh">
             <option value="">Все роли</option>
             <option value="customer">Покупатель</option>
             <option value="manager">Менеджер</option>
             <option value="admin">Админ</option>
           </select>
         </div>
+        <UButton variant="ghost" @click="downloadExcel" icon="ph:file-xls-bold" class="mobile-only" aria-label="Экспорт" />
       </div>
     </UCard>
 
-    <UCard class="users-table-card">
+    <UCard class="table-card">
       <div v-if="pending" class="loading-state">
-        Загрузка...
+        <USkeleton v-for="i in 5" :key="i" height="64px" class="mb-2" />
       </div>
       <div v-else-if="error" class="error-state">
         Ошибка при загрузке данных
       </div>
-      <div v-else-if="users.length === 0" class="empty-state">
-        Пользователи не найдены
-      </div>
-      <div v-else class="table-responsive">
+      <div v-else class="admin-table-wrapper">
         <table class="admin-table">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Email</th>
-              <th>Имя</th>
-              <th>Роль</th>
-              <th>Статус</th>
-              <th>Регистрация</th>
+              <th>Пользователь</th>
+              <th class="desktop-only">Роль</th>
+              <th class="desktop-only">Статус</th>
+              <th class="desktop-only">Регистрация</th>
               <th class="actions-col">Действия</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="user in users" :key="user.id">
-              <td class="id-cell" :title="user.id">{{ user.id.substring(0, 8) }}...</td>
-              <td>{{ user.email }}</td>
-              <td>{{ user.full_name || '—' }}</td>
               <td>
+                <div class="user-info">
+                  <span class="user-name">{{ user.full_name || 'Без имени' }}</span>
+                  <span class="user-email">{{ user.email }}</span>
+                  <div class="user-meta mobile-only">
+                    <span class="role-badge" :class="`role-${user.role}`">{{ user.role }}</span>
+                    <span v-if="user.is_active" class="status-active">● Активен</span>
+                    <span v-else class="status-blocked">● Заблокирован</span>
+                  </div>
+                </div>
+              </td>
+              <td class="desktop-only">
                 <span class="role-badge" :class="`role-${user.role}`">{{ user.role }}</span>
               </td>
-              <td>
+              <td class="desktop-only">
                 <span v-if="user.is_active" class="status-active">Активен</span>
                 <span v-else class="status-blocked">Заблокирован</span>
               </td>
-              <td class="date-cell">
+              <td class="desktop-only">
                 {{ user.created_at ? new Date(user.created_at).toLocaleDateString('ru-RU') : '—' }}
               </td>
               <td class="actions-cell">
                 <UButton 
-                  v-if="user.is_active"
                   variant="ghost" 
                   size="sm" 
-                  color="danger"
+                  :color="user.is_active ? 'danger' : 'success'"
                   @click="handleBlockStatus(user)"
+                  :aria-label="user.is_active ? 'Заблокировать' : 'Разблокировать'"
                 >
-                  Заблокировать
-                </UButton>
-                <UButton 
-                  v-else
-                  variant="ghost" 
-                  size="sm" 
-                  color="success"
-                  @click="handleBlockStatus(user)"
-                >
-                  Разблокировать
+                  <Icon :name="user.is_active ? 'ph:user-minus-bold' : 'ph:user-plus-bold'" size="20" />
+                  <span class="desktop-only ml-2">{{ user.is_active ? 'Блок' : 'Разблок' }}</span>
                 </UButton>
               </td>
             </tr>
           </tbody>
         </table>
+        
+        <div v-if="users.length === 0" class="empty-state">
+          Пользователи не найдены
+        </div>
       </div>
     </UCard>
     
     <div class="pagination" v-if="total > 20">
-      <UButton 
-        variant="ghost" 
-        :disabled="currentPage === 1"
-        @click="currentPage--"
-      >
-        Назад
+      <UButton variant="ghost" :disabled="currentPage === 1" @click="currentPage--">
+        <Icon name="ph:caret-left-bold" />
       </UButton>
-      <span class="page-info">Страница {{ currentPage }}</span>
-      <UButton 
-        variant="ghost" 
-        :disabled="users.length < 20"
-        @click="currentPage++"
-      >
-        Вперед
+      <span class="page-info">{{ currentPage }}</span>
+      <UButton variant="ghost" :disabled="users.length < 20" @click="currentPage++">
+        <Icon name="ph:caret-right-bold" />
       </UButton>
     </div>
 
     <!-- Modal for new user -->
-    <UModal v-model="isModalOpen" title="Создать пользователя">
+    <UModal v-model="isModalOpen" title="Новый пользователь">
       <div class="space-y-4 pt-4">
-        <UInput 
-          v-model="userForm.email" 
-          label="Email" 
-          placeholder="user@example.com"
-          required
-        />
-        <UInput 
-          v-model="userForm.full_name" 
-          label="Имя" 
-          placeholder="Иван Иванов"
-        />
-        <UInput 
-          v-model="userForm.password" 
-          type="password"
-          label="Пароль" 
-          placeholder="********"
-          required
-        />
-        <USelect 
-          v-model="userForm.role" 
-          label="Роль" 
-          :options="roleOptions"
-        />
+        <UInput v-model="userForm.email" label="Email" placeholder="user@example.com" required />
+        <UInput v-model="userForm.full_name" label="Имя" placeholder="Иван Иванов" />
+        <UInput v-model="userForm.password" type="password" label="Пароль" placeholder="********" required />
+        <USelect v-model="userForm.role" label="Роль" :options="roleOptions" />
         
-        <div class="flex justify-end gap-3 mt-6">
-          <UButton variant="ghost" @click="isModalOpen = false">Отмена</UButton>
-          <UButton 
-            variant="primary" 
-            :loading="isSubmitting"
-            @click="handleCreateUser"
-          >
-            Создать
-          </UButton>
+        <div class="flex flex-col gap-3 mt-6 sm:flex-row sm:justify-end">
+          <UButton variant="ghost" @click="isModalOpen = false" class="sm:order-1">Отмена</UButton>
+          <UButton variant="primary" :loading="isSubmitting" @click="handleCreateUser" class="sm:order-2">Создать</UButton>
         </div>
       </div>
     </UModal>
@@ -279,40 +241,31 @@ const downloadExcel = async () => {
 .admin-users-page {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.page-title {
-  font-size: var(--text-2xl);
-  font-weight: 800;
-  margin: 0;
+  gap: 20px;
 }
 
 .filters-card {
-  padding: 16px;
+  padding: 12px;
 }
 
 .filters {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   align-items: center;
 }
 
 .search-box {
   flex: 1;
-  max-width: 400px;
+}
+
+.role-filter {
+  width: auto;
 }
 
 .native-select {
   height: 44px;
-  padding: 0 16px;
-  background-color: var(--color-bg);
+  padding: 0 12px;
+  background-color: var(--color-surface-2);
   border: 1px solid var(--color-border);
   color: var(--color-text);
   border-radius: var(--radius-md);
@@ -320,18 +273,15 @@ const downloadExcel = async () => {
   font-size: var(--text-sm);
   outline: none;
   cursor: pointer;
+  min-width: 120px;
 }
 
-.native-select:focus {
-  border-color: var(--color-accent);
-}
-
-.users-table-card {
+.table-card {
   padding: 0;
   overflow: hidden;
 }
 
-.table-responsive {
+.admin-table-wrapper {
   overflow-x: auto;
 }
 
@@ -352,52 +302,59 @@ const downloadExcel = async () => {
 }
 
 .admin-table td {
-  padding: 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--color-border);
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.user-name {
+  font-weight: 600;
+  color: var(--color-text);
   font-size: var(--text-sm);
 }
 
-.admin-table tr:last-child td {
-  border-bottom: none;
-}
-
-.id-cell {
-  font-family: var(--font-mono);
-  color: var(--color-muted);
-}
-
-.date-cell {
+.user-email {
   color: var(--color-text-2);
+  font-size: var(--text-xs);
 }
 
-.actions-col {
-  text-align: right;
-}
-
-.actions-cell {
-  text-align: right;
+.user-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 10px;
 }
 
 .role-badge {
-  display: inline-block;
-  padding: 4px 8px;
+  padding: 2px 6px;
   border-radius: var(--radius-sm);
-  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
+  font-size: 10px;
 }
 
-.role-customer { background-color: var(--color-surface-3); color: var(--color-text); }
-.role-manager { background-color: var(--color-accent-glow); color: var(--color-accent); }
-.role-admin { background-color: var(--color-error-bg); color: var(--color-error); }
+.role-customer { background: var(--color-surface-3); color: var(--color-text-2); }
+.role-manager { background: var(--color-info-bg); color: var(--color-info); }
+.role-admin { background: var(--color-accent-glow); color: var(--color-accent); }
 
 .status-active { color: var(--color-success); font-weight: 600; }
 .status-blocked { color: var(--color-error); font-weight: 600; }
 
-.loading-state, .error-state, .empty-state {
-  padding: 48px;
-  text-align: center;
-  color: var(--color-text-2);
+.actions-col, .actions-cell {
+  text-align: right;
+  width: 80px;
+}
+
+@media (min-width: 768px) {
+  .actions-col, .actions-cell {
+    width: 160px;
+  }
 }
 
 .pagination {
@@ -405,20 +362,37 @@ const downloadExcel = async () => {
   justify-content: center;
   align-items: center;
   gap: 16px;
-  margin-top: 16px;
+  margin-top: 8px;
 }
 
 .page-info {
-  font-size: var(--text-sm);
   font-weight: 600;
+  font-family: var(--font-mono);
 }
 
-.flex { display: flex; }
-.items-center { align-items: center; }
-.gap-2 { gap: 0.5rem; }
-.gap-3 { gap: 0.75rem; }
-.justify-end { justify-content: flex-end; }
-.space-y-4 > * + * { margin-top: 1rem; }
-.pt-4 { padding-top: 1rem; }
-.mt-6 { margin-top: 1.5rem; }
+.loading-state, .error-state, .empty-state {
+  padding: 48px;
+  text-align: center;
+  color: var(--color-text-2);
+}
+
+.desktop-only { display: none; }
+@media (min-width: 768px) { .desktop-only { display: inline-flex; } }
+
+.mobile-only { display: flex; }
+@media (min-width: 768px) { .mobile-only { display: none; } }
+
+.ml-2 { margin-left: 8px; }
+.mb-2 { margin-bottom: 8px; }
+.pt-4 { padding-top: 16px; }
+.mt-6 { margin-top: 24px; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.flex-col { flex-direction: column; }
+@media (min-width: 640px) {
+  .sm\:flex-row { flex-direction: row; }
+  .sm\:justify-end { justify-content: flex-end; }
+  .sm\:order-1 { order: 1; }
+  .sm\:order-2 { order: 2; }
+}
 </style>

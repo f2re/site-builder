@@ -97,6 +97,37 @@ const handleDelete = async () => {
 
 <template>
   <div class="product-edit-page">
+    <template #header-title>
+      <div class="flex items-center gap-2">
+        <UButton variant="ghost" to="/admin/products" icon="ph:arrow-left-bold" size="sm" class="mobile-only" />
+        <span class="truncate">{{ pending ? 'Загрузка...' : product?.name }}</span>
+      </div>
+    </template>
+
+    <template #header-actions>
+      <div class="flex gap-2">
+        <UButton 
+          variant="ghost" 
+          color="danger"
+          icon="ph:trash-bold"
+          size="sm"
+          @click="handleDelete"
+          data-testid="admin-delete-btn"
+          title="Удалить"
+        />
+        <UButton 
+          variant="primary" 
+          :loading="isPending"
+          icon="ph:floppy-disk-bold"
+          size="sm"
+          @click="handleUpdate"
+          data-testid="admin-save-btn"
+        >
+          <span class="desktop-only">Сохранить</span>
+        </UButton>
+      </div>
+    </template>
+
     <div v-if="pending" class="space-y-6">
       <USkeleton height="40px" width="300px" />
       <div class="grid gap-6 lg:grid-cols-3">
@@ -114,145 +145,121 @@ const handleDelete = async () => {
       <UButton to="/admin/products" variant="ghost">Вернуться к списку</UButton>
     </div>
 
-    <template v-else>
-      <div class="mb-6 flex items-center justify-between">
-        <div class="flex items-center gap-4">
-          <UButton variant="ghost" to="/admin/products" icon="ph:arrow-left-bold" />
-          <h1 class="text-2xl font-bold">Редактирование: {{ product?.name }}</h1>
-        </div>
-        <div class="flex gap-3">
-          <UButton 
-            variant="ghost" 
-            color="danger"
-            icon="ph:trash-bold"
-            @click="handleDelete"
-          >
-            Удалить
-          </UButton>
-          <UButton 
-            variant="primary" 
-            :loading="isPending"
-            icon="ph:floppy-disk-bold"
-            @click="handleUpdate"
-          >
-            Сохранить
-          </UButton>
-        </div>
+    <div v-else class="grid gap-6 lg:grid-cols-3">
+      <div class="lg:col-span-2 space-y-6">
+        <UCard title="Основная информация">
+          <div class="space-y-4">
+            <UInput 
+              v-model="form.name" 
+              label="Название" 
+              placeholder="Введите название товара"
+              required
+              data-testid="admin-product-name"
+            />
+            <UInput 
+              v-model="form.slug" 
+              label="Slug (URL)" 
+              placeholder="nazvanie-tovara"
+              required
+            />
+            <USelect 
+              v-model="form.category_id" 
+              label="Категория" 
+              :options="categoryOptions"
+              placeholder="Выберите категорию"
+            />
+            <UTextarea 
+              v-model="form.description" 
+              label="Краткое описание" 
+              placeholder="Краткое описание товара (для карточки)"
+              rows="2"
+            />
+          </div>
+        </UCard>
+
+        <UCard title="Изображения">
+          <ProductMediaManager v-model="form.images" />
+        </UCard>
+
+        <UCard title="Полное описание (Rich Text)">
+          <TipTapEditor v-model="form.content_json" placeholder="Расскажите о товаре подробно..." />
+        </UCard>
+
+        <UCard title="Цена и склад">
+          <div v-for="(variant, index) in form.variants" :key="index" class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <UInput 
+                v-model.number="variant.price" 
+                type="number" 
+                label="Цена" 
+                placeholder="0.00"
+                data-testid="admin-product-price"
+              />
+              <UInput 
+                v-model.number="variant.stock_quantity" 
+                type="number" 
+                label="Количество на складе" 
+                placeholder="0"
+                data-testid="admin-product-stock"
+              />
+            </div>
+            <UInput 
+              v-model="variant.sku" 
+              label="Артикул (SKU)" 
+              placeholder="SKU-123"
+            />
+          </div>
+        </UCard>
       </div>
 
-      <div class="grid gap-6 lg:grid-cols-3">
-        <div class="lg:col-span-2 space-y-6">
-          <UCard title="Основная информация">
-            <div class="space-y-4">
-              <UInput 
-                v-model="form.name" 
-                label="Название" 
-                placeholder="Введите название товара"
-                required
-              />
-              <UInput 
-                v-model="form.slug" 
-                label="Slug (URL)" 
-                placeholder="nazvanie-tovara"
-                required
-              />
-              <USelect 
-                v-model="form.category_id" 
-                label="Категория" 
-                :options="categoryOptions"
-                placeholder="Выберите категорию"
-              />
-              <UTextarea 
-                v-model="form.description" 
-                label="Краткое описание" 
-                placeholder="Краткое описание товара (для карточки)"
-                rows="2"
-              />
+      <div class="space-y-6">
+        <UCard title="Статус">
+          <div class="space-y-4">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium">Активен</span>
+              <input type="checkbox" v-model="form.is_active" class="toggle-switch" />
             </div>
-          </UCard>
-
-          <UCard title="Изображения">
-            <ProductMediaManager v-model="form.images" />
-          </UCard>
-
-          <UCard title="Полное описание (Rich Text)">
-            <TipTapEditor v-model="form.content_json" placeholder="Расскажите о товаре подробно..." />
-          </UCard>
-
-          <UCard title="Цена и склад">
-            <div v-for="(variant, index) in form.variants" :key="index" class="space-y-4">
-              <div class="grid grid-cols-2 gap-4">
-                <UInput 
-                  v-model.number="variant.price" 
-                  type="number" 
-                  label="Цена" 
-                  placeholder="0.00"
-                />
-                <UInput 
-                  v-model.number="variant.stock_quantity" 
-                  type="number" 
-                  label="Количество на складе" 
-                  placeholder="0"
-                />
-              </div>
-              <UInput 
-                v-model="variant.sku" 
-                label="Артикул (SKU)" 
-                placeholder="SKU-123"
-              />
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium">Рекомендуемый</span>
+              <input type="checkbox" v-model="form.is_featured" class="toggle-switch" />
             </div>
-          </UCard>
-        </div>
+          </div>
+        </UCard>
 
-        <div class="space-y-6">
-          <UCard title="Статус">
-            <div class="space-y-4">
-              <div class="flex items-center justify-between">
-                <span class="text-sm font-medium">Активен</span>
-                <input type="checkbox" v-model="form.is_active" class="toggle-switch" />
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-sm font-medium">Рекомендуемый</span>
-                <input type="checkbox" v-model="form.is_featured" class="toggle-switch" />
-              </div>
+        <UCard title="SEO">
+          <div class="space-y-4">
+            <UInput 
+              v-model="form.meta_title" 
+              label="Meta Title" 
+              placeholder="SEO Заголовок"
+            />
+            <UTextarea 
+              v-model="form.meta_description" 
+              label="Meta Description" 
+              placeholder="SEO Описание"
+              rows="3"
+            />
+          </div>
+        </UCard>
+        
+        <UCard title="Инфо">
+          <div class="space-y-2 text-xs text-muted">
+            <div class="flex justify-between">
+              <span>ID:</span>
+              <span class="font-mono">{{ product?.id }}</span>
             </div>
-          </UCard>
-
-          <UCard title="SEO">
-            <div class="space-y-4">
-              <UInput 
-                v-model="form.meta_title" 
-                label="Meta Title" 
-                placeholder="SEO Заголовок"
-              />
-              <UTextarea 
-                v-model="form.meta_description" 
-                label="Meta Description" 
-                placeholder="SEO Описание"
-                rows="3"
-              />
+            <div class="flex justify-between">
+              <span>Создан:</span>
+              <span>{{ product?.created_at ? new Date(product.created_at).toLocaleString('ru-RU') : '—' }}</span>
             </div>
-          </UCard>
-          
-          <UCard title="Инфо">
-            <div class="space-y-2 text-xs text-muted">
-              <div class="flex justify-between">
-                <span>ID:</span>
-                <span class="font-mono">{{ product?.id }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span>Создан:</span>
-                <span>{{ product?.created_at ? new Date(product.created_at).toLocaleString('ru-RU') : '—' }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span>Обновлен:</span>
-                <span>{{ product?.updated_at ? new Date(product.updated_at).toLocaleString('ru-RU') : '—' }}</span>
-              </div>
+            <div class="flex justify-between">
+              <span>Обновлен:</span>
+              <span>{{ product?.updated_at ? new Date(product.updated_at).toLocaleString('ru-RU') : '—' }}</span>
             </div>
-          </UCard>
-        </div>
+          </div>
+        </UCard>
       </div>
-    </template>
+    </div>
   </div>
 </template>
 
@@ -292,7 +299,6 @@ const handleDelete = async () => {
 .space-y-4 > * + * { margin-top: 1rem; }
 .space-y-6 > * + * { margin-top: 1.5rem; }
 .grid { display: grid; }
-.gap-3 { gap: 0.75rem; }
 .gap-4 { gap: 1rem; }
 .gap-6 { gap: 1.5rem; }
 @media (min-width: 1024px) {
@@ -302,9 +308,6 @@ const handleDelete = async () => {
 .flex { display: flex; }
 .items-center { align-items: center; }
 .justify-between { justify-content: space-between; }
-.mb-6 { margin-bottom: 1.5rem; }
-.text-2xl { font-size: 1.5rem; line-height: 2rem; }
-.font-bold { font-weight: 700; }
 .text-sm { font-size: 0.875rem; line-height: 1.25rem; }
 .text-xs { font-size: 0.75rem; line-height: 1rem; }
 .font-medium { font-weight: 500; }
@@ -319,5 +322,17 @@ const handleDelete = async () => {
   padding: 64px 0;
   gap: 16px;
   color: var(--color-text-2);
+}
+
+.mobile-only { display: none; }
+@media (max-width: 768px) {
+  .mobile-only { display: flex; }
+  .desktop-only { display: none; }
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>
