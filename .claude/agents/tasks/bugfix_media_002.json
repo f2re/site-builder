@@ -1,0 +1,9 @@
+{
+  "task_id": "bugfix_media_002",
+  "phase": "hotfix",
+  "agent": "frontend-agent",
+  "title": "Fix Nitro devProxy path stripping for /media",
+  "root_cause": "Nitro devProxy strips the matching key prefix before forwarding. Key '/media' → strips '/media' from path → sends '/product/uuid.png' to target instead of '/media/product/uuid.png'. Fix: include '/media' in target URL so stripped path concatenates correctly.",
+  "fix": "nuxt.config.ts: target: 'http://localhost:8000/media' (вместо 'http://localhost:8000')",
+  "verification": "GET /media/product/uuid.png → backend log shows 'GET /media/product/uuid.png 200'"
+}

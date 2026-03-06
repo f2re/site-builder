@@ -66,10 +66,13 @@ export default defineNuxtConfig({
   nitro: {
     compressPublicAssets: true,
     devProxy: {
+      // Nitro strips the key prefix before forwarding, so target must include '/media'
+      // to reconstruct: /media/product/x.png → strips '/media' → /product/x.png
+      // → appended to target 'http://localhost:8000/media' → correct path
       '/media': {
-        target: process.env.NUXT_PUBLIC_API_BASE
+        target: (process.env.NUXT_PUBLIC_API_BASE
           ? process.env.NUXT_PUBLIC_API_BASE.replace('/api/v1', '')
-          : 'http://localhost:8000',
+          : 'http://localhost:8000') + '/media',
         changeOrigin: true,
       },
     },

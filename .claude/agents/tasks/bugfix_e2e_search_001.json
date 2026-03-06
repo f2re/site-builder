@@ -1,0 +1,19 @@
+{
+  "task_id": "bugfix_e2e_search_001",
+  "phase": "hotfix",
+  "agent": "frontend-agent",
+  "title": "Add search inputs with data-testid='search-input' to admin/products and shop pages",
+  "description": "E2E тесты test_03_admin_products.py ищут [data-testid='search-input'] на /admin/products и /shop, но элемент не существует. Нужно добавить строку поиска на обе страницы.",
+  "priority": "high",
+  "failing_tests": [
+    "tests/e2e/test_03_admin_products.py::test_admin_add_product",
+    "tests/e2e/test_03_admin_products.py::test_admin_delete_product"
+  ],
+  "acceptance_criteria": [
+    "/admin/products — input с data-testid='search-input' фильтрует products?.items по введённому тексту",
+    "/shop — input с data-testid='search-input' или поиск через Meilisearch с data-testid='search-input'",
+    "data-testid='search-results' появляется после ввода текста",
+    "npm run lint → clean"
+  ],
+  "report_path": ".claude/agents/reports/frontend/bugfix_e2e_search_001.md"
+}
