@@ -26,7 +26,6 @@
 - **Redis 7** — сессии, кэш, Celery broker
 - **Celery + Beat** — фоновые задачи (уведомления, обновление курсов, индексация)
 - **Meilisearch** — полнотекстовый поиск по товарам и статьям
-- **MinIO** — хранилище медиафайлов (S3-совместимое, self-hosted)
 
 ### Frontend
 - **Nuxt 3** (SSR), Vue 3 Composition API, TypeScript, Pinia
@@ -44,7 +43,6 @@
 - **Nginx** — reverse proxy + раздача статики
 - **CI/CD: GitLab CI** (`.gitlab-ci.yml`) — **НИКОГДА не GitHub Actions**
 - **Registry: GitLab Container Registry** — **НИКОГДА не Docker Hub**
-- **Monitoring**: Prometheus + Grafana + Loki + Promtail (prod-профиль)
 - Секреты: `.env` (в git не коммитить), шаблон: `.env.example`
 
 ### 🏗 Infrastructure Sync Policy (Docker)
@@ -104,7 +102,6 @@ site-builder/
 │   │       ├── yoomoney.py
 │   │       ├── cbr_rates.py
 │   │       ├── meilisearch.py
-│   │       └── minio.py
 │   ├── migrations/
 │   │   └── versions/
 │   ├── Dockerfile
@@ -139,10 +136,6 @@ site-builder/
 │   │   ├── nginx.conf              # prod
 │   │   └── nginx.dev.conf          # dev
 │   ├── docker-compose.prod.yml
-│   └── monitoring/
-│       ├── prometheus.yml
-│       ├── loki.yml
-│       └── promtail.yml
 │
 ├── tests/
 │   ├── unit/
