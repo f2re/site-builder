@@ -8,7 +8,7 @@ import UCard from '~/components/U/UCard.vue'
 import UModal from '~/components/U/UModal.vue'
 
 definePageMeta({
-  layout: 'admin',
+  layout: false,
   middleware: 'auth',
 })
 

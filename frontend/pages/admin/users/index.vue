@@ -9,6 +9,7 @@ import UModal from '~/components/U/UModal.vue'
 import USelect from '~/components/U/USelect.vue'
 
 definePageMeta({
+  layout: false,
   middleware: 'auth',
 })
 

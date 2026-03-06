@@ -5,6 +5,7 @@ import USkeleton from '~/components/U/USkeleton.vue'
 import USelect from '~/components/U/USelect.vue'
 
 definePageMeta({
+  layout: false,
   middleware: 'auth',
 })
 

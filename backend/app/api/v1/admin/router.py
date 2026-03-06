@@ -100,14 +100,15 @@ async def get_dashboard(
     session: AsyncSession = Depends(get_db)
 ) -> Any:
     """Return real sales analytics summary from DB."""
-    # Paid statuses for aggregation
+    # Paid statuses for aggregation — use .value to ensure lowercase strings
+    # match the PostgreSQL orderstatus enum values
     paid_statuses = [
-        OrderStatus.PAID, 
-        OrderStatus.PROCESSING, 
-        OrderStatus.SHIPPED, 
-        OrderStatus.DELIVERED
+        OrderStatus.PAID.value,
+        OrderStatus.PROCESSING.value,
+        OrderStatus.SHIPPED.value,
+        OrderStatus.DELIVERED.value,
     ]
-    
+
     revenue_stmt = select(func.sum(Order.total_amount)).where(Order.status.in_(paid_statuses))
     revenue_res = await session.execute(revenue_stmt)
     total_revenue = float(revenue_res.scalar() or 0.0)
@@ -116,7 +117,7 @@ async def get_dashboard(
     count_stmt = select(func.count(Order.id))
     total_orders = (await session.execute(count_stmt)).scalar() or 0
     
-    paid_count_stmt = select(func.count(Order.id)).where(Order.status == OrderStatus.PAID)
+    paid_count_stmt = select(func.count(Order.id)).where(Order.status == OrderStatus.PAID.value)
     paid_orders = (await session.execute(paid_count_stmt)).scalar() or 0
 
     # Users count
@@ -132,7 +133,7 @@ async def get_dashboard(
         .join(ProductVariant, Product.id == ProductVariant.product_id)
         .join(OrderItem, ProductVariant.id == OrderItem.product_variant_id)
         .join(Order, Order.id == OrderItem.order_id)
-        .where(Order.status.in_(paid_statuses))
+        .where(Order.status.in_(paid_statuses))  # paid_statuses already .value strings
         .group_by(Product.name)
         .order_by(func.sum(OrderItem.quantity).desc())
         .limit(5)
