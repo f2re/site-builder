@@ -1,0 +1,16 @@
+{
+  "task_id": "p_hotfix_frontend_001",
+  "phase": "hotfix",
+  "agent": "frontend-agent",
+  "title": "Fix Admin Panel UI Duplication and Data Display",
+  "description": "The admin panel has duplicated UI components. Investigate `frontend/pages/admin` and `frontend/components/Admin`, remove the duplication, and create a single source of truth for the admin layout. After the backend issues are resolved (task p_hotfix_backend_001), ensure the user list and product list pages in the admin panel correctly fetch data from their respective API endpoints and render it, including proper loading and error states.",
+  "depends_on": ["p_hotfix_backend_001"],
+  "priority": "high",
+  "acceptance_criteria": [
+    "Duplicated admin panel code is removed and consolidated into a single component/layout.",
+    "The admin page for products successfully displays a list of products fetched from the API.",
+    "The admin page for users/stats successfully displays data fetched from the API.",
+    "The UI correctly handles loading states while data is being fetched.",
+    "The UI correctly handles error states if the API calls fail for any reason."
+  ]
+}

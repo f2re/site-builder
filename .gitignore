@@ -50,3 +50,6 @@ coverage/
 *.local
 .vercel
 .netlify
+backend/.venv/
+.pids/
+.meilisearch_data/

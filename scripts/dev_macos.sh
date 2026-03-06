@@ -154,7 +154,7 @@ setup_env() {
 # ── 3. PostgreSQL ──────────────────────────────────────────────────────────────
 setup_postgres() {
   info "Запускаем PostgreSQL..."
-  brew services start postgresql
+  # brew services start postgresql
   wait_port "PostgreSQL" localhost 5432 20
 
   psql postgres -tc "SELECT 1 FROM pg_roles WHERE rolname='sb_user'" \

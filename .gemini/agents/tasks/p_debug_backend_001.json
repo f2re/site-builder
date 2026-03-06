@@ -1,0 +1,14 @@
+{
+  "task_id": "p_debug_backend_001",
+  "phase": "debug",
+  "agent": "backend-agent",
+  "title": "Исправить ошибки 500 на эндпоинтах /products и /admin/stats",
+  "description": "Эндпоинт GET /api/v1/products возвращает ошибку 500. Вероятная причина в некорректной пагинации по UUID в `backend/app/api/v1/products/repository.py` в методе `list_products`. Также эндпоинт GET /api/v1/admin/stats возвращает ошибку 500. Необходимо проанализировать код, найти и устранить причины обеих ошибок.",
+  "depends_on": [],
+  "priority": "critical",
+  "acceptance_criteria": [
+    "GET /api/v1/products возвращает статус 200 OK со списком продуктов.",
+    "GET /api/v1/admin/stats возвращает статус 200 OK со статистикой админ-панели.",
+    "Код проходит проверку линтером и типами (`ruff check` и `mypy`)."
+  ]
+}
