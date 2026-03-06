@@ -6,7 +6,7 @@
  */
 
 definePageMeta({
-  layout: 'admin',
+  layout: false,
   middleware: 'auth'
 })
 

@@ -5,6 +5,7 @@ import UBadge from '~/components/U/UBadge.vue'
 import USkeleton from '~/components/U/USkeleton.vue'
 
 definePageMeta({
+  layout: false,
   middleware: 'auth',
 })
 

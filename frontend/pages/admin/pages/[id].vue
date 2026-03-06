@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { toFormValidator } from '@vee-validate/zod'
 
 definePageMeta({
-  layout: 'admin',
+  layout: false,
   middleware: 'auth'
 })
 

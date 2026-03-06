@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({
-  layout: 'admin'
+  layout: false
 })
 
 const { getPages, deletePage } = usePages()
