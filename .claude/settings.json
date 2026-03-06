@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ruff check*)",
+      "Bash(ruff format*)",
+      "Bash(mypy*)",
+      "Bash(pytest*)",
+      "Bash(alembic check*)",
+      "Bash(alembic heads*)",
+      "Bash(alembic upgrade*)",
+      "Bash(alembic revision*)",
+      "Bash(npm run lint)",
+      "Bash(npm install*)",
+      "Bash(pip install -r*)",
+      "Bash(docker compose config)",
+      "Bash(docker compose ps)",
+      "Bash(grep*)",
+      "Bash(find*)",
+      "Bash(cat*)",
+      "Bash(ls*)"
+    ],
+    "deny": [
+      "Bash(git push*)",
+      "Bash(docker push*)",
+      "Bash(docker pull *latest*)",
+      "Bash(curl * | bash*)",
+      "Bash(wget * | sh*)"
+    ]
+  },
+  "model": "claude-opus-4-5",
+  "includeCoAuthoredBy": true
+}
