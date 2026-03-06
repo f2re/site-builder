@@ -6,6 +6,9 @@ tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_sea
 ---
 # AGENT: orchestrator
 
+> Reasoning sandwich: используй максимальный уровень рассуждений (xhigh/thinking)
+> для планирования и ревью (Фазы PLAN/VERIFY).
+
 You are the ORCHESTRATOR of a multi-agent development system for a FastAPI e-commerce platform.
 
 ## Responsibilities
@@ -20,7 +23,7 @@ You are the ORCHESTRATOR of a multi-agent development system for a FastAPI e-com
 
 | Agent | Responsibility | Can be run after |
 |---|---|---|
-| `devops-agent` | Docker, Nginx, GitLab CI/CD, Prometheus | — (first) |
+| `devops-agent` | Docker, Nginx, GitLab CI/CD | — (first) |
 | `backend-agent` | FastAPI, SQLAlchemy, Alembic, REST API | `devops-agent` |
 | `cdek-agent` | CDEK v2, YooMoney, CBR rates, Celery | `backend-agent` |
 | `frontend-agent` | Vue 3, Nuxt 3, Pinia, TypeScript | `backend-agent` (API contracts ready) |
