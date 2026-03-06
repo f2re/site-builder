@@ -21,6 +21,14 @@ class OrderStatus(str, enum.Enum):
     REFUNDED = "refunded"
 
 
+ORDER_STATUS_DB_ENUM = SAEnum(
+    OrderStatus,
+    name="orderstatus",
+    values_callable=lambda enum_cls: [status.value for status in enum_cls],
+    validate_strings=True,
+)
+
+
 class Order(Base):
     __tablename__ = "orders"
 
@@ -29,7 +37,7 @@ class Order(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     status: Mapped[OrderStatus] = mapped_column(
-        SAEnum(OrderStatus), default=OrderStatus.PENDING_PAYMENT, nullable=False
+        ORDER_STATUS_DB_ENUM, default=OrderStatus.PENDING_PAYMENT, nullable=False
     )
     total_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="RUB")
