@@ -1,4 +1,5 @@
-# Module: api/v1/products/repository.py | Agent: backend-agent | Task: BE-01
+# Module: products/repository.py | Agent: backend-agent | Task: p_bugfix_backend_001
+from datetime import fromisoformat
 from typing import Optional, Tuple, List
 from uuid import UUID
 from decimal import Decimal
@@ -47,7 +48,7 @@ class ProductRepository:
         min_price: Optional[Decimal] = None,
         max_price: Optional[Decimal] = None,
         is_featured: Optional[bool] = None,
-        cursor: Optional[UUID] = None,
+        cursor: Optional[str] = None, # Expect a cursor string "created_at,id"
         per_page: int = 20,
         active_only: bool = True,
     ) -> Tuple[list[dict], Optional[str]]:
@@ -103,9 +104,20 @@ class ProductRepository:
             stmt = stmt.where(min_price_sq.c.min_price <= max_price)
 
         if cursor:
-            stmt = stmt.where(Product.id > cursor)
-        
-        stmt = stmt.order_by(Product.id).limit(per_page + 1)
+            try:
+                cursor_created_at_str, cursor_id_str = cursor.split(',')
+                cursor_created_at = fromisoformat(cursor_created_at_str.replace('Z', '+00:00'))
+                cursor_id = UUID(cursor_id_str)
+                # Keyset pagination condition
+                stmt = stmt.where(
+                    (Product.created_at > cursor_created_at) | 
+                    ((Product.created_at == cursor_created_at) & (Product.id > cursor_id))
+                )
+            except (ValueError, IndexError):
+                # Handle invalid cursor format gracefully
+                pass
+
+        stmt = stmt.order_by(Product.created_at, Product.id).limit(per_page + 1)
         
         result = await self.session.execute(stmt)
         rows = result.all()
@@ -127,8 +139,13 @@ class ProductRepository:
             
         next_cursor = None
         if len(rows) > per_page:
-            next_cursor = str(items[-1]["id"])
+            last_item = items[-1]
+            # Format the created_at to be URL-safe and consistent
+            created_at_iso = last_item["created_at"].isoformat().replace('+00:00', 'Z')
+            next_cursor = f"{created_at_iso},{last_item['id']}"
             
+        # FIX: Removed the loop that popped 'created_at' as it's required by the schema.
+
         return items, next_cursor
 
     async def create(self, product: Product) -> Product:
