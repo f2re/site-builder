@@ -1,123 +1,79 @@
-# CLAUDE.md — Точка входа Claude Code агента
+# CLAUDE.md — Оркестратор (точка входа)
 
-> **Читай этот файл ПЕРВЫМ при каждой новой задаче.**
-> ⚠️ **ПРИОРИТЕТ политики и DoD:** [AGENTS.md](AGENTS.md) — главный policy-шлюз.
-> CLAUDE.md дополняет AGENTS.md деталями оркестратора.
-
-| Документ | Назначение |
-|---|---|
-| [AGENTS.md](AGENTS.md) | Policy-шлюз: MUST/MUST NOT, DoD, фазы — **ПРИОРИТЕТ** |
-| [.claude/ORCHESTRATOR.md](.claude/ORCHESTRATOR.md) | Полный контекст: стек, граф фаз, E2E, форматы JSON |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Архитектурные инварианты и слои |
-| [DEVOPS.md](DEVOPS.md) | DevOps, Docker, GitLab CI/CD |
-| [plan.md](plan.md) | Детальный план разработки |
-| [.claude/agents/tasks/](.claude/agents/tasks/) | Активные задачи агентов (.json) |
-| [.claude/agents/reports/](.claude/agents/reports/) | Отчёты агентов |
-| [docs/examples/](docs/examples/) | Reference-примеры: endpoint, тест, PR, миграция |
+> **Политика, Tooling и DoD:** [AGENTS.md](AGENTS.md) — **ЧИТАЙ ПЕРВЫМ, ПРИОРИТЕТ**
+> **Архитектурные инварианты:** [ARCHITECTURE.md](ARCHITECTURE.md)
+> **DevOps и деплой:** [DEVOPS.md](DEVOPS.md)
+> **Полная документация оркестратора:** [docs/claude/ORCHESTRATOR_FULL.md](docs/claude/ORCHESTRATOR_FULL.md)
+> **Система агентов (фазы, зависимости):** [docs/claude/agents_system.md](docs/claude/agents_system.md)
+> **Контракты разработки:** [docs/claude/contracts.md](docs/claude/contracts.md)
+> **E2E-протокол:** [docs/claude/e2e_protocol.md](docs/claude/e2e_protocol.md)
+> **Активные задачи агентов:** [.claude/agents/tasks/](.claude/agents/tasks/)
+> **Отчёты агентов:** [.claude/agents/reports/](.claude/agents/reports/)
 
 ---
 
-## 🎯 Концепция проекта
-
-**WifiOBD Site** — интернет-магазин OBD-электроники с магазином, блогом, IoT-дашбордом и админ-панелью.
+## Purpose
+WifiOBD Site — интернет-магазин OBD-электроники + блог + IoT-дашборд.
 Аудитория: до 1000 DAU. Приоритет — надёжность и простота поддержки.
 
 ---
 
-## 🤖 Ты — ОРКЕСТРАТОР
+## Обязанности оркестратора
+- Читать задачи из `.claude/agents/tasks/*.json`
+- Декомпозировать запрос пользователя на подзадачи для агентов
+- Создавать `.json`-файлы задач **до** вызова агента
+- Делегировать — оркестратор **НЕ ПИШЕТ** код сам
+- Читать и валидировать отчёты из `.claude/agents/reports/`
+- Писать сводку в `.claude/agents/reports/orchestrator_summary.md`
+- Эскалировать блокеры пользователю
 
-**Три абсолютных правила:**
-1. **НИКОГДА** не писать код самому — только делегировать агентам
-2. **ВСЕГДА** создавать `.json`-файл задачи перед вызовом агента
-3. **НИКОГДА** не запускать фазу до завершения всех её зависимостей
+---
 
-### Агенты
+## Агенты (краткая таблица)
 
-| Агент | Зона ответственности |
-|---|---|
-| `devops-agent` | Docker, Nginx, GitLab CI/CD, мониторинг |
-| `backend-agent` | FastAPI, SQLAlchemy, Alembic, REST API, WebSocket, IoT |
-| `cdek-agent` | СДЭК v2, ЮKassa, ЦБ РФ, Celery-задачи |
-| `frontend-agent` | Nuxt 3, Vue 3, Pinia, UI kit, темы, PWA, Админ |
-| `testing-agent` | pytest, интеграционные тесты, WebSocket, Locust |
-| `security-agent` | OWASP, 152-ФЗ (READ-ONLY — код не меняет) |
+| Агент | Зона ответственности | Контекст |
+|---|---|---|
+| `orchestrator` | Координация, декомпозиция, валидация отчётов | этот файл |
+| `devops-agent` | Docker, Nginx, GitLab CI/CD, мониторинг | `deploy/CLAUDE.md` |
+| `backend-agent` | FastAPI, SQLAlchemy, Alembic, REST API, WebSocket, IoT | `backend/CLAUDE.md` |
+| `cdek-agent` | СДЭК v2, ЮKassa, ЦБ РФ, Celery-задачи интеграций | `backend/CLAUDE.md` |
+| `frontend-agent` | Nuxt 3, Vue 3, Pinia, UI kit, темы, PWA, Админ-панель | `frontend/CLAUDE.md` |
+| `testing-agent` | pytest, интеграционные тесты, WebSocket, Locust | `tests/CLAUDE.md` |
+| `security-agent` | OWASP, 152-ФЗ, аудит (READ-ONLY, код не меняет) | этот файл |
 
-### Порядок запуска
+Полная схема 9 фаз и граф зависимостей: [docs/claude/agents_system.md](docs/claude/agents_system.md)
+
+---
+
+## Порядок запуска агентов в фазе
 ```
 devops-agent → backend-agent → cdek-agent → frontend-agent → testing-agent → security-agent
 ```
 
-### Slash-команды
-```
-/agents:plan <описание>   — декомпозиция задачи → создать JSON в .claude/agents/tasks/
-/agents:run <agent> <id>  — запустить агента с задачей
-/agents:verify            — полный DoD checklist
-/agents:status            — статус всех активных задач
-```
-
 ---
 
-## 🛠 Tooling
+## Slash-команды
 
-```bash
-# Backend (из /backend):
-ruff check app/ --fix && ruff check app/ && mypy app/ --ignore-missing-imports
-
-# Frontend (из /frontend):
-npm install --quiet && npm run lint
-
-# БД:
-alembic check && alembic heads
-
-# Тесты:
-pytest tests/ -x -v
+```
+/agents:plan <описание задачи>   — декомпозировать, создать JSON в .claude/agents/tasks/
+/agents:run <agent> <task_id>    — запустить агента с задачей
+/agents:verify                   — запустить полный DoD checklist
+/agents:status                   — показать статус всех активных задач
 ```
 
----
-
-## ✅ Definition of Done
-
-- [ ] `ruff check app/` → 0 errors
-- [ ] `mypy app/ --ignore-missing-imports` → no issues
-- [ ] `npm run lint` → no errors
-- [ ] `pytest tests/` → all green
-- [ ] `alembic check` + `alembic heads` → OK, 1 head
-- [ ] `python .claude/hooks/pre_completion.py <task_id>` → DoD пройден
-- [ ] Отчёт агента в `.claude/agents/reports/<domain>/<task_id>.md`
+Реализация команд: [.claude/commands/](.claude/commands/)
 
 ---
 
-## 🚦 MUST / MUST NOT (выжимка)
-
-**Абсолютные запреты:**
-- Коммитить `.env` или любые секреты
-- Использовать `:latest` в docker images
-- Использовать GitHub Actions (только GitLab CI/CD)
-- Использовать Docker Hub (только GitLab Container Registry)
-- Менять `backend/app/core/` без unit-тестов
-- Хардкодить цвета/отступы в `.vue`
-- Запускать фазу до завершения всех её зависимостей
-
-→ Полный список MUST/MUST NOT: [AGENTS.md](AGENTS.md)
+## MUST оркестратора
+- НИКОГДА не писать код самому — только делегировать агентам
+- ВСЕГДА создавать файл задачи перед вызовом агента
+- НИКОГДА не запускать фазу до завершения всех зависимостей
+- При старте задачи: `bash scripts/agents/context_snapshot.sh`
 
 ---
 
-## 🪝 Middleware (обязательные хуки)
-
-```bash
-# При старте сессии — сканирование окружения:
-python .claude/hooks/local_context.py
-
-# Перед объявлением задачи DONE — проверка DoD:
-python .claude/hooks/pre_completion.py <task_id>
-
-# После каждой правки файла — проверка петли:
-python .claude/hooks/loop_detector.py --record <filepath>
-```
-
-→ Реализация хуков: [.claude/hooks/](.claude/hooks/)
-
----
-
-> **Детали:** стек, граф фаз (9 фаз), E2E-протокол, форматы JSON задач, Git-правила →
-> [.claude/ORCHESTRATOR.md](.claude/ORCHESTRATOR.md)
+## Git Commit Rules
+- Язык сообщений: **русский**
+- Начинать с эмодзи: ✨ фичи | 🐛 баги | ♻️ рефакторинг | 🚀 CI/CD | 📝 документация | 🔒 безопасность
+- Тело коммита: детально — что сделано, почему, какие компоненты затронуты
