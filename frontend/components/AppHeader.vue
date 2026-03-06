@@ -13,6 +13,9 @@ const cartStore = useCartStore()
 const authStore = useAuthStore()
 const userStore = useUserStore()
 const userName = computed(() => userStore.user?.full_name)
+watch([isAuthenticated, userName], ([auth, name]) => {
+  console.log(`[DEBUG] AppHeader: isAuthenticated=${auth}, userName=${name}`)
+}, { immediate: true })
 const isMenuOpen = ref(false)
 const isSearchOpen = ref(false)
 
@@ -135,6 +138,7 @@ watch(() => route.fullPath, () => {
                   to="/profile"
                   aria-label="Личный кабинет"
                   class="action-btn profile-btn"
+                  data-testid="user-menu"
                 >
                   <template #icon>
                     <Icon name="ph:user-bold" size="20" />
@@ -145,6 +149,7 @@ watch(() => route.fullPath, () => {
                   size="sm"
                   aria-label="Выйти"
                   class="action-btn logout-btn"
+                  data-testid="logout-btn"
                   @click="handleLogout"
                 >
                   <template #icon>

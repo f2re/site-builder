@@ -36,20 +36,22 @@ def test_register_new_user(page: Page):
     page.goto(f"{BASE_URL}/auth/register")
     page.fill("[data-testid='email-input']", unique_email)
     page.fill("[data-testid='password-input']", "NewUser123!")
+    page.fill("[data-testid='confirm-password-input']", "NewUser123!")
     page.fill("[data-testid='name-input']", "Иван Тестов")
     page.click("[data-testid='register-btn']")
 
-    # После регистрации — редирект или сообщение об успехе
-    page.wait_for_selector("[data-testid='user-name'], [data-testid='register-success']", timeout=8000)
+    # После регистрации — редирект на логин
+    page.wait_for_url("**/auth/login", timeout=8000)
     page.screenshot(path="tests/e2e/screenshots/01_register_success.png")
 
 
 def test_logout(customer_page: Page):
     """Выход из системы."""
     customer_page.goto(BASE_URL)
-    customer_page.click("[data-testid='user-menu']")
+    # На десктопе у нас кнопки в ряд, user-menu (профиль) не раскрывает меню
+    # Нажимаем сразу logout-btn
     customer_page.click("[data-testid='logout-btn']")
 
     # После логаута кнопка "Войти" должна появиться
-    expect(customer_page.locator("[data-testid='login-btn'], a[href*='login']")).to_be_visible(timeout=5000)
-    page.screenshot(path="tests/e2e/screenshots/01_logout.png")
+    expect(customer_page.locator("a[href*='/auth/login']")).to_be_visible(timeout=5000)
+    customer_page.screenshot(path="tests/e2e/screenshots/01_logout.png")
