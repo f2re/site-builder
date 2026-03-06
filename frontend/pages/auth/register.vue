@@ -148,6 +148,7 @@ onUnmounted(() => {
               placeholder="Иван Иванов"
               :error="errors.name"
               icon="ph:user-bold"
+              data-testid="name-input"
             />
 
             <UInput
@@ -159,6 +160,7 @@ onUnmounted(() => {
               placeholder="example@mail.com"
               :error="errors.email"
               icon="ph:envelope-simple-bold"
+              data-testid="email-input"
             />
 
             <div class="password-grid">
@@ -171,6 +173,7 @@ onUnmounted(() => {
                 placeholder="••••••••"
                 :error="errors.password"
                 icon="ph:lock-simple-bold"
+                data-testid="password-input"
               />
 
               <UInput
@@ -193,6 +196,7 @@ onUnmounted(() => {
               size="lg"
               :loading="isSubmitting"
               class="w-full btn-race"
+              data-testid="register-btn"
             >
               Создать аккаунт
               <template #iconRight>

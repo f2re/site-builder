@@ -12,6 +12,7 @@ const route = useRoute()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
 const userStore = useUserStore()
+const userName = computed(() => userStore.user?.full_name)
 const isMenuOpen = ref(false)
 const isSearchOpen = ref(false)
 
@@ -110,6 +111,9 @@ watch(() => route.fullPath, () => {
           <div class="account-actions hide-mobile">
             <template v-if="isAuthenticated">
               <div class="auth-group">
+                <div v-if="userName" class="user-greeting" data-testid="user-name">
+                  <span>{{ userName }}</span>
+                </div>
                 <!-- Admin Dashboard Link -->
                 <UButton
                   v-if="isAdmin"

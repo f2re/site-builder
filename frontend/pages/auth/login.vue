@@ -30,14 +30,18 @@ const { handleSubmit, errors, defineField, isSubmitting } = useForm({
 const [email, emailProps] = defineField('email')
 const [password, passwordProps] = defineField('password')
 
+const loginError = ref<string | null>(null)
+
 const onSubmit = handleSubmit(async (values) => {
+  loginError.value = null
   const result = await authStore.login(values.email, values.password)
   
   if (result.success) {
     toast.success('Успешный вход', 'Добро пожаловать обратно!')
     router.push('/profile')
   } else {
-    toast.error('Ошибка входа', result.error || 'Неверный email или пароль')
+    loginError.value = result.error || 'Неверный email или пароль'
+    toast.error('Ошибка входа', loginError.value)
   }
 })
 
@@ -113,6 +117,10 @@ onUnmounted(() => {
           </div>
         </template>
 
+        <div v-if="loginError" class="auth-error-message" data-testid="auth-error">
+          {{ loginError }}
+        </div>
+
         <form @submit.prevent="onSubmit" class="auth-form">
           <div class="form-grid">
             <UInput
@@ -124,6 +132,7 @@ onUnmounted(() => {
               placeholder="example@mail.com"
               :error="errors.email"
               icon="ph:envelope-simple-bold"
+              data-testid="email-input"
             />
 
             <div class="password-field">
@@ -136,6 +145,7 @@ onUnmounted(() => {
                 placeholder="••••••••"
                 :error="errors.password"
                 icon="ph:lock-simple-bold"
+                data-testid="password-input"
               />
               <NuxtLink to="/auth/forgot-password" class="forgot-link">
                 Забыли пароль?
@@ -150,6 +160,7 @@ onUnmounted(() => {
               size="lg"
               :loading="isSubmitting"
               class="w-full btn-race"
+              data-testid="login-btn"
             >
               Войти в систему
               <template #iconRight>
@@ -290,6 +301,19 @@ onUnmounted(() => {
   color: var(--color-text-2);
   font-size: var(--text-sm);
 }
+
+.auth-error-message {
+  background-color: var(--color-error-bg);
+  color: var(--color-error);
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  margin-bottom: 20px;
+  border: 1px solid var(--color-error);
+  text-align: center;
+}
+
 
 .auth-form {
   display: flex;

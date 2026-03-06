@@ -32,10 +32,14 @@ def _login_via_api(email: str, password: str) -> str:
 
 
 def _inject_token(page: Page, token: str) -> Page:
-    """Устанавливает токен и перезагружает страницу."""
+    """Устанавливает токен в куки и перезагружает страницу."""
+    page.context.add_cookies([{
+        "name": "access_token",
+        "value": token,
+        "url": BASE_URL,
+        "path": "/"
+    }])
     page.goto(BASE_URL)
-    page.evaluate(f"() => {{ localStorage.setItem('token', '{token}'); }}")
-    page.reload()
     page.wait_for_load_state("networkidle")
     return page
 

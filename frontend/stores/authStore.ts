@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { useUserStore } from './userStore'
 
 export const useAuthStore = defineStore('auth', () => {
   const config = useRuntimeConfig()
@@ -29,6 +30,10 @@ export const useAuthStore = defineStore('auth', () => {
         if (data.refresh_token) {
            refreshTokenCookie.value = data.refresh_token
         }
+        
+        const userStore = useUserStore()
+        await userStore.fetchProfile()
+
         return { success: true }
       }
       return { success: false, error: 'Invalid response' }
@@ -60,6 +65,10 @@ export const useAuthStore = defineStore('auth', () => {
         if (data.refresh_token) {
            refreshTokenCookie.value = data.refresh_token
         }
+        
+        const userStore = useUserStore()
+        await userStore.fetchProfile()
+
         return { success: true }
       }
       return { success: false, error: 'Invalid response' }
@@ -80,6 +89,10 @@ export const useAuthStore = defineStore('auth', () => {
         if (data.refresh_token) {
            refreshTokenCookie.value = data.refresh_token
         }
+        
+        const userStore = useUserStore()
+        await userStore.fetchProfile()
+
         return { success: true }
       }
       return { success: false, error: 'Invalid response' }

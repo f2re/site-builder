@@ -36,8 +36,7 @@ def test_register_new_user(page: Page):
     page.goto(f"{BASE_URL}/auth/register")
     page.fill("[data-testid='email-input']", unique_email)
     page.fill("[data-testid='password-input']", "NewUser123!")
-    page.fill("[data-testid='first-name-input']", "Иван")
-    page.fill("[data-testid='last-name-input']", "Тестов")
+    page.fill("[data-testid='name-input']", "Иван Тестов")
     page.click("[data-testid='register-btn']")
 
     # После регистрации — редирект или сообщение об успехе
