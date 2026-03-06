@@ -10,9 +10,6 @@ const cartStore = useCartStore()
 const authStore = useAuthStore()
 const userStore = useUserStore()
 const userName = computed(() => userStore.user?.full_name)
-watch(() => userStore.user, (u) => {
-  console.log('[DEBUG] AppHeader: user changed', JSON.stringify(u))
-}, { immediate: true, deep: true })
 const isMenuOpen = ref(false)
 const isSearchOpen = ref(false)
 

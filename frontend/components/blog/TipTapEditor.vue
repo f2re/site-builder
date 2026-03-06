@@ -74,10 +74,34 @@ const setLink = () => {
   editor.value?.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
 }
 
-const addImage = () => {
-  const url = window.prompt('URL изображения')
-  if (url) {
-    editor.value?.chain().focus().setImage({ src: url }).run()
+const { uploadImage } = useMediaUpload()
+const imageInputRef = ref<HTMLInputElement | null>(null)
+const isUploading = ref(false)
+
+const openImageDialog = () => {
+  imageInputRef.value?.click()
+}
+
+const handleImageUpload = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file || !editor.value) return
+
+  if (!file.type.startsWith('image/')) return
+  if (file.size > 5 * 1024 * 1024) {
+    alert('Размер изображения не должен превышать 5 МБ')
+    return
+  }
+
+  isUploading.value = true
+  try {
+    const url = await uploadImage(file, file.name, 'content')
+    editor.value.chain().focus().setImage({ src: url, alt: file.name }).run()
+  } catch {
+    // useMediaUpload уже показывает toast с ошибкой
+  } finally {
+    isUploading.value = false
+    if (target) target.value = ''
   }
 }
 
@@ -189,8 +213,9 @@ const addYoutube = () => {
         <button type="button" @click="setLink" :class="{ 'is-active': editor.isActive('link') }" title="Link">
           <Icon name="ph:link-bold" />
         </button>
-        <button type="button" @click="addImage" title="Image">
-          <Icon name="ph:image-bold" />
+        <button type="button" @click="openImageDialog" :disabled="isUploading" title="Image">
+          <Icon v-if="!isUploading" name="ph:image-bold" />
+          <Icon v-else name="ph:spinner" class="spin" />
         </button>
         <button type="button" @click="addYoutube" title="YouTube">
           <Icon name="ph:youtube-logo-bold" />
@@ -207,6 +232,15 @@ const addYoutube = () => {
         {{ editor.storage.characterCount.characters() }} символов
       </div>
     </div>
+
+    <!-- Hidden file input for image upload -->
+    <input
+      ref="imageInputRef"
+      type="file"
+      accept="image/*"
+      style="display: none"
+      @change="handleImageUpload"
+    />
   </div>
 </template>
 
@@ -311,5 +345,14 @@ const addYoutube = () => {
 .char-count {
   font-size: var(--text-xs);
   color: var(--color-muted);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>

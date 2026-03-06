@@ -1,0 +1,36 @@
+{
+  "task_id": "feature_editor_image_upload_001",
+  "phase": "feature",
+  "agent": "frontend-agent",
+  "title": "Добавить загрузку изображений в TipTapEditor + создать placeholder-blog.png",
+  "description": "1) TipTapEditor.vue использует window.prompt('URL изображения') — это неудобно и не позволяет загружать файлы. Нужно заменить на file upload по аналогии с URichEditor.vue, который уже реализован правильно. 2) Отсутствует файл frontend/public/placeholder-blog.png — нужно создать.",
+  "reference_implementation": "frontend/components/U/URichEditor.vue уже реализует правильный паттерн:\n- const { uploadImage } = useMediaUpload()\n- const imageInputRef = ref<HTMLInputElement | null>(null)\n- const isUploading = ref(false)\n- function openImageDialog() { imageInputRef.value?.click() }\n- async function handleImageUpload(event: Event) { ... await uploadImage(file, alt, 'content') ... editor.chain().focus().setImage({ src: url }).run() }\n- В шаблоне: <input ref='imageInputRef' type='file' accept='image/*' style='display:none' @change='handleImageUpload' />",
+  "files_to_fix": [
+    {
+      "file": "frontend/components/blog/TipTapEditor.vue",
+      "issues": [
+        "Функция addImage() (строка 77-82) использует window.prompt() — заменить на паттерн из URichEditor.vue: скрытый <input type='file'> + useMediaUpload() composable. Context передавать как 'content'. Alt-текст пропустить (не блокировать UX window.prompt)."
+      ]
+    },
+    {
+      "file": "frontend/public/placeholder-blog.png",
+      "issues": [
+        "Файл отсутствует. Создать PNG 400x250 пикселей (тёмно-серый цвет), аналогично уже существующему placeholder-product.png."
+      ]
+    }
+  ],
+  "important_notes": [
+    "useMediaUpload() уже существует в composables/useMediaUpload.ts и работает корректно",
+    "Backend endpoint POST /api/v1/media/upload уже работает — принимает file + context (form fields)",
+    "В TipTapEditor.vue НЕ нужно просить alt-текст через prompt — это блокирует UX. Использовать file.name как alt по умолчанию.",
+    "npm install --legacy-peer-deps при добавлении зависимостей (если нужно)"
+  ],
+  "acceptance_criteria": [
+    "Кнопка изображения в TipTapEditor открывает диалог выбора файла (не prompt)",
+    "После выбора файл загружается на сервер через POST /api/v1/media/upload",
+    "Изображение вставляется в редактор по возвращённому URL",
+    "Во время загрузки кнопка показывает спиннер (isUploading)",
+    "frontend/public/placeholder-blog.png существует",
+    "npm run lint — без ошибок"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "task_id": "bugfix_product_save_and_celery_001",
+  "phase": "bugfix",
+  "agent": "backend-agent",
+  "title": "Исправить сбои при сохранении товара: Celery Redis auth + MinIO legacy в upload_image",
+  "description": "Производственный баг: PUT /admin/products/{id} возвращает 500. Причина: _trigger_indexing() вызывает index_product_task.delay() без try/except и без ignore_result=True — Celery пытается подключиться к CELERY_RESULT_BACKEND (Redis с паролем) даже для fire-and-forget задач. Дополнительно: upload_image() использует устаревший minio_client вместо storage_client. Аналогичные проблемы есть в blog/service.py.",
+  "files_to_fix": [
+    {
+      "file": "backend/app/api/v1/products/service.py",
+      "issues": [
+        "Метод _trigger_indexing() (строка 261): index_product_task.delay(index_data) — нет try/except, нет ignore_result=True. Обернуть в try/except как в delete_product(). Использовать apply_async(ignore_result=True).",
+        "Метод upload_image() (строки 270-289): использует minio_client вместо storage_client из app.integrations.local_storage. Заменить: object_name = f'products/{product_id}/{uuid.uuid4().hex[:8]}_{file.filename}', content = await file.read(), await storage_client.save_file(object_name, content, file.content_type or 'image/jpeg'), url = storage_client.get_public_url(object_name). Убрать import io и from app.integrations.minio import minio_client если больше не используются."
+      ]
+    },
+    {
+      "file": "backend/app/api/v1/blog/service.py",
+      "issues": [
+        "create_post() строка ~246: index_blog_post_task.delay(index_data) — нет try/except. Обернуть в try/except с logger.warning.",
+        "update_post() строка ~337: index_blog_post_task.delay(index_data) — нет try/except. Обернуть в try/except с logger.warning.",
+        "delete_post() строка ~352: remove_blog_post_from_index_task.delay(str(post_id)) — нет try/except. Обернуть в try/except с logger.warning."
+      ]
+    }
+  ],
+  "pattern_for_fix": "Паттерн как в delete_product() уже реализован корректно:\ntry:\n    task.apply_async(args=[...], ignore_result=True)\nexcept Exception as exc:\n    logger.warning('search_index_task_failed', error=str(exc))",
+  "acceptance_criteria": [
+    "PUT /admin/products/{id} возвращает 200 даже когда Redis недоступен или требует пароль",
+    "POST /api/v1/products/{id}/images возвращает 200 и сохраняет файл локально",
+    "Все .delay() вызовы в products/service.py и blog/service.py обёрнуты в try/except",
+    "ruff check app/ — 0 ошибок",
+    "mypy app/ --ignore-missing-imports — без ошибок"
+  ]
+}

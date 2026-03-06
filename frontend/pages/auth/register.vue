@@ -59,12 +59,6 @@ const loginWithProvider = (provider: string) => {
 // Telegram Login Widget handler
 onMounted(() => {
   const botName = config.public.telegramBotName
-  const isDefault = botName === 'WifiOBD_Bot'
-  console.log('[DEBUG] Register Page - Telegram Bot Name from RuntimeConfig:', botName, isDefault ? '(using default)' : '(overridden)')
-
-  if (isDefault) {
-    console.warn('[DEBUG] Warning: Telegram Bot Name is using default "WifiOBD_Bot". If this is not intended, set NUXT_PUBLIC_TELEGRAM_BOT_NAME in .env')
-  }
 
   // Define callback on window
   // @ts-ignore

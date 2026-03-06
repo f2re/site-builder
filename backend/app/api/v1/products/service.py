@@ -1,16 +1,17 @@
 # Module: api/v1/products/service.py | Agent: backend-agent | Task: BE-01
 import bleach
-import io
+import uuid
 from typing import List, Optional
 from uuid import UUID
 from decimal import Decimal
 from fastapi import Depends, HTTPException, status, UploadFile
 
 from pydantic import TypeAdapter
+from app.core.logging import logger
 from app.api.v1.products.repository import ProductRepository, get_product_repo
 from app.api.v1.products.schemas import (
-    ProductPagination, 
-    ProductRead, 
+    ProductPagination,
+    ProductRead,
     CategoryTreeRead,
     CategoryRead,
     CategoryCreate,
@@ -23,7 +24,7 @@ from app.api.v1.products.schemas import (
 from app.db.models.product import Product, ProductImage, ProductVariant, Category
 from app.tasks.search import index_product_task, remove_product_from_index_task
 from app.core.utils import generate_slug, extract_text_from_tiptap
-from app.integrations.minio import minio_client
+from app.integrations.local_storage import storage_client
 
 # Allowed tags and attributes for sanitization
 ALLOWED_TAGS = bleach.sanitizer.ALLOWED_TAGS | {
@@ -228,9 +229,12 @@ class ProductService:
             )
         
         await self.repo.session.commit()
-        
-        # Remove from search index
-        remove_product_from_index_task.delay(str(product_id))
+
+        # Remove from search index (non-critical — log and continue on failure)
+        try:
+            remove_product_from_index_task.delay(str(product_id))
+        except Exception as exc:
+            logger.warning("search_index_removal_failed", product_id=str(product_id), error=str(exc))
 
     def _apply_auto_seo(self, product: Product) -> None:
         """Apply automatic SEO data if fields are empty."""
@@ -254,7 +258,10 @@ class ProductService:
             "is_active": product.is_active,
             "is_featured": product.is_featured
         }
-        index_product_task.delay(index_data)
+        try:
+            index_product_task.apply_async(args=[index_data], ignore_result=True)
+        except Exception as exc:
+            logger.warning("search_index_task_failed", product_id=index_data["id"], error=str(exc))
 
     # ─── Image Management ───
     async def upload_image(self, product_id: UUID, file: UploadFile) -> ProductImageRead:
@@ -262,26 +269,23 @@ class ProductService:
         if not product:
             raise HTTPException(status_code=404, detail="Product not found")
 
-        # Prepare file for upload
-        object_name = f"products/{product_id}/{UUID(int=0).hex[:8]}_{file.filename}"
-        
         content = await file.read()
-        await minio_client.put_object(
-            bucket=minio_client.media_bucket,
+        object_name = f"products/{product_id}/{uuid.uuid4().hex[:8]}_{file.filename}"
+
+        await storage_client.save_file(
             object_name=object_name,
-            data=io.BytesIO(content),
-            length=len(content),
+            data=content,
             content_type=file.content_type or "image/jpeg"
         )
-        
-        url = minio_client.get_public_url(object_name)
-        
+
+        url = storage_client.get_public_url(object_name)
+
         # Check if this is the first image, if so, make it cover
         is_cover = len(product.images) == 0
-        
+
         new_image = await self.repo.add_image(product_id, url, alt=product.name, is_cover=is_cover)
         await self.repo.session.commit()
-        
+
         return ProductImageRead.model_validate(new_image)
 
     async def delete_image(self, image_id: UUID) -> None:

@@ -58,14 +58,12 @@ onMounted(async () => {
 })
 
 const onSubmit = handleSubmit(async (formValues) => {
-  console.log('[DEBUG] Profile form submission started', formValues)
   try {
     const result = await updateProfile({
       full_name: formValues.full_name || null,
       phone: formValues.phone || null,
       address: formValues.address || null
     })
-    console.log('[DEBUG] Profile update result:', result)
     
     // Sync form state with new values
     resetForm({
@@ -78,7 +76,6 @@ const onSubmit = handleSubmit(async (formValues) => {
     
     toast.success('Профиль обновлен', 'Ваши данные успешно сохранены')
   } catch (err) {
-    console.error('[DEBUG] Profile update error:', err)
     toast.error('Ошибка обновления', 'Не удалось сохранить изменения')
   }
 })

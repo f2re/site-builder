@@ -243,8 +243,11 @@ class BlogService:
             "content": plain_text[:5000],
             "status": created_post.status
         }
-        index_blog_post_task.delay(index_data)
-        
+        try:
+            index_blog_post_task.apply_async(args=[index_data], ignore_result=True)
+        except Exception as exc:
+            logger.warning("search_index_task_failed", post_id=str(created_post.id), error=str(exc))
+
         # Reload with relationships to avoid MissingGreenlet during validation
         loaded_post = await self.repo.get_by_id(created_post.id)
         if not loaded_post:
@@ -334,8 +337,11 @@ class BlogService:
             "content": plain_text[:5000],
             "status": post.status
         }
-        index_blog_post_task.delay(index_data)
-        
+        try:
+            index_blog_post_task.apply_async(args=[index_data], ignore_result=True)
+        except Exception as exc:
+            logger.warning("search_index_task_failed", post_id=str(post.id), error=str(exc))
+
         # Reload with relationships to avoid MissingGreenlet
         loaded_post = await self.repo.get_by_id(post.id)
         if not loaded_post:
@@ -349,7 +355,10 @@ class BlogService:
         success = await self.repo.delete(post_id)
         if success:
             await self.repo.session.commit()
-            remove_blog_post_from_index_task.delay(str(post_id))
+            try:
+                remove_blog_post_from_index_task.apply_async(args=[str(post_id)], ignore_result=True)
+            except Exception as exc:
+                logger.warning("search_index_removal_failed", post_id=str(post_id), error=str(exc))
         return success
 
     async def list_categories(self):
