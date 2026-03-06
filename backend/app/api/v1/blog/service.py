@@ -244,7 +244,7 @@ class BlogService:
             "status": created_post.status
         }
         try:
-            index_blog_post_task.apply_async(args=[index_data], ignore_result=True)
+            index_blog_post_task.delay(index_data)
         except Exception as exc:
             logger.warning("search_index_task_failed", post_id=str(created_post.id), error=str(exc))
 
@@ -338,7 +338,7 @@ class BlogService:
             "status": post.status
         }
         try:
-            index_blog_post_task.apply_async(args=[index_data], ignore_result=True)
+            index_blog_post_task.delay(index_data)
         except Exception as exc:
             logger.warning("search_index_task_failed", post_id=str(post.id), error=str(exc))
 
@@ -356,7 +356,7 @@ class BlogService:
         if success:
             await self.repo.session.commit()
             try:
-                remove_blog_post_from_index_task.apply_async(args=[str(post_id)], ignore_result=True)
+                remove_blog_post_from_index_task.delay(str(post_id))
             except Exception as exc:
                 logger.warning("search_index_removal_failed", post_id=str(post_id), error=str(exc))
         return success

@@ -146,6 +146,9 @@ class ProductService:
         # Handle images
         if data.images:
             product.images = [ProductImage(**img.model_dump()) for img in data.images]
+            # Ensure at least one image is cover if images provided
+            if product.images and not any(img.is_cover for img in product.images):
+                product.images[0].is_cover = True
             
         # Handle variants
         if data.variants:
@@ -259,7 +262,7 @@ class ProductService:
             "is_featured": product.is_featured
         }
         try:
-            index_product_task.apply_async(args=[index_data], ignore_result=True)
+            index_product_task.delay(index_data)
         except Exception as exc:
             logger.warning("search_index_task_failed", product_id=index_data["id"], error=str(exc))
 
@@ -280,10 +283,19 @@ class ProductService:
 
         url = storage_client.get_public_url(object_name)
 
-        # Check if this is the first image, if so, make it cover
-        is_cover = len(product.images) == 0
+        # Check if there's any cover image already
+        has_cover = await self.repo.has_cover_image(product_id)
+        is_cover = not has_cover
 
         new_image = await self.repo.add_image(product_id, url, alt=product.name, is_cover=is_cover)
+        
+        # If we just set a new cover, update og_image_url
+        if is_cover:
+            # We need to reload to avoid session issues, but we already have 'product'
+            # though it might be stale regarding images list.
+            # repository.add_image doesn't update the 'product' object in memory.
+            product.og_image_url = url
+        
         await self.repo.session.commit()
 
         return ProductImageRead.model_validate(new_image)

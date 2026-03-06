@@ -52,7 +52,7 @@ class ProductRepository:
         per_page: int = 20,
         active_only: bool = True,
     ) -> Tuple[list[dict], Optional[str]]:
-        # Subqueries for prices, cover images and stock
+        # Subqueries for prices and stock
         min_price_sq = (
             select(
                 ProductVariant.product_id,
@@ -71,12 +71,27 @@ class ProductRepository:
             .subquery()
         )
 
-        cover_image_sq = (
+        # Improved cover image subquery using window function
+        # It picks is_cover=True first, then sorts by sort_order and id
+        image_rank_sq = (
             select(
                 ProductImage.product_id,
-                ProductImage.url
+                ProductImage.url,
+                func.row_number().over(
+                    partition_by=ProductImage.product_id,
+                    order_by=(
+                        ProductImage.is_cover.desc(),
+                        ProductImage.sort_order.asc(),
+                        ProductImage.id.asc()
+                    )
+                ).label("rn")
             )
-            .where(ProductImage.is_cover)
+            .subquery()
+        )
+        
+        cover_image_sq = (
+            select(image_rank_sq.c.product_id, image_rank_sq.c.url)
+            .where(image_rank_sq.c.rn == 1)
             .subquery()
         )
 
@@ -158,8 +173,6 @@ class ProductRepository:
             created_at_iso = last_item["created_at"].isoformat().replace('+00:00', 'Z')
             next_cursor = f"{created_at_iso},{last_item['id']}"
             
-        # FIX: Removed the loop that popped 'created_at' as it's required by the schema.
-
         return items, next_cursor
 
     async def create(self, product: Product) -> Product:
@@ -333,6 +346,16 @@ class ProductRepository:
         )
         res = await self.session.execute(stmt)
         return res.scalar_one_or_none()
+
+    async def count_images(self, product_id: UUID) -> int:
+        stmt = select(func.count()).select_from(ProductImage).where(ProductImage.product_id == product_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
+
+    async def has_cover_image(self, product_id: UUID) -> bool:
+        stmt = select(ProductImage.id).where(ProductImage.product_id == product_id).where(ProductImage.is_cover == True).limit(1)  # noqa: E712
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none() is not None
 
 async def get_product_repo(session: AsyncSession = Depends(get_db)) -> ProductRepository:
     return ProductRepository(session)

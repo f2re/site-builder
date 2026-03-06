@@ -47,12 +47,11 @@ async def test_rich_product_flow(client: AsyncClient, db_session):
         product_id = resp.json()["id"]
         assert mock_index.called
 
-    # 3. Upload image (Mock MinIO)
-    with patch("app.api.v1.products.service.minio_client") as mock_minio:
+    # 3. Upload image (Mock storage_client)
+    with patch("app.api.v1.products.service.storage_client") as mock_storage:
         from unittest.mock import AsyncMock
-        mock_minio.put_object = AsyncMock(return_value=None)
-        mock_minio.get_public_url.return_value = "https://media.test/test.jpg"
-        mock_minio.media_bucket = "media" # needed because it's accessed in service
+        mock_storage.save_file = AsyncMock(return_value=None)
+        mock_storage.get_public_url.return_value = "https://media.test/test.jpg"
         
         file_content = b"fake-image-binary"
         files = {"file": ("test.jpg", file_content, "image/jpeg")}
