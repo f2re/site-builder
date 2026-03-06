@@ -94,7 +94,7 @@ export const useUser = () => {
   const adminSetUserBlockStatus = async (userId: string, isActive: boolean) => {
     return await apiFetch<UserProfile>(`/admin/users/${userId}/block`, {
       method: 'PUT',
-      query: { is_active: isActive }
+      body: { is_active: isActive }
     })
   }
 

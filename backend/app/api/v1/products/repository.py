@@ -78,6 +78,8 @@ class ProductRepository:
                 Product.category_id,
                 Product.is_active,
                 Product.is_featured,
+                Product.created_at,
+                Product.updated_at,
                 cover_image_sq.c.url.label("main_image_url"),
                 min_price_sq.c.min_price
             )
@@ -118,7 +120,9 @@ class ProductRepository:
                 "main_image_url": row.main_image_url,
                 "min_price": row.min_price if row.min_price is not None else Decimal(0),
                 "is_active": row.is_active,
-                "is_featured": row.is_featured
+                "is_featured": row.is_featured,
+                "created_at": row.created_at,
+                "updated_at": row.updated_at,
             })
             
         next_cursor = None

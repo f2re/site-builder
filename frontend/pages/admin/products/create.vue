@@ -12,6 +12,7 @@ import TipTapEditor from '~/components/blog/TipTapEditor.vue'
 import ProductMediaManager from '~/components/Admin/ProductMediaManager.vue'
 
 definePageMeta({
+  layout: false,
   middleware: 'auth',
 })
 

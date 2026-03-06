@@ -2,6 +2,7 @@
 import BlogEditor from '@/components/Admin/BlogEditor.vue'
 
 definePageMeta({
+  layout: false,
   middleware: 'auth',
 })
 

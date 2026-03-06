@@ -40,9 +40,8 @@ def release_stale_reservations_task():
             await session.commit()
             return len(stale_orders)
 
-    loop = asyncio.get_event_loop()
     try:
-        return loop.run_until_complete(_process())
+        return asyncio.run(_process())
     except Exception as e:
         logger.error("release_stale_reservations_failed", error=str(e))
         raise
@@ -63,7 +62,7 @@ def sync_stock_to_redis(self, variant_id: str, quantity: int) -> None:
                 await inventory.set_stock(variant.id, variant.stock)
 
     try:
-        asyncio.get_event_loop().run_until_complete(_sync())
+        asyncio.run(_sync())
     except Exception as exc:
         raise self.retry(exc=exc, countdown=10)
 
@@ -79,6 +78,6 @@ def release_reserved_stock(self, variant_id: str, quantity: int) -> None:
         await inventory.release_stock(UUID(variant_id), quantity)
 
     try:
-        asyncio.get_event_loop().run_until_complete(_release())
+        asyncio.run(_release())
     except Exception as exc:
         raise self.retry(exc=exc, countdown=10)
