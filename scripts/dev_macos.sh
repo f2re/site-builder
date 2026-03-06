@@ -34,7 +34,7 @@ cmd_stop() {
     fi
     rm -f "$pidfile"
   done
-  brew services stop postgresql@16 2>/dev/null && success "PostgreSQL остановлен" || true
+  brew services stop postgresql 2>/dev/null && success "PostgreSQL остановлен" || true
   brew services stop redis          2>/dev/null && success "Redis остановлен"      || true
   info "Логи остались в $LOGS_DIR/"
 }
@@ -59,7 +59,7 @@ check_deps() {
   command -v python3   >/dev/null || error "python3 не найден. Установи: brew install python@3.12"
   command -v node      >/dev/null || error "node не найден. Установи: brew install node"
   command -v npm       >/dev/null || error "npm не найден"
-  command -v psql      >/dev/null || brew install postgresql@16
+  command -v psql      >/dev/null || brew install postgresql
   command -v redis-cli >/dev/null || brew install redis
   if ! command -v meilisearch >/dev/null; then
     warn "Meilisearch не найден, устанавливаем..."
@@ -116,7 +116,7 @@ setup_env() {
 # ── 3. PostgreSQL ──────────────────────────────────────────────────────────────
 setup_postgres() {
   info "Запускаем PostgreSQL..."
-  brew services start postgresql@16
+  brew services start postgresql
   wait_port "PostgreSQL" localhost 5432 20
 
   psql postgres -tc "SELECT 1 FROM pg_roles WHERE rolname='sb_user'" \
