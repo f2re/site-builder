@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Сидирование тестовых данных для E2E тестов.
-Запуск: cd backend && python -m scripts.seed_e2e [--reset]
+Запуск: python scripts/seed_e2e.py [--reset] (из корня проекта)
 """
 import asyncio
 import sys

@@ -280,9 +280,8 @@ cmd_seed() {
   source "$VENV/bin/activate"
   load_env "$ROOT_DIR/.env"
   info "Засеваем тестовые данные..."
-  cd "$ROOT_DIR/backend"
-  python -m scripts.seed_e2e
   cd "$ROOT_DIR"
+  python "$ROOT_DIR/scripts/seed_e2e.py"
   success "Seed завершён"
 }
 

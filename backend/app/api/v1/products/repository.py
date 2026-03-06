@@ -1,5 +1,5 @@
 # Module: products/repository.py | Agent: backend-agent | Task: p_bugfix_backend_001
-from datetime import fromisoformat
+from datetime import datetime
 from typing import Optional, Tuple, List
 from uuid import UUID
 from decimal import Decimal
@@ -106,7 +106,7 @@ class ProductRepository:
         if cursor:
             try:
                 cursor_created_at_str, cursor_id_str = cursor.split(',')
-                cursor_created_at = fromisoformat(cursor_created_at_str.replace('Z', '+00:00'))
+                cursor_created_at = datetime.fromisoformat(cursor_created_at_str.replace('Z', '+00:00'))
                 cursor_id = UUID(cursor_id_str)
                 # Keyset pagination condition
                 stmt = stmt.where(

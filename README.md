@@ -70,30 +70,186 @@ site-builder/
 
 ---
 
-## 🚀 Быстрый старт
+## Быстрый старт
 
-### 1. Окружение
-Скопируйте шаблон переменных и заполните их:
+### Вариант A: Docker (рекомендуется для продакшена)
+
 ```bash
+# Скопировать переменные окружения
 cp .env.example .env
-```
 
-### 2. Запуск в Docker (Recommended)
-```bash
-# Сборка и запуск всех сервисов
+# Собрать и запустить все сервисы
 docker compose up --build -d
 
-# Применение миграций БД
+# Применить миграции БД
 docker compose exec backend alembic upgrade head
 
-# Создание первого администратора
+# Создать первого администратора
 docker compose run --rm backend python -m app.db.create_admin
 ```
 
-### 3. Вход в Админ-панель
-1. Создайте администратора через команду выше (используйте Email и Password из `.env`).
-2. Авторизуйтесь на сайте.
-3. Перейдите по адресу `/admin`. Если доступа нет — проверьте роль пользователя в БД.
+После старта перейдите на `/admin` (используйте email и пароль из `.env`).
+
+---
+
+### Вариант B: macOS без Docker (для локальной разработки)
+
+**Требования:** macOS 12+, [Homebrew](https://brew.sh), Python 3.12, Node.js 20+, PostgreSQL, Redis.
+
+```bash
+# Установить зависимости (один раз)
+brew install python@3.12 node postgresql@16 redis
+
+# Запустить PostgreSQL (должен быть доступен на порту 5432)
+brew services start postgresql@16
+
+# Первый запуск: создаст .env, установит зависимости, поднимет все сервисы
+./scripts/dev_macos.sh
+```
+
+Скрипт автоматически:
+1. Создаёт `.env` из `.env.example` с localhost-адресами и случайными секретными ключами
+2. Создаёт БД `site_builder` и пользователя `sb_user`
+3. Применяет Alembic-миграции
+4. Устанавливает Python venv и npm-зависимости
+5. Запускает в фоне: Meilisearch, Backend (uvicorn --reload), Celery worker, Frontend (Nuxt)
+
+После старта доступно:
+
+| Сервис      | URL                        |
+|-------------|----------------------------|
+| Frontend    | http://localhost:3000      |
+| Backend API | http://localhost:8000      |
+| API Docs    | http://localhost:8000/docs |
+| Meilisearch | http://localhost:7700      |
+
+Логи сервисов пишутся в `.logs/` (backend.log, frontend.log, celery.log, meilisearch.log).
+
+```bash
+# Остановить все сервисы
+./scripts/dev_macos.sh stop
+```
+
+---
+
+## E2E-тестирование
+
+E2E-тесты используют **Playwright + pytest** и проверяют полный пользовательский сценарий через браузер Chromium.
+
+### Тестовые аккаунты
+
+Создаются скриптом seed автоматически:
+
+| Роль          | Email                      | Пароль       |
+|---------------|----------------------------|--------------|
+| Администратор | admin@wifiobd-test.ru      | Admin123!    |
+| Покупатель    | customer@wifiobd-test.ru   | Customer123! |
+
+### Автоматический запуск (рекомендуется)
+
+Скрипт сам проверит, запущено ли окружение, засеет данные и запустит тесты:
+
+```bash
+./scripts/dev_macos.sh e2e
+```
+
+### Ручной запуск (если окружение уже запущено)
+
+```bash
+# 1. Активировать виртуальное окружение
+source backend/.venv/bin/activate
+
+# 2. Установить тестовые зависимости (один раз)
+pip install pytest playwright requests
+playwright install chromium
+
+# 3. Засеять тестовые данные
+cd backend && python -m scripts.seed_e2e && cd ..
+
+# 4. Запустить все тесты с визуальным браузером
+pytest tests/e2e/ -v --headed -s -p no:warnings
+```
+
+### Запуск отдельных тест-файлов
+
+```bash
+# Авторизация
+pytest tests/e2e/test_01_auth.py -v --headed -s
+
+# Блог
+pytest tests/e2e/test_02_blog.py -v --headed -s
+
+# Управление товарами (нужен admin_page)
+pytest tests/e2e/test_03_admin_products.py -v --headed -s
+
+# Каталог магазина
+pytest tests/e2e/test_04_shop.py -v --headed -s
+
+# Корзина
+pytest tests/e2e/test_05_cart.py -v --headed -s
+
+# Оформление заказа
+pytest tests/e2e/test_06_checkout.py -v --headed -s
+
+# История заказов
+pytest tests/e2e/test_07_orders.py -v --headed -s
+
+# Один конкретный тест
+pytest tests/e2e/test_01_auth.py::test_login_admin_success -v --headed -s
+```
+
+### Headless-режим (без GUI, для CI)
+
+```bash
+CI=true pytest tests/e2e/ -v -s -p no:warnings
+```
+
+### Переменные окружения для тестов
+
+| Переменная      | По умолчанию            | Описание              |
+|-----------------|-------------------------|-----------------------|
+| `E2E_BASE_URL`  | http://localhost:3000   | URL Nuxt frontend     |
+| `E2E_API_URL`   | http://localhost:8000   | URL FastAPI backend   |
+| `CI`            | false                   | headless если `true`  |
+
+Пример запуска против другого стенда:
+
+```bash
+E2E_BASE_URL=http://staging.example.com \
+E2E_API_URL=http://api.staging.example.com \
+CI=true pytest tests/e2e/ -v
+```
+
+### Структура E2E-тестов
+
+```
+tests/e2e/
+  conftest.py               — фикстуры: browser, page, admin_page, customer_page
+  test_01_auth.py           — вход, регистрация, выход
+  test_02_blog.py           — чтение статей
+  test_03_admin_products.py — управление товарами через админ-панель
+  test_04_shop.py           — каталог, фильтры
+  test_05_cart.py           — корзина
+  test_06_checkout.py       — оформление заказа (с моком CDEK API)
+  test_07_orders.py         — история заказов
+  screenshots/              — скриншоты (создаются автоматически при падении теста)
+```
+
+### Засев данных без тестов
+
+```bash
+./scripts/dev_macos.sh seed
+```
+
+### Просмотр логов E2E
+
+```bash
+tail -f .logs/e2e.log
+```
+
+---
+
+### Вход в Админ-панель
 
 ---
 
