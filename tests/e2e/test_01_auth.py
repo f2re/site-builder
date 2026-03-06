@@ -6,7 +6,7 @@ from conftest import BASE_URL, CUSTOMER_EMAIL, CUSTOMER_PASS, ADMIN_EMAIL, ADMIN
 
 def test_login_admin_success(page: Page):
     """Логин под администратором."""
-    page.goto(f"{BASE_URL}/account/login")
+    page.goto(f"{BASE_URL}/auth/login")
     page.fill("[data-testid='email-input']", ADMIN_EMAIL)
     page.fill("[data-testid='password-input']", ADMIN_PASS)
     page.click("[data-testid='login-btn']")
@@ -18,13 +18,13 @@ def test_login_admin_success(page: Page):
 
 def test_login_invalid_credentials(page: Page):
     """Неверные учётные данные — должна быть ошибка, не редирект."""
-    page.goto(f"{BASE_URL}/account/login")
+    page.goto(f"{BASE_URL}/auth/login")
     page.fill("[data-testid='email-input']", "wrong@example.com")
     page.fill("[data-testid='password-input']", "wrongpassword")
     page.click("[data-testid='login-btn']")
 
     expect(page.locator("[data-testid='auth-error']")).to_be_visible()
-    assert page.url == f"{BASE_URL}/account/login"
+    assert page.url == f"{BASE_URL}/auth/login"
     page.screenshot(path="tests/e2e/screenshots/01_login_error.png")
 
 
@@ -33,7 +33,7 @@ def test_register_new_user(page: Page):
     import time
     unique_email = f"newuser_{int(time.time())}@wifiobd-test.ru"
 
-    page.goto(f"{BASE_URL}/account/register")
+    page.goto(f"{BASE_URL}/auth/register")
     page.fill("[data-testid='email-input']", unique_email)
     page.fill("[data-testid='password-input']", "NewUser123!")
     page.fill("[data-testid='first-name-input']", "Иван")
