@@ -5,7 +5,6 @@ import UBadge from '~/components/U/UBadge.vue'
 import USkeleton from '~/components/U/USkeleton.vue'
 
 definePageMeta({
-  layout: 'admin',
   middleware: 'auth',
 })
 
@@ -26,7 +25,7 @@ async function deletePost(slug: string) {
 </script>
 
 <template>
-  <div class="admin-blog-index">
+  <NuxtLayout name="admin">
     <template #header-title>Блог</template>
     <template #header-actions>
       <UButton to="/admin/blog/create" icon="ph:plus-bold" data-testid="admin-blog-create-btn">
@@ -34,7 +33,8 @@ async function deletePost(slug: string) {
       </UButton>
     </template>
 
-    <UCard class="table-card">
+    <div class="admin-blog-index">
+      <UCard class="table-card">
       <div v-if="pending" class="p-4 space-y-4">
         <USkeleton v-for="i in 5" :key="i" height="48px" />
       </div>
@@ -87,6 +87,7 @@ async function deletePost(slug: string) {
       </div>
     </UCard>
   </div>
+  </NuxtLayout>
 </template>
 
 <style scoped>

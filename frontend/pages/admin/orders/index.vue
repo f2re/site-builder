@@ -5,7 +5,6 @@ import USkeleton from '~/components/U/USkeleton.vue'
 import USelect from '~/components/U/USelect.vue'
 
 definePageMeta({
-  layout: 'admin',
   middleware: 'auth',
 })
 
@@ -39,10 +38,11 @@ async function updateStatus(orderId: string, status: string) {
 </script>
 
 <template>
-  <div class="admin-orders-page">
+  <NuxtLayout name="admin">
     <template #header-title>Заказы</template>
 
-    <UCard class="table-card">
+    <div class="admin-orders-page">
+      <UCard class="table-card">
       <div v-if="pending" class="p-4 space-y-4">
         <USkeleton v-for="i in 5" :key="i" height="64px" />
       </div>
@@ -105,6 +105,7 @@ async function updateStatus(orderId: string, status: string) {
       </div>
     </UCard>
   </div>
+  </NuxtLayout>
 </template>
 
 <style scoped>

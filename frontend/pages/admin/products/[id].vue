@@ -13,7 +13,6 @@ import TipTapEditor from '~/components/blog/TipTapEditor.vue'
 import ProductMediaManager from '~/components/Admin/ProductMediaManager.vue'
 
 definePageMeta({
-  layout: 'admin',
   middleware: 'auth',
 })
 
@@ -96,7 +95,7 @@ const handleDelete = async () => {
 </script>
 
 <template>
-  <div class="product-edit-page">
+  <NuxtLayout name="admin">
     <template #header-title>
       <div class="flex items-center gap-2">
         <UButton variant="ghost" to="/admin/products" icon="ph:arrow-left-bold" size="sm" class="mobile-only" />
@@ -128,7 +127,8 @@ const handleDelete = async () => {
       </div>
     </template>
 
-    <div v-if="pending" class="space-y-6">
+    <div class="product-edit-page">
+      <div v-if="pending" class="space-y-6">
       <USkeleton height="40px" width="300px" />
       <div class="grid gap-6 lg:grid-cols-3">
         <div class="lg:col-span-2 space-y-6">
@@ -261,6 +261,7 @@ const handleDelete = async () => {
       </div>
     </div>
   </div>
+  </NuxtLayout>
 </template>
 
 <style scoped>

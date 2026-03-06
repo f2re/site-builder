@@ -9,7 +9,6 @@ import UModal from '~/components/U/UModal.vue'
 import USelect from '~/components/U/USelect.vue'
 
 definePageMeta({
-  layout: 'admin',
   middleware: 'auth',
 })
 
@@ -112,7 +111,7 @@ const downloadExcel = async () => {
 </script>
 
 <template>
-  <div class="admin-users-page">
+  <NuxtLayout name="admin">
     <template #header-title>Пользователи</template>
     <template #header-actions>
       <div class="flex gap-2">
@@ -125,7 +124,8 @@ const downloadExcel = async () => {
       </div>
     </template>
 
-    <UCard class="filters-card">
+    <div class="admin-users-page">
+      <UCard class="filters-card">
       <div class="filters">
         <div class="search-box">
           <UInput
@@ -234,9 +234,9 @@ const downloadExcel = async () => {
         </div>
       </div>
     </UModal>
-  </div>
-</template>
-
+    </div>
+    </NuxtLayout>
+    </template>
 <style scoped>
 .admin-users-page {
   display: flex;

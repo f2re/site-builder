@@ -29,56 +29,58 @@ const statCards = computed(() => [
 </script>
 
 <template>
-  <div class="admin-dashboard">
+  <NuxtLayout name="admin">
     <template #header-title>
       Панель управления
     </template>
 
-    <div class="dashboard-section">
-      <div v-if="pending" class="stats-grid">
-        <USkeleton v-for="i in 3" :key="i" height="110px" />
-      </div>
-      
-      <div v-else class="stats-grid">
-        <UCard v-for="stat in statCards" :key="stat.label" class="stat-card">
-          <div class="stat-icon" :style="{ color: stat.color, background: `${stat.color}15` }">
-            <Icon :name="stat.icon" size="24" />
-          </div>
-          <div class="stat-info">
-            <span class="stat-label">{{ stat.label }}</span>
-            <span class="stat-value">{{ stat.value }}</span>
-          </div>
-        </UCard>
-      </div>
-    </div>
-
-    <div class="dashboard-grid">
-      <!-- Chart Widget (Placeholder) -->
+    <div class="admin-dashboard">
       <div class="dashboard-section">
-        <h2 class="section-title">Аналитика продаж</h2>
-        <UCard class="chart-card">
-          <div class="chart-placeholder">
-            <Icon name="ph:chart-bar-bold" size="48" class="placeholder-icon" />
-            <p>График продаж будет доступен после накопления данных</p>
-          </div>
-        </UCard>
+        <div v-if="pending" class="stats-grid">
+          <USkeleton v-for="i in 3" :key="i" height="110px" />
+        </div>
+        
+        <div v-else class="stats-grid">
+          <UCard v-for="stat in statCards" :key="stat.label" class="stat-card">
+            <div class="stat-icon" :style="{ color: stat.color, background: `${stat.color}15` }">
+              <Icon :name="stat.icon" size="24" />
+            </div>
+            <div class="stat-info">
+              <span class="stat-label">{{ stat.label }}</span>
+              <span class="stat-value">{{ stat.value }}</span>
+            </div>
+          </UCard>
+        </div>
       </div>
 
-      <!-- Recent Orders Widget -->
-      <div class="dashboard-section">
-        <h2 class="section-title">Последние заказы</h2>
-        <UCard>
-          <div class="empty-state">
-            <Icon name="ph:shopping-bag-open-bold" size="32" />
-            <p>Здесь появится список последних заказов</p>
-            <UButton to="/admin/orders" variant="ghost" size="sm" class="mt-4">
-              Перейти к заказам
-            </UButton>
-          </div>
-        </UCard>
+      <div class="dashboard-grid">
+        <!-- Chart Widget (Placeholder) -->
+        <div class="dashboard-section">
+          <h2 class="section-title">Аналитика продаж</h2>
+          <UCard class="chart-card">
+            <div class="chart-placeholder">
+              <Icon name="ph:chart-bar-bold" size="48" class="placeholder-icon" />
+              <p>График продаж будет доступен после накопления данных</p>
+            </div>
+          </UCard>
+        </div>
+
+        <!-- Recent Orders Widget -->
+        <div class="dashboard-section">
+          <h2 class="section-title">Последние заказы</h2>
+          <UCard>
+            <div class="empty-state">
+              <Icon name="ph:shopping-bag-open-bold" size="32" />
+              <p>Здесь появится список последних заказов</p>
+              <UButton to="/admin/orders" variant="ghost" size="sm" class="mt-4">
+                Перейти к заказам
+              </UButton>
+            </div>
+          </UCard>
+        </div>
       </div>
     </div>
-  </div>
+  </NuxtLayout>
 </template>
 
 <style scoped>

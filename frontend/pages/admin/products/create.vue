@@ -12,7 +12,6 @@ import TipTapEditor from '~/components/blog/TipTapEditor.vue'
 import ProductMediaManager from '~/components/Admin/ProductMediaManager.vue'
 
 definePageMeta({
-  layout: 'admin',
   middleware: 'auth',
 })
 
@@ -78,7 +77,7 @@ const handleCreate = async () => {
 </script>
 
 <template>
-  <div class="product-create-page">
+  <NuxtLayout name="admin">
     <template #header-title>
       <div class="flex items-center gap-2">
         <UButton variant="ghost" to="/admin/products" icon="ph:arrow-left-bold" size="sm" class="mobile-only" />
@@ -99,7 +98,8 @@ const handleCreate = async () => {
       </UButton>
     </template>
 
-    <div class="grid gap-6 lg:grid-cols-3">
+    <div class="product-create-page">
+      <div class="grid gap-6 lg:grid-cols-3">
       <div class="lg:col-span-2 space-y-6">
         <UCard title="Основная информация">
           <div class="space-y-4">
@@ -198,6 +198,7 @@ const handleCreate = async () => {
       </div>
     </div>
   </div>
+  </NuxtLayout>
 </template>
 
 <style scoped>

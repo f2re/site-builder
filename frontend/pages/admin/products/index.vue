@@ -5,7 +5,6 @@ import UBadge from '~/components/U/UBadge.vue'
 import USkeleton from '~/components/U/USkeleton.vue'
 
 definePageMeta({
-  layout: 'admin',
   middleware: 'auth',
 })
 
@@ -16,7 +15,7 @@ const { data: products, pending, refresh } = await useFetch('/products', {
 </script>
 
 <template>
-  <div class="products-index-page">
+  <NuxtLayout name="admin">
     <template #header-title>Товары</template>
     <template #header-actions>
       <UButton 
@@ -30,7 +29,8 @@ const { data: products, pending, refresh } = await useFetch('/products', {
       </UButton>
     </template>
 
-    <UCard class="overflow-hidden">
+    <div class="products-index-page">
+      <UCard class="overflow-hidden">
       <div v-if="pending" class="p-4 space-y-4">
         <USkeleton v-for="i in 5" :key="i" height="40px" />
       </div>
@@ -88,6 +88,7 @@ const { data: products, pending, refresh } = await useFetch('/products', {
       </div>
     </UCard>
   </div>
+  </NuxtLayout>
 </template>
 
 <style scoped>

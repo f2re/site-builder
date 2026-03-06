@@ -2,7 +2,6 @@
 import BlogEditor from '@/components/Admin/BlogEditor.vue'
 
 definePageMeta({
-  layout: 'admin',
   middleware: 'auth',
 })
 
@@ -57,7 +56,7 @@ async function save() {
 </script>
 
 <template>
-  <div class="admin-blog-create">
+  <NuxtLayout name="admin">
     <template #header-title>Новый пост</template>
     <template #header-actions>
       <div class="flex gap-2">
@@ -65,8 +64,9 @@ async function save() {
         <UButton @click="save" :loading="pending" data-testid="admin-save-btn">Сохранить</UButton>
       </div>
     </template>
-    
-    <div class="form-container">
+
+    <div class="admin-blog-create">
+      <div class="form-container">
       <div class="main-content">
         <UCard>
           <div class="space-y-4">
@@ -140,10 +140,10 @@ async function save() {
           <UButton variant="ghost" to="/admin/blog" block>Отмена</UButton>
         </div>
       </div>
-    </div>
-  </div>
-</template>
-
+      </div>
+      </div>
+      </NuxtLayout>
+      </template>
 <style scoped>
 .admin-blog-create {
   max-width: 1200px;
