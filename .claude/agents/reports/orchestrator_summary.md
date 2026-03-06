@@ -72,6 +72,16 @@ E2E подграф (параллельно с p8):
 
 - none
 
+## Hotfixes Applied (2026-03-06)
+
+| task_id | Статус | Что исправлено |
+|---|---|---|
+| bugfix_backend_001 | ✅ DONE | config.py CORS empty-string, inventory.py enum .value, blog 401 |
+| bugfix_frontend_001 | ✅ DONE | frontend/public/placeholder-product.png |
+| bugfix_media_001 | ✅ DONE | nuxt.config.ts devProxy /media, nginx.dev.conf, nginx.conf |
+
+После деплоя: пересобрать backend+celery контейнеры; перезапустить Nuxt dev-сервер.
+
 ## Последнее действие
 
 > 2026-03-06: Добавлены задачи E2E-цикла (p8_e2e_backend_001, p8_e2e_frontend_001, p8_e2e_testing_001) и контракт e2e_testid_contract.md.

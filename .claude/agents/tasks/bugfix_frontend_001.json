@@ -1,0 +1,28 @@
+{
+  "task_id": "bugfix_frontend_001",
+  "phase": "hotfix",
+  "agent": "frontend-agent",
+  "title": "Fix placeholder-product.png 404",
+  "description": "Создать файл-заглушку placeholder-product.png в frontend/public/. Файл используется как fallback в ProductCard.vue и pages/products/[slug].vue когда у товара нет изображений.",
+  "depends_on": [],
+  "priority": "medium",
+  "bugs": [
+    {
+      "id": "BUG-4",
+      "title": "/_ipx/f_webp&fit_cover&s_300x300/placeholder-product.png → 404 IPX_FILE_NOT_FOUND",
+      "files": [
+        "frontend/components/catalog/ProductCard.vue:17",
+        "frontend/pages/products/[slug].vue:32"
+      ],
+      "root_cause": "Оба компонента используют '/placeholder-product.png' как fallback, но файл frontend/public/placeholder-product.png отсутствует. Nuxt IPX пытается трансформировать несуществующий файл.",
+      "fix": "Создать frontend/public/placeholder-product.png — SVG-заглушка с иконкой товара (серый фон, белая иконка коробки/OBD), сохранить как PNG. Минимальный размер 300x300px.",
+      "error": "IPX_FILE_NOT_FOUND — /_ipx/f_webp&fit_cover&s_300x300/placeholder-product.png 404"
+    }
+  ],
+  "acceptance_criteria": [
+    "frontend/public/placeholder-product.png существует",
+    "Файл является валидным PNG изображением",
+    "npm run lint → no errors"
+  ],
+  "report_path": ".claude/agents/reports/frontend/bugfix_frontend_001.md"
+}

@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing import List, Optional, Union
 from uuid import UUID
 
-from app.core.dependencies import get_current_user, require_admin
+from app.core.dependencies import get_optional_current_user, require_admin
 from app.db.models.user import User
 from app.db.models.blog import BlogPostStatus
 from .schemas import (
@@ -28,7 +28,7 @@ async def list_posts(
     tag: Optional[str] = Query(None, description="Filter by tag slug"),
     after: Optional[UUID] = Query(None, description="Cursor for pagination"),
     limit: int = Query(12, ge=1, le=100),
-    current_user: Optional[User] = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_current_user),
     service: BlogService = Depends(get_blog_service),
 ):
     """List blog posts with pagination and filters."""
@@ -84,7 +84,7 @@ async def create_comment(
 @router.get("/posts/{post_id}/comments", response_model=Union[List[CommentRead], List[CommentAdminRead]])
 async def list_comments(
     post_id: UUID,
-    current_user: Optional[User] = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_current_user),
     service: BlogService = Depends(get_blog_service),
 ):
     """List approved comments for a post (Admins see all and decrypted emails)."""

@@ -65,6 +65,14 @@ export default defineNuxtConfig({
 
   nitro: {
     compressPublicAssets: true,
+    devProxy: {
+      '/media': {
+        target: process.env.NUXT_PUBLIC_API_BASE
+          ? process.env.NUXT_PUBLIC_API_BASE.replace('/api/v1', '')
+          : 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
   },
 
   icon: {

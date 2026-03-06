@@ -21,7 +21,7 @@ def release_stale_reservations_task():
             threshold = datetime.now(timezone.utc) - timedelta(minutes=30)
             stmt = (
                 select(Order)
-                .where(Order.status == OrderStatus.PENDING)
+                .where(Order.status == OrderStatus.PENDING.value)
                 .where(Order.created_at < threshold)
             )
             result = await session.execute(stmt)

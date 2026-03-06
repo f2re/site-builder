@@ -1,7 +1,18 @@
 # Module: core/config.py | Agent: backend-agent | Task: phase11_backend_admin_blog_refinement
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict, EnvSettingsSource
 from pydantic import Field, AliasChoices, field_validator
 from typing import List, Union
+
+
+class _SafeEnvSource(EnvSettingsSource):
+    """Перехватывает пустые строки для complex-типов (List, dict и т.п.)
+    до того как pydantic_settings попытается вызвать json.loads('').
+    Возвращает None → field_validator получает None и применяет дефолт."""
+
+    def prepare_field_value(self, field_name: str, field, value, value_is_complex: bool):
+        if value_is_complex and isinstance(value, str) and not value.strip():
+            return None
+        return super().prepare_field_value(field_name, field, value, value_is_complex)
 
 
 class Settings(BaseSettings):
@@ -109,6 +120,15 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra='ignore'
     )
+
+    @classmethod
+    def settings_customise_sources(cls, settings_cls, init_settings, env_settings, dotenv_settings, file_secret_settings):
+        return (
+            init_settings,
+            _SafeEnvSource(settings_cls),
+            dotenv_settings,
+            file_secret_settings,
+        )
 
 
 settings = Settings()

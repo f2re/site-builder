@@ -1,0 +1,20 @@
+{
+  "task_id": "bugfix_media_001",
+  "phase": "hotfix",
+  "agent": "frontend-agent + devops-agent",
+  "title": "Fix media files 404 — dev proxy + nginx configs",
+  "description": "Медиафайлы загружаются на бэкенд (localhost:8000/media/...) но URL возвращается как относительный /media/..., браузер резолвит его на localhost:3000 (Nuxt), Nuxt не знает этого пути → 404. Нужно: 1) Nuxt devProxy, 2) nginx конфиги.",
+  "root_cause": "local_storage.py.get_public_url() возвращает '/media/...' (MEDIA_URL + path). В dev нет nginx-прокси. Nuxt dev server обрабатывает /media/ как страницу.",
+  "fixes": [
+    {
+      "agent": "frontend-agent",
+      "file": "frontend/nuxt.config.ts",
+      "action": "Добавить nitro.devProxy: { '/media': { target: 'http://localhost:8000', changeOrigin: true } }"
+    },
+    {
+      "agent": "devops-agent",
+      "files": ["deploy/nginx/nginx.dev.conf", "deploy/nginx/nginx.conf"],
+      "action": "Создать nginx конфиги с location /media/ { proxy_pass http://api:8000; }"
+    }
+  ]
+}

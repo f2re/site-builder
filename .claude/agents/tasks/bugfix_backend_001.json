@@ -1,0 +1,48 @@
+{
+  "task_id": "bugfix_backend_001",
+  "phase": "hotfix",
+  "agent": "backend-agent",
+  "title": "Fix 3 production backend bugs",
+  "description": "Исправить три бага, найденных в production логах. Все правки в backend/.",
+  "depends_on": [],
+  "priority": "critical",
+  "bugs": [
+    {
+      "id": "BUG-1",
+      "title": "BACKEND_CORS_ORIGINS: pydantic_settings JSONDecodeError при пустой строке",
+      "file": "backend/app/core/config.py",
+      "root_cause": "pydantic_settings v2 вызывает json.loads(value) для List[str] поля ДО field_validator. Когда BACKEND_CORS_ORIGINS='' (пустая строка) в .env.prod — падает JSONDecodeError. Это ломает `alembic upgrade head` в CI/CD deploy.",
+      "fix": "Добавить в класс Settings метод settings_customise_sources, который использует кастомный EnvSettingsSource, переопределяющий prepare_field_value: если value — пустая строка для complex-типа, возвращать None вместо попытки json.loads. Или альтернатива: использовать model_validator(mode='before') для обработки raw env dict до парсинга.",
+      "error": "pydantic_settings.sources.SettingsError: error parsing value for field \"BACKEND_CORS_ORIGINS\" from source \"EnvSettingsSource\""
+    },
+    {
+      "id": "BUG-2",
+      "title": "orderstatus enum: Celery задача шлёт UPPERCASE значения в PostgreSQL",
+      "file": "backend/app/tasks/inventory.py",
+      "root_cause": "Строки 25 и 38: `Order.status == OrderStatus.PENDING` и `Order.status == OrderStatus.CANCELLED` передают enum-объект напрямую. asyncpg берёт .name (\"PENDING\") вместо .value (\"pending\"). PostgreSQL enum orderstatus содержит только lowercase значения — выброс InvalidTextRepresentationError.",
+      "fix": "Заменить на OrderStatus.PENDING.value и OrderStatus.CANCELLED.value в where-условиях SQLAlchemy",
+      "error": "invalid input value for enum orderstatus: \"PENDING\" / \"CANCELLED\""
+    },
+    {
+      "id": "BUG-3",
+      "title": "GET /api/v1/blog/posts возвращает 401 для неавторизованных пользователей",
+      "file": "backend/app/api/v1/blog/router.py",
+      "root_cause": "Строка 31: `current_user: Optional[User] = Depends(get_current_user)`. Несмотря на тип Optional[User], `get_current_user` использует `oauth2_scheme` (auto_error=True по умолчанию) и ВСЕГДА бросает 401 при отсутствии токена. Optional в аннотации не влияет на поведение OAuth2PasswordBearer.",
+      "fix": "Заменить `Depends(get_current_user)` на `Depends(get_optional_current_user)` в функции list_posts. get_optional_current_user уже существует в dependencies.py и возвращает None при отсутствии токена.",
+      "error": "GET /api/v1/blog/posts?per_page=3 HTTP/1.1 401"
+    }
+  ],
+  "acceptance_criteria": [
+    "alembic upgrade head отрабатывает при пустом BACKEND_CORS_ORIGINS в env",
+    "Celery release_stale_reservations_task не кидает DBAPIError",
+    "GET /api/v1/blog/posts без токена возвращает 200 с published постами",
+    "ruff check app/ → 0 errors",
+    "mypy app/ --ignore-missing-imports → Success"
+  ],
+  "verification": [
+    "cd backend && python -c \"from app.core.config import settings; print(settings.BACKEND_CORS_ORIGINS)\" — должно работать с пустым env",
+    "cd backend && ruff check app/ --fix && ruff check app/",
+    "cd backend && mypy app/ --ignore-missing-imports"
+  ],
+  "report_path": ".claude/agents/reports/backend/bugfix_backend_001.md"
+}
