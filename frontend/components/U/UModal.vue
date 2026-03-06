@@ -62,6 +62,7 @@ const handleTab = (e: KeyboardEvent) => {
 }
 
 watch(() => props.modelValue, (val) => {
+  if (!import.meta.client) return
   if (val) {
     document.body.style.overflow = 'hidden'
     window.addEventListener('keydown', onKeydown)

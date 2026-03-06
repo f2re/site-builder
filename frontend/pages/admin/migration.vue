@@ -7,6 +7,7 @@
 
 definePageMeta({
   layout: false,
+  pageTransition: false,
   middleware: 'auth'
 })
 

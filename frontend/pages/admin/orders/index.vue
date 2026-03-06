@@ -6,6 +6,7 @@ import USelect from '~/components/U/USelect.vue'
 
 definePageMeta({
   layout: false,
+  pageTransition: false,
   middleware: 'auth',
 })
 

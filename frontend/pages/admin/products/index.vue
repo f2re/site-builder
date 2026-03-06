@@ -6,6 +6,7 @@ import USkeleton from '~/components/U/USkeleton.vue'
 
 definePageMeta({
   layout: false,
+  pageTransition: false,
   middleware: 'auth',
 })
 

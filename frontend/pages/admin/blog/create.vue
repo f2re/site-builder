@@ -3,6 +3,7 @@ import BlogEditor from '@/components/Admin/BlogEditor.vue'
 
 definePageMeta({
   layout: false,
+  pageTransition: false,
   middleware: 'auth',
 })
 

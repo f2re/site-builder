@@ -3,7 +3,8 @@ import type { Complectation } from '~/stores/firmwareStore'
 
 definePageMeta({
   middleware: 'auth',
-  layout: false
+  layout: false,
+  pageTransition: false,
 })
 
 const { 

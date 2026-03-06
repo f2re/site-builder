@@ -1,6 +1,7 @@
 <script setup lang="ts">
 definePageMeta({
-  layout: false
+  layout: false,
+  pageTransition: false,
 })
 
 const { getPages, deletePage } = usePages()

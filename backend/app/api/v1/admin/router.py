@@ -253,6 +253,24 @@ async def delete_category(
     await service.delete_category(category_id)
 
 # ─── Orders ──────────────────────────────────────────────────────────────────
+@router.get("/orders")
+async def list_orders(
+    status: Optional[str] = Query(None, description="Filter by order status"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    _admin: User = AdminDep,
+    repo: OrderRepository = Depends(get_order_repo),
+) -> Any:
+    offset = (page - 1) * per_page
+    items, total = await repo.list_all(status=status, offset=offset, limit=per_page)
+    from app.api.v1.orders.schemas import OrderRead
+    return {
+        "items": [OrderRead.model_validate(o) for o in items],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    }
+
 @router.put("/orders/{order_id}/status")
 async def update_order_status(
     order_id: UUID,

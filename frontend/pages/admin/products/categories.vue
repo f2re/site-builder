@@ -9,6 +9,7 @@ import UModal from '~/components/U/UModal.vue'
 
 definePageMeta({
   layout: false,
+  pageTransition: false,
   middleware: 'auth',
 })
 

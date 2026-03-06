@@ -13,6 +13,7 @@ import ProductMediaManager from '~/components/Admin/ProductMediaManager.vue'
 
 definePageMeta({
   layout: false,
+  pageTransition: false,
   middleware: 'auth',
 })
 

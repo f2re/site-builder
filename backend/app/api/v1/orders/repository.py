@@ -43,6 +43,27 @@ class OrderRepository:
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
+    async def list_all(
+        self,
+        status: Optional[str] = None,
+        offset: int = 0,
+        limit: int = 20,
+    ) -> tuple[Sequence[Order], int]:
+        from sqlalchemy import func
+        stmt = (
+            select(Order)
+            .options(selectinload(Order.items), selectinload(Order.user))
+            .order_by(Order.created_at.desc())
+        )
+        count_stmt = select(func.count()).select_from(Order)
+        if status:
+            stmt = stmt.where(Order.status == status)
+            count_stmt = count_stmt.where(Order.status == status)
+        total = (await self.session.execute(count_stmt)).scalar() or 0
+        stmt = stmt.offset(offset).limit(limit)
+        result = await self.session.execute(stmt)
+        return result.scalars().all(), total
+
     async def update(self, order: Order) -> Order:
         await self.session.flush()
         return order

@@ -5,6 +5,7 @@ import { toFormValidator } from '@vee-validate/zod'
 
 definePageMeta({
   layout: false,
+  pageTransition: false,
   middleware: 'auth'
 })
 
