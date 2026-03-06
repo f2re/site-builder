@@ -18,9 +18,38 @@ error()   { echo -e "${RED}[ERR]${NC}  $*"; exit 1; }
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOGS_DIR="$ROOT_DIR/.logs"
 PIDS_DIR="$ROOT_DIR/.pids"
+LOCAL_BIN="$ROOT_DIR/.bin"   # локальные бинари (meilisearch и др.)
 VENV="$ROOT_DIR/backend/.venv"
 
-mkdir -p "$LOGS_DIR" "$PIDS_DIR"
+mkdir -p "$LOGS_DIR" "$PIDS_DIR" "$LOCAL_BIN"
+
+# Добавляем .bin в PATH чтобы найти meilisearch и др.
+export PATH="$LOCAL_BIN:$PATH"
+
+# ── Безопасная загрузка .env ──────────────────────────────────────────────────
+# Стандартный "source .env" с set -o allexport ломается на значениях
+# с пробелами (EMAILS_FROM_NAME=WifiOBD Shop → shell видит "Shop" как команду).
+# Парсим файл построчно: пропускаем комментарии и пустые строки,
+# кавычим значение перед export.
+load_env() {
+  local env_file="$1"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    # пропускаем комментарии и пустые строки
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "${line// }" ]] && continue
+    # строки вида KEY=VALUE (VALUE может содержать пробелы и спецсимволы)
+    if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+      local key="${BASH_REMATCH[1]}"
+      local val="${BASH_REMATCH[2]}"
+      # снимаем обрамляющие кавычки если есть
+      val="${val%\"}"
+      val="${val#\"}"
+      val="${val%\'}"
+      val="${val#\'}"
+      export "$key=$val"
+    fi
+  done < "$env_file"
+}
 
 # ── Команда stop ──────────────────────────────────────────────────────────────
 cmd_stop() {
@@ -61,14 +90,21 @@ check_deps() {
   command -v npm       >/dev/null || error "npm не найден"
   command -v psql      >/dev/null || brew install postgresql@16
   command -v redis-cli >/dev/null || brew install redis
-  if ! command -v meilisearch >/dev/null; then
-    warn "Meilisearch не найден, устанавливаем..."
-    brew install meilisearch || {
-      warn "brew install не сработал, скачиваем бинарь..."
+
+  if ! command -v meilisearch >/dev/null 2>&1; then
+    warn "Meilisearch не найден, пробуем brew..."
+    if brew install meilisearch 2>/dev/null; then
+      success "Meilisearch установлен через brew"
+    else
+      warn "brew install не сработал (старый Xcode — это нормально), скачиваем бинарь..."
+      # Скачиваем в локальную папку проекта — не требует SIP-прав
       curl -L https://install.meilisearch.com | sh
-      mv ./meilisearch /usr/local/bin/meilisearch
-    }
+      mv ./meilisearch "$LOCAL_BIN/meilisearch"
+      chmod +x "$LOCAL_BIN/meilisearch"
+      success "Meilisearch бинарь сохранён в $LOCAL_BIN/meilisearch"
+    fi
   fi
+
   success "Все зависимости в наличии"
 }
 
@@ -78,6 +114,7 @@ setup_env() {
   if [[ ! -f "$env_file" ]]; then
     info "Создаём .env из .env.example..."
     cp "$ROOT_DIR/.env.example" "$env_file"
+
     # Подменяем docker-имена сервисов на localhost
     sed -i '' \
       -e 's|POSTGRES_HOST=postgres|POSTGRES_HOST=localhost|' \
@@ -89,11 +126,13 @@ setup_env() {
       -e 's|CELERY_RESULT_BACKEND=redis://:.*@redis:6379/2|CELERY_RESULT_BACKEND=redis://localhost:6379/2|' \
       -e 's|MEILI_URL=http://meilisearch:7700|MEILI_URL=http://localhost:7700|' \
       "$env_file"
+
     # Генерируем случайные ключи
     SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     JWT_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(16))")
     FERNET_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" 2>/dev/null \
                  || python3 -c "import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())")
+
     sed -i '' \
       -e "s|SECRET_KEY=change-me-to-a-long-random-string-at-least-64-chars|SECRET_KEY=$SECRET_KEY|" \
       -e "s|JWT_SECRET_KEY=change-me-jwt-secret-at-least-32-chars|JWT_SECRET_KEY=$JWT_SECRET|" \
@@ -102,15 +141,14 @@ setup_env() {
       -e "s|DATABASE_URL=.*|DATABASE_URL=postgresql+asyncpg://sb_user:devpassword@localhost:5432/site_builder|" \
       -e "s|TEST_DATABASE_URL=.*|TEST_DATABASE_URL=postgresql+asyncpg://sb_user:devpassword@localhost:5432/site_builder_test|" \
       "$env_file"
+
     success ".env создан"
   else
     success ".env уже существует"
   fi
-  # Экспортируем все переменные
-  set -o allexport
-  # shellcheck source=/dev/null
-  source "$env_file"
-  set +o allexport
+
+  # Безопасная загрузка: парсим построчно, не через shell-source
+  load_env "$env_file"
 }
 
 # ── 3. PostgreSQL ──────────────────────────────────────────────────────────────
@@ -240,7 +278,7 @@ start_frontend() {
 cmd_seed() {
   # shellcheck source=/dev/null
   source "$VENV/bin/activate"
-  source "$ROOT_DIR/.env" 2>/dev/null || true
+  load_env "$ROOT_DIR/.env"
   info "Засеваем тестовые данные..."
   cd "$ROOT_DIR/backend"
   python -m scripts.seed_e2e
@@ -257,7 +295,6 @@ cmd_e2e() {
   cmd_seed
   # shellcheck source=/dev/null
   source "$VENV/bin/activate"
-  # Устанавливаем pytest + playwright если нужно
   pip install --quiet pytest playwright requests
   playwright install chromium
   info "Запускаем E2E тесты..."
