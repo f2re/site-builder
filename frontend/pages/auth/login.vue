@@ -33,6 +33,7 @@ const [password, passwordProps] = defineField('password')
 const loginError = ref<string | null>(null)
 
 const onSubmit = handleSubmit(async (values) => {
+  console.log('[DEBUG] Login: onSubmit started', values.email)
   loginError.value = null
   const result = await authStore.login(values.email, values.password)
   

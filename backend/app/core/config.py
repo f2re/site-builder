@@ -1,7 +1,7 @@
 # Module: core/config.py | Agent: backend-agent | Task: phase11_backend_admin_blog_refinement
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, AliasChoices
-from typing import List
+from pydantic import Field, AliasChoices, field_validator
+from typing import List, Union
 
 
 class Settings(BaseSettings):
@@ -29,7 +29,21 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
 
     # ── CORS ──────────────────────────────────────────────────────────────────
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+    BACKEND_CORS_ORIGINS: List[str] = Field(
+        default=["http://localhost:3000", "http://localhost:5173"],
+        validation_alias=AliasChoices("BACKEND_CORS_ORIGINS", "CORS_ORIGINS")
+    )
+
+    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: Union[str, List[str], None]) -> List[str]:
+        if v is None:
+            return ["http://localhost:3000", "http://localhost:5173"]
+        if isinstance(v, str) and not v.startswith("["):
+            return [i.strip() for i in v.split(",") if i.strip()]
+        if isinstance(v, list):
+            return v
+        raise ValueError(f"Invalid CORS origins format: {v}")
 
     # ── Email ─────────────────────────────────────────────────────────────────
     SMTP_HOST: str = ""

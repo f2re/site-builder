@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { useUserStore } from './userStore'
 
 export const useAuthStore = defineStore('auth', () => {
   const config = useRuntimeConfig()
@@ -19,11 +18,13 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!accessToken.value)
 
   async function login(email: string, password: string) {
+    console.log('[DEBUG] authStore: login started', email)
     try {
       const data = await $fetch<any>(`${apiBase}/auth/login`, {
         method: 'POST',
         body: { email, password }
       })
+      console.log('[DEBUG] authStore: login response received', !!data.access_token)
       
       if (data.access_token) {
         accessToken.value = data.access_token
@@ -32,7 +33,9 @@ export const useAuthStore = defineStore('auth', () => {
         }
         
         const userStore = useUserStore()
+        console.log('[DEBUG] authStore: fetching profile...')
         await userStore.fetchProfile()
+        console.log('[DEBUG] authStore: profile fetched', !!userStore.user)
 
         return { success: true }
       }

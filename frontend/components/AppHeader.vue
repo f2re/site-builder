@@ -4,18 +4,15 @@ import { useRoute } from 'vue-router'
 import { useCartStore } from '~/stores/cartStore'
 import { useAuthStore } from '~/stores/authStore'
 import { useUserStore } from '~/stores/userStore'
-import UButton from './U/UButton.vue'
-import UThemeToggle from './U/UThemeToggle.vue'
-import USearchModal from './U/USearchModal.vue'
 
 const route = useRoute()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
 const userStore = useUserStore()
 const userName = computed(() => userStore.user?.full_name)
-watch([isAuthenticated, userName], ([auth, name]) => {
-  console.log(`[DEBUG] AppHeader: isAuthenticated=${auth}, userName=${name}`)
-}, { immediate: true })
+watch(() => userStore.user, (u) => {
+  console.log('[DEBUG] AppHeader: user changed', JSON.stringify(u))
+}, { immediate: true, deep: true })
 const isMenuOpen = ref(false)
 const isSearchOpen = ref(false)
 
@@ -159,7 +156,7 @@ watch(() => route.fullPath, () => {
               </div>
             </template>
             <div v-else class="auth-links">
-              <UButton to="/auth/login" variant="ghost" size="sm">Войти</UButton>
+              <UButton to="/auth/login" variant="ghost" size="sm" data-testid="login-link">Войти</UButton>
               <UButton to="/auth/register" variant="primary" size="sm">Регистрация</UButton>
             </div>
           </div>
