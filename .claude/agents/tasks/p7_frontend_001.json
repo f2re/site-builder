@@ -1,0 +1,22 @@
+{
+  "task_id": "p7_frontend_001",
+  "phase": 7,
+  "agent": "frontend-agent",
+  "title": "Nuxt 3 Frontend: \u0432\u0441\u0435 \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u044b, \u0442\u0435\u043c\u044b, UI kit, IoT-\u0434\u0430\u0448\u0431\u043e\u0440\u0434",
+  "description": "\u0420\u0435\u0430\u043b\u0438\u0437\u043e\u0432\u0430\u0442\u044c frontend-\u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u0435:\n1. UI kit: UButton, UCard, UInput, UThemeToggle, USkeleton, UToast\n2. stores/: themeStore, authStore, cartStore, productStore\n3. composables/: useAuth, useCart, useProducts, useBlog, useIoT\n4. \u0421\u0442\u0440\u0430\u043d\u0438\u0446\u044b: /, /shop, /shop/[slug], /cart, /checkout,\n   /account, /account/orders, /blog, /blog/[slug],\n   /iot, /admin",
+  "description_extra": "\n5. \u0422\u0435\u043c\u0430: dark/light + SSR anti-flash + tokens.css\n6. IoT-\u0434\u0430\u0448\u0431\u043e\u0440\u0434: WebSocket, real-time telemetry charts\n7. PWA: @vite-pwa/nuxt\n8. i18n: ru/en via @nuxtjs/i18n\n9. data-testid \u0443 \u0432\u0441\u0435\u0445 \u0438\u043d\u0442\u0435\u0440\u0430\u043a\u0442\u0438\u0432\u043d\u044b\u0445 \u044d\u043b\u0435\u043c\u0435\u043d\u0442\u043e\u0432",
+  "depends_on": ["p3_backend_001", "p4_backend_001", "p4_cdek_001"],
+  "priority": "high",
+  "contracts_required": [".claude/agents/contracts/api_contracts.md"],
+  "context_file": "frontend/CLAUDE.md",
+  "acceptance_criteria": [
+    "npm run lint \u2014 0 errors",
+    "npm run type-check \u2014 0 errors",
+    "axe-core dark theme: 0 violations (AA)",
+    "axe-core light theme: 0 violations (AA)",
+    "LCP < 2.5s (Lighthouse mobile)",
+    "\u0432\u0441\u0435 data-testid \u043f\u043e \u043a\u043e\u043d\u0442\u0440\u0430\u043a\u0442\u0443 frontend/CLAUDE.md \u0440\u0430\u0441\u0441\u0442\u0430\u0432\u043b\u0435\u043d\u044b",
+    "\u0442\u0435\u043c\u0430 \u043f\u0435\u0440\u0435\u043a\u043b\u044e\u0447\u0430\u0435\u0442\u0441\u044f \u0431\u0435\u0437 FOUC",
+    "\u043d\u0435\u0442 \u0445\u0430\u0440\u0434\u043a\u043e\u0434\u0435\u0434 #hex \u0446\u0432\u0435\u0442\u043e\u0432 (\u0442\u043e\u043b\u044c\u043a\u043e var(--color-*))"
+  ]
+}

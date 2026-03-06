@@ -1,0 +1,20 @@
+{
+  "task_id": "p4_backend_001",
+  "phase": 4,
+  "agent": "backend-agent",
+  "title": "E-Commerce Core: Cart (Redis Lua), Orders, Status FSM",
+  "description": "\u0420\u0435\u0430\u043b\u0438\u0437\u043e\u0432\u0430\u0442\u044c:\n1. backend/app/db/models/cart.py \u2014 Cart, CartItem \u043c\u043e\u0434\u0435\u043b\u0438\n2. backend/app/api/v1/cart/ \u2014 GET, POST /add, DELETE /{product_id}, DELETE /\n3. Redis Lua \u0441\u043a\u0440\u0438\u043f\u0442 \u0434\u043b\u044f \u0430\u0442\u043e\u043c\u0430\u0440\u043d\u043e\u0433\u043e \u0440\u0435\u0437\u0435\u0440\u0432\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f (race condition)",
+  "description_extra": "\n4. backend/app/api/v1/orders/ \u2014 POST /, GET /, GET /{order_id}\n5. OrderService \u2014 \u0432\u0430\u043b\u0438\u0434\u0430\u0446\u0438\u044f FSM \u043f\u0435\u0440\u0435\u0445\u043e\u0434\u043e\u0432 \u0441\u0442\u0430\u0442\u0443\u0441\u0430\n6. Alembic migration \u0434\u043b\u044f cart, cart_item \u0442\u0430\u0431\u043b\u0438\u0446",
+  "depends_on": ["p3_backend_001"],
+  "priority": "high",
+  "contracts_required": [".claude/agents/contracts/api_contracts.md"],
+  "context_file": "backend/CLAUDE.md",
+  "acceptance_criteria": [
+    "POST /api/v1/cart/add \u2014 409 \u043f\u0440\u0438 \u043f\u0440\u0435\u0432\u044b\u0448\u0435\u043d\u0438\u0438 \u0441\u0442\u043e\u043a\u0430",
+    "Redis Lua \u0441\u043a\u0440\u0438\u043f\u0442 \u0430\u0442\u043e\u043c\u0430\u0440\u0435\u043d, TTL 30min",
+    "POST /api/v1/orders/ \u2014 \u0432\u043e\u0437\u0432\u0440\u0430\u0449\u0430\u0435\u0442 payment_url",
+    "OrderService: \u043d\u0435\u043b\u044c\u0437\u044f \u043f\u0435\u0440\u0435\u043f\u0440\u044b\u0433\u043d\u0443\u0442\u044c pending \u2192 delivered",
+    "alembic check \u2014 OK",
+    "pytest tests/unit/api/test_cart.py \u2014 green (concurrent test \u0435\u0441\u0442\u044c)"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "task_id": "p6_cdek_001",
+  "phase": 6,
+  "agent": "cdek-agent",
+  "title": "CBR Rates: Celery beat, currency cache, multi-currency prices",
+  "description": "\u0420\u0435\u0430\u043b\u0438\u0437\u043e\u0432\u0430\u0442\u044c:\n1. backend/app/integrations/cbr_rates.py \u2014 CBR XML API, get_rate(currency)\n2. backend/app/tasks/inventory.py \u2014 Celery beat: \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0435 \u043a\u0443\u0440\u0441\u043e\u0432 \u0435\u0436\u0435\u0434\u043d\u0435\u0432\u043d\u043e\n3. Redis \u043a\u044d\u0448 `cbr:rates:{date}` TTL 24h\n4. GET /api/v1/products?currency=USD \u2014 \u043f\u0440\u0438\u043c\u0435\u043d\u044f\u0435\u0442 \u043a\u0443\u0440\u0441\n5. Unit-\u0442\u0435\u0441\u0442\u044b \u0441 freezegun \u0434\u043b\u044f datetime, respx \u0434\u043b\u044f CBR API",
+  "depends_on": ["p4_cdek_001"],
+  "priority": "medium",
+  "contracts_required": [".claude/agents/contracts/api_contracts.md"],
+  "context_file": "backend/CLAUDE.md",
+  "acceptance_criteria": [
+    "get_rate('USD') \u2014 \u0432\u043e\u0437\u0432\u0440\u0430\u0449\u0430\u0435\u0442 Decimal",
+    "Redis \u043a\u044d\u0448 \u0437\u0430\u043f\u043e\u043b\u043d\u044f\u0435\u0442\u0441\u044f \u043f\u043e\u0441\u043b\u0435 Celery beat",
+    "GET /api/v1/products?currency=USD \u2014 price_display \u0432 USD",
+    "\u0444\u0430\u043b\u043b\u0431\u044d\u043a: CBR \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d \u2192 \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0435\u0442\u0441\u044f \u043f\u043e\u0441\u043b\u0435\u0434\u043d\u0438\u0439 \u043a\u044d\u0448",
+    "pytest tests/unit/integrations/test_cbr_rates.py \u2014 green (freezegun)"
+  ]
+}

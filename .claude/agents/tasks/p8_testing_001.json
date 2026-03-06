@@ -1,0 +1,21 @@
+{
+  "task_id": "p8_testing_001",
+  "phase": 8,
+  "agent": "testing-agent",
+  "title": "Testing: pytest unit/integration, WebSocket 8 \u0441\u0446\u0435\u043d\u0430\u0440\u0438\u0435\u0432, Locust load",
+  "description": "\u0420\u0435\u0430\u043b\u0438\u0437\u043e\u0432\u0430\u0442\u044c \u043f\u043e\u043b\u043d\u043e\u0435 \u043f\u043e\u043a\u0440\u044b\u0442\u0438\u0435 \u0442\u0435\u0441\u0442\u0430\u043c\u0438:\n1. tests/conftest.py \u2014 fakeredis[lua], test DB, fixtures\n2. tests/unit/auth/, api/, blog/, integrations/, iot/\n3. tests/integration/test_orders_flow.py \u2014 cart\u2192order\u2192webhook\u2192status\n4. tests/integration/test_iot_pipeline.py \u2014 device\u2192stream\u2192TimescaleDB\u2192WS\n5. tests/unit/iot/test_iot_ws.py \u2014 \u0432\u0441\u0435 8 \u0441\u0446\u0435\u043d\u0430\u0440\u0438\u0435\u0432 WebSocket\n6. tests/load/locustfile.py + locust_iot.py",
+  "depends_on": ["p4_backend_001", "p4_cdek_001", "p5_backend_001", "p6_cdek_001"],
+  "priority": "high",
+  "contracts_required": [".claude/agents/contracts/api_contracts.md"],
+  "context_file": "tests/CLAUDE.md",
+  "acceptance_criteria": [
+    "pytest tests/unit/ \u2014 all green",
+    "pytest tests/integration/ \u2014 all green",
+    "coverage: app/services/ > 80%, app/api/ > 70%",
+    "WebSocket: 8/8 auth \u0441\u0446\u0435\u043d\u0430\u0440\u0438\u0435\u0432 green",
+    "Locust catalog: RPS \u2265 200, p95 < 300ms",
+    "Locust checkout: p95 < 2000ms",
+    "\u0438\u0434\u0435\u043c\u043f\u043e\u0442\u0435\u043d\u0442\u043d\u043e\u0441\u0442\u044c webhook: \u0442\u0435\u0441\u0442 \u0435\u0441\u0442\u044c",
+    "race condition cart: \u0442\u0435\u0441\u0442 \u0435\u0441\u0442\u044c"
+  ]
+}

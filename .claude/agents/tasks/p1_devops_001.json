@@ -1,0 +1,22 @@
+{
+  "task_id": "p1_devops_001",
+  "phase": 1,
+  "agent": "devops-agent",
+  "title": "Infrastructure Setup: Docker Compose, Dockerfiles, GitLab CI/CD",
+  "description": "\u0421\u043e\u0437\u0434\u0430\u0442\u044c \u043f\u043e\u043b\u043d\u0443\u044e dev-\u0438\u043d\u0444\u0440\u0430\u0441\u0442\u0440\u0443\u043a\u0442\u0443\u0440\u0443:\n1. docker-compose.yml (root) \u2014 \u0432\u0441\u0435 13 \u0441\u0435\u0440\u0432\u0438\u0441\u043e\u0432 \u0441 healthcheck\n2. deploy/docker-compose.prod.yml \u2014 production-\u0432\u0430\u0440\u0438\u0430\u043d\u0442 (Double Edit Rule)\n3. backend/Dockerfile \u2014 multi-stage (builder + runtime, non-root user)\n4. frontend/Dockerfile \u2014 multi-stage (node build + Nuxt SSR)\n5. deploy/nginx/nginx.conf \u2014 reverse proxy, TLS, security headers, WebSocket, rate limit\n6. .gitlab-ci.yml \u2014 stages: build/test/push/deploy\n7. .env.example \u2014 \u0432\u0441\u0435 \u043f\u0435\u0440\u0435\u043c\u0435\u043d\u043d\u044b\u0435 \u0437\u0430\u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u044b, \u0431\u0435\u0437 \u0440\u0435\u0430\u043b\u044c\u043d\u044b\u0445 \u0441\u0435\u043a\u0440\u0435\u0442\u043e\u0432\n8. deploy/prometheus/prometheus.yml, deploy/loki/loki-config.yml",
+  "depends_on": [],
+  "priority": "high",
+  "contracts_required": [".claude/agents/contracts/api_contracts.md"],
+  "context_file": "deploy/CLAUDE.md",
+  "acceptance_criteria": [
+    "docker compose -f docker-compose.yml config \u2014 valid",
+    "docker compose -f deploy/docker-compose.prod.yml config \u2014 valid",
+    "hadolint backend/Dockerfile \u2014 0 warnings",
+    "hadolint frontend/Dockerfile \u2014 0 warnings",
+    "nginx -t deploy/nginx/nginx.conf \u2014 OK",
+    ".gitlab-ci.yml \u0441\u043e\u0434\u0435\u0440\u0436\u0438\u0442 stages: build/test/push/deploy",
+    "\u0432\u0441\u0435 \u0441\u0435\u0440\u0432\u0438\u0441\u044b \u0441 healthcheck",
+    "\u043d\u0435\u0442 :latest \u0432 \u043f\u0440\u043e\u0434-\u043e\u0431\u0440\u0430\u0437\u0430\u0445",
+    "\u043d\u0435\u0442 \u0441\u0435\u043a\u0440\u0435\u0442\u043e\u0432 \u0432 .env.example"
+  ]
+}

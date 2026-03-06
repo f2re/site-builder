@@ -1,0 +1,20 @@
+{
+  "task_id": "p2_backend_001",
+  "phase": 2,
+  "agent": "backend-agent",
+  "title": "Backend Core: FastAPI skeleton, DB models, Alembic, Auth endpoints",
+  "description": "\u0420\u0435\u0430\u043b\u0438\u0437\u043e\u0432\u0430\u0442\u044c \u044f\u0434\u0440\u043e backend:\n1. backend/app/main.py \u2014 FastAPI app factory, lifespan, middleware\n2. backend/app/db/models/ \u2014 \u0432\u0441\u0435 \u043c\u043e\u0434\u0435\u043b\u0438: user, user_device, product, order, blog, notification, redirect, cart, telemetry\n3. backend/app/api/v1/auth/ \u2014 register, login, refresh, logout\n4. backend/app/api/v1/users/me \u2014 GET/PATCH/DELETE\n5. Alembic initial migration (\u0432\u0441\u0435 \u0442\u0430\u0431\u043b\u0438\u0446\u044b)\n6. Unit-\u0442\u0435\u0441\u0442\u044b \u0434\u043b\u044f auth service",
+  "depends_on": ["p1_devops_001"],
+  "priority": "high",
+  "contracts_required": [".claude/agents/contracts/api_contracts.md"],
+  "context_file": "backend/CLAUDE.md",
+  "acceptance_criteria": [
+    "POST /api/v1/auth/register \u2014 201, user \u0441\u043e\u0437\u0434\u0430\u043d, email hash \u0441\u0447\u0438\u0442\u0430\u043d",
+    "POST /api/v1/auth/login \u2014 200, \u0432\u043e\u0437\u0432\u0440\u0430\u0449\u0430\u0435\u0442 UserResponse \u0432 \u043f\u043e\u043b\u0435 user",
+    "POST /api/v1/auth/refresh \u2014 \u0440\u043e\u0442\u0430\u0446\u0438\u044f \u0442\u043e\u043a\u0435\u043d\u0430",
+    "GET /api/v1/users/me \u2014 \u0432\u043e\u0437\u0432\u0440\u0430\u0449\u0430\u0435\u0442 UserResponse",
+    "alembic check \u2014 OK, alembic heads \u2014 1 head",
+    "ruff + mypy \u2014 0 errors",
+    "pytest tests/unit/auth/ \u2014 all green"
+  ]
+}

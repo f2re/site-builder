@@ -1,0 +1,19 @@
+{
+  "task_id": "p5_backend_001",
+  "phase": 5,
+  "agent": "backend-agent",
+  "title": "IoT Layer: WebSocket, Redis Streams, TimescaleDB hypertable",
+  "description": "\u0420\u0435\u0430\u043b\u0438\u0437\u043e\u0432\u0430\u0442\u044c IoT-\u043f\u0438\u043f\u043b\u0430\u0439\u043d:\n1. backend/app/db/models/telemetry.py \u2014 TimescaleDB hypertable\n   - \u043a\u043e\u043b\u043e\u043d\u043a\u0438: device_id UUID, ts TIMESTAMPTZ, data JSONB\n   - Alembic migration: create_hypertable + retention_policy\n2. backend/app/api/v1/iot/ \u2014 POST /data, GET /history/{id}, GET /devices\n3. WebSocket /api/v1/iot/ws/{device_id} \u2014 JWT auth, ConnectionManager\n4. Celery consumer: XREAD iot:{device_id} \u2192 batch insert TimescaleDB\n5. Dashboard: SQL \u0441 time_bucket (\u043d\u0435 raw SELECT *)",
+  "depends_on": ["p2_backend_001"],
+  "priority": "medium",
+  "contracts_required": [".claude/agents/contracts/api_contracts.md"],
+  "context_file": "backend/CLAUDE.md",
+  "acceptance_criteria": [
+    "POST /api/v1/iot/data \u2014 200, payload \u0432 Redis Stream",
+    "WebSocket: \u0431\u0435\u0437 \u0442\u043e\u043a\u0435\u043d\u0430 \u2192 close 1008",
+    "TimescaleDB hypertable \u0441\u043e\u0437\u0434\u0430\u043d, chunk_time_interval = '1 day'",
+    "retention policy = TELEMETRY_RETENTION_DAYS \u0434\u043d\u0435\u0439",
+    "alembic check \u2014 OK",
+    "pytest tests/unit/iot/ \u2014 8 \u0441\u0446\u0435\u043d\u0430\u0440\u0438\u0435\u0432 WebSocket \u0437\u0435\u043b\u0451"
+  ]
+}
