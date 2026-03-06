@@ -1,0 +1,23 @@
+{
+  "task_id": "p8_e2e_backend_001",
+  "phase": 8,
+  "agent": "backend-agent",
+  "title": "Создать backend/scripts/seed_e2e.py — засев тестовых данных для E2E",
+  "description": "Создать скрипт backend/scripts/seed_e2e.py, который вызывается командой `python -m scripts.seed_e2e` из директории backend/ и создаёт минимальный набор данных для прохождения E2E-тестов.\n\nСкрипт должен быть идемпотентным (повторный запуск не создаёт дубликатов).\n\nТребуемые данные:\n1. Пользователь-администратор: email=admin@wifiobd-test.ru, password=Admin123!, role=admin\n2. Пользователь-покупатель: email=customer@wifiobd-test.ru, password=Customer123!, role=customer\n3. Минимум 2 категории товаров\n4. Минимум 3 товара:\n   - 'OBD2 Адаптер WiFi Pro', SKU='OBD2-WIFI-001', price=1990, stock=50\n   - 'Диагностический сканер ELM327', SKU='ELM327-001', price=2490, stock=30\n   - 'Тестовый товар для удаления', SKU='DEL-TEST-001', price=990, stock=10\n5. Минимум 2 поста блога (published=true) с реальным контентом\n6. Минимум 1 заказ для покупателя (статус='delivered') с одним товаром\n\nТехнические требования:\n- Использовать asyncio.run() для async SQLAlchemy\n- Читать DATABASE_URL из переменных окружения (через app.core.config Settings)\n- Хешировать пароли через app.core.security.get_password_hash\n- При наличии записи — пропускать (SELECT → INSERT только если нет)\n- Выводить в stdout что было создано, что пропущено\n- Завершаться с кодом 0 при успехе, 1 при ошибке",
+  "depends_on": ["p2_backend_001", "p3_backend_001", "p4_backend_001"],
+  "priority": "critical",
+  "contracts_required": [
+    ".claude/agents/contracts/api_contracts.md"
+  ],
+  "context_file": "backend/CLAUDE.md",
+  "acceptance_criteria": [
+    "cd backend && python -m scripts.seed_e2e → exit code 0",
+    "повторный запуск python -m scripts.seed_e2e → не создаёт дубликатов, exit code 0",
+    "admin@wifiobd-test.ru существует в БД с role=admin",
+    "customer@wifiobd-test.ru существует в БД с role=customer",
+    "В БД минимум 3 товара, 2 поста блога",
+    "В БД минимум 1 заказ для customer@wifiobd-test.ru",
+    "POST /api/v1/auth/login {email: 'admin@wifiobd-test.ru', password: 'Admin123!'} → 200 + accessToken"
+  ],
+  "output_file": "backend/scripts/seed_e2e.py"
+}

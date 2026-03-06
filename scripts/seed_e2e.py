@@ -12,9 +12,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
 
 from app.db.session import AsyncSessionLocal
 from app.db.models.user import User
-from app.db.models.product import Product, Category
-from app.db.models.blog import Post
-from app.core.security import get_password_hash
+from app.db.models.product import Product, Category, ProductVariant
+from app.db.models.blog import BlogPost as Post, BlogPostStatus, Author
+from app.core.security import get_password_hash, encrypt_data, get_blind_index
 from sqlalchemy import select, delete
 
 
@@ -42,7 +42,7 @@ PRODUCTS = [
         "slug": "obd2-wifiobd-pro",
         "description": "Профессиональный OBD2 адаптер с поддержкой WiFi",
         "price": 2990.00,
-        "stock": 50,
+        "stock_quantity": 50,
         "sku": "WOB-PRO-001",
     },
     {
@@ -50,7 +50,7 @@ PRODUCTS = [
         "slug": "obd2-wifiobd-lite",
         "description": "Базовый OBD2 адаптер для личного использования",
         "price": 990.00,
-        "stock": 100,
+        "stock_quantity": 100,
         "sku": "WOB-LIT-001",
     },
     {
@@ -58,7 +58,7 @@ PRODUCTS = [
         "slug": "test-delete-product",
         "description": "Этот товар будет удалён в тесте",
         "price": 1.00,
-        "stock": 1,
+        "stock_quantity": 1,
         "sku": "TEST-DEL-001",
     },
 ]
@@ -67,14 +67,14 @@ BLOG_POSTS = [
     {
         "title": "Как подключить OBD2 к телефону",
         "slug": "how-to-connect-obd2",
-        "content": "Подробная инструкция по подключению OBD2 адаптера к смартфону...",
-        "is_published": True,
+        "content_html": "<p>Подробная инструкция по подключению OBD2 адаптера к смартфону...</p>",
+        "status": BlogPostStatus.PUBLISHED,
     },
     {
         "title": "Диагностика автомобиля своими руками",
         "slug": "car-diagnostics-diy",
-        "content": "Руководство по самостоятельной диагностике автомобиля...",
-        "is_published": True,
+        "content_html": "<p>Руководство по самостоятельной диагностике автомобиля...</p>",
+        "status": BlogPostStatus.PUBLISHED,
     },
 ]
 
@@ -84,9 +84,10 @@ BLOG_POSTS = [
 async def clean_test_data(session):
     """Удаляет предыдущие тестовые данные."""
     test_emails = [ADMIN["email"], CUSTOMER["email"]]
+    test_email_hashes = [get_blind_index(email) for email in test_emails]
     test_slugs = [p["slug"] for p in PRODUCTS] + [p["slug"] for p in BLOG_POSTS]
 
-    await session.execute(delete(User).where(User.email.in_(test_emails)))
+    await session.execute(delete(User).where(User.email_hash.in_(test_email_hashes)))
     await session.execute(delete(Product).where(Product.slug.in_(test_slugs)))
     await session.execute(delete(Post).where(Post.slug.in_(test_slugs)))
     await session.commit()
@@ -94,19 +95,22 @@ async def clean_test_data(session):
 
 
 async def create_user(session, data: dict) -> User:
-    result = await session.execute(select(User).where(User.email == data["email"]))
+    # Use unencrypted email for the check
+    result = await session.execute(select(User).where(User.email_hash == get_blind_index(data["email"])))
     existing = result.scalar_one_or_none()
     if existing:
+        # For idempotency, we can choose to return the existing user
+        # or update them. For seeding, returning is safer.
         return existing
 
     user = User(
-        email=data["email"],
-        password_hash=get_password_hash(data["password"]),
-        first_name=data["first_name"],
-        last_name=data["last_name"],
+        email_hash=get_blind_index(data["email"]),
+        email=encrypt_data(data["email"]),
+        hashed_password=get_password_hash(data["password"]),
+        full_name=f"{data['first_name']} {data['last_name']}",
         role=data["role"],
         is_active=True,
-        is_verified=True,  # пропускаем email-верификацию для тестов
+        is_superuser=data["role"] == "admin"
     )
     session.add(user)
     await session.flush()
@@ -126,6 +130,20 @@ async def seed():
         print(f"✅ Admin: {ADMIN['email']} / {ADMIN['password']}")
         print(f"✅ Customer: {CUSTOMER['email']} / {CUSTOMER['password']}")
 
+        # Create an author profile for the admin user
+        result = await session.execute(select(Author).where(Author.user_id == admin.id))
+        author = result.scalar_one_or_none()
+        if not author:
+            author = Author(
+                user_id=admin.id,
+                display_name=admin.full_name or "Admin"
+            )
+            session.add(author)
+            await session.commit()
+            await session.refresh(author)
+        
+        print(f"✅ Author created for admin: {author.display_name}")
+
         # 2. Категория для товаров
         result = await session.execute(
             select(Category).where(Category.slug == "obd-adapters")
@@ -135,7 +153,6 @@ async def seed():
             category = Category(
                 name="OBD Адаптеры",
                 slug="obd-adapters",
-                description="Адаптеры для диагностики автомобиля",
             )
             session.add(category)
             await session.flush()
@@ -146,12 +163,26 @@ async def seed():
                 select(Product).where(Product.slug == p_data["slug"])
             )
             if not result.scalar_one_or_none():
+                product_data = p_data.copy()
+                variant_data = {
+                    "price": product_data.pop("price"),
+                    "stock_quantity": product_data.pop("stock_quantity"),
+                    "sku": product_data.pop("sku"),
+                    "name": product_data.get("name")
+                }
+
                 product = Product(
-                    **p_data,
+                    name=product_data["name"],
+                    slug=product_data["slug"],
+                    description=product_data["description"],
                     category_id=category.id,
                     is_active=True,
                 )
                 session.add(product)
+                await session.flush()
+
+                variant = ProductVariant(product_id=product.id, **variant_data)
+                session.add(variant)
         await session.commit()
         print(f"✅ Создано товаров: {len(PRODUCTS)}")
 
@@ -161,7 +192,7 @@ async def seed():
                 select(Post).where(Post.slug == post_data["slug"])
             )
             if not result.scalar_one_or_none():
-                post = Post(**post_data, author_id=admin.id)
+                post = Post(**post_data, author_id=author.id)
                 session.add(post)
         await session.commit()
         print(f"✅ Создано блог-постов: {len(BLOG_POSTS)}")

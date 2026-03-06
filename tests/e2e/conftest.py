@@ -45,7 +45,7 @@ def _login_via_api(email: str, password: str) -> str:
         "password": password,
     })
     assert resp.status_code == 200, f"Login failed for {email}: {resp.text}"
-    return resp.json()["accessToken"]
+    return resp.json()["access_token"]
 
 
 def _inject_token(page: Page, token: str) -> Page:

@@ -45,7 +45,7 @@ class ProductService:
         min_price: Optional[Decimal] = None,
         max_price: Optional[Decimal] = None,
         is_featured: Optional[bool] = None,
-        cursor: Optional[UUID] = None,
+        cursor: Optional[str] = None,
         per_page: int = 20,
         active_only: bool = True,
     ) -> ProductPagination:

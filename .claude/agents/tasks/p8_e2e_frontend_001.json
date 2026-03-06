@@ -1,0 +1,23 @@
+{
+  "task_id": "p8_e2e_frontend_001",
+  "phase": 8,
+  "agent": "frontend-agent",
+  "title": "Расставить data-testid на все интерактивные элементы по E2E-контракту",
+  "description": "Прочитать контракт .claude/agents/contracts/e2e_testid_contract.md и расставить ВСЕ перечисленные там data-testid атрибуты в компонентах и страницах Nuxt 3.\n\nПорядок работы:\n1. Прочитать .claude/agents/contracts/e2e_testid_contract.md (список всех обязательных testid)\n2. Для каждого testid найти соответствующий компонент/страницу (см. колонку 'Где' в контракте)\n3. Добавить data-testid='...' на нужный элемент\n4. Запустить проверку покрытия:\n   grep -r 'data-testid=' frontend/components frontend/pages | grep -oP 'data-testid=\"[^\"]+\"' | sort -u\n   Убедиться что все testid из контракта присутствуют в выводе\n\nКритически важные testid (без них E2E не запустится):\n- user-name, user-menu, logout-btn, cart-count (layout — нужны во всех тестах)\n- email-input, password-input, login-btn, auth-error (test_01_auth)\n- blog-post-card, blog-post-title, blog-post-content (test_02_blog)\n- product-card, search-input, search-results, add-to-cart-btn, product-price, product-stock (test_03, test_04)\n- cart-item, cart-count, cart-qty-increase, cart-qty-decrease, cart-remove-btn, checkout-btn (test_05)\n- delivery-form, city-input, cdek-pickup-point, confirm-delivery-btn, payment-form (test_06)\n- order-list, order-card, order-number, order-status, order-items (test_07)\n- admin-product-form, admin-product-name, admin-product-price, admin-product-stock, admin-product-sku (test_03_admin)\n- admin-blog-form, admin-blog-title, admin-blog-content, admin-save-btn (test_02_admin)\n- admin-delete-btn, admin-confirm-delete, user-row (test_03_admin)\n\nПравила:\n- data-testid только на нативных элементах или корневом элементе компонента\n- НЕ создавать новые компоненты — только добавить атрибут в существующие\n- НЕ менять логику — только атрибуты\n- Если элемент ещё не реализован — создать минимальный stub с корректным testid",
+  "depends_on": ["p7_frontend_001"],
+  "priority": "critical",
+  "contracts_required": [
+    ".claude/agents/contracts/e2e_testid_contract.md",
+    ".claude/agents/contracts/api_contracts.md"
+  ],
+  "context_file": "frontend/CLAUDE.md",
+  "acceptance_criteria": [
+    "grep -r 'data-testid=' frontend/components frontend/pages показывает ВСЕ 40+ testid из контракта",
+    "npm run lint → 0 errors",
+    "npm run type-check → 0 errors",
+    "user-name виден в навбаре после авторизации через localStorage.setItem('accessToken', token)",
+    "cart-count отображает число товаров в корзине",
+    "admin-product-form существует на /admin/products/new",
+    "delivery-form существует на /checkout"
+  ]
+}

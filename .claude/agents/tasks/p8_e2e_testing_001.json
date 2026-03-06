@@ -1,0 +1,33 @@
+{
+  "task_id": "p8_e2e_testing_001",
+  "phase": 8,
+  "agent": "testing-agent",
+  "title": "Запустить E2E-тесты, зафиксировать результат, исправить падения в зоне ответственности тестов",
+  "description": "Запустить полный прогон E2E-тестов через dev_macos.sh, зафиксировать все падения, исправить проблемы в пределах тестового кода. Проблемы в frontend/backend — эскалировать через блокеры в отчёте.\n\nПошаговый алгоритм:\n\n### Шаг 1: Проверить готовность окружения\n```bash\nnc -z localhost 3000 && echo 'frontend OK' || echo 'frontend NOT RUNNING'\nnc -z localhost 8000 && echo 'backend OK' || echo 'backend NOT RUNNING'\nnc -z localhost 7700 && echo 'meilisearch OK' || echo 'meilisearch NOT RUNNING'\n```\nЕсли что-то не запущено — выполнить ./scripts/dev_macos.sh в отдельном терминале.\n\n### Шаг 2: Засеять тестовые данные\n```bash\nsource backend/.venv/bin/activate\ncd backend && python -m scripts.seed_e2e && cd ..\n```\n\n### Шаг 3: Установить тестовые зависимости (если нет)\n```bash\nsource backend/.venv/bin/activate\npip install pytest playwright requests\nplaywright install chromium\n```\n\n### Шаг 4: Прогон всех E2E-тестов\n```bash\nsource backend/.venv/bin/activate\npytest tests/e2e/ -v --headed -s -p no:warnings \\\n  --tb=short \\\n  --junitxml=.logs/e2e_results.xml \\\n  2>&1 | tee .logs/e2e.log\n```\n\n### Шаг 5: Анализ результатов\nДля каждого упавшего теста определить причину:\n- Проблема в тест-коде (conftest, fixture) → исправить в тестах\n- Отсутствует data-testid в frontend → добавить в блокеры (задача для frontend-agent)\n- Отсутствует seed-данные → добавить в блокеры (задача для backend-agent)\n- API возвращает неожиданный ответ → добавить в блокеры (задача для backend-agent)\n\n### Шаг 6: Прогон headless для итогового статуса\n```bash\nCI=true pytest tests/e2e/ -v -p no:warnings --tb=short 2>&1 | tee .logs/e2e_ci.log\n```\n\n### Шаг 7: Написать отчёт\nОтчёт в .claude/agents/reports/testing/p8_e2e_testing_001.md\nВ отчёте для каждого теста: PASS/FAIL + причина + кто должен исправить.",
+  "depends_on": ["p8_e2e_backend_001", "p8_e2e_frontend_001"],
+  "priority": "high",
+  "contracts_required": [
+    ".claude/agents/contracts/e2e_testid_contract.md"
+  ],
+  "context_file": "tests/CLAUDE.md",
+  "acceptance_criteria": [
+    "pytest tests/e2e/ -v CI=true → минимум test_01_auth и test_02_blog PASS",
+    ".logs/e2e_results.xml сгенерирован",
+    ".logs/e2e.log содержит полный вывод прогона",
+    "tests/e2e/screenshots/ содержит PNG-скриншоты",
+    "Отчёт .claude/agents/reports/testing/p8_e2e_testing_001.md написан по шаблону",
+    "Все блокеры задокументированы с указанием ответственного агента"
+  ],
+  "report_template": {
+    "path": ".claude/agents/reports/testing/p8_e2e_testing_001.md",
+    "sections": [
+      "## Status: DONE | IN_PROGRESS | BLOCKED",
+      "## E2E Results Summary: X passed / Y failed / Z skipped",
+      "## Test Results: таблица с PASS/FAIL для каждого test_0*.py",
+      "## Failures: список падений с причиной и ответственным агентом",
+      "## Screenshots: список созданных скриншотов",
+      "## Blockers: что нужно исправить frontend-agent / backend-agent",
+      "## Next: следующий шаг после фиксов"
+    ]
+  }
+}

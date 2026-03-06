@@ -1,25 +1,32 @@
 <script setup lang="ts">
-import type { Product } from '~/composables/useProducts'
+import type { Product, ProductShort } from '~/composables/useProducts'
 import { useCartStore } from '~/stores/cartStore'
 import { useToast } from '~/composables/useToast'
 
 const props = defineProps<{
-  product: Product
+  product: Product | ProductShort
 }>()
 
 const cartStore = useCartStore()
 const toast = useToast()
 
+const imageUrl = computed(() => {
+  if ('images' in props.product && props.product.images?.length) {
+    return props.product.images[0].url
+  }
+  return (props.product as ProductShort).main_image_url || '/placeholder-product.png'
+})
+
 const handleAddToCart = () => {
   if (props.product.stock <= 0) return
-  
+
   cartStore.addItem({
-    id: props.product.id as any, // ID in store is number, but API might return string. Need to align.
+    id: props.product.id as any,
     name: props.product.name,
     price: props.product.price_display,
-    image: props.product.images[0]
+    image: imageUrl.value
   })
-  
+
   toast.success('Добавлено', `${props.product.name} теперь в корзине`)
 }
 </script>
@@ -28,7 +35,7 @@ const handleAddToCart = () => {
   <NuxtLink :to="`/products/${product.slug}`" class="product-card">
     <div class="product-card__image-wrapper">
       <NuxtImg
-        :src="product.images[0] || '/placeholder-product.png'"
+        :src="imageUrl"
         :alt="product.name"
         class="product-card__image"
         loading="lazy"

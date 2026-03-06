@@ -152,7 +152,7 @@ async def get_dashboard(
 # ─── Products ────────────────────────────────────────────────────────────────
 @router.get("/products", response_model=ProductPagination)
 async def list_products(
-    cursor: Optional[UUID] = None,
+    cursor: Optional[str] = None,
     per_page: int = Query(20, ge=1, le=100),
     _admin: User = AdminDep,
     service: ProductService = Depends()

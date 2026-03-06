@@ -46,7 +46,7 @@ async def list_products(
     min_price: Optional[Decimal] = Query(None, description="Filter by minimum price"),
     max_price: Optional[Decimal] = Query(None, description="Filter by maximum price"),
     is_featured: Optional[bool] = Query(None, description="Filter by featured status"),
-    cursor: Optional[UUID] = Query(None, description="Cursor for pagination (Product ID)"),
+    cursor: Optional[str] = Query(None, description="Cursor for pagination (created_at,id)"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     service: ProductService = Depends()
 ):

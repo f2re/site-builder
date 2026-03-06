@@ -294,7 +294,7 @@ cmd_e2e() {
   cmd_seed
   # shellcheck source=/dev/null
   source "$VENV/bin/activate"
-  pip install --quiet pytest playwright requests
+  pip install --quiet pytest-playwright requests
   playwright install chromium
   info "Запускаем E2E тесты..."
   pytest "$ROOT_DIR/tests/e2e/" -v --headed -s \

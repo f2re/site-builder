@@ -3,7 +3,7 @@
 Обновлено: 2026-03-06
 
 ## Текущая фаза: 1 (Infrastructure Setup)
-## Выполнено задач: 0 / 10
+## Выполнено задач: 0 / 13
 
 ---
 
@@ -20,11 +20,14 @@
 | p6_cdek_001 | cdek-agent | CBR Rates + Celery | 🔒 BLOCKED (p4_c) | medium |
 | p7_frontend_001 | frontend-agent | Nuxt 3 Frontend | 🔒 BLOCKED (p3,p4) | high |
 | p8_testing_001 | testing-agent | Tests + Locust | 🔒 BLOCKED (p4,p5,p6) | high |
+| **p8_e2e_backend_001** | backend-agent | seed_e2e.py | 🔒 BLOCKED (p2,p3,p4) | critical |
+| **p8_e2e_frontend_001** | frontend-agent | data-testid расстановка | 🔒 BLOCKED (p7) | critical |
+| **p8_e2e_testing_001** | testing-agent | Запуск E2E + отчёт | 🔒 BLOCKED (p8_e2e_b + p8_e2e_f) | high |
 | p9_security_001 | security-agent | Security Audit | 🔒 BLOCKED (p8) | high |
 
 ---
 
-## 🟢 Готовы к запуску
+## Готовы к запуску
 
 - **p1_devops_001** [devops-agent] — Infrastructure Setup
 
@@ -41,7 +44,27 @@ p1 → p2 → p3 → p4_backend → p4_cdek → p6
               p3 → p7
     p2 → p5
               p4_b + p4_c + p5 + p6 → p8 → p9
+
+E2E подграф (параллельно с p8):
+    p2+p3+p4 → p8_e2e_backend ──┐
+              p7 → p8_e2e_frontend ──┤→ p8_e2e_testing → p9
 ```
+
+---
+
+## E2E цикл — порядок запуска когда p7 и p4 готовы
+
+```bash
+# Параллельно:
+/agents:run backend-agent p8_e2e_backend_001
+/agents:run frontend-agent p8_e2e_frontend_001
+
+# После завершения обоих:
+/agents:run testing-agent p8_e2e_testing_001
+```
+
+Контракт data-testid: `.claude/agents/contracts/e2e_testid_contract.md`
+Отчёт testing-agent: `.claude/agents/reports/testing/p8_e2e_testing_001.md`
 
 ---
 
@@ -51,5 +74,5 @@ p1 → p2 → p3 → p4_backend → p4_cdek → p6
 
 ## Последнее действие
 
-> Автоматически сгенерировано при Phase 4 настройки мультиагентной системы.
+> 2026-03-06: Добавлены задачи E2E-цикла (p8_e2e_backend_001, p8_e2e_frontend_001, p8_e2e_testing_001) и контракт e2e_testid_contract.md.
 > Обновляется автоматически через `/agents:status`.
