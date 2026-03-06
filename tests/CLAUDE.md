@@ -15,24 +15,29 @@
 2. Прочитай исходные файлы, которые нужно протестировать
 3. Составь план тестов в 5–10 шагов
 4. Опиши стратегию покрытия: какие кейсы критичны
+5. Для UI/e2e отдельно перечисли нестабильные селекторы, отсутствующие `data-testid` и потенциальные flaky-step'ы
 
 ### ФАЗА 2 — IMPLEMENT
 - Пиши тесты строго по плану
 - Если файл правился 3+ раза — СТОП, пересмотри подход
+- Для e2e сперва исправляй селекторы и test hooks, потом сценарии
+- Если стабильного селектора нет, сначала добавь `data-testid` в UI или задокументируй дефект
 
 ### ФАЗА 3 — VERIFY [максимальный reasoning]
 ```bash
 pytest tests/unit/ -v --cov=app --cov-report=term-missing
 pytest tests/integration/ -v
+pytest tests/e2e/ -v
 ```
 
 ### ФАЗА 4 — FIX
 - Исправляй строго по ошибкам из Фазы 3
 - Повторяй до полного прохождения DoD
+- Для flaky e2e запрещено лечить проблему `wait_for_timeout()` вместо устранения причины
 
 ---
 
-You write comprehensive tests for the FastAPI e-commerce platform, including WebSocket/IoT layer and load testing.
+You write comprehensive tests for the FastAPI e-commerce platform, including WebSocket/IoT layer, browser e2e flows, and load testing.
 
 ---
 
@@ -50,6 +55,12 @@ tests/
     test_orders_flow.py       # cart → order → payment webhook → status
     test_iot_pipeline.py      # device connect → publish → TimescaleDB → query
     test_cbr_pipeline.py      # Celery beat → CBR → Redis cache → product price
+  e2e/
+    conftest.py               # shared Playwright fixtures + stable UI helpers
+    test_01_auth.py           # login, logout, access guards
+    test_03_admin_products.py # admin CRUD flows with stable selectors
+    test_05_cart.py           # cart actions via UI
+    test_06_checkout.py       # checkout UX + order placement
   load/
     locustfile.py             # catalog + checkout scenarios
     locust_iot.py             # IoT-specific load scenario
@@ -69,6 +80,7 @@ tests/
 | `app/integrations/` | > 75% |
 | `app/tasks/` | > 60% |
 | IoT WebSocket handlers | > 70% |
+| Critical e2e flows | 100% stable selectors |
 
 ---
 
@@ -81,6 +93,39 @@ tests/
 - Every inventory operation MUST have concurrent-access / race condition test
 - ALL tests MUST be deterministic — no `time.sleep()`, use `freezegun` for datetime mocking
 - Database: SQLite in-memory or `test.db` for unit tests (JSON instead of JSONB)
+- E2E tests MUST use `data-testid` as the primary selector strategy
+- E2E tests MAY use fallback semantic selectors only when no stable `data-testid` exists yet
+- E2E tests MUST go through shared helper functions for click/fill/wait operations
+- `wait_for_timeout()` in tests is forbidden except inside shared retry helpers in `tests/e2e/conftest.py`
+- Icon-only buttons, modal confirms, destructive actions, tabs, filters, and search inputs MUST expose stable `data-testid`
+
+---
+
+## 🧪 E2E / UI Contract
+
+### Selector priority
+1. `data-testid`
+2. Accessible role + name / label
+3. Stable placeholder or name attribute
+4. Visible text only for static content assertions, not for critical action buttons
+
+### Required `data-testid` coverage
+MUST exist for:
+- Save/create/update/delete buttons
+- Search inputs and filter toggles
+- Modal confirm/cancel buttons
+- Table rows, cards, row action menus
+- Form fields used in auth, admin CRUD, cart, and checkout
+- Toast containers or success/error result markers
+
+### Interaction rules
+- Before every click, wait until the element is visible, enabled, and scrolled into viewport
+- After every destructive action, handle either native browser dialog or explicit confirmation modal
+- After every submit, assert the observable result: redirect, toast, changed row count, updated text, or API-driven state change
+- If an overlay, skeleton, or pending state blocks a click, fix the UI/test hook instead of adding blind delays
+
+### Dev handoff rule
+When frontend changes affect e2e paths, developer MUST add or preserve `data-testid` attributes as part of the same task. Missing test hooks are a product bug, not only a test bug.
 
 ---
 
@@ -183,6 +228,7 @@ cd frontend && npm run lint
 
 # 4. Tests
 pytest tests/ -x -v
+pytest tests/e2e/ -v
 ```
 
 If any check fails → report MUST start with `## Status: BLOCKED`.
@@ -197,16 +243,23 @@ Write to: `../.claude/agents/reports/testing/<task_id>.md`
 ## Status: DONE | IN_PROGRESS | BLOCKED
 ## Completed:
 - написаны unit тесты для cart/, auth/, products/
+- стабилизированы e2e-сценарии через shared helpers и data-testid policy
 ## Artifacts:
 - tests/unit/api/test_cart.py
 - tests/unit/auth/test_auth.py
 - tests/integration/test_orders_flow.py
+- tests/e2e/conftest.py
+- tests/e2e/test_03_admin_products.py
 - tests/load/report.html
 ## Coverage:
 | Module | Coverage |
 |---|---|
 | app/services/cart.py | 84% |
 | app/api/v1/cart/ | 71% |
+## E2E Contracts:
+- primary selectors: data-testid ✅
+- no blind waits: ✅
+- destructive actions covered: ✅
 ## Locust Results:
 | Scenario | RPS | p95 | Errors |
 |---|---|---|---|
@@ -216,7 +269,7 @@ Write to: `../.claude/agents/reports/testing/<task_id>.md`
 ## Contracts Verified:
 - fakeredis[lua]: ✅ | freezegun: ✅ | idempotency: ✅
 ## Next:
-- security-agent: audit после прохождения тестов
+- frontend-agent: add missing test ids for any new critical UI controls
 ## Blockers:
 - none
 ```
