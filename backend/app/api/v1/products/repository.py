@@ -52,7 +52,7 @@ class ProductRepository:
         per_page: int = 20,
         active_only: bool = True,
     ) -> Tuple[list[dict], Optional[str]]:
-        # Subqueries for prices and cover images
+        # Subqueries for prices, cover images and stock
         min_price_sq = (
             select(
                 ProductVariant.product_id,
@@ -61,7 +61,16 @@ class ProductRepository:
             .group_by(ProductVariant.product_id)
             .subquery()
         )
-        
+
+        stock_sq = (
+            select(
+                ProductVariant.product_id,
+                func.coalesce(func.sum(ProductVariant.stock_quantity), 0).label("total_stock")
+            )
+            .group_by(ProductVariant.product_id)
+            .subquery()
+        )
+
         cover_image_sq = (
             select(
                 ProductImage.product_id,
@@ -82,9 +91,11 @@ class ProductRepository:
                 Product.created_at,
                 Product.updated_at,
                 cover_image_sq.c.url.label("main_image_url"),
-                min_price_sq.c.min_price
+                min_price_sq.c.min_price,
+                stock_sq.c.total_stock,
             )
             .outerjoin(min_price_sq, Product.id == min_price_sq.c.product_id)
+            .outerjoin(stock_sq, Product.id == stock_sq.c.product_id)
             .outerjoin(cover_image_sq, Product.id == cover_image_sq.c.product_id)
         )
 
@@ -135,6 +146,9 @@ class ProductRepository:
                 "is_featured": row.is_featured,
                 "created_at": row.created_at,
                 "updated_at": row.updated_at,
+                "stock": int(row.total_stock or 0),
+                "price_display": str(row.min_price.quantize(Decimal("0.01")) if row.min_price else Decimal("0.00")),
+                "currency": "RUB",
             })
             
         next_cursor = None

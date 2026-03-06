@@ -10,8 +10,16 @@ definePageMeta({
   middleware: 'auth',
 })
 
-const { data: posts, pending, refresh } = await useApi<any>('/blog/posts')
+const { data: posts, pending, refresh } = await useApi<any>('/blog/posts', { params: { limit: 100 } })
 const apiFetch = useApiFetch()
+
+function formatDate(dateStr?: string | null, fallback?: string | null): string {
+  const raw = dateStr || fallback
+  if (!raw) return '—'
+  const d = new Date(raw)
+  if (isNaN(d.getTime()) || d.getFullYear() < 2000) return '—'
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })
+}
 
 async function deletePost(slug: string) {
   if (!confirm('Удалить статью?')) return
@@ -59,7 +67,7 @@ async function deletePost(slug: string) {
                     <UBadge :variant="post.status === 'published' ? 'success' : 'warning'" size="sm">
                       {{ post.status === 'published' ? 'Опубликован' : 'Черновик' }}
                     </UBadge>
-                    <span class="date">{{ post.published_at ? new Date(post.published_at).toLocaleDateString() : '—' }}</span>
+                    <span class="date">{{ formatDate(post.published_at, post.created_at) }}</span>
                   </div>
                 </div>
               </td>
@@ -68,7 +76,7 @@ async function deletePost(slug: string) {
                   {{ post.status === 'published' ? 'Опубликован' : 'Черновик' }}
                 </UBadge>
               </td>
-              <td class="desktop-only">{{ post.published_at ? new Date(post.published_at).toLocaleDateString() : '—' }}</td>
+              <td class="desktop-only">{{ formatDate(post.published_at, post.created_at) }}</td>
               <td class="actions-cell">
                 <div class="actions">
                   <UButton variant="ghost" size="sm" :to="`/admin/blog/${post.slug}`" data-testid="admin-blog-edit-btn">

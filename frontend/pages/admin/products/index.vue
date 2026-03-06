@@ -51,7 +51,7 @@ const { data: products, pending, refresh } = await useFetch('/products', {
             <tr v-for="product in products?.items" :key="product.id" data-testid="product-card">
               <td>
                 <div class="product-cell">
-                  <img v-if="product.images?.length" :src="product.images[0]" :alt="product.name" width="40" height="40" loading="lazy" />
+                  <img v-if="product.main_image_url" :src="product.main_image_url" :alt="product.name" width="40" height="40" loading="lazy" />
                   <div v-else class="image-placeholder">
                     <Icon name="ph:package-bold" size="20" />
                   </div>

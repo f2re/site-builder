@@ -24,7 +24,7 @@ class MediaService:
         mime_type: str,
         size_bytes: int,
         entity_id: Optional[uuid.UUID] = None,
-    ) -> BlogPostMedia:
+    ) -> Optional[BlogPostMedia]:
         """Create media record and trigger Celery processing."""
         if context == "blog":
             media = BlogPostMedia(
@@ -47,8 +47,9 @@ class MediaService:
             logger.info("media_record_created", media_id=str(media.id), object_name=object_name)
             return media
         else:
-            # TODO: Handle product images
-            raise NotImplementedError("Product images not yet implemented")
+            # For non-blog contexts (products, etc.) — file already saved to storage,
+            # no DB record needed. Return None.
+            return None
 
     async def delete_media(self, object_name: str):
         """Delete media record and trigger file deletion."""

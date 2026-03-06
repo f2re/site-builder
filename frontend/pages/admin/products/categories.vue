@@ -102,14 +102,18 @@ const handleDelete = async (id: string) => {
 </script>
 
 <template>
+  <NuxtLayout name="admin">
+    <template #header-title>Категории товаров</template>
+    <template #header-actions>
+      <UButton variant="primary" @click="openCreateModal" icon="ph:plus-bold" size="sm">
+        Добавить
+      </UButton>
+    </template>
+
   <div class="admin-categories-page">
     <div class="page-header">
-      <div class="flex items-center gap-4">
-        <UButton variant="ghost" to="/admin/products" icon="ph:arrow-left-bold" />
-        <h1 class="page-title">Категории товаров</h1>
-      </div>
-      <UButton variant="primary" @click="openCreateModal" icon="ph:plus-bold">
-        Добавить категорию
+      <UButton variant="ghost" to="/admin/products" icon="ph:arrow-left-bold" size="sm">
+        ← Товары
       </UButton>
     </div>
 
@@ -188,6 +192,7 @@ const handleDelete = async (id: string) => {
       </div>
     </UModal>
   </div>
+  </NuxtLayout>
 </template>
 
 <style scoped>

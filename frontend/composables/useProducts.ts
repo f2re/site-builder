@@ -176,7 +176,7 @@ export const useProducts = () => {
   }
 
   const adminUpdateCategory = async (id: string, data: any) => {
-    return await apiFetch<ProductCategory>('/admin/categories', {
+    return await apiFetch<ProductCategory>(`/admin/categories/${id}`, {
       method: 'PUT',
       body: data
     })

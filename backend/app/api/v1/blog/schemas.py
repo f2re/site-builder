@@ -98,6 +98,7 @@ class BlogPostShortRead(BaseModel):
     author: AuthorRead
     tags: List[TagRead] = []
     published_at: Optional[datetime] = None
+    created_at: datetime
     updated_at: datetime
     reading_time: int = Field(default=5, description="Estimated reading time in minutes")
     status: BlogStatus

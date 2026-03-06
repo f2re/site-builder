@@ -113,6 +113,9 @@ class ProductShortRead(BaseModel):
     is_featured: bool
     created_at: datetime
     updated_at: datetime
+    stock: int = 0
+    price_display: str = ""
+    currency: str = "RUB"
     model_config = ConfigDict(from_attributes=True)
 
 class PaginatedResponse(BaseModel):
