@@ -43,6 +43,7 @@ desktop.ini
 # ──────────────────────────────────────────
 coverage/
 .vitest-cache/
+tests/e2e/screenshots/
 
 # ──────────────────────────────────────────
 # Misc
