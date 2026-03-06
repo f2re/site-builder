@@ -7,12 +7,19 @@ from typing import List, Union
 class _SafeEnvSource(EnvSettingsSource):
     """Перехватывает пустые строки для complex-типов (List, dict и т.п.)
     до того как pydantic_settings попытается вызвать json.loads('').
-    Возвращает None → field_validator получает None и применяет дефолт."""
+    Возвращает None → field_validator получает None и применяет дефолт.
+    Также подавляет ошибки парсинга JSON, возвращая сырую строку,
+    чтобы field_validator мог обработать её сам (например, comma-separated list)."""
 
-    def prepare_field_value(self, field_name: str, field, value, value_is_complex: bool):
-        if value_is_complex and isinstance(value, str) and not value.strip():
+    def decode_complex_value(self, field_name: str, field, value: Union[str, list, dict]) -> Union[str, list, dict, None]:
+        if isinstance(value, str) and not value.strip():
             return None
-        return super().prepare_field_value(field_name, field, value, value_is_complex)
+        try:
+            return super().decode_complex_value(field_name, field, value)
+        except Exception:
+            # Если pydantic_settings не смог распарсить JSON (например, CORS_ORIGINS=http://...)
+            # возвращаем сырое значение, чтобы field_validator мог его обработать.
+            return value
 
 
 class Settings(BaseSettings):

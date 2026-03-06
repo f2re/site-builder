@@ -63,6 +63,12 @@ export default defineNuxtConfig({
     strict: true,
   },
 
+  routeRules: {
+    '/shop': { redirect: '/products' },
+    '/shop/**': { redirect: '/products/**' },
+    '/admin/products/new': { redirect: '/admin/products/create' },
+  },
+
   nitro: {
     compressPublicAssets: true,
     devProxy: {

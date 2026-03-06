@@ -12,6 +12,11 @@ const config = useRuntimeConfig()
 
 // Filters state from query
 const categorySlug = computed(() => route.query.category as string | undefined)
+const searchQuery = ref((route.query.q as string) || '')
+
+watch(searchQuery, (q) => {
+  router.push({ query: { ...route.query, q: q || undefined } })
+})
 
 // Pagination state
 const products = ref<any[]>([])
@@ -28,6 +33,7 @@ async function fetchProducts(cursor?: string) {
   try {
     const { data } = await getProducts({
       category_slug: categorySlug.value,
+      search: searchQuery.value || undefined,
       page_cursor: cursor,
       per_page: 20
     })
@@ -52,7 +58,7 @@ async function fetchProducts(cursor?: string) {
 await fetchProducts()
 
 // Watch for category change
-watch(categorySlug, async () => {
+watch([categorySlug, searchQuery], async () => {
   products.value = []
   nextCursor.value = null
   await fetchProducts()
@@ -130,11 +136,26 @@ const breadcrumbItems = computed(() => {
             <h1 class="catalog-page__title">
               {{ categorySlug ? categoriesData?.items.find(c => c.slug === categorySlug)?.name : 'Все товары' }}
             </h1>
-
             <div class="catalog-page__stats">
               {{ total }} товаров найдено
             </div>
           </header>
+
+          <div class="catalog-page__search">
+            <input
+              v-model="searchQuery"
+              type="search"
+              placeholder="Поиск товаров..."
+              class="catalog-search-input"
+              data-testid="search-input"
+            />
+          </div>
+
+          <div
+            v-if="searchQuery && products.length"
+            class="search-results"
+            data-testid="search-results"
+          ></div>
 
           <!-- Products List -->
           <div v-if="products.length" class="product-grid">
@@ -215,6 +236,27 @@ const breadcrumbItems = computed(() => {
 .catalog-page__stats {
   font-size: var(--text-sm);
   color: var(--color-muted);
+}
+
+.catalog-page__search {
+  margin-bottom: 24px;
+}
+
+.catalog-search-input {
+  width: 100%;
+  padding: 10px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-base);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.catalog-search-input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
 
 .product-grid {

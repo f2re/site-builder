@@ -100,7 +100,7 @@ const handleCreate = async () => {
       </UButton>
     </template>
 
-    <div class="product-create-page">
+    <div class="product-create-page" data-testid="admin-product-form">
       <div class="grid gap-6 lg:grid-cols-3">
       <div class="lg:col-span-2 space-y-6">
         <UCard title="Основная информация">
@@ -159,10 +159,11 @@ const handleCreate = async () => {
                 data-testid="admin-product-stock"
               />
             </div>
-            <UInput 
-              v-model="variant.sku" 
-              label="Артикул (SKU)" 
+            <UInput
+              v-model="variant.sku"
+              label="Артикул (SKU)"
               placeholder="SKU-123"
+              data-testid="admin-product-sku"
             />
           </div>
         </UCard>

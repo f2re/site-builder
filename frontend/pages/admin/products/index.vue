@@ -3,6 +3,8 @@ import UButton from '~/components/U/UButton.vue'
 import UCard from '~/components/U/UCard.vue'
 import UBadge from '~/components/U/UBadge.vue'
 import USkeleton from '~/components/U/USkeleton.vue'
+import { useProducts } from '~/composables/useProducts'
+import { useToast } from '~/composables/useToast'
 
 definePageMeta({
   layout: false,
@@ -10,10 +12,31 @@ definePageMeta({
   middleware: 'auth',
 })
 
-const config = useRuntimeConfig()
-const { data: products, pending, refresh } = await useFetch('/products', {
-  baseURL: config.public.apiBase,
+const { adminGetProducts, deleteProduct } = useProducts()
+const { data: products, pending, refresh } = await adminGetProducts()
+
+const toast = useToast()
+
+const searchQuery = ref('')
+const filteredProducts = computed(() => {
+  if (!products.value?.items) return []
+  if (!searchQuery.value.trim()) return products.value.items
+  const q = searchQuery.value.toLowerCase()
+  return products.value.items.filter((p: any) =>
+    p.name?.toLowerCase().includes(q) || p.sku?.toLowerCase().includes(q)
+  )
 })
+
+const handleDelete = async (id: string, name: string) => {
+  if (!confirm(`Удалить товар «${name}»? Это действие нельзя отменить.`)) return
+  try {
+    await deleteProduct(id)
+    toast.success('Удалено', `Товар «${name}» удалён`)
+    await refresh()
+  } catch (err: any) {
+    toast.error('Ошибка', err?.data?.detail || 'Не удалось удалить товар')
+  }
+}
 </script>
 
 <template>
@@ -32,6 +55,15 @@ const { data: products, pending, refresh } = await useFetch('/products', {
     </template>
 
     <div class="products-index-page">
+      <div class="search-bar">
+        <input
+          v-model="searchQuery"
+          type="search"
+          placeholder="Поиск по названию или SKU..."
+          class="search-input"
+          data-testid="search-input"
+        />
+      </div>
       <UCard class="overflow-hidden">
       <div v-if="pending" class="p-4 space-y-4">
         <USkeleton v-for="i in 5" :key="i" height="40px" />
@@ -48,7 +80,7 @@ const { data: products, pending, refresh } = await useFetch('/products', {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="product in products?.items" :key="product.id" data-testid="product-card">
+            <tr v-for="product in filteredProducts" :key="product.id" data-testid="product-card">
               <td>
                 <div class="product-cell">
                   <img v-if="product.main_image_url" :src="product.main_image_url" :alt="product.name" width="40" height="40" loading="lazy" />
@@ -79,7 +111,7 @@ const { data: products, pending, refresh } = await useFetch('/products', {
                   <UButton variant="ghost" size="sm" :to="`/admin/products/${product.id}`" aria-label="Редактировать">
                     <Icon name="ph:pencil-simple-bold" size="18" />
                   </UButton>
-                  <UButton variant="ghost" size="sm" color="danger" aria-label="Удалить">
+                  <UButton variant="ghost" size="sm" color="danger" aria-label="Удалить" data-testid="admin-delete-btn" @click="handleDelete(product.id, product.name)">
                     <Icon name="ph:trash-bold" size="18" />
                   </UButton>
                 </div>
@@ -94,6 +126,28 @@ const { data: products, pending, refresh } = await useFetch('/products', {
 </template>
 
 <style scoped>
+.search-bar {
+  margin-bottom: 16px;
+}
+
+.search-input {
+  width: 100%;
+  max-width: 400px;
+  padding: 8px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.search-input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
 .product-cell {
   display: flex;
   align-items: center;

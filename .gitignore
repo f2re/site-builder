@@ -54,3 +54,14 @@ tests/e2e/screenshots/
 backend/.venv/
 .pids/
 .meilisearch_data/
+
+# ──────────────────────────────────────────
+# Databases
+# ──────────────────────────────────────────
+test.db
+backend/test.db
+
+# ──────────────────────────────────────────
+# Celery
+# ──────────────────────────────────────────
+backend/celerybeat-schedule

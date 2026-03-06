@@ -1,5 +1,5 @@
 # tests/e2e/test_03_admin_products.py
-from playwright.sync_api import Page, expect, TimeoutError as PlaywrightTimeoutError
+from playwright.sync_api import Page, expect
 from conftest import (
     BASE_URL,
     click_element,
@@ -95,16 +95,24 @@ def test_admin_delete_product(admin_page: Page):
     )
     admin_page.wait_for_load_state("networkidle")
 
+    dialog_handled = []
+
+    def _accept_dialog(dialog):
+        dialog_handled.append(True)
+        dialog.accept()
+
+    admin_page.on("dialog", _accept_dialog)
     try:
-        with admin_page.expect_dialog(timeout=2000) as dialog_info:
-            click_element(
-                admin_page,
-                "admin-delete-btn",
-                "button[title='Удалить']",
-                "button[aria-label='Удалить']",
-            )
-        dialog_info.value.accept()
-    except PlaywrightTimeoutError:
+        click_element(
+            admin_page,
+            "admin-delete-btn",
+            "button[title='Удалить']",
+            "button[aria-label='Удалить']",
+        )
+    finally:
+        admin_page.remove_listener("dialog", _accept_dialog)
+
+    if not dialog_handled:
         click_element(
             admin_page,
             "admin-confirm-delete",
