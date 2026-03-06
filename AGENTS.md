@@ -1,14 +1,15 @@
 # AGENTS.md — Policy Gateway
 
 > Читается ПЕРВЫМ перед любым действием.
-> Детали стека и структуры: [GEMINI.md](GEMINI.md)
-> Архитектурные инварианты: [ARCHITECTURE.md](ARCHITECTURE.md)
-> Примеры кода: [docs/examples/](docs/examples/)
+> Детали стека и инварианты: [ARCHITECTURE.md](ARCHITECTURE.md)
+> DevOps детали: [DEVOPS.md](DEVOPS.md)
+> Полный контекст оркестратора: [.claude/ORCHESTRATOR.md](.claude/ORCHESTRATOR.md)
+> Reference-примеры: [docs/examples/](docs/examples/)
 
 ---
 
 ## Purpose
-WifiOBD Site — интернет-магазин OBD-электроники.
+WifiOBD Site — интернет-магазин OBD-электроники (до 1000 DAU).
 Backend: FastAPI + PostgreSQL/TimescaleDB + Redis + Meilisearch.
 Frontend: Nuxt 3 SSR + Vue 3 + Pinia.
 
@@ -16,10 +17,10 @@ Frontend: Nuxt 3 SSR + Vue 3 + Pinia.
 
 ## Иерархия истины (приоритет: сверху → вниз)
 1. **Enforcement** — CI/CD, ruff, mypy, vue-tsc, pytest (нарушение = сборка падает)
-2. **Policy** — этот файл
+2. **Policy** — этот файл (AGENTS.md)
 3. **Architecture** — ARCHITECTURE.md (слои, инварианты)
-4. **Operations** — docs/runbook.md (dev/deploy/debug)
-5. **Examples** — docs/examples/ (эталонные PR, тесты, endpoint)
+4. **Operations** — DEVOPS.md / docs/runbook.md (dev/deploy/debug)
+5. **Examples** — docs/examples/ (эталонные endpoint, тест, PR, миграция)
 
 ---
 
@@ -74,7 +75,10 @@ pytest tests/ -x -v
 - Новые зависимости → только с точной версией в `requirements.txt`, проверить `pip install -r requirements.txt`
 - Изменения инфраструктуры → в оба файла одновременно: `docker-compose.yml` + `deploy/docker-compose.prod.yml`
 - Docker images → только фиксированные версии (например `v1.36.0`)
-- Писать отчёт в `.gemini/agents/reports/<domain>/<task_id>.md` по шаблону ниже
+- Писать отчёт в `.claude/agents/reports/<domain>/<task_id>.md` по шаблону ниже
+- При старте сессии: `python .claude/hooks/local_context.py`
+- Перед DONE: `python .claude/hooks/pre_completion.py <task_id>`
+- После правки файла: `python .claude/hooks/loop_detector.py --record <filepath>`
 
 ## MUST NOT
 - Коммитить `.env` или любые секреты
@@ -83,8 +87,9 @@ pytest tests/ -x -v
 - Использовать GitHub Actions (только GitLab CI/CD)
 - Использовать Docker Hub (только GitLab Container Registry)
 - Использовать `:latest` в docker images
-- Дублировать типы: `app/models/`, `app/schemas/`, `app/services/` вне `api/v1/<feature>/`
+- Дублировать типы вне `api/v1/<feature>/`
 - Вручную добавлять `/api/v1` в пути при использовании `useFetch` с `baseURL: apiBase`
+- Запускать фазу до завершения всех её зависимостей
 
 ---
 
@@ -98,7 +103,17 @@ pytest tests/ -x -v
 - [ ] `pytest tests/` → **all green**
 - [ ] `alembic check` → **OK** (модели совпадают с миграциями)
 - [ ] `alembic heads` → **ровно 1 head**
-- [ ] Отчёт агента написан в `.gemini/agents/reports/<domain>/<task_id>.md`
+- [ ] `python .claude/hooks/pre_completion.py <task_id>` → **DoD пройден**
+- [ ] Отчёт агента написан в `.claude/agents/reports/<domain>/<task_id>.md`
+
+---
+
+## Observability — цикл стабилизации
+
+- Каждая агентская сессия логируется в `.claude/logs/<task_id>.log`
+- При повторяющейся ошибке: формулируй правило MUST/MUST NOT → добавляй в этот файл → закрепляй в CI
+- Ошибка агента — сигнал о недостатке в harness, а не о глупости модели
+- Запускай `python .claude/hooks/local_context.py` для диагностики окружения
 
 ---
 
