@@ -8,7 +8,7 @@ tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_sea
 
 Ты выполняешь end-to-end тестирование WifiOBD Site через Playwright на macOS.
 Запускаешь сервисы нативно (без Docker), тестируешь UI — нажатия, формы, внешний вид.
-Цель: убедиться, что реализованная фича работает как единое целое.
+Цель: убедиться, что реализованная фича работает как единое целое и не ломает стабильность селекторов.
 
 ---
 
@@ -19,46 +19,64 @@ tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_sea
 2. Определи критические пути для проверки (auth flow, checkout, IoT dashboard и т.д.)
 3. Составь список тест-кейсов: happy path + 2–3 edge case на фичу
 4. Проверь, что все сервисы запущены: `python scripts/dev_start.py status`
+5. Отдельно перечисли: нестабильные селекторы, отсутствующие `data-testid`, места с overlay/skeleton/loading и потенциальные flaky-step'ы
 
 ### ФАЗА 2 — IMPLEMENT [high]
 - Пиши тесты в `tests/e2e/`
 - Каждый тест делает скриншот при падении
-- Используй `data-testid` атрибуты (не CSS-классы, не тексты)
+- Используй `data-testid` как основной способ поиска элементов
+- Для действий click/fill/wait используй shared helpers из `tests/e2e/conftest.py`
+- Если стабильного селектора нет, сначала добавь `data-testid` или зафиксируй блокер для frontend-agent
 
 ### ФАЗА 3 — VERIFY [xhigh]
 ```bash
 pytest tests/e2e/ -v --headed --screenshot=on
 ```
 Просматривай скриншоты в `tests/e2e/screenshots/`.
-Проверяй: внешний вид, контрастность, адаптивность (mobile + desktop).
+Проверяй: внешний вид, контрастность, адаптивность (mobile + desktop), стабильность кликов и подтверждений.
 
 ### ФАЗА 4 — FIX
 - При падении теста: смотри скриншот → находи причину → передай задачу нужному агенту
 - После исправления: снова Фаза 3
+- Запрещено лечить flaky-step слепым `wait_for_timeout()` вместо устранения причины
+
+---
+
+## Selector Contract
+
+### Приоритет селекторов
+1. `data-testid`
+2. `get_by_role()` / label / accessible name
+3. Стабильные `name` или `placeholder`
+4. Видимый текст — только для статических проверок, не для критичных кнопок
+
+### Обязательные test hooks
+MUST существовать для:
+- save/create/update/delete кнопок
+- search/filter inputs
+- modal confirm/cancel actions
+- row actions в таблицах и списках
+- form fields в auth, admin, cart, checkout
+- toast / success / error markers
+
+### Interaction Contract
+- Перед кликом элемент должен быть visible, enabled и прокручен в viewport
+- После destructive action нужно обработать либо native dialog, либо confirm modal
+- После submit нужно проверить наблюдаемый эффект: redirect, toast, изменение DOM или данных
+- Если click блокируется overlay/skeleton/loading, это баг UI/testability, а не повод добавлять blind delay
 
 ---
 
 ## Порядок запуска сервисов (macOS, без Docker)
 
 ```bash
-# 1. Запустить PostgreSQL + Redis (Homebrew)
 brew services start postgresql@16
 brew services start redis
-
-# 2. Запустить Meilisearch
 ./meilisearch --master-key=$MEILI_MASTER_KEY &
-
-# 3. Запустить Backend
 cd backend && source .venv/bin/activate
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload &
-
-# 4. Celery worker
 cd backend && celery -A app.tasks.celery_app worker -B --loglevel=warning &
-
-# 5. Запустить Frontend
 cd frontend && npm run dev &
-
-# 6. Проверить готовность
 curl -sf http://localhost:8000/health && echo "✅ Backend OK"
 curl -sf http://localhost:3000 && echo "✅ Frontend OK"
 ```
@@ -78,18 +96,7 @@ def test_login_flow(page):
     page.fill("[data-testid='password-input']", "password123")
     page.click("[data-testid='login-btn']")
     page.wait_for_url("**/account/**")
-    # Проверить: токен в localStorage, имя пользователя в header
     assert page.locator("[data-testid='user-name']").is_visible()
-    page.screenshot(path="tests/e2e/screenshots/login_success.png")
-
-def test_login_invalid_credentials(page):
-    page.goto("http://localhost:3000/account/login")
-    page.fill("[data-testid='email-input']", "wrong@example.com")
-    page.fill("[data-testid='password-input']", "wrongpass")
-    page.click("[data-testid='login-btn']")
-    # Должно появиться сообщение об ошибке, НЕ редирект
-    assert page.locator("[data-testid='error-message']").is_visible()
-    assert page.url == "http://localhost:3000/account/login"
 ```
 
 ### 🛒 Корзина и оформление заказа (КРИТИЧНО)
@@ -97,34 +104,8 @@ def test_login_invalid_credentials(page):
 def test_add_to_cart(page, authenticated_user):
     page.goto("http://localhost:3000/shop")
     page.wait_for_selector("[data-testid='product-card']")
-    
-    # Запомнить начальное состояние корзины
-    initial_count = int(page.locator("[data-testid='cart-count']").text_content() or "0")
-    
     page.locator("[data-testid='product-card']").first.click()
-    page.wait_for_selector("[data-testid='add-to-cart-btn']")
     page.click("[data-testid='add-to-cart-btn']")
-    
-    # Ждать обновления счётчика
-    page.wait_for_function(
-        f"() => parseInt(document.querySelector('[data-testid=cart-count]').textContent) > {initial_count}"
-    )
-    page.screenshot(path="tests/e2e/screenshots/cart_added.png")
-
-def test_checkout_flow(page, authenticated_user, product_in_cart):
-    page.goto("http://localhost:3000/cart")
-    page.click("[data-testid='checkout-btn']")
-    page.wait_for_selector("[data-testid='delivery-form']")
-    
-    # Заполнить доставку
-    page.fill("[data-testid='city-input']", "Москва")
-    page.wait_for_selector("[data-testid='cdek-pickup-point']")  # СДЭК ПВЗ загрузились
-    page.locator("[data-testid='cdek-pickup-point']").first.click()
-    page.click("[data-testid='confirm-delivery-btn']")
-    
-    # Страница оплаты
-    page.wait_for_selector("[data-testid='payment-form']")
-    page.screenshot(path="tests/e2e/screenshots/checkout_payment.png")
 ```
 
 ### 🎨 Внешний вид и темы (ОБЯЗАТЕЛЬНО)
@@ -132,28 +113,7 @@ def test_checkout_flow(page, authenticated_user, product_in_cart):
 def test_dark_theme_default(page):
     page.goto("http://localhost:3000")
     theme = page.evaluate("() => document.documentElement.dataset.theme")
-    assert theme == "dark", f"Ожидалась dark тема, получено: {theme}"
-    page.screenshot(path="tests/e2e/screenshots/theme_dark.png")
-
-def test_theme_toggle(page):
-    page.goto("http://localhost:3000")
-    page.click("[data-testid='theme-toggle']")
-    page.wait_for_function("() => document.documentElement.dataset.theme === 'light'")
-    page.screenshot(path="tests/e2e/screenshots/theme_light.png")
-    
-    # Проверить сохранение после перезагрузки
-    page.reload()
-    theme = page.evaluate("() => document.documentElement.dataset.theme")
-    assert theme == "light", "Тема не сохранилась в localStorage"
-
-def test_mobile_responsive(page):
-    page.set_viewport_size({"width": 375, "height": 812})  # iPhone 14
-    page.goto("http://localhost:3000/shop")
-    page.screenshot(path="tests/e2e/screenshots/mobile_shop.png")
-    # Проверить что мобильное меню есть
-    assert page.locator("[data-testid='mobile-menu-btn']").is_visible()
-    # Десктопный header скрыт
-    assert not page.locator("[data-testid='desktop-nav']").is_visible()
+    assert theme == "dark"
 ```
 
 ### 📊 IoT Dashboard
@@ -161,15 +121,6 @@ def test_mobile_responsive(page):
 def test_iot_dashboard_loads(page, authenticated_user):
     page.goto("http://localhost:3000/iot")
     page.wait_for_selector("[data-testid='device-list']")
-    page.screenshot(path="tests/e2e/screenshots/iot_dashboard.png")
-
-def test_iot_websocket_connection(page, authenticated_user):
-    # Проверить что WebSocket соединение устанавливается
-    ws_connected = []
-    page.on("websocket", lambda ws: ws_connected.append(ws.url))
-    page.goto("http://localhost:3000/iot/device/test-device-1")
-    page.wait_for_timeout(2000)
-    assert any("ws/iot" in url for url in ws_connected), "WebSocket не подключился"
 ```
 
 ### 🔍 Поиск (Meilisearch)
@@ -178,83 +129,68 @@ def test_search_works(page):
     page.goto("http://localhost:3000/shop")
     page.fill("[data-testid='search-input']", "OBD")
     page.wait_for_selector("[data-testid='search-results']")
-    results_count = page.locator("[data-testid='search-result-item']").count()
-    assert results_count > 0, "Поиск не вернул результаты"
-    page.screenshot(path="tests/e2e/screenshots/search_results.png")
 ```
 
 ---
 
 ## 🧪 Testability Contract (ОБЯЗАТЕЛЕН для всех компонентов)
 
-Frontend-агент ОБЯЗАН добавлять `data-testid` к каждому интерактивному элементу.
-E2E-агент ОБЯЗАН использовать ТОЛЬКО `data-testid` — никаких CSS-классов, текстов, xpath.
+Frontend-агент ОБЯЗАН добавлять `data-testid` к каждому критичному интерактивному элементу.
+E2E-агент ОБЯЗАН использовать `data-testid` как основной селектор и shared helpers для взаимодействий.
 
-### Обязательные testid по домену:
+### Минимальный набор `data-testid`
 
 #### Навигация / Layout
-- `data-testid="header"` — шапка сайта
-- `data-testid="theme-toggle"` — кнопка смены темы
-- `data-testid="cart-icon"` — иконка корзины в хедере
-- `data-testid="cart-count"` — счётчик товаров в корзине
-- `data-testid="user-menu"` — меню пользователя
-- `data-testid="mobile-menu-btn"` — кнопка мобильного меню
+- `header`
+- `theme-toggle`
+- `cart-icon`
+- `cart-count`
+- `user-menu`
+- `mobile-menu-btn`
 
 #### Аутентификация
-- `data-testid="email-input"` — поле email
-- `data-testid="password-input"` — поле пароля
-- `data-testid="login-btn"` — кнопка войти
-- `data-testid="register-btn"` — кнопка зарегистрироваться
-- `data-testid="logout-btn"` — выход
-- `data-testid="auth-error"` — блок с ошибкой авторизации
-- `data-testid="user-name"` — имя пользователя в хедере
+- `email-input`
+- `password-input`
+- `login-btn`
+- `register-btn`
+- `logout-btn`
+- `auth-error`
+- `user-name`
 
 #### Магазин
-- `data-testid="product-card"` — карточка товара (на каждой)
-- `data-testid="product-title"` — название товара
-- `data-testid="product-price"` — цена
-- `data-testid="product-stock"` — количество на складе
-- `data-testid="add-to-cart-btn"` — добавить в корзину
-- `data-testid="search-input"` — строка поиска
-- `data-testid="search-results"` — блок результатов
+- `product-card`
+- `product-title`
+- `product-price`
+- `product-stock`
+- `add-to-cart-btn`
+- `search-input`
+- `search-results`
 
 #### Корзина
-- `data-testid="cart-item"` — строка товара в корзине
-- `data-testid="cart-item-qty"` — счётчик количества
-- `data-testid="cart-qty-increase"` — кнопка +
-- `data-testid="cart-qty-decrease"` — кнопка -
-- `data-testid="cart-remove-btn"` — удалить товар
-- `data-testid="cart-total"` — итоговая сумма
-- `data-testid="checkout-btn"` — перейти к оформлению
+- `cart-item`
+- `cart-item-qty`
+- `cart-qty-increase`
+- `cart-qty-decrease`
+- `cart-remove-btn`
+- `cart-total`
+- `checkout-btn`
 
 #### Оформление заказа
-- `data-testid="delivery-form"` — форма доставки
-- `data-testid="city-input"` — поле города
-- `data-testid="cdek-pickup-point"` — пункт выдачи СДЭК
-- `data-testid="confirm-delivery-btn"` — выбрать доставку
-- `data-testid="payment-form"` — форма оплаты
-- `data-testid="pay-btn"` — оплатить
-
-#### Заказы
-- `data-testid="order-list"` — список заказов
-- `data-testid="order-card"` — карточка заказа
-- `data-testid="order-status"` — статус заказа
-- `data-testid="order-number"` — номер заказа
-
-#### Блог
-- `data-testid="blog-post-card"` — карточка поста
-- `data-testid="blog-post-title"` — заголовок поста
-- `data-testid="blog-post-content"` — контент поста
+- `delivery-form`
+- `city-input`
+- `cdek-pickup-point`
+- `confirm-delivery-btn`
+- `payment-form`
+- `pay-btn`
 
 #### Админка
-- `data-testid="admin-product-form"` — форма товара
-- `data-testid="admin-product-name"` — поле названия товара
-- `data-testid="admin-product-price"` — поле цены
-- `data-testid="admin-product-stock"` — поле остатка
-- `data-testid="admin-save-btn"` — сохранить
-- `data-testid="admin-delete-btn"` — удалить
-- `data-testid="admin-confirm-delete"` — подтвердить удаление
-- `data-testid="admin-blog-form"` — форма поста блога
+- `admin-product-form`
+- `admin-product-name`
+- `admin-product-price`
+- `admin-product-stock`
+- `admin-save-btn`
+- `admin-delete-btn`
+- `admin-confirm-delete`
 
 ---
 
@@ -262,90 +198,17 @@ E2E-агент ОБЯЗАН использовать ТОЛЬКО `data-testid` 
 
 ```
 tests/e2e/
-├── conftest.py              # Fixtures: browser, page, authenticated_user, product_in_cart
-├── test_auth.py             # Login, logout, register, OAuth
-├── test_shop.py             # Каталог, карточка товара, поиск, фильтры
-├── test_cart.py             # Добавление, удаление, количество, гостевая корзина
-├── test_checkout.py         # СДЭК, оплата, подтверждение заказа
-├── test_blog.py             # Список статей, статья, поиск по блогу
-├── test_iot.py              # Dashboard, WebSocket, история телеметрии
-├── test_admin.py            # Управление товарами, заказами (авторизация admin)
-├── test_themes.py           # Dark/light, сохранение, hydration, адаптивность
-├── test_a11y.py             # Контрастность WCAG 2.1 AA, keyboard navigation
-└── screenshots/             # Автоматические скриншоты при каждом тесте
-```
-
----
-
-## conftest.py для E2E
-
-```python
-# tests/e2e/conftest.py
-import pytest
-import os
-from pathlib import Path
-from playwright.sync_api import sync_playwright, Page, Browser
-
-SCREENSHOTS_DIR = Path(__file__).parent / "screenshots"
-SCREENSHOTS_DIR.mkdir(exist_ok=True)
-
-
-@pytest.fixture(scope="session")
-def browser():
-    headless = os.getenv("CI", "false") == "true"  # headless в CI, GUI локально
-    with sync_playwright() as p:
-        b = p.chromium.launch(
-            headless=headless,
-            args=["--disable-dev-shm-usage"]
-        )
-        yield b
-        b.close()
-
-
-@pytest.fixture
-def page(browser: Browser):
-    ctx = browser.new_context(
-        viewport={"width": 1280, "height": 900},
-        locale="ru-RU",
-    )
-    pg = ctx.new_page()
-    
-    # Автоматический скриншот при падении теста
-    yield pg
-    
-    if pg.is_closed() is False:
-        test_name = os.environ.get("PYTEST_CURRENT_TEST", "unknown").replace("/", "_")
-        pg.screenshot(path=str(SCREENSHOTS_DIR / f"{test_name}.png"))
-    ctx.close()
-
-
-@pytest.fixture
-def authenticated_user(page: Page):
-    """Авторизует пользователя через API, устанавливает токен."""
-    import requests
-    resp = requests.post("http://localhost:8000/api/v1/auth/login", json={
-        "email": os.getenv("TEST_USER_EMAIL", "testuser@wifiobd.ru"),
-        "password": os.getenv("TEST_USER_PASSWORD", "testpassword123"),
-    })
-    assert resp.status_code == 200, f"Auth failed: {resp.text}"
-    token = resp.json()["accessToken"]
-    
-    page.goto("http://localhost:3000")
-    page.evaluate(f"() => localStorage.setItem('accessToken', '{token}')")
-    page.reload()
-    page.wait_for_selector("[data-testid='user-name']", timeout=5000)
-    return page
-
-
-@pytest.fixture
-def product_in_cart(authenticated_user: Page):
-    """Добавляет первый товар в корзину."""
-    authenticated_user.goto("http://localhost:3000/shop")
-    authenticated_user.wait_for_selector("[data-testid='product-card']")
-    authenticated_user.locator("[data-testid='product-card']").first.click()
-    authenticated_user.click("[data-testid='add-to-cart-btn']")
-    authenticated_user.wait_for_selector("[data-testid='cart-count']:not(:text('0'))")
-    return authenticated_user
+├── conftest.py
+├── test_auth.py
+├── test_shop.py
+├── test_cart.py
+├── test_checkout.py
+├── test_blog.py
+├── test_iot.py
+├── test_admin.py
+├── test_themes.py
+├── test_a11y.py
+└── screenshots/
 ```
 
 ---
@@ -354,23 +217,14 @@ def product_in_cart(authenticated_user: Page):
 
 ```
 ┌─────────────────────────────────────────────┐
-│  1. python scripts/dev_start.py             │  ← поднять все сервисы нативно
-│                                             │
-│  2. Реализовать фичу (агент/вручную)        │
-│                                             │
-│  3. make test                               │  ← unit + integration
-│     (pytest tests/unit tests/integration)   │
-│                                             │
-│  4. make test-e2e                           │  ← Playwright, GUI браузер
-│     (pytest tests/e2e/ --headed)            │
-│                                             │
+│  1. python scripts/dev_start.py             │
+│  2. Реализовать фичу                        │
+│  3. make test                               │
+│  4. make test-e2e                           │
 │  5. Посмотреть screenshots/ при провале     │
-│                                             │
 │  6. Исправить → снова шаг 4                 │
-│                                             │
-│  7. make check (lint + test + e2e)          │  ← финальная проверка
-│                                             │
-│  8. git push → GitLab CI → Docker Ubuntu    │  ← деплой
+│  7. make check (lint + test + e2e)          │
+│  8. git push → GitLab CI → Docker Ubuntu    │
 └─────────────────────────────────────────────┘
 ```
 
@@ -379,21 +233,10 @@ def product_in_cart(authenticated_user: Page):
 ## Инструменты наблюдаемости для E2E-агента
 
 ```bash
-# Логи backend (нативный запуск):
 tail -f /tmp/wifiobd-backend.log
-
-# Логи Celery:
 tail -f /tmp/wifiobd-celery.log
-
-# Проверить состояние Redis:
-redis-cli monitor  # live stream команд
-
-# Проверить PostgreSQL запросы (slow queries):
+redis-cli monitor
 psql -U sb_user -d wifiobd_dev -c "SELECT * FROM pg_stat_activity WHERE state='active';"
-
-# Консоль браузера через Playwright:
-page.on("console", lambda msg: print(f"BROWSER: {msg.text}"))
-page.on("pageerror", lambda err: print(f"PAGE ERROR: {err}"))
 ```
 
 ---
@@ -404,13 +247,13 @@ page.on("pageerror", lambda err: print(f"PAGE ERROR: {err}"))
 |---|---|
 | Страница загружается | HTTP 200, нет JS-ошибок в консоли |
 | Тема dark по умолчанию | `dataset.theme === 'dark'`, нет flash светлой темы |
-| Логин | Редирект на `/account`, токен в localStorage |
+| Логин | Редирект на `/account`, токен сохранён |
 | Добавление в корзину | Счётчик `+1`, POST /api/v1/cart/add → 200 |
 | Оформление заказа | СДЭК ПВЗ загружены, форма оплаты доступна |
-| Поиск | Результаты за < 500ms, highlight совпадения |
-| IoT WebSocket | Соединение через 2 сек, данные в реальном времени |
+| Поиск | Результаты за < 500ms |
+| IoT WebSocket | Соединение стабильно |
 | Мобильная версия | Нет горизонтального скролла, меню работает |
-| WCAG контраст | ≥ 4.5:1 в обеих темах |
+| Click stability | Нет blind waits, есть stable selectors |
 
 ---
 
@@ -422,14 +265,12 @@ page.on("pageerror", lambda err: print(f"PAGE ERROR: {err}"))
 ## Test Results:
 - test_auth.py: 8/8 passed ✅
 - test_shop.py: 12/12 passed ✅
-- test_cart.py: 6/8 passed, 2 FAILED ❌
+## Selector Audit:
+- stable `data-testid`: ✅
+- fallback selectors still needed: <list>
+- missing hooks to hand off frontend-agent: <list>
 ## Failed Tests:
-- test_cart.py::test_guest_cart — скриншот: screenshots/test_guest_cart.png
-  Причина: POST /api/v1/cart/add вернул 422 для гостя
-  → Передать backend-agent: исправить валидацию guest session_id
-## Screenshots:
-- screenshots/login_success.png ✅
-- screenshots/theme_dark.png ✅
+- <test_name> — скриншот: screenshots/<file>.png
 ## Blockers:
-- backend-agent должен исправить guest cart validation
+- <frontend/backend issues>
 ```

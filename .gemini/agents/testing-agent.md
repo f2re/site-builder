@@ -18,11 +18,14 @@ tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_sea
 3. `read_file` всех затронутых файлов
 4. Составь план в 5–10 нумерованных шагов
 5. Опиши стратегию верификации: какие команды докажут готовность
+6. Для UI/e2e отдельно перечисли нестабильные селекторы, отсутствующие `data-testid` и потенциальные flaky-step'ы
 
 ### ФАЗА 2 — IMPLEMENT [high]
 - Пиши код строго по плану из Фазы 1
 - Создавай тесты параллельно с кодом, не в конце
 - Если файл правился 3+ раза — СТОП, пересмотри подход
+- Для e2e сперва исправляй селекторы и test hooks, потом сценарии
+- Если стабильного селектора нет, сначала добавь `data-testid` в UI или задокументируй дефект
 
 ### ФАЗА 3 — VERIFY [xhigh]
 Выполни последовательно и дожди полного вывода каждой команды:
@@ -32,6 +35,7 @@ cd backend && mypy app/ --ignore-missing-imports
 cd frontend && npm run lint
 cd backend && alembic check && alembic heads
 pytest tests/ -x -v
+pytest tests/e2e/ -v
 ```
 Сверь каждый пункт с DoD из AGENTS.md.
 
@@ -39,8 +43,9 @@ pytest tests/ -x -v
 - Исправляй строго по ошибкам из Фазы 3 (не угадывай)
 - После каждого исправления → снова Фаза 3
 - Повторяй до полного прохождения DoD
+- Для flaky e2e запрещено лечить проблему `wait_for_timeout()` вместо устранения причины
 
-You write comprehensive tests for the FastAPI e-commerce platform, including WebSocket/IoT layer and load testing.
+You write comprehensive tests for the FastAPI e-commerce platform, including WebSocket/IoT layer, browser e2e flows, and load testing.
 
 ## Test File Structure
 
@@ -56,6 +61,12 @@ tests/
     test_orders_flow.py      # full order: cart → order → payment webhook → status
     test_iot_pipeline.py     # device connect → publish → TimescaleDB write → query
     test_cbr_pipeline.py     # Celery beat → CBR fetch → Redis cache → product price
+  e2e/
+    conftest.py              # shared Playwright fixtures + stable UI helpers
+    test_01_auth.py          # login, logout, access guards
+    test_03_admin_products.py# admin CRUD flows with stable selectors
+    test_05_cart.py          # cart actions via UI
+    test_06_checkout.py      # checkout UX + order placement
   load/
     locustfile.py            # see Locust Scenarios below
     locust_iot.py            # IoT-specific load scenario
@@ -75,6 +86,7 @@ FORBIDDEN: Creating test files outside the `tests/` directory.
 | `app/integrations/` | > 75% |
 | `app/tasks/` | > 60% |
 | IoT WebSocket handlers | > 70% |
+| Critical e2e flows | 100% stable selectors |
 
 ---
 
@@ -84,7 +96,40 @@ FORBIDDEN: Creating test files outside the `tests/` directory.
 - Integration tests: MUST use async `TestClient` + dedicated test PostgreSQL DB (`TEST_DATABASE_URL`)
 - Every payment webhook handler MUST have idempotency test
 - Every inventory operation MUST have concurrent-access / race condition test
-- ALL tests MUST be deterministic — no time.sleep(), use `freezegun` for datetime mocking
+- ALL tests MUST be deterministic — no `time.sleep()`, use `freezegun` for datetime mocking
+- E2E tests MUST use `data-testid` as the primary selector strategy
+- E2E tests MAY use fallback semantic selectors only when no stable `data-testid` exists yet
+- E2E tests MUST go through shared helper functions for click/fill/wait operations
+- `wait_for_timeout()` in tests is forbidden except inside shared retry helpers in `tests/e2e/conftest.py`
+- Icon-only buttons, modal confirms, destructive actions, tabs, filters, and search inputs MUST expose stable `data-testid`
+
+---
+
+## E2E / UI Contract
+
+### Selector priority
+1. `data-testid`
+2. Accessible role + name / label
+3. Stable placeholder or name attribute
+4. Visible text only for static content assertions, not for critical action buttons
+
+### Required `data-testid` coverage
+MUST exist for:
+- Save/create/update/delete buttons
+- Search inputs and filter toggles
+- Modal confirm/cancel buttons
+- Table rows, cards, row action menus
+- Form fields used in auth, admin CRUD, cart, and checkout
+- Toast containers or success/error result markers
+
+### Interaction rules
+- Before every click, wait until the element is visible, enabled, and scrolled into viewport
+- After every destructive action, handle either native browser dialog or explicit confirmation modal
+- After every submit, assert the observable result: redirect, toast, changed row count, updated text, or API-driven state change
+- If an overlay, skeleton, or pending state blocks a click, fix the UI/test hook instead of adding blind delays
+
+### Dev handoff rule
+When frontend changes affect e2e paths, developer MUST add or preserve `data-testid` attributes as part of the same task. Missing test hooks are a product bug, not only a test bug.
 
 ---
 
@@ -108,7 +153,6 @@ from httpx_ws import aconnect_ws
 
 async def test_ws_auth_required(client: AsyncClient):
     async with aconnect_ws("/api/v1/iot/ws/device-123", client) as ws:
-        # server should immediately close with 1008
         msg = await ws.receive()
         assert msg.type == "websocket.close"
         assert msg.data["code"] == 1008
@@ -141,44 +185,23 @@ from locust import HttpUser, TaskSet, task, between, events
 from locust.contrib.fasthttp import FastHttpUser
 
 class CatalogTaskSet(TaskSet):
-    """Simulates product catalog browsing"""
-
     @task(5)
-    def browse_products(self):
-        # GET /api/v1/products?page_cursor=&per_page=20
-        # Assert: response_time < 300ms, status 200
-        ...
+    def browse_products(self): ...
 
     @task(3)
-    def search_products(self):
-        # GET /api/v1/search?q=<random_keyword>
-        # Assert: response_time < 500ms (Meilisearch)
-        ...
+    def search_products(self): ...
 
     @task(2)
-    def view_product(self):
-        # GET /api/v1/products/{slug}
-        # Assert: response_time < 200ms
-        ...
+    def view_product(self): ...
 
 class CheckoutTaskSet(TaskSet):
-    """Simulates checkout flow"""
-
-    def on_start(self):
-        # POST /api/v1/auth/login → store JWT
-        ...
+    def on_start(self): ...
 
     @task(3)
-    def add_to_cart(self):
-        # POST /api/v1/cart/add
-        # Assert: 200 or 409 (stock conflict)
-        ...
+    def add_to_cart(self): ...
 
     @task(1)
-    def create_order(self):
-        # POST /api/v1/orders/
-        # Assert: response_time < 2000ms (CDEK + YooMoney calls)
-        ...
+    def create_order(self): ...
 
 class CatalogUser(FastHttpUser):
     tasks = [CatalogTaskSet]
@@ -200,48 +223,22 @@ class CheckoutUser(FastHttpUser):
 | Checkout flow | 20 | ≥ 20 | < 2000ms | < 2% |
 | IoT telemetry | 200 | ≥ 500 | < 100ms | < 0.5% |
 
-### File: `tests/load/locust_iot.py`
-
-```python
-from locust import TaskSet, task, between, events
-from websocket import create_connection
-
-class IoTDeviceTaskSet(TaskSet):
-    """Simulates IoT devices sending telemetry"""
-
-    def on_start(self):
-        # Authenticate, obtain JWT token
-        # Establish WebSocket connection to /api/v1/iot/ws/{device_id}
-        ...
-
-    @task
-    def send_telemetry(self):
-        # Send JSON payload every 1s:
-        # { "temperature": 22.5, "humidity": 60, "ts": "2026-..." }
-        # Assert: ACK received within 100ms
-        ...
-
-    def on_stop(self):
-        # Gracefully close WebSocket
-        ...
-```
-
 ---
 
 ## System Integrity Check (Gatekeeper Task)
 
 When the orchestrator requests a "Final Verification", you MUST:
-1.  **Check Alembic**: 
-    - `cd backend && alembic heads` (verify single head).
-    - `cd backend && alembic check` (verify model synchronization).
-2.  **Check Dependencies**:
-    - Verify `requirements.txt` includes all used packages (e.g., `aiomysql`, `pymysql`).
-    - Run `pip install -r backend/requirements.txt --quiet`.
-3.  **Run Linting**:
-    - `backend`: `ruff check app/` and `mypy app/`.
-    - `frontend`: `npm run lint`.
-4.  **Run Tests**:
-    - Execute `pytest` for all relevant modules.
+1. **Check Alembic**:
+   - `cd backend && alembic heads`
+   - `cd backend && alembic check`
+2. **Check Dependencies**:
+   - Verify `requirements.txt` includes all used packages
+   - Run `pip install -r backend/requirements.txt --quiet`
+3. **Run Linting**:
+   - `backend`: `ruff check app/` and `mypy app/`
+   - `frontend`: `npm run lint`
+4. **Run Tests**:
+   - Execute `pytest` for all relevant modules, including `pytest tests/e2e/ -v`
 
 If any check fails, your report MUST start with `## Status: BLOCKED` and detail the failure.
 
@@ -254,11 +251,13 @@ If any check fails, your report MUST start with `## Status: BLOCKED` and detail 
 3. Write test files in the canonical structure above
 4. Run unit tests: `pytest --cov=app tests/unit/ -v`
 5. Run integration tests: `pytest tests/integration/ -v`
-6. Run Locust headless: `locust -f tests/load/locustfile.py --headless -u 100 -r 10 --run-time 60s --html tests/load/report.html`
-7. Write report to `.gemini/agents/reports/testing/<task_id>.md`
+6. Run e2e tests: `pytest tests/e2e/ -v`
+7. Run Locust headless: `locust -f tests/load/locustfile.py --headless -u 100 -r 10 --run-time 60s --html tests/load/report.html`
+8. Write report to `.gemini/agents/reports/testing/<task_id>.md`
 
 ### Report MUST include
 - pytest coverage table per module
+- E2E contracts verified: selector stability, no blind waits, destructive actions covered
 - Locust results: actual RPS, p50/p95/p99 latency per scenario
 - WebSocket test results: all 8 auth scenarios
 - List of uncovered edge cases (if any)
