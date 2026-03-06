@@ -92,7 +92,7 @@ Route aggregator: `router.py` ✅
 | `cart/` | Redis stock reservation, Lua atomic script | P2 |
 | `orders/` | verify all 4 files, status transition logic | P2 |
 | `tasks/` | verify `celery_app` + `notifications` | P2 |
-| `integrations/` | verify `meilisearch.py`, `minio.py` | P2 |
+| `integrations/` | verify `meilisearch.py` | P2 |
 | `iot/` | WebSocket + Redis Streams + TimescaleDB hypertable | P3 |
 | `admin/` | CRUD for products / orders / users via API | P3 |
 
@@ -153,8 +153,7 @@ backend/
 │       ├── cdek.py
 │       ├── yoomoney.py
 │       ├── cbr_rates.py
-│       ├── meilisearch.py
-│       └── minio.py
+│       └── meilisearch.py
 ├── tests/
 │   ├── conftest.py
 │   ├── unit/<domain>/test_*.py

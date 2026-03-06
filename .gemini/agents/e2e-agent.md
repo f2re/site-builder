@@ -185,6 +185,79 @@ def test_search_works(page):
 
 ---
 
+## 🧪 Testability Contract (ОБЯЗАТЕЛЕН для всех компонентов)
+
+Frontend-агент ОБЯЗАН добавлять `data-testid` к каждому интерактивному элементу.
+E2E-агент ОБЯЗАН использовать ТОЛЬКО `data-testid` — никаких CSS-классов, текстов, xpath.
+
+### Обязательные testid по домену:
+
+#### Навигация / Layout
+- `data-testid="header"` — шапка сайта
+- `data-testid="theme-toggle"` — кнопка смены темы
+- `data-testid="cart-icon"` — иконка корзины в хедере
+- `data-testid="cart-count"` — счётчик товаров в корзине
+- `data-testid="user-menu"` — меню пользователя
+- `data-testid="mobile-menu-btn"` — кнопка мобильного меню
+
+#### Аутентификация
+- `data-testid="email-input"` — поле email
+- `data-testid="password-input"` — поле пароля
+- `data-testid="login-btn"` — кнопка войти
+- `data-testid="register-btn"` — кнопка зарегистрироваться
+- `data-testid="logout-btn"` — выход
+- `data-testid="auth-error"` — блок с ошибкой авторизации
+- `data-testid="user-name"` — имя пользователя в хедере
+
+#### Магазин
+- `data-testid="product-card"` — карточка товара (на каждой)
+- `data-testid="product-title"` — название товара
+- `data-testid="product-price"` — цена
+- `data-testid="product-stock"` — количество на складе
+- `data-testid="add-to-cart-btn"` — добавить в корзину
+- `data-testid="search-input"` — строка поиска
+- `data-testid="search-results"` — блок результатов
+
+#### Корзина
+- `data-testid="cart-item"` — строка товара в корзине
+- `data-testid="cart-item-qty"` — счётчик количества
+- `data-testid="cart-qty-increase"` — кнопка +
+- `data-testid="cart-qty-decrease"` — кнопка -
+- `data-testid="cart-remove-btn"` — удалить товар
+- `data-testid="cart-total"` — итоговая сумма
+- `data-testid="checkout-btn"` — перейти к оформлению
+
+#### Оформление заказа
+- `data-testid="delivery-form"` — форма доставки
+- `data-testid="city-input"` — поле города
+- `data-testid="cdek-pickup-point"` — пункт выдачи СДЭК
+- `data-testid="confirm-delivery-btn"` — выбрать доставку
+- `data-testid="payment-form"` — форма оплаты
+- `data-testid="pay-btn"` — оплатить
+
+#### Заказы
+- `data-testid="order-list"` — список заказов
+- `data-testid="order-card"` — карточка заказа
+- `data-testid="order-status"` — статус заказа
+- `data-testid="order-number"` — номер заказа
+
+#### Блог
+- `data-testid="blog-post-card"` — карточка поста
+- `data-testid="blog-post-title"` — заголовок поста
+- `data-testid="blog-post-content"` — контент поста
+
+#### Админка
+- `data-testid="admin-product-form"` — форма товара
+- `data-testid="admin-product-name"` — поле названия товара
+- `data-testid="admin-product-price"` — поле цены
+- `data-testid="admin-product-stock"` — поле остатка
+- `data-testid="admin-save-btn"` — сохранить
+- `data-testid="admin-delete-btn"` — удалить
+- `data-testid="admin-confirm-delete"` — подтвердить удаление
+- `data-testid="admin-blog-form"` — форма поста блога
+
+---
+
 ## Структура тестов E2E
 
 ```
