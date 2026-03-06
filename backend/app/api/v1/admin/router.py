@@ -1,4 +1,4 @@
-# Module: api/v1/admin/router.py | Agent: backend-agent | Task: Phase 2 Dashfirm
+# Module: api/v1/admin/router.py | Agent: backend-agent | Task: Fix unused var
 import io
 import openpyxl
 from uuid import UUID
@@ -128,7 +128,7 @@ async def get_dashboard(
 
     # Products count
     products_count_stmt = select(func.count(Product.id)).where(Product.is_active.is_(True))
-    total_products = (await session.execute(products_count_stmt)).scalar() or 0
+    products_count_val = (await session.execute(products_count_stmt)).scalar() or 0
 
     # Top products aggregation
     top_products_stmt = (
@@ -149,9 +149,11 @@ async def get_dashboard(
 
     return SalesAnalytics(
         total_revenue=total_revenue,
+        revenue_rub=total_revenue,
         orders_count=total_orders,
         paid_orders_count=paid_orders,
         users_count=total_users,
+        products_count=products_count_val,
         top_products=top_products
     )
 

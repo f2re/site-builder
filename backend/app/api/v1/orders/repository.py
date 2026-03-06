@@ -57,8 +57,10 @@ class OrderRepository:
         )
         count_stmt = select(func.count()).select_from(Order)
         if status:
-            stmt = stmt.where(Order.status == status)
-            count_stmt = count_stmt.where(Order.status == status)
+            # FIX: Convert status to lowercase to match the database enum values
+            status_lower = status.lower()
+            stmt = stmt.where(Order.status == status_lower)
+            count_stmt = count_stmt.where(Order.status == status_lower)
         total = (await self.session.execute(count_stmt)).scalar() or 0
         stmt = stmt.offset(offset).limit(limit)
         result = await self.session.execute(stmt)
