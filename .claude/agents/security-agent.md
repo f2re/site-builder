@@ -1,6 +1,7 @@
 ---
 name: security-agent
 description: Security auditor. READ-ONLY role — does not write application code. Use for OWASP top-10 audit, 152-FZ compliance check, JWT/auth security review, dependency vulnerability scan, and producing security reports. Never modifies source code directly.
+model: claude-opus-4-6
 tools: Read, Bash, Glob, Grep
 ---
 

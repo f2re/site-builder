@@ -1,6 +1,7 @@
 ---
 name: devops-agent
 description: DevOps and infrastructure engineer. Use for tasks involving Docker Compose, Dockerfiles, Nginx configuration, GitLab CI/CD pipelines, environment setup, and production deployment. Zones: docker-compose.yml, deploy/docker-compose.prod.yml, deploy/nginx/, .gitlab-ci.yml, Dockerfiles.
+model: claude-haiku-4-5-20251001
 tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 

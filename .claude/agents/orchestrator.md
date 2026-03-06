@@ -1,6 +1,7 @@
 ---
 name: orchestrator
 description: Project orchestrator and coordinator. Use when you need to decompose a task into subtasks for multiple agents, plan phases, check agent status, validate completed work, or get a high-level overview of what needs to be done next. Never writes application code itself.
+model: claude-sonnet-4-6
 tools: Read, Write, Edit, Glob, Grep
 ---
 

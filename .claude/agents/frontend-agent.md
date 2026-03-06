@@ -1,6 +1,7 @@
 ---
 name: frontend-agent
 description: Nuxt 3 / Vue 3 frontend developer. Use for tasks involving Nuxt pages, Vue components, Pinia stores, UI kit, themes, PWA, i18n, and admin panel frontend. Zones: frontend/pages/, frontend/components/, frontend/stores/, frontend/composables/.
+model: claude-sonnet-4-6
 tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 

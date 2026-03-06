@@ -1,6 +1,7 @@
 ---
 name: backend-agent
 description: FastAPI backend developer. Use for tasks involving Python, FastAPI, SQLAlchemy, Alembic migrations, REST API endpoints, WebSocket, IoT telemetry pipeline, authentication, and database models. Zones: backend/app/api/v1/, backend/app/db/, backend/app/core/, backend/migrations/.
+model: claude-sonnet-4-6
 tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 

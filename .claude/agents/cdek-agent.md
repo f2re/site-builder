@@ -1,6 +1,7 @@
 ---
 name: cdek-agent
 description: Integration specialist. Use for tasks involving CDEK v2 delivery API, YooMoney payments, CBR currency rates, and Celery beat scheduled tasks. Zones: backend/app/integrations/, backend/app/api/v1/delivery/, backend/app/api/v1/payments/, backend/app/tasks/.
+model: claude-sonnet-4-6
 tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 

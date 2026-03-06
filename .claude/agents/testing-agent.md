@@ -1,6 +1,7 @@
 ---
 name: testing-agent
 description: QA and testing engineer. Use for tasks involving pytest unit tests, integration tests, WebSocket tests, and Locust load testing. Zones: tests/unit/, tests/integration/, tests/load/, tests/conftest.py.
+model: claude-haiku-4-5-20251001
 tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
