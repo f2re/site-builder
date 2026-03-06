@@ -10,6 +10,24 @@ from app.core.config import settings
 
 logger = structlog.get_logger()
 
+
+def get_cors_origins() -> list[str]:
+    origins = list(settings.BACKEND_CORS_ORIGINS or [])
+    dev_origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+    ]
+
+    result: list[str] = []
+    for origin in [*origins, *dev_origins]:
+        if origin and origin not in result:
+            result.append(origin)
+
+    return result
+
+
 app = FastAPI(
     title="WifiOBD Shop API",
     version="1.0.8",
@@ -29,7 +47,7 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -55,7 +73,7 @@ async def health():
 
 @app.on_event("startup")
 async def startup():
-    logger.info("api_startup", version="1.0.8")
+    logger.info("api_startup", version="1.0.8", cors_origins=get_cors_origins())
 
 
 @app.on_event("shutdown")

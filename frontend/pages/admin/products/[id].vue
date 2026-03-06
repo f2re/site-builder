@@ -174,7 +174,7 @@ const handleDelete = async () => {
               v-model="form.description" 
               label="Краткое описание" 
               placeholder="Краткое описание товара (для карточки)"
-              rows="2"
+              :rows="2"
             />
           </div>
         </UCard>
@@ -239,7 +239,7 @@ const handleDelete = async () => {
               v-model="form.meta_description" 
               label="Meta Description" 
               placeholder="SEO Описание"
-              rows="3"
+              :rows="3"
             />
           </div>
         </UCard>
