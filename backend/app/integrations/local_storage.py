@@ -10,11 +10,38 @@ from io import BytesIO
 from app.core.config import settings
 from app.core.logging import logger
 
+MEDIA_FALLBACK_ROOT = Path(os.getenv("MEDIA_FALLBACK_ROOT", "/tmp/site-builder-media"))
+
+
+def resolve_media_root() -> Path:
+    configured_root = Path(settings.MEDIA_ROOT)
+    candidates = [configured_root, MEDIA_FALLBACK_ROOT]
+    last_error = None
+
+    for candidate in candidates:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            probe = candidate / ".write-test"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink()
+            if candidate != configured_root:
+                logger.warning(
+                    "media_root_fallback_enabled",
+                    configured_root=str(configured_root),
+                    fallback_root=str(candidate),
+                )
+            return candidate
+        except OSError as exc:
+            last_error = exc
+
+    raise RuntimeError(f"Unable to initialize writable media root: {last_error}")
+
+
 class LocalStorageClient:
     """Async local storage client."""
 
     def __init__(self):
-        self.media_root = Path(settings.MEDIA_ROOT)
+        self.media_root = resolve_media_root()
         self.media_url = settings.MEDIA_URL
 
     async def ensure_directory_exists(self, object_name: str):
@@ -63,7 +90,6 @@ class LocalStorageClient:
 
     def get_public_url(self, object_name: str) -> str:
         """Get the public URL for an object."""
-        # Ensure object_name doesn't start with /
         clean_name = object_name.lstrip("/")
         return f"{self.media_url}/{clean_name}"
 

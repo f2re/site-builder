@@ -4,11 +4,14 @@ from fastapi.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 import os
 import structlog
+from pathlib import Path
 
 from app.api.v1.router import api_router
 from app.core.config import settings
 
 logger = structlog.get_logger()
+
+MEDIA_FALLBACK_ROOT = Path(os.getenv("MEDIA_FALLBACK_ROOT", "/tmp/site-builder-media"))
 
 
 def get_cors_origins() -> list[str]:
@@ -28,23 +31,43 @@ def get_cors_origins() -> list[str]:
     return result
 
 
+def resolve_media_root() -> str:
+    configured_root = Path(settings.MEDIA_ROOT)
+    candidates = [configured_root, MEDIA_FALLBACK_ROOT]
+    last_error = None
+
+    for candidate in candidates:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            probe = candidate / ".write-test"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink()
+            if candidate != configured_root:
+                logger.warning(
+                    "media_root_fallback_enabled",
+                    configured_root=str(configured_root),
+                    fallback_root=str(candidate),
+                )
+            return str(candidate)
+        except OSError as exc:
+            last_error = exc
+
+    raise RuntimeError(f"Unable to initialize writable media root: {last_error}")
+
+
+RESOLVED_MEDIA_ROOT = resolve_media_root()
+
+
 app = FastAPI(
     title="WifiOBD Shop API",
     version="1.0.8",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
-    # Отключаем автоматический redirect /path → /path/
-    # Без этого FastAPI генерирует 307 с http:// Location (Apache→backend — plain HTTP),
-    # что браузер блокирует как Mixed Content на HTTPS-странице.
     redirect_slashes=False,
 )
 
-# Доверяем X-Forwarded-Proto от Apache reverse proxy.
-# Без этого FastAPI видит scheme="http" (внутреннее соединение) и строит
-# redirect Location с http://, игнорируя заголовок X-Forwarded-Proto: https.
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_cors_origins(),
@@ -53,16 +76,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include API router
 app.include_router(api_router)
 
-# Serve media files in development
-# In production, Apache should serve this directory via ProxyPass /media/
 try:
-    os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
-    app.mount(settings.MEDIA_URL, StaticFiles(directory=settings.MEDIA_ROOT), name="media")
+    app.mount(settings.MEDIA_URL, StaticFiles(directory=RESOLVED_MEDIA_ROOT), name="media")
 except OSError as e:
-    logger.warning("media_dir_unavailable", path=settings.MEDIA_ROOT, error=str(e))
+    logger.warning("media_dir_unavailable", path=RESOLVED_MEDIA_ROOT, error=str(e))
 
 
 @app.get("/health")
@@ -73,7 +92,12 @@ async def health():
 
 @app.on_event("startup")
 async def startup():
-    logger.info("api_startup", version="1.0.8", cors_origins=get_cors_origins())
+    logger.info(
+        "api_startup",
+        version="1.0.8",
+        cors_origins=get_cors_origins(),
+        media_root=RESOLVED_MEDIA_ROOT,
+    )
 
 
 @app.on_event("shutdown")

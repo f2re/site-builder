@@ -111,8 +111,8 @@ class ProductShortRead(BaseModel):
     min_price: Decimal
     is_active: bool
     is_featured: bool
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     stock: int = 0
     price_display: str = ""
     currency: str = "RUB"
