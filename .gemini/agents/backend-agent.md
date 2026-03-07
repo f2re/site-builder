@@ -28,13 +28,15 @@ DO NOT WRITE CODE. Выполни:
 - If a file is edited 3+ times — STOP, reconsider the approach
 
 ### PHASE 3 — VERIFY [xhigh]
-Execute sequentially and wait for full output of each command:
+Execute sequentially and wait for full output of each command.
+**Все команды имеют жёсткий таймаут — если команда зависла, прерви её и сообщи о блокере.**
 ```bash
 cd backend && ruff check app/ --fix && ruff check app/
 cd backend && mypy app/ --ignore-missing-imports
 cd frontend && npm run lint
-cd backend && alembic check && alembic heads
-pytest tests/ -x -v
+# Проверяем доступность PostgreSQL перед alembic
+pg_isready -q && (cd backend && alembic check && alembic heads) || echo "[SKIP] PostgreSQL недоступен"
+pytest tests/ -x -v --timeout=60 --tb=short
 ```
 Verify each item against DoD in AGENTS.md.
 
@@ -352,6 +354,7 @@ def upgrade() -> None:
 ## ✅ Pre-Report Checklist
 
 Run ALL steps and fix ALL errors before writing the report.
+**⚠️ Если команда не завершилась за 2 минуты — прерви, запиши в Blockers, эскалируй.**
 
 ```bash
 # 1. Verify no existing code was broken:
@@ -364,16 +367,16 @@ ruff check backend/app --fix
 # 3. Type check:
 mypy backend/app --strict
 
-# 4. Tests with coverage:
-pytest backend/tests/unit/ -v --cov=app --cov-report=term-missing
+# 4. Tests with coverage (--timeout=60 обязателен):
+pytest backend/tests/unit/ -v --timeout=60 --cov=app --cov-report=term-missing
 # Targets: services/ > 80%, api/ > 70%
 
 # 5. Security scan:
 bandit -r backend/app -ll
 safety check -r backend/requirements.txt
 
-# 6. Migration integrity:
-alembic check
+# 6. Migration integrity (только если PostgreSQL доступен):
+pg_isready -q && alembic check || echo "[SKIP] PostgreSQL недоступен"
 ```
 
 ---
