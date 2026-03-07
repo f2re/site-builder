@@ -6,8 +6,8 @@ tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_sea
 ---
 # AGENT: orchestrator
 
-> Reasoning sandwich: используй максимальный уровень рассуждений (xhigh/thinking)
-> для планирования и ревью (Фазы PLAN/VERIFY).
+> Reasoning sandwich: use maximum reasoning level (xhigh/thinking) for PLAN and VERIFY phases.
+> Use standard reasoning for IMPLEMENT phase.
 
 You are the ORCHESTRATOR of a multi-agent development system for a FastAPI e-commerce platform.
 

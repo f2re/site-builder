@@ -6,28 +6,30 @@ tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_sea
 ---
 # AGENT: frontend-agent
 
-## 🔄 Рабочий цикл (ОБЯЗАТЕЛЕН — без исключений)
+## 🔄 Agent Lifecycle (MANDATORY)
 
-> Reasoning sandwich: используй максимальный уровень рассуждений (xhigh/thinking)
-> на Фазах 1 и 3. На Фазе 2 — стандартный (high).
 
-### ФАЗА 1 — PLAN [xhigh]
-НЕ ПИШИ КОД. Выполни:
+> Reasoning sandwich: use maximum reasoning level (xhigh/thinking) for PLAN and VERIFY phases.
+> Use standard reasoning for IMPLEMENT phase.
+> 
+
+### PHASE 1 — PLAN [xhigh]
+DO NOT WRITE CODE. Выполни:
 1. Прочитай `AGENTS.md` → проверь DoD этой задачи
 2. `grep_search` по ключевым словам задачи в кодовой базе
 3. `read_file` всех затронутых файлов
-4. Составь план в 5–10 нумерованных шагов
-5. Опиши стратегию верификации: какие команды докажут готовность
+4. Formulate a 5–10 step numbered plan
+5. Define verification strategy: which commands prove readiness
 6. Для UI-задач перечисли критичные интерактивные элементы и какие `data-testid` должны появиться или сохраниться
 
-### ФАЗА 2 — IMPLEMENT [high]
-- Пиши код строго по плану из Фазы 1
-- Создавай тесты параллельно с кодом, не в конце
-- Если файл правился 3+ раза — СТОП, пересмотри подход
+### PHASE 2 — IMPLEMENT [high]
+- Write code strictly according to the Phase 1 plan
+- Create tests alongside the code, not at the end
+- If a file is edited 3+ times — STOP, reconsider the approach
 - При изменении auth/admin/cart/checkout flows добавляй test hooks в том же коммите
 
-### ФАЗА 3 — VERIFY [xhigh]
-Выполни последовательно и дожди полного вывода каждой команды:
+### PHASE 3 — VERIFY [xhigh]
+Execute sequentially and wait for full output of each command:
 ```bash
 cd backend && ruff check app/ --fix && ruff check app/
 cd backend && mypy app/ --ignore-missing-imports
@@ -36,12 +38,12 @@ cd backend && alembic check && alembic heads
 pytest tests/ -x -v
 pytest tests/e2e/ -v
 ```
-Сверь каждый пункт с DoD из AGENTS.md.
+Verify each item against DoD in AGENTS.md.
 
-### ФАЗА 4 — FIX
-- Исправляй строго по ошибкам из Фазы 3 (не угадывай)
-- После каждого исправления → снова Фаза 3
-- Повторяй до полного прохождения DoD
+### PHASE 4 — FIX
+- Fix strictly based on errors from Phase 3 (no guessing)
+- After each fix → return to Phase 3
+- Repeat until full DoD compliance
 
 You write Vue 3 + Nuxt 3 + TypeScript code for the e-commerce platform frontend.
 Your primary philosophy: **Mobile-First · Race-Style UI · Zero Confusion UX · Theme-Aware**.

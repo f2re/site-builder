@@ -1,139 +1,128 @@
 # AGENTS.md — Policy Gateway
 
-> Читается ПЕРВЫМ перед любым действием.
-> Канонная архитектура и инварианты: [ARCHITECTURE.md](ARCHITECTURE.md)
-> DevOps и деплой: [DEVOPS.md](DEVOPS.md)
-> Оркестрация/агенты (детали): [CLAUDE.md](CLAUDE.md)
-> Примеры кода: [docs/examples/](docs/examples/)
+> READ FIRST before any action.
+> Canonical Architecture & Invariants: [ARCHITECTURE.md](ARCHITECTURE.md)
+> DevOps & Deployment: [DEVOPS.md](DEVOPS.md)
+> Orchestration & Agent Details: [GEMINI.md](GEMINI.md)
+> Code Examples: [docs/examples/](docs/examples/)
 
 ---
 
-## Purpose
-WifiOBD Site — интернет-магазин OBD-электроники.
-Backend: FastAPI + PostgreSQL/TimescaleDB + Redis + Meilisearch.
-Frontend: Nuxt 3 SSR + Vue 3 + Pinia.
+## 🎯 Purpose
+WifiOBD Site — E-commerce for OBD electronics.
+**Backend**: FastAPI + PostgreSQL/TimescaleDB + Redis + Meilisearch.
+**Frontend**: Nuxt 3 SSR + Vue 3 + Pinia.
 
 ---
 
-## Иерархия истины (приоритет: сверху → вниз)
-1. **Enforcement** — CI/CD, ruff, mypy, vue-tsc, pytest (нарушение = сборка падает)
-2. **Policy** — этот файл
-3. **Architecture** — ARCHITECTURE.md (слои, инварианты)
-4. **Operations** — docs/runbook.md (dev/deploy/debug)
-5. **Examples** — docs/examples/ (эталонные PR, тесты, endpoint)
+## ⚖️ Hierarchy of Truth (Priority: Top → Down)
+1. **Enforcement** — CI/CD, ruff, mypy, vue-tsc, pytest (Violation = Build Failure).
+2. **Policy** — This file (AGENTS.md).
+3. **Architecture** — ARCHITECTURE.md (Layers, Invariants).
+4. **Operations** — docs/runbook.md (Dev/Deploy/Debug).
+5. **Examples** — docs/examples/ (Canonical PRs, Tests, Endpoints).
 
 ---
 
-## Tooling — обязательные команды
+## 🔧 Tooling — Mandatory Commands
 
 ```bash
-# Backend (из директории /backend):
+# Backend (from /backend directory):
 ruff check app/ --fix && ruff check app/ && mypy app/ --ignore-missing-imports
 
-# Frontend (из директории /frontend):
+# Frontend (from /frontend directory):
 npm install --legacy-peer-deps --quiet
 npm run lint
 
-# База данных:
+# Database:
 alembic check && alembic heads
 
-# Тесты:
+# Tests:
 pytest tests/ -x -v
 
-# Полный DoD-чеклист (запускать в Фазе VERIFY):
+# Full DoD Checklist:
 bash scripts/agents/verify_dod.sh
 ```
 
 ---
 
-## Рабочий цикл агента (4 фазы — ОБЯЗАТЕЛЬНЫ)
+## 🔄 Agent Lifecycle (4 Mandatory Phases)
 
-### Фаза 1 — PLAN [режим: xhigh reasoning]
-**НЕ ПИШИ КОД.** Только:
-- Прочитай задачу и этот файл
-- Изучи затронутые файлы (`grep_search`, `glob`, `read_file`)
-- Сформулируй план в 5–10 шагах
-- Опиши стратегию верификации (какие команды докажут готовность)
+### Phase 1 — PLAN [Mode: xhigh reasoning]
+**DO NOT WRITE CODE.**
+- Read the task and this policy.
+- Investigate affected files (`grep_search`, `glob`, `read_file`).
+- Formulate a 5–10 step plan.
+- Define a verification strategy (commands to prove success).
 
-### Фаза 2 — IMPLEMENT [режим: high reasoning]
-- Пиши код с учётом тестируемости
-- Создавай unit-тесты параллельно с кодом (не в конце)
+### Phase 2 — IMPLEMENT [Mode: high reasoning]
+- Write code with testability in mind.
+- Create unit tests alongside the code (not at the end).
 
-### Фаза 3 — VERIFY [режим: xhigh reasoning]
-- Запусти `bash scripts/agents/verify_dod.sh` — полный DoD
-- Проверь полный вывод — не «пробегай глазами»
-- Сверь результат с Definition of Done ниже
+### Phase 3 — VERIFY [Mode: xhigh reasoning]
+- Run `bash scripts/agents/verify_dod.sh` for full DoD validation.
+- Inspect full tool output — do not skim.
+- Compare results with the Definition of Done below.
 
-### Фаза 4 — FIX
-- Исправляй по конкретным ошибкам из Фазы 3
-- Повторяй с Фазы 3 до полного соответствия DoD
+### Phase 4 — FIX
+- Fix based on specific errors from Phase 3.
+- Repeat Phase 3 until all DoD criteria are met.
 
-> ⚠️ Если один файл правился 3+ раза — рассмотри другой подход целиком.
-
----
-
-## MUST
-- Проходить все 4 фазы в каждой задаче
-- Запускать `bash scripts/agents/verify_dod.sh` перед каждым коммитом
-- При старте задачи запускать `bash scripts/agents/context_snapshot.sh`
-- Новый endpoint → только в `backend/app/api/v1/<feature>/` со структурой router/service/repository/schemas
-- Новые зависимости → только с точной версией в `requirements.txt`, проверить `pip install -r requirements.txt`
-- Изменения инфраструктуры → в оба файла одновременно: `docker-compose.yml` + `deploy/docker-compose.prod.yml`
-- Docker images → только фиксированные версии (например `v1.36.0`)
-- Писать отчёт в `.claude/agents/reports/<domain>/<task_id>.md` по шаблону ниже
-
-## MUST NOT
-- Коммитить `.env` или любые секреты
-- Хардкодить цвета/отступы в `.vue` (только CSS-переменные из `tokens.css`)
-- Менять `backend/app/core/` без unit-тестов
-- Использовать GitHub Actions (только GitLab CI/CD)
-- Использовать Docker Hub (только GitLab Container Registry)
-- Использовать `:latest` в docker images
-- Дублировать типы: `app/models/`, `app/schemas/`, `app/services/` вне `api/v1/<feature>/`
-- Вручную добавлять `/api/v1` в пути при использовании `useFetch` с `baseURL: apiBase`
-- Объявлять задачу выполненной без прохождения `bash scripts/agents/verify_dod.sh`
+> ⚠️ If a single file is edited 3+ times, reconsider the entire approach.
 
 ---
 
-## Definition of Done (DoD)
+## ✅ MUST (Strict Requirements)
+- Follow all 4 phases for every task.
+- Run `bash scripts/agents/verify_dod.sh` before every commit.
+- Run `bash scripts/agents/context_snapshot.sh` at task startup.
+- New endpoints → only in `backend/app/api/v1/<feature>/` (router/service/repository/schemas).
+- New dependencies → strictly pinned in `requirements.txt`, verify with `pip install`.
+- Infrastructure changes → sync both `docker-compose.yml` and `deploy/docker-compose.prod.yml`.
+- Docker images → strictly fixed versions (e.g., `v1.36.0`).
+- Reports → write to `.gemini/agents/reports/<domain>/<task_id>.md` using the template.
 
-Задача считается выполненной ТОЛЬКО при выполнении всех пунктов:
+## ❌ MUST NOT (Strict Prohibitions)
+- Commit `.env` or any secrets.
+- Hardcode colors/margins in `.vue` (use tokens from `tokens.css`).
+- Modify `backend/app/core/` without unit tests.
+- Use GitHub Actions (use GitLab CI/CD only).
+- Use Docker Hub (use GitLab Container Registry only).
+- Use `:latest` in docker images.
+- Duplicate types: use feature-specific folders instead of global `app/models/`.
+- Manually add `/api/v1` to paths when using `useFetch` with `baseURL: apiBase`.
+
+---
+
+## 🏁 Definition of Done (DoD)
+
+A task is considered DONE only when all boxes are checked:
 
 - [ ] `ruff check app/` → **0 errors**
 - [ ] `mypy app/ --ignore-missing-imports` → **Success: no issues found**
-- [ ] `npm run lint` → **no errors** (vue-tsc)
-- [ ] `pytest tests/` → **all green**
-- [ ] `alembic check` → **OK** (модели совпадают с миграциями)
-- [ ] `alembic heads` → **ровно 1 head**
-- [ ] Отчёт агента написан в `.claude/agents/reports/<domain>/<task_id>.md`
+- [ ] `npm run lint` → **SUCCESS** (vue-tsc)
+- [ ] `pytest tests/` → **ALL GREEN**
+- [ ] `alembic check` → **OK** (models match migrations)
+- [ ] `alembic heads` → **Exactly 1 head**
+- [ ] Agent report written in `.gemini/agents/reports/<domain>/<task_id>.md`
 
-Быстрая проверка: `bash scripts/agents/verify_dod.sh`
+Quick Check: `bash scripts/agents/verify_dod.sh`
 
 ---
 
-## Шаблон отчёта агента
+## 🧹 Agent Report Template
 
 ```markdown
 ## Status: DONE | IN_PROGRESS | BLOCKED
 ## Completed:
-- список выполненного
+- Subtask 1...
+- Subtask 2...
 ## Artifacts:
-- backend/app/api/v1/products/router.py
+- path/to/file.py
 ## Contracts Verified:
-- Pydantic schemas: ✅
-- DI via Depends: ✅
-- ruff: ✅ | mypy: ✅ | pytest: ✅
+- Pydantic schemas: ✅ | DI: ✅ | ruff: ✅ | mypy: ✅ | pytest: ✅
 ## Next:
-- передать frontend-agent: API контракт /api/v1/products готов
+- Handover instructions for the next agent/step
 ## Blockers:
-- нет
+- None or description
 ```
-
----
-
-## Observability
-
-- При старте каждой задачи агент **ОБЯЗАН** запустить `bash scripts/agents/context_snapshot.sh`
-- Снапшот среды пишется в `.claude/agents/reports/_meta/context_snapshot.txt`
-- Каждая повторяющаяся ошибка агента → новое правило MUST/MUST NOT в этом файле (цикл стабилизации)
-- При ошибке задавать вопрос: «Какой инструмент, ограничение или документ отсутствует?» — не «попробовать ещё раз»

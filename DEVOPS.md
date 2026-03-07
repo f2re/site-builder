@@ -1,6 +1,14 @@
-# DEVOPS — Production Deployment Guide
+# DEVOPS — Production Deployment & Infrastructure
 
-> Актуально для стека: GitLab CI/CD · Docker Compose · Apache 2 · Ubuntu 18.04+
+> Canonical Stack: GitLab CI/CD · Docker Compose · Apache 2 · Ubuntu 18.04+
+
+## 🏗 Infrastructure Sync Policy (Docker)
+1. **Double Edit Rule**: Changes to infrastructure MUST be applied simultaneously to:
+   - **Dev**: `docker-compose.yml` (root).
+   - **Prod**: `deploy/docker-compose.prod.yml`.
+2. **Versions**: Fix image versions (e.g., `v1.36.0`). Use of `:latest` in production is **PROHIBITED**.
+3. **CI/CD**: Use ONLY GitLab CI (`.gitlab-ci.yml`). GitHub Actions is PROHIBITED.
+4. **Registry**: Use ONLY GitLab Container Registry. Docker Hub is PROHIBITED.
 
 ---
 
