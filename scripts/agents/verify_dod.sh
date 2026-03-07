@@ -33,17 +33,22 @@ if [ -d "$ROOT/backend" ]; then
   fi
 
   if command -v mypy &>/dev/null; then
-    mypy app/ --ignore-missing-imports --no-error-summary 2>&1 | tail -5
+    timeout 120 mypy app/ --ignore-missing-imports --no-error-summary 2>&1 | tail -5
     pass "mypy"
   else
     info "mypy not found, skipping"
   fi
 
   if command -v alembic &>/dev/null; then
-    HEADS=$(alembic heads 2>/dev/null | grep -c 'head' || true)
-    [ "$HEADS" -eq 1 ] || fail "alembic heads: expected 1, got $HEADS"
-    alembic check 2>/dev/null || fail "alembic check: models do not match migrations"
-    pass "alembic (1 head, models match)"
+    # Проверяем доступность PostgreSQL перед запуском alembic
+    if pg_isready -q 2>/dev/null; then
+      HEADS=$(timeout 30 alembic heads 2>/dev/null | grep -c 'head' || true)
+      [ "$HEADS" -eq 1 ] || fail "alembic heads: expected 1, got $HEADS"
+      timeout 30 alembic check 2>/dev/null || fail "alembic check: models do not match migrations"
+      pass "alembic (1 head, models match)"
+    else
+      info "PostgreSQL недоступен (pg_isready failed) — alembic пропущен"
+    fi
   else
     info "alembic not found, skipping"
   fi
@@ -59,8 +64,14 @@ if [ -d "$ROOT/frontend" ]; then
   cd "$ROOT/frontend"
 
   if command -v npm &>/dev/null; then
-    npm install --legacy-peer-deps --quiet 2>&1 | tail -3
-    npm run lint || fail "npm run lint failed"
+    # Пропускаем npm install если node_modules уже существует
+    if [ ! -d "$ROOT/frontend/node_modules" ]; then
+      info "node_modules отсутствует, устанавливаем зависимости..."
+      timeout 300 npm install --legacy-peer-deps --quiet 2>&1 | tail -3
+    else
+      info "node_modules уже существует, пропускаем npm install"
+    fi
+    timeout 120 npm run lint || fail "npm run lint failed"
     pass "npm lint"
   else
     info "npm not found, skipping"
@@ -76,7 +87,7 @@ if [ -d "$ROOT/tests" ]; then
   info "Tests..."
   cd "$ROOT"
   if command -v pytest &>/dev/null; then
-    pytest tests/ -x -q || fail "pytest: some tests failed"
+    timeout 180 pytest tests/ -x -q --timeout=60 --tb=short || fail "pytest: some tests failed"
     pass "pytest"
   else
     info "pytest not found, skipping"
@@ -87,14 +98,15 @@ fi
 
 # --- Report check ---
 info "Checking for agent report..."
-REPORTS_DIR="$ROOT/.claude/agents/reports"
+# Путь к отчётам агентов (исправлено: .gemini/agents/reports, не .claude/)
+REPORTS_DIR="$ROOT/.gemini/agents/reports"
 if [ -d "$REPORTS_DIR" ]; then
   REPORT_COUNT=$(find "$REPORTS_DIR" -name '*.md' -newer "$ROOT/AGENTS.md" 2>/dev/null | wc -l || echo 0)
   if [ "$REPORT_COUNT" -gt 0 ]; then
     pass "agent report found ($REPORT_COUNT new file(s))"
   else
-    echo -e "${YELLOW}[WARN]${NC} No new agent report found in .claude/agents/reports/"
-    echo "       Create: .claude/agents/reports/<domain>/<task_id>.md"
+    echo -e "${YELLOW}[WARN]${NC} No new agent report found in .gemini/agents/reports/"
+    echo "       Create: .gemini/agents/reports/<domain>/<task_id>.md"
   fi
 fi
 
