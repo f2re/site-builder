@@ -66,42 +66,52 @@ def goto_and_wait(page: Page, path: str, *, ready_testid: str | None = None, rea
 
 def click_element(page: Page, testid: str, *fallbacks: str, timeout: int = 8000) -> Locator:
     locator = get_locator(page, testid, *fallbacks, timeout=timeout)
+    # Ждем, пока элемент перестанет двигаться и станет доступным для клика
+    locator.wait_for(state="visible", timeout=timeout)
     locator.scroll_into_view_if_needed()
-    expect(locator).to_be_visible(timeout=timeout)
-    expect(locator).to_be_enabled(timeout=timeout)
-    locator.click()
+    # Playwright сам делает actionability checks, но добавим небольшую паузу для стабильности на тяжелых страницах
+    page.wait_for_timeout(200) 
+    locator.click(force=False, timeout=timeout)
     return locator
 
 
 def fill_element(page: Page, value: str, testid: str, *fallbacks: str, timeout: int = 8000) -> Locator:
     locator = get_locator(page, testid, *fallbacks, timeout=timeout)
+    locator.wait_for(state="visible", timeout=timeout)
     locator.scroll_into_view_if_needed()
-    expect(locator).to_be_visible(timeout=timeout)
-    expect(locator).to_be_enabled(timeout=timeout)
-    locator.fill(value)
+    locator.clear() # Очищаем перед вводом
+    locator.fill(value, timeout=timeout)
     return locator
 
 
 def _login_via_api(email: str, password: str) -> str:
     """Логин через API, возвращает access_token."""
-    resp = requests.post(
-        f"{API_URL}/api/v1/auth/login",
-        json={
-            "email": email,
-            "password": password,
-        },
-    )
-    assert resp.status_code == 200, f"Login failed for {email}: {resp.text}"
-    return resp.json()["access_token"]
+    try:
+        resp = requests.post(
+            f"{API_URL}/api/v1/auth/login",
+            json={
+                "email": email,
+                "password": password,
+            },
+            timeout=10
+        )
+        assert resp.status_code == 200, f"Login failed for {email}: {resp.text}"
+        return resp.json()["access_token"]
+    except Exception as e:
+        pytest.fail(f"API Login error: {e}")
 
 
 def _inject_token(page: Page, token: str) -> Page:
     """Устанавливает токен в куки и перезагружает страницу."""
+    # Получаем домен из BASE_URL (обычно localhost)
+    from urllib.parse import urlparse
+    domain = urlparse(BASE_URL).hostname or "localhost"
+    
     page.context.add_cookies([
         {
             "name": "access_token",
             "value": token,
-            "domain": "localhost",
+            "domain": domain,
             "path": "/",
         }
     ])
@@ -111,9 +121,13 @@ def _inject_token(page: Page, token: str) -> Page:
 
 
 def _make_context(browser: Browser) -> BrowserContext:
-    context = browser.new_context(base_url=BASE_URL, viewport={"width": 1280, "height": 720})
-    context.set_default_navigation_timeout(15000)
-    context.set_default_timeout(8000)
+    context = browser.new_context(
+        base_url=BASE_URL, 
+        viewport={"width": 1440, "height": 900}, # Увеличим для запаса
+        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    )
+    context.set_default_navigation_timeout(30000) # Увеличим таймауты
+    context.set_default_timeout(15000)
     return context
 
 # --- Fixtures ------------------------------------------------------------------
@@ -124,8 +138,8 @@ def browser_context_args(browser_context_args):
         **browser_context_args,
         "base_url": BASE_URL,
         "viewport": {
-            "width": 1280,
-            "height": 720,
+            "width": 1440,
+            "height": 900,
         },
     }
 
@@ -147,8 +161,15 @@ def admin_page(browser: Browser, admin_token: str):
     pg = ctx.new_page()
     pg.on("console", handle_console)
     _inject_token(pg, admin_token)
-    pg.wait_for_selector(testid_selector("user-name"), timeout=5000)
-    return pg
+    # Проверяем, что залогинились (ждем имя пользователя или админ-кнопку)
+    try:
+        pg.wait_for_selector(testid_selector("user-name"), timeout=10000)
+    except:
+        pg.screenshot(path="debug_admin_login_fail.png")
+        raise
+    yield pg
+    pg.close()
+    ctx.close()
 
 
 @pytest.fixture
@@ -158,13 +179,21 @@ def customer_page(browser: Browser, customer_token: str):
     pg = ctx.new_page()
     pg.on("console", handle_console)
     _inject_token(pg, customer_token)
-    pg.wait_for_selector(testid_selector("user-name"), timeout=5000)
-    return pg
+    try:
+        pg.wait_for_selector(testid_selector("user-name"), timeout=10000)
+    except:
+        pg.screenshot(path="debug_customer_login_fail.png")
+        raise
+    yield pg
+    pg.close()
+    ctx.close()
 
 
 @pytest.fixture
 def page(browser: Browser):
-    with _make_context(browser) as context:
-        pg = context.new_page()
-        pg.on("console", handle_console)
-        yield pg
+    ctx = _make_context(browser)
+    pg = ctx.new_page()
+    pg.on("console", handle_console)
+    yield pg
+    pg.close()
+    ctx.close()

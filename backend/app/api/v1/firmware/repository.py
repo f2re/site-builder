@@ -2,6 +2,7 @@
 import uuid
 from typing import List, Optional, Sequence
 from sqlalchemy import select, update, delete, and_
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from fastapi import Depends
@@ -85,7 +86,7 @@ class FirmwareRepository:
 
     async def delete_device(self, serial: str) -> bool:
         stmt = delete(ModuleDevice).where(ModuleDevice.serial == serial)
-        result = await self.session.execute(stmt)
+        result: CursorResult = await self.session.execute(stmt)  # type: ignore[assignment]
         return result.rowcount > 0
 
     async def get_complectations_by_ids(self, ids: List[uuid.UUID]) -> Sequence[ModuleComplectation]:
@@ -147,7 +148,7 @@ class FirmwareRepository:
 
     async def delete_complectation(self, comp_id: uuid.UUID) -> bool:
         stmt = delete(ModuleComplectation).where(ModuleComplectation.id == comp_id)
-        result = await self.session.execute(stmt)
+        result: CursorResult = await self.session.execute(stmt)  # type: ignore[assignment]
         return result.rowcount > 0
 
     async def add_complectation_to_device(self, serial: str, comp_id: uuid.UUID) -> None:
