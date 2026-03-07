@@ -56,6 +56,7 @@ watch(product, (newVal) => {
         sort_order: img.sort_order
       })),
       variants: newVal.variants.map(v => ({
+        id: v.id,
         name: v.name,
         sku: v.sku,
         price: v.price,

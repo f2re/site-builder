@@ -11,7 +11,6 @@ from typing import Literal, Any, cast
 from PIL import Image
 from sqlalchemy import select
 
-from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.core.logging import logger
 from app.integrations.local_storage import storage_client

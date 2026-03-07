@@ -88,7 +88,7 @@ export interface ProductCreate {
   is_active?: boolean
   is_featured?: boolean
   images?: Array<{ url: string, alt: string, is_cover?: boolean, sort_order?: number }>
-  variants?: Array<{ name: string, sku: string, price: number, stock_quantity?: number, attributes?: Record<string, any> }>
+  variants?: Array<{ id?: string, name: string, sku: string, price: number, stock_quantity?: number, attributes?: Record<string, any> }>
 }
 
 export const useProducts = () => {

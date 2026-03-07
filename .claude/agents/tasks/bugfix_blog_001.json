@@ -1,0 +1,19 @@
+{
+  "task_id": "bugfix_blog_001",
+  "agent": "frontend-agent",
+  "priority": "HIGH",
+  "title": "Fix: Блог — карусель 404 + кнопки шаринга",
+  "context": "На странице /blog/[slug] две проблемы:\n\n1. КАРУСЕЛЬ (BlogCarousel.vue): изображения не показываются, ошибка IPX_FILE_NOT_FOUND 404.\n   - NuxtImg в карусели генерирует URL вида /_ipx/fit_cover&s_800x450/media/blog/2026/03/uuid.png\n   - IPX не может найти файлы, потому что они физически хранятся на медиасервере по пути /media/blog/..., а не в nuxt public/\n   - Контент-изображения (img теги в HTML) работают OK — они используют прямой src без IPX\n   - В nuxt.config.ts нет секции image: с настройкой providers/domains\n\n   РЕШЕНИЯ (выбери наиболее подходящее):\n   A) В nuxt.config.ts добавить image: { provider: 'none' } или настроить домены чтобы IPX проксировал с m.wifiobd.ru\n   B) В BlogCarousel.vue заменить <NuxtImg> на обычный <img> (обходит IPX совсем)\n   C) Добавить в nuxt.config.ts: image: { domains: ['m.wifiobd.ru'], provider: 'ipx' }\n\n   Скорее всего оптимальное решение — вариант B или C. Проверь как NuxtImg обрабатывает /media/ пути.\n\n2. КНОПКИ ШАРИНГА: Telegram и VK share кнопки не работают.\n   - pageUrl = computed(() => import.meta.client ? window.location.href : '')\n   - Проблема: во время SSR pageUrl = '' поэтому href в <a> пустой, и на клиенте после гидрации кнопки могут не обновиться\n   - Нужно убедиться что кнопки шаринга рендерятся только на клиенте (<ClientOnly>) ИЛИ использовать useRequestURL() для SSR\n   - Также проверить работу VK share URL: https://vk.com/share.php?url=... — это корректный формат\n\nФайлы для изучения:\n- frontend/components/blog/BlogCarousel.vue\n- frontend/pages/blog/[slug].vue  \n- frontend/nuxt.config.ts",
+  "acceptance_criteria": [
+    "Изображения в BlogCarousel на /blog/[slug] показываются без 404",
+    "Кнопки Telegram и VK открывают корректные URL с заполненным адресом страницы",
+    "Кнопка 'Скопировать ссылку' копирует URL",
+    "npm run lint && npm run type-check проходят"
+  ],
+  "files_to_modify": [
+    "frontend/components/blog/BlogCarousel.vue",
+    "frontend/pages/blog/[slug].vue",
+    "frontend/nuxt.config.ts (возможно)"
+  ],
+  "report_to": ".claude/agents/reports/frontend/bugfix_blog_001.md"
+}

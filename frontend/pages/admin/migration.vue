@@ -158,128 +158,130 @@ const getEntityLabel = (key: string) => {
 </script>
 
 <template>
-  <div class="migration-page">
-    <header class="migration-header">
-      <div class="header-content">
-        <h1 class="text-2xl font-bold">Миграция данных</h1>
-        <p class="text-muted">Импорт каталога и пользователей из OpenCart</p>
-      </div>
+  <NuxtLayout name="admin">
+    <template #header-title>
+      Миграция данных
+    </template>
 
-      <div class="header-actions">
-        <template v-if="status?.overall_status === 'RUNNING'">
-          <UButton 
-            variant="secondary" 
-            @click="pauseMigration" 
-            :loading="isActionPending"
-          >
-            <template #icon><Icon name="ph:pause-bold" /></template>
-            Приостановить
-          </UButton>
-        </template>
-        <template v-else-if="status?.overall_status === 'PAUSED'">
-          <UButton 
-            variant="primary" 
-            @click="resumeMigration" 
-            :loading="isActionPending"
-          >
-            <template #icon><Icon name="ph:play-bold" /></template>
-            Возобновить
-          </UButton>
-        </template>
-        <template v-else>
-          <UButton 
-            variant="primary" 
-            @click="startMigration" 
-            :loading="isActionPending"
-            :disabled="status?.overall_status === 'COMPLETED'"
-          >
-            <template #icon><Icon name="ph:rocket-launch-bold" /></template>
-            Запустить миграцию
-          </UButton>
-        </template>
-      </div>
-    </header>
-
-    <div v-if="isLoading" class="migration-grid">
-      <USkeleton v-for="i in 6" :key="i" height="160px" />
-    </div>
-
-    <div v-else-if="status" class="migration-content">
-      <!-- Global Progress -->
-      <UCard class="overall-card" :class="{ 'card--failed': status.overall_status === 'FAILED' }">
-        <div class="overall-header">
-          <div class="status-info">
-            <span class="label">Общий прогресс</span>
-            <UBadge :variant="getStatusVariant(status.overall_status)">
-              {{ status.overall_status }}
-            </UBadge>
-          </div>
-          <span class="percentage">{{ Math.round(status.overall_progress) }}%</span>
-        </div>
-        
-        <div class="progress-bar-container">
-          <div 
-            class="progress-bar-fill" 
-            :style="{ width: `${status.overall_progress}%` }"
-            :class="{ 'is-running': status.overall_status === 'RUNNING' }"
-          ></div>
-        </div>
-
-        <div class="overall-footer">
-          <div v-if="status.overall_status === 'RUNNING'" class="running-indicator">
-            <USpinner size="sm" />
-            <span>Обработка данных...</span>
-          </div>
-          <div v-else-if="status.overall_status === 'COMPLETED'" class="completed-indicator">
-            <Icon name="ph:check-circle-fill" class="text-success" />
-            <span>Миграция успешно завершена</span>
-          </div>
-        </div>
-      </UCard>
-
-      <!-- Entity Cards -->
-      <div class="migration-grid">
-        <UCard 
-          v-for="(entity, key) in status.entities" 
-          :key="key"
-          class="entity-card"
-          clickable
+    <template #header-actions>
+      <template v-if="status?.overall_status === 'RUNNING'">
+        <UButton
+          variant="secondary"
+          @click="pauseMigration"
+          :loading="isActionPending"
+          data-testid="migration-pause-btn"
         >
-          <div class="entity-card-header">
-            <div class="entity-icon-bg">
-              <Icon :name="getEntityIcon(key as MigrationEntityKey)" size="24" />
+          <template #icon><Icon name="ph:pause-bold" /></template>
+          Приостановить
+        </UButton>
+      </template>
+      <template v-else-if="status?.overall_status === 'PAUSED'">
+        <UButton
+          variant="primary"
+          @click="resumeMigration"
+          :loading="isActionPending"
+          data-testid="migration-resume-btn"
+        >
+          <template #icon><Icon name="ph:play-bold" /></template>
+          Возобновить
+        </UButton>
+      </template>
+      <template v-else>
+        <UButton
+          variant="primary"
+          @click="startMigration"
+          :loading="isActionPending"
+          :disabled="status?.overall_status === 'COMPLETED'"
+          data-testid="migration-start-btn"
+        >
+          <template #icon><Icon name="ph:rocket-launch-bold" /></template>
+          Запустить миграцию
+        </UButton>
+      </template>
+    </template>
+
+    <div class="migration-page">
+      <div v-if="isLoading" class="migration-grid">
+        <USkeleton v-for="i in 6" :key="i" height="160px" />
+      </div>
+
+      <div v-else-if="status" class="migration-content">
+        <!-- Global Progress -->
+        <UCard class="overall-card" :class="{ 'card--failed': status.overall_status === 'FAILED' }">
+          <div class="overall-header">
+            <div class="status-info">
+              <span class="label">Общий прогресс</span>
+              <UBadge :variant="getStatusVariant(status.overall_status)">
+                {{ status.overall_status }}
+              </UBadge>
             </div>
-            <UBadge :variant="getStatusVariant(entity.status)" size="sm">
-              {{ entity.status }}
-            </UBadge>
+            <span class="percentage">{{ Math.round(status.overall_progress) }}%</span>
           </div>
 
-          <div class="entity-card-body">
-            <h3 class="entity-title">{{ getEntityLabel(key as string) }}</h3>
-            <div class="entity-stats">
-              <span class="processed">{{ entity.processed }}</span>
-              <span class="divider">/</span>
-              <span class="total">{{ entity.total }}</span>
-            </div>
+          <div class="progress-bar-container">
+            <div
+              class="progress-bar-fill"
+              :style="{ width: `${status.overall_progress}%` }"
+              :class="{ 'is-running': status.overall_status === 'RUNNING' }"
+            ></div>
           </div>
 
-          <div class="entity-card-footer">
-            <div class="mini-progress">
-              <div 
-                class="mini-progress-fill" 
-                :style="{ width: `${(entity.processed / (entity.total || 1)) * 100}%` }"
-                :class="`fill--${getStatusVariant(entity.status)}`"
-              ></div>
+          <div class="overall-footer">
+            <div v-if="status.overall_status === 'RUNNING'" class="running-indicator">
+              <USpinner size="sm" />
+              <span>Обработка данных...</span>
             </div>
-            <p v-if="entity.error" class="entity-error">
-              <Icon name="ph:warning-circle-bold" />
-              {{ entity.error }}
-            </p>
+            <div v-else-if="status.overall_status === 'COMPLETED'" class="completed-indicator">
+              <Icon name="ph:check-circle-fill" class="text-success" />
+              <span>Миграция успешно завершена</span>
+            </div>
           </div>
         </UCard>
+
+        <!-- Entity Cards -->
+        <div class="migration-grid">
+          <UCard
+            v-for="(entity, key) in status.entities"
+            :key="key"
+            class="entity-card"
+            clickable
+          >
+            <div class="entity-card-header">
+              <div class="entity-icon-bg">
+                <Icon :name="getEntityIcon(key as MigrationEntityKey)" size="24" />
+              </div>
+              <UBadge :variant="getStatusVariant(entity.status)" size="sm">
+                {{ entity.status }}
+              </UBadge>
+            </div>
+
+            <div class="entity-card-body">
+              <h3 class="entity-title">{{ getEntityLabel(key as string) }}</h3>
+              <div class="entity-stats">
+                <span class="processed">{{ entity.processed }}</span>
+                <span class="divider">/</span>
+                <span class="total">{{ entity.total }}</span>
+              </div>
+            </div>
+
+            <div class="entity-card-footer">
+              <div class="mini-progress">
+                <div
+                  class="mini-progress-fill"
+                  :style="{ width: `${(entity.processed / (entity.total || 1)) * 100}%` }"
+                  :class="`fill--${getStatusVariant(entity.status)}`"
+                ></div>
+              </div>
+              <p v-if="entity.error" class="entity-error">
+                <Icon name="ph:warning-circle-bold" />
+                {{ entity.error }}
+              </p>
+            </div>
+          </UCard>
+        </div>
       </div>
     </div>
-  </div>
+  </NuxtLayout>
 </template>
 
 <style scoped>
@@ -288,19 +290,6 @@ const getEntityLabel = (key: string) => {
   flex-direction: column;
   gap: 2rem;
   padding-bottom: 4rem;
-}
-
-.migration-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 1.5rem;
-}
-
-.text-muted {
-  color: var(--color-muted);
-  margin-top: 0.25rem;
 }
 
 .migration-grid {
@@ -480,16 +469,4 @@ const getEntityLabel = (key: string) => {
   margin-top: 0.5rem;
 }
 
-@media (max-width: 768px) {
-  .migration-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .header-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-}
 </style>

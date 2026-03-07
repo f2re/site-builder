@@ -120,6 +120,14 @@ class Settings(BaseSettings):
 
     # ── Dashfirm Compiler ────────────────────────────────────────────────────
     COMPILER_PATH: str = "./compiler/compiler"
+    FIRMWARE_COMPILER_PATH: str = Field(
+        default="/path/to/compiler",
+        description="Path to firmware compiler binary"
+    )
+    FIRMWARE_BUILD_DIR: str = Field(
+        default="/data/firmware/build",
+        description="Directory for compiled firmware files"
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

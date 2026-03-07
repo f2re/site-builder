@@ -1,0 +1,26 @@
+{
+  "task_id": "feature_cdek_checkout_001",
+  "agent": "frontend-agent",
+  "priority": "HIGH",
+  "title": "Feature: СДЭК в корзине — автозаполнение городов, карта, выбор ПВЗ, процесс оплаты",
+  "context": "В корзине (frontend/pages/cart/index.vue или frontend/pages/cart.vue) раздел СДЭК доставки не работает:\n- Нет автозаполнения городов\n- Карта не работает\n- Нельзя выбрать ПВЗ\n- Процесс оплаты не доведён\n\nБЭКЕНД API (уже должно существовать, проверь backend/app/api/v1/delivery/):\n- GET /api/v1/delivery/cities?query={city_name} — поиск городов СДЭК\n- GET /api/v1/delivery/pickup-points?city_code={code} — ПВЗ по коду города\n- POST /api/v1/delivery/calculate — расчёт стоимости доставки\n- GET /api/v1/delivery/tariffs — тарифы СДЭК\n\nПроверь что эти эндпоинты существуют. Если нет — создай задачу для backend-agent (не реализуй сам).\n\nФРОНТЕНД ЗАДАЧА — реализовать компонент выбора доставки:\n\n1. ВЫБОР СПОСОБА ДОСТАВКИ:\n   - Тип: Курьер / ПВЗ (переключатель)\n   \n2. ПОИСК ГОРОДА:\n   - Текстовый input с debounce 300ms\n   - Автокомплит: GET /delivery/cities?query=... → показывать выпадающий список\n   - При выборе города сохранять city_code\n   - Валидация: город обязателен\n\n3. ДЛЯ ПВЗ — ВЫБОР ПУНКТА:\n   - После выбора города — показать список ПВЗ\n   - Опционально: карта с маркерами (можно Leaflet.js или Yandex Maps Lite — без ключа API)\n   - Если карта слишком сложна — показать список ПВЗ с адресом, режимом работы\n   - При выборе ПВЗ — сохранять pvz_code\n\n4. ДЛЯ КУРЬЕРА:\n   - Поля: улица, дом, квартира\n   - Опционально: комментарий курьеру\n\n5. РАСЧЁТ СТОИМОСТИ:\n   - После выбора города/ПВЗ — запрос POST /delivery/calculate\n   - Показывать стоимость и срок доставки в summary заказа\n\n6. ИТОГО И КНОПКА ОПЛАТЫ:\n   - Сумма товаров + стоимость доставки = Итого\n   - Кнопка 'Оформить заказ' / 'Перейти к оплате'\n   - После клика: POST /api/v1/orders/ → получить payment_url → redirect\n\nСОСТОЯНИЕ:\n- Использовать Pinia store (cartStore или новый deliveryStore)\n- Сохранять выбранный город, тип доставки, ПВЗ/адрес между переходами\n\nKEY FILES:\n- frontend/pages/cart/index.vue или frontend/pages/cart.vue (проверь оба)\n- frontend/pages/checkout/index.vue (проверь — возможно checkout отдельно)\n- frontend/composables/useCdek.ts (создать если нет)\n- frontend/stores/deliveryStore.ts (создать если нет)\n\ndata-testid обязательны: city-input, delivery-type-toggle, pvz-list, pvz-item, pvz-select-btn, delivery-cost, order-total, checkout-btn",
+  "acceptance_criteria": [
+    "Поле поиска города показывает автокомплит при вводе 2+ символов",
+    "После выбора города загружается список ПВЗ или форма адреса",
+    "Стоимость доставки рассчитывается и показывается в summary",
+    "Итоговая сумма = товары + доставка",
+    "Кнопка 'Оформить заказ' активна только при заполненных полях доставки",
+    "data-testid на всех ключевых элементах",
+    "npm run lint && npm run type-check проходят"
+  ],
+  "files_to_modify": [
+    "frontend/pages/cart/index.vue или frontend/pages/cart.vue",
+    "frontend/pages/checkout/index.vue",
+    "frontend/composables/useCdek.ts (создать)",
+    "frontend/stores/deliveryStore.ts (создать если нет)"
+  ],
+  "blockers_to_check": [
+    "Если backend /delivery/* эндпоинты не существуют — сообщить оркестратору"
+  ],
+  "report_to": ".claude/agents/reports/frontend/feature_cdek_checkout_001.md"
+}

@@ -1,0 +1,20 @@
+{
+  "task_id": "bugfix_admin_variant_003",
+  "agent": "backend-agent",
+  "priority": "HIGH",
+  "title": "Fix: Admin продукт — 422 при сохранении (variants без id)",
+  "context": "При PUT /api/v1/admin/products/{id} возвращает 422 Unprocessable Entity:\n{\n  \"detail\": [{\"type\": \"missing\", \"loc\": [\"body\", \"variants\", 0, \"id\"], \"msg\": \"Field required\",\n  \"input\": {\"name\": \"По умолчанию\", \"sku\": \"23\", \"price\": \"12.00\", \"stock_quantity\": 1, \"attributes\": {}}}]\n}\n\nПроблема: ProductUpdate.variants ожидает List[ProductVariantRead], где ProductVariantRead требует обязательный id: UUID.\nНо фронтенд при редактировании существующего товара маппит варианты БЕЗ id:\n  variants: newVal.variants.map(v => ({ name, sku, price, stock_quantity, attributes }))\n\nФайл: backend/app/api/v1/products/schemas.py\n  - class ProductVariantRead(ProductVariantBase): id: UUID (обязательный)\n  - class ProductUpdate: variants: Optional[List[ProductVariantRead]] = None\n\nНужно ЛИБО:\n  A) Создать ProductVariantUpdate схему с id: Optional[UUID] = None (рекомендуется)\n  B) Или сделать id Optional в ProductVariantRead (нарушает семантику)\n\nВариант A — правильный. Создать ProductVariantUpdate(ProductVariantBase) с id: Optional[UUID] = None.\nПотом изменить ProductUpdate.variants: Optional[List[ProductVariantUpdate]] = None.\n\nВ backend/app/api/v1/admin/router.py — проверить как обрабатываются варианты при update (сервис/репозиторий).\nВозможно нужно в сервисе разделить логику: если variant.id есть — обновить существующий, если нет — создать новый.\n\nФайлы для изучения:\n- backend/app/api/v1/products/schemas.py\n- backend/app/api/v1/admin/router.py\n- backend/app/api/v1/products/service.py (метод update)\n- backend/app/api/v1/products/repository.py (метод update)\n- backend/app/db/models/product.py (ProductVariant модель)",
+  "acceptance_criteria": [
+    "PUT /api/v1/admin/products/{id} с вариантами без id возвращает 200",
+    "PUT /api/v1/admin/products/{id} с вариантами с id обновляет существующие",
+    "ruff check app/ проходит",
+    "mypy app/ --ignore-missing-imports проходит"
+  ],
+  "files_to_modify": [
+    "backend/app/api/v1/products/schemas.py",
+    "backend/app/api/v1/admin/router.py (возможно)",
+    "backend/app/api/v1/products/service.py (возможно)",
+    "backend/app/api/v1/products/repository.py (возможно)"
+  ],
+  "report_to": ".claude/agents/reports/backend/bugfix_admin_variant_003.md"
+}

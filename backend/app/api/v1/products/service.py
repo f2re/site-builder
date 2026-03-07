@@ -225,7 +225,13 @@ class ProductService:
             for var_dict in variants_data:
                 var_id = var_dict.get("id")
                 if var_id:
-                    await self.repo.update_variant(var_id, **var_dict)
+                    # Existing variant — update it (exclude id from update fields)
+                    update_fields = {k: v for k, v in var_dict.items() if k != "id"}
+                    await self.repo.update_variant(var_id, **update_fields)
+                else:
+                    # New variant — create it
+                    create_fields = {k: v for k, v in var_dict.items() if k != "id" and v is not None}
+                    await self.repo.create_variant(product_id, **create_fields)
 
         # Apply Auto-SEO logic
         # We need to reload to have access to current fields for logic

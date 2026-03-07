@@ -1,0 +1,17 @@
+{
+  "task_id": "bugfix_admin_variant_003_frontend",
+  "agent": "frontend-agent",
+  "priority": "HIGH",
+  "title": "Fix: Admin продукт — включить id в маппинге вариантов",
+  "depends_on": "bugfix_admin_variant_003",
+  "context": "Параллельно с бэкенд-фиксом: в форме редактирования товара фронтенд НЕ включает id варианта при маппинге.\n\nФайл: frontend/pages/admin/products/[id].vue\n  watch(product, ...) -> form.value.variants = newVal.variants.map(v => ({\n    name: v.name, sku: v.sku, price: v.price, stock_quantity: v.stock_quantity, attributes: v.attributes\n    // id ОТСУТСТВУЕТ!\n  }))\n\nФикс: добавить id: v.id в маппинг вариантов.\n\nТакже проверить что при создании нового варианта id НЕ передаётся (undefined/null) — бэкенд создаст его сам.\n\nДополнительно:\n- Убедиться что в форме добавления/удаления вариантов id корректно обрабатывается",
+  "acceptance_criteria": [
+    "PUT /api/v1/admin/products/{id} не возвращает 422",
+    "Существующие варианты обновляются корректно",
+    "npm run lint && npm run type-check проходят"
+  ],
+  "files_to_modify": [
+    "frontend/pages/admin/products/[id].vue"
+  ],
+  "report_to": ".claude/agents/reports/frontend/bugfix_admin_variant_003_frontend.md"
+}

@@ -1,0 +1,17 @@
+{
+  "task_id": "feature_dashfirm_frontend_admin_001",
+  "agent": "frontend-agent",
+  "priority": "HIGH",
+  "title": "Dashfirm Frontend: /admin/firmware — управление устройствами, поиск, дубли",
+  "context": "Страница frontend/pages/admin/firmware/index.vue уже существует — есть merge по email, CRUD комплектаций, Excel import.\nНО: layout: false (пустое окно!), нет поиска устройств, нет toggle комплектаций по серийнику, нет добавления устройства.\n\nAPI ENDPOINTS (от backend-agent):\n  GET  /admin/firmware/devices?search=&page=&per_page= → DeviceRead[] с owner_email\n  POST /admin/firmware/devices — body: { serial, customer_id?, device_type, comment }\n  DELETE /admin/firmware/devices/{serial}\n  POST /admin/firmware/devices/{serial}/complectations/{id}/toggle\n  GET  /admin/firmware/complectations — список комплектаций\n  GET  /admin/firmware/duplicates — пользователи-дубликаты\n  POST /admin/firmware/merge — body: { source_user_id, target_user_id }\n\nТРЕБОВАНИЯ:\n\n1. LAYOUT FIX:\n   Как и другие admin страницы — обернуть в <NuxtLayout name='admin'>\n   Перенести заголовок в <template #header-title>Управление прошивками</template>\n   Перенести кнопки в <template #header-actions>\n\n2. ПОИСК УСТРОЙСТВ (главный блок):\n   Input поиска: по serial (MAC), по токену, по ФИО/email пользователя\n   Debounce 400ms → GET /admin/firmware/devices?search=query\n   Таблица результатов:\n   | MAC-адрес | Тип | Комплектации | Пользователь | Токен | Дата | Действия |\n   \n   Комплектации в строке — кнопки-чипы:\n   [●base] [○dash] [○logger]\n   Клик → POST toggle → обновить строку\n   base — не кликабельна (protected)\n   \n   Действия: [🗑 Удалить] — confirm → DELETE\n\n3. ДОБАВИТЬ СЕРИЙНИК:\n   Модальное окно или inline форма:\n   - MAC-адрес (serial)\n   - Тип: OBD / AFR (radio/select)\n   - Пользователь: поиск по email / autocomplete (или пустой — будет без привязки к юзеру, создаст токен автоматически)\n   - Комментарий\n   - Начальные комплектации (чекбоксы: base, dash, logger)\n\n4. ДУБЛИКАТЫ (отдельный таб или секция):\n   Кнопка 'Проверить дубликаты' → GET /admin/firmware/duplicates\n   Список пар: [Иванов Иван (2 устройства)] [Иванов Иван (0 устройств)]\n   Кнопка 'Объединить' → POST /admin/firmware/merge { source_user_id, target_user_id }\n   Toast success/error\n\n5. КОМПЛЕКТАЦИИ (сохранить существующий функционал):\n   CRUD таблица комплектаций с модальным окном\n   Убедиться что работает после layout fix\n\n6. data-testid:\n   device-search-input, device-table, device-row, device-serial, complectation-toggle-btn,\n   delete-device-btn, add-device-btn, duplicate-check-btn, merge-btn\n\n7. Только var(--color-*) токены, mobile-first\n\nФАЙЛЫ ДЛЯ ЧТЕНИЯ:\n  frontend/pages/admin/firmware/index.vue (ВЕСЬ файл)\n  frontend/composables/useFirmware.ts\n  frontend/stores/firmwareStore.ts\n  frontend/pages/admin/index.vue (паттерн admin layout)\n  frontend/layouts/admin.vue\n\nОТЧЁТ: .claude/agents/reports/frontend/feature_dashfirm_frontend_admin_001.md",
+  "acceptance_criteria": [
+    "Страница открывается с admin layout (навигация видна)",
+    "Поиск по serial/токену/имени работает",
+    "Toggle комплектаций в таблице работает",
+    "Удаление серийника работает",
+    "Добавление серийника работает",
+    "Блок дубликатов: проверка и merge работают",
+    "npm run lint && npm run type-check 0 ошибок"
+  ],
+  "report_to": ".claude/agents/reports/frontend/feature_dashfirm_frontend_admin_001.md"
+}

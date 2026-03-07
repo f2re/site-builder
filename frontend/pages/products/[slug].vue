@@ -27,7 +27,7 @@ watch(product, (newVal) => {
   }
 }, { immediate: true })
 
-// Real variant selection
+// Variant selection
 const selectedVariant = ref<ProductVariant | null>(null)
 
 watch(product, (newVal) => {
@@ -46,20 +46,39 @@ const currentPrice = computed(() => {
   return formatPrice(product.value?.price_display ?? 0)
 })
 
+const stockStatus = computed(() => {
+  const qty = currentStock.value
+  if (qty <= 0) return 'out'
+  if (qty <= 5) return 'low'
+  return 'in'
+})
+
 const stockLabel = computed(() => {
   const qty = currentStock.value
-  if (qty <= 0) return null
-  if (qty <= 5) return { text: `Осталось мало: ${qty} шт.`, warning: true }
-  return { text: `В наличии: ${qty} шт.`, warning: false }
+  if (qty <= 0) return 'Нет в наличии'
+  if (qty <= 5) return `Осталось мало: ${qty} шт.`
+  return `В наличии: ${qty} шт.`
 })
 
 const hasDescription = computed(() => {
   return !!(product.value?.description_html || product.value?.content_json || product.value?.description)
 })
 
-const addToCart = () => {
+const hasAttributes = computed(() => {
+  return !!(product.value?.attributes && Object.keys(product.value.attributes).length > 0)
+})
+
+const hasImages = computed(() => (product.value?.images?.length ?? 0) > 0)
+
+// Loading state for add to cart
+const isAddingToCart = ref(false)
+
+const addToCart = async () => {
   if (!product.value) return
   if (currentStock.value <= 0) return
+
+  isAddingToCart.value = true
+  await new Promise(resolve => setTimeout(resolve, 300))
 
   const added = cartStore.addItem({
     id: product.value.id as unknown as number,
@@ -68,6 +87,8 @@ const addToCart = () => {
     image: product.value.images[0]?.url || '/placeholder-product.png',
     maxStock: currentStock.value
   })
+
+  isAddingToCart.value = false
 
   if (added === false) {
     toast.warning('Недостаточно товара', `В наличии только ${currentStock.value} шт.`)
@@ -123,17 +144,17 @@ const breadcrumbCrumbs = computed(() => {
 })
 
 // Sticky Buy Bar logic
-const buyBtnRef = ref<HTMLElement | null>(null)
+const buyPanelRef = ref<HTMLElement | null>(null)
 const showStickyBar = ref(false)
 
 const handleScroll = () => {
-  if (!buyBtnRef.value) return
-  const rect = buyBtnRef.value.getBoundingClientRect()
+  if (!buyPanelRef.value) return
+  const rect = buyPanelRef.value.getBoundingClientRect()
   showStickyBar.value = rect.bottom < 0
 }
 
 onMounted(() => {
-  window.addEventListener('scroll', handleScroll)
+  window.addEventListener('scroll', handleScroll, { passive: true })
 })
 
 onUnmounted(() => {
@@ -157,163 +178,281 @@ const handleQuickBuySubmitted = () => {
     <div class="container">
       <AppBreadcrumbs :crumbs="breadcrumbCrumbs" />
 
-      <div v-if="pending" class="product-page__skeleton-wrapper">
-        <div class="skeleton-image skeleton"></div>
-        <div class="skeleton-content">
-          <div class="skeleton-line skeleton w-1/2"></div>
-          <div class="skeleton-line skeleton h-12"></div>
-          <div class="skeleton-line skeleton w-1/3"></div>
-          <div class="skeleton-line skeleton h-24"></div>
+      <!-- Skeleton loader -->
+      <div v-if="pending" class="product-skeleton">
+        <div class="product-skeleton__gallery skeleton"></div>
+        <div class="product-skeleton__info">
+          <div class="product-skeleton__badge skeleton"></div>
+          <div class="product-skeleton__title skeleton"></div>
+          <div class="product-skeleton__price skeleton"></div>
+          <div class="product-skeleton__btn skeleton"></div>
         </div>
       </div>
 
-      <div v-else-if="error" class="product-page__error">
-        <div class="error-card">
+      <!-- Error state -->
+      <div v-else-if="error" class="product-error">
+        <div class="product-error__card">
           <Icon name="ph:warning-circle-bold" size="64" color="var(--color-error)" />
-          <h2>Ошибка при загрузке товара</h2>
-          <p>Товар не найден или произошла ошибка сервера.</p>
-          <NuxtLink to="/products" class="btn btn--primary">Вернуться в каталог</NuxtLink>
+          <h2 class="product-error__title">Товар не найден</h2>
+          <p class="product-error__text">Возможно, товар был удалён или ссылка устарела.</p>
+          <NuxtLink to="/products" class="product-btn product-btn--primary">
+            <Icon name="ph:arrow-left-bold" size="16" />
+            Вернуться в каталог
+          </NuxtLink>
         </div>
       </div>
 
-      <div v-else-if="product" class="product-page__layout">
-        <!-- Gallery -->
-        <div class="product-gallery">
-          <div class="product-gallery__main">
-            <Transition name="fade" mode="out-in">
-              <NuxtImg
-                :key="activeImage"
-                :src="activeImage"
-                :alt="product.name"
-                class="product-gallery__main-image"
-                loading="eager"
-                format="webp"
-                sizes="sm:480px md:800px lg:1200px"
-              />
-            </Transition>
-          </div>
-          <div v-if="product.images.length > 1" class="product-gallery__thumbs">
-            <button
-              v-for="img in product.images"
-              :key="img.url"
-              class="product-gallery__thumb"
-              :class="{ 'is-active': activeImage === img.url }"
-              @click="activeImage = img.url"
+      <!-- Product content -->
+      <div v-else-if="product" class="product-layout">
+
+        <!-- HERO: Gallery + Buy Panel -->
+        <section class="product-hero" aria-label="Товар">
+          <!-- Gallery (60%) -->
+          <div
+            class="product-gallery"
+            data-testid="product-gallery"
+          >
+            <div
+              class="product-gallery__main"
+              data-testid="product-gallery-main"
             >
-              <NuxtImg :src="img.url" :alt="product.name" width="80" height="80" fit="contain" format="webp" />
-            </button>
-          </div>
-        </div>
-
-        <!-- Info -->
-        <div class="product-info">
-          <div class="product-info__header">
-            <div class="product-info__category">{{ product.category?.name }}</div>
-            <h1 class="product-info__title">{{ product.name }}</h1>
-          </div>
-
-          <div class="product-info__price-block">
-            <div class="product-info__price">
-              <span class="product-info__price-value">{{ currentPrice }}</span>
+              <Transition name="img-fade" mode="out-in">
+                <NuxtImg
+                  v-if="hasImages && activeImage"
+                  :key="activeImage"
+                  :src="activeImage"
+                  :alt="product.name"
+                  class="product-gallery__main-image"
+                  loading="eager"
+                  format="webp"
+                  sizes="sm:480px md:640px lg:800px"
+                />
+                <div v-else class="product-gallery__placeholder">
+                  <Icon name="ph:image-square-bold" size="80" color="var(--color-muted)" />
+                  <span class="product-gallery__placeholder-text">Нет изображения</span>
+                </div>
+              </Transition>
             </div>
 
             <div
-              class="product-info__stock"
-              data-testid="product-stock"
-              :class="{
-                'product-info__stock--in': currentStock > 0 && !stockLabel?.warning,
-                'product-info__stock--warning': stockLabel?.warning,
-                'product-info__stock--out': currentStock <= 0
-              }"
+              v-if="product.images.length > 1"
+              class="product-gallery__thumbs"
             >
-              <span class="stock-dot"></span>
-              <span v-if="currentStock <= 0">Нет в наличии</span>
-              <span v-else-if="stockLabel">{{ stockLabel.text }}</span>
-            </div>
-          </div>
-
-          <!-- Real Variant Switcher -->
-          <div v-if="hasMultipleVariants" class="product-variants">
-            <div class="product-variants__label">Версия</div>
-            <div class="product-variants__list">
               <button
-                v-for="v in product.variants"
-                :key="v.id"
-                class="variant-btn"
-                :class="{ 'is-active': selectedVariant?.id === v.id }"
-                @click="selectedVariant = v"
+                v-for="img in product.images"
+                :key="img.url"
+                class="product-gallery__thumb"
+                :class="{ 'is-active': activeImage === img.url }"
+                :aria-label="`Изображение ${img.alt || product.name}`"
+                :aria-pressed="activeImage === img.url"
+                data-testid="product-gallery-thumb"
+                @click="activeImage = img.url"
               >
-                {{ v.name }}
-                <span class="variant-btn__price">{{ formatPrice(v.price) }}</span>
+                <NuxtImg
+                  :src="img.url"
+                  :alt="img.alt || product.name"
+                  width="80"
+                  height="80"
+                  fit="contain"
+                  format="webp"
+                />
               </button>
             </div>
           </div>
 
-          <div class="product-info__actions" ref="buyBtnRef">
-            <button
-              class="btn btn--primary btn--lg btn-add-cart"
-              :disabled="currentStock <= 0"
-              data-testid="add-to-cart-btn"
-              @click="addToCart"
+          <!-- Buy Panel (40%) -->
+          <div class="product-buy-panel" ref="buyPanelRef">
+            <!-- Category badge -->
+            <NuxtLink
+              v-if="product.category"
+              :to="`/products?category=${product.category.slug}`"
+              class="product-buy-panel__category"
+              :aria-label="`Категория: ${product.category.name}`"
             >
-              <Icon name="ph:shopping-cart-simple-bold" size="20" />
-              <span>{{ currentStock <= 0 ? 'Нет в наличии' : 'Добавить в корзину' }}</span>
-            </button>
-            <button
-              class="btn btn--ghost btn--lg btn-one-click"
-              data-testid="btn-one-click"
-              @click="openQuickBuy"
-            >
-              Купить в 1 клик
-            </button>
-          </div>
+              {{ product.category.name }}
+            </NuxtLink>
+            <span v-else class="product-buy-panel__category product-buy-panel__category--static">
+              Товар
+            </span>
 
-          <!-- Description -->
-          <div v-if="hasDescription" class="product-info__description">
-            <h3 class="section-title">Описание</h3>
+            <!-- Title -->
+            <h1
+              class="product-buy-panel__title"
+              data-testid="product-title"
+            >
+              {{ product.name }}
+            </h1>
+
+            <!-- Price -->
+            <div class="product-buy-panel__price-row">
+              <span
+                class="product-buy-panel__price"
+                data-testid="product-price"
+              >
+                {{ currentPrice }}
+              </span>
+            </div>
+
+            <!-- Stock badge -->
             <div
-              v-if="product.description_html"
-              class="description-content"
-              v-html="product.description_html"
-            ></div>
-            <TipTapViewer
-              v-else-if="product.content_json"
-              :content="product.content_json"
-            />
-            <p v-else>{{ product.description }}</p>
-          </div>
+              class="product-buy-panel__stock"
+              :class="{
+                'product-buy-panel__stock--in': stockStatus === 'in',
+                'product-buy-panel__stock--low': stockStatus === 'low',
+                'product-buy-panel__stock--out': stockStatus === 'out'
+              }"
+              data-testid="product-stock"
+            >
+              <span class="stock-dot" aria-hidden="true"></span>
+              <span>{{ stockLabel }}</span>
+            </div>
 
-          <div v-if="product.attributes && Object.keys(product.attributes).length" class="product-info__attributes">
-            <h3 class="section-title">Характеристики</h3>
-            <div class="attributes-grid">
-              <div v-for="(val, key) in product.attributes" :key="key" class="attribute-row">
-                <span class="attribute-key">{{ key }}</span>
-                <span class="attribute-value">{{ val }}</span>
+            <!-- Variant selector -->
+            <div
+              v-if="hasMultipleVariants"
+              class="product-variants"
+              data-testid="product-variant-selector"
+            >
+              <div class="product-variants__label">Вариант</div>
+              <div class="product-variants__list">
+                <button
+                  v-for="v in product.variants"
+                  :key="v.id"
+                  class="variant-btn"
+                  :class="{ 'is-active': selectedVariant?.id === v.id }"
+                  :aria-pressed="selectedVariant?.id === v.id"
+                  :aria-label="`Выбрать ${v.name} за ${formatPrice(v.price)}`"
+                  @click="selectedVariant = v"
+                >
+                  <span class="variant-btn__name">{{ v.name }}</span>
+                  <span class="variant-btn__price">{{ formatPrice(v.price) }}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="product-buy-panel__actions">
+              <button
+                class="product-btn product-btn--primary product-btn--lg product-btn--full"
+                :disabled="currentStock <= 0 || isAddingToCart"
+                data-testid="add-to-cart-btn"
+                :aria-busy="isAddingToCart"
+                @click="addToCart"
+              >
+                <span v-if="isAddingToCart" class="btn-spinner" aria-hidden="true"></span>
+                <Icon v-else name="ph:shopping-cart-simple-bold" size="20" aria-hidden="true" />
+                <span>{{ currentStock <= 0 ? 'Нет в наличии' : isAddingToCart ? 'Добавляем...' : 'В корзину' }}</span>
+              </button>
+
+              <button
+                class="product-btn product-btn--ghost product-btn--lg"
+                data-testid="btn-quick-buy"
+                @click="openQuickBuy"
+              >
+                Быстрый заказ
+              </button>
+            </div>
+
+            <!-- Trust badges -->
+            <div class="product-buy-panel__trust">
+              <div class="trust-badge">
+                <Icon name="ph:shield-check-bold" size="20" color="var(--color-success)" aria-hidden="true" />
+                <span>Гарантия 1 год</span>
+              </div>
+              <div class="trust-badge">
+                <Icon name="ph:seal-check-bold" size="20" color="var(--color-accent)" aria-hidden="true" />
+                <span>Официальный товар</span>
+              </div>
+              <div class="trust-badge">
+                <Icon name="ph:truck-bold" size="20" color="var(--color-neon)" aria-hidden="true" />
+                <span>Быстрая доставка</span>
               </div>
             </div>
           </div>
-        </div>
+        </section>
+
+        <!-- Description section (full width) -->
+        <section
+          v-if="hasDescription"
+          class="product-description"
+          data-testid="product-description"
+        >
+          <h2 class="product-section-title">Описание</h2>
+          <div class="product-description__content">
+            <TipTapViewer
+              v-if="product.content_json"
+              :content="product.content_json"
+              class="product-description__tiptap"
+            />
+            <div
+              v-else-if="product.description_html"
+              class="product-description__html prose"
+              v-html="product.description_html"
+            ></div>
+            <p
+              v-else-if="product.description"
+              class="product-description__plain"
+            >
+              {{ product.description }}
+            </p>
+          </div>
+        </section>
+
+        <!-- Attributes section -->
+        <section
+          v-if="hasAttributes"
+          class="product-attributes"
+        >
+          <h2 class="product-section-title">Характеристики</h2>
+          <div class="attributes-table">
+            <div
+              v-for="(val, key) in product.attributes"
+              :key="key"
+              class="attributes-table__row"
+            >
+              <span class="attributes-table__key">{{ key }}</span>
+              <span class="attributes-table__value">{{ val }}</span>
+            </div>
+          </div>
+        </section>
+
       </div>
     </div>
 
     <!-- Sticky Buy Bar -->
     <Transition name="sticky-bar">
-      <div v-if="showStickyBar && product" class="sticky-buy-bar">
-        <div class="container sticky-buy-bar__container">
+      <div
+        v-if="showStickyBar && product"
+        class="sticky-buy-bar"
+        data-testid="sticky-buy-bar"
+        role="complementary"
+        aria-label="Быстрая покупка"
+      >
+        <div class="container sticky-buy-bar__inner">
           <div class="sticky-buy-bar__product">
-            <NuxtImg :src="product.images[0]?.url" width="48" height="48" fit="cover" class="sticky-buy-bar__image" />
+            <NuxtImg
+              v-if="hasImages"
+              :src="product.images[0]?.url"
+              :alt="product.name"
+              width="44"
+              height="44"
+              fit="cover"
+              format="webp"
+              class="sticky-buy-bar__image"
+            />
             <div class="sticky-buy-bar__info">
               <div class="sticky-buy-bar__name">{{ product.name }}</div>
               <div class="sticky-buy-bar__price">{{ currentPrice }}</div>
-              <div v-if="selectedVariant && hasMultipleVariants" class="sticky-buy-bar__variant">{{ selectedVariant.name }}</div>
             </div>
           </div>
           <button
-            class="btn btn--primary btn--md"
+            class="product-btn product-btn--primary product-btn--md"
             :disabled="currentStock <= 0"
+            aria-label="Добавить в корзину"
             @click="addToCart"
           >
-            В корзину
+            <Icon name="ph:shopping-cart-simple-bold" size="16" aria-hidden="true" />
+            <span>В корзину</span>
           </button>
         </div>
       </div>
@@ -333,34 +472,44 @@ const handleQuickBuySubmitted = () => {
 </template>
 
 <style scoped>
+/* ─── Page ─────────────────────────────────────────── */
 .product-page {
-  padding: 40px 0;
+  padding: 32px 0 80px;
 }
 
-.product-page__layout {
+/* ─── Layout ────────────────────────────────────────── */
+.product-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 64px;
+}
+
+/* ─── HERO: 60/40 grid ──────────────────────────────── */
+.product-hero {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 48px;
+  gap: 32px;
+  align-items: start;
 }
 
-@media (min-width: 1024px) {
-  .product-page__layout {
-    grid-template-columns: 1fr 1fr;
-    align-items: start;
+@media (min-width: 768px) {
+  .product-hero {
+    grid-template-columns: 3fr 2fr;
+    gap: 48px;
   }
 }
 
-/* Gallery */
+/* ─── Gallery ───────────────────────────────────────── */
 .product-gallery {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
   .product-gallery {
     position: sticky;
-    top: 100px;
+    top: 80px;
   }
 }
 
@@ -382,25 +531,41 @@ const handleQuickBuySubmitted = () => {
   padding: 24px;
 }
 
+.product-gallery__placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.product-gallery__placeholder-text {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
 .product-gallery__thumbs {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   overflow-x: auto;
   padding: 4px;
   scrollbar-width: none;
 }
-.product-gallery__thumbs::-webkit-scrollbar { display: none; }
+
+.product-gallery__thumbs::-webkit-scrollbar {
+  display: none;
+}
 
 .product-gallery__thumb {
-  width: 80px;
-  height: 80px;
-  border: 1px solid var(--color-border);
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  border: 2px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
   cursor: pointer;
-  padding: 8px;
-  flex-shrink: 0;
-  transition: all var(--transition-fast);
+  padding: 6px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  overflow: hidden;
 }
 
 .product-gallery__thumb:hover {
@@ -412,58 +577,115 @@ const handleQuickBuySubmitted = () => {
   box-shadow: var(--shadow-glow-accent);
 }
 
-/* Info */
-.product-info__header {
-  margin-bottom: 24px;
+/* ─── Buy Panel ─────────────────────────────────────── */
+.product-buy-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.product-info__category {
-  font-size: var(--text-sm);
-  color: var(--color-accent);
+@media (min-width: 768px) {
+  .product-buy-panel {
+    position: sticky;
+    top: 80px;
+  }
+}
+
+/* Category badge */
+.product-buy-panel__category {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--text-xs);
   font-weight: 700;
-  margin-bottom: 8px;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  text-decoration: none;
+  width: fit-content;
+  transition: background var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.product-info__title {
-  font-size: var(--text-2xl);
+.product-buy-panel__category:hover {
+  background: var(--color-accent-hover);
+  box-shadow: var(--shadow-glow-accent);
+}
+
+.product-buy-panel__category--static {
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+}
+
+/* Title */
+.product-buy-panel__title {
+  font-size: var(--text-xl);
   font-weight: 800;
   color: var(--color-text);
-  line-height: 1.1;
+  line-height: 1.2;
+  margin: 0;
   font-family: var(--font-sans);
 }
 
-.product-info__price-block {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--color-surface-2);
-  padding: 24px;
-  border-radius: var(--radius-lg);
-  margin-bottom: 32px;
-  border: 1px solid var(--color-border);
-}
-
-.product-info__price {
+/* Price */
+.product-buy-panel__price-row {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 12px;
 }
 
-.product-info__price-value {
-  font-size: var(--text-3xl);
+.product-buy-panel__price {
+  font-size: var(--text-2xl);
   font-weight: 800;
-  color: var(--color-text);
+  color: var(--color-accent);
   font-family: var(--font-mono);
+  line-height: 1;
 }
 
-.product-info__stock {
-  display: flex;
+/* Stock */
+.product-buy-panel__stock {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   font-size: var(--text-sm);
   font-weight: 600;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  width: fit-content;
+}
+
+.product-buy-panel__stock--in {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
+
+.product-buy-panel__stock--in .stock-dot {
+  background: var(--color-success);
+  box-shadow: 0 0 6px var(--color-success);
+}
+
+.product-buy-panel__stock--low {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
+
+.product-buy-panel__stock--low .stock-dot {
+  background: var(--color-warning);
+  box-shadow: 0 0 6px var(--color-warning);
+}
+
+.product-buy-panel__stock--out {
+  color: var(--color-muted);
+  background: var(--color-surface-2);
+}
+
+.product-buy-panel__stock--out .stock-dot {
+  background: var(--color-muted);
 }
 
 .stock-dot {
@@ -473,62 +695,42 @@ const handleQuickBuySubmitted = () => {
   flex-shrink: 0;
 }
 
-.product-info__stock--in {
-  color: var(--color-success);
-}
-.product-info__stock--in .stock-dot {
-  background: var(--color-success);
-  box-shadow: 0 0 10px var(--color-success);
-}
-
-.product-info__stock--warning {
-  color: var(--color-warning);
-}
-.product-info__stock--warning .stock-dot {
-  background: var(--color-warning);
-  box-shadow: 0 0 10px var(--color-warning-bg);
-}
-
-.product-info__stock--out {
-  color: var(--color-muted);
-}
-.product-info__stock--out .stock-dot {
-  background: var(--color-muted);
-}
-
-/* Variants */
+/* ─── Variants ──────────────────────────────────────── */
 .product-variants {
-  margin-bottom: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .product-variants__label {
   font-size: var(--text-xs);
   text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--color-muted);
   font-weight: 700;
-  margin-bottom: 12px;
 }
 
 .product-variants__list {
   display: flex;
-  gap: 12px;
   flex-wrap: wrap;
+  gap: 10px;
 }
 
 .variant-btn {
   padding: 8px 16px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  background: var(--color-surface-2);
   border-radius: var(--radius-md);
   color: var(--color-text);
   font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  min-width: 80px;
 }
 
 .variant-btn:hover {
@@ -539,6 +741,11 @@ const handleQuickBuySubmitted = () => {
   border-color: var(--color-accent);
   background: var(--color-accent-glow);
   color: var(--color-accent);
+  box-shadow: var(--shadow-glow-accent);
+}
+
+.variant-btn__name {
+  font-size: var(--text-sm);
 }
 
 .variant-btn__price {
@@ -551,79 +758,284 @@ const handleQuickBuySubmitted = () => {
   color: var(--color-accent);
 }
 
-.product-info__actions {
+/* ─── Actions ───────────────────────────────────────── */
+.product-buy-panel__actions {
   display: flex;
-  gap: 16px;
-  margin-bottom: 40px;
-}
-
-.btn-add-cart {
-  flex: 2;
+  flex-direction: column;
   gap: 12px;
 }
 
-.btn-one-click {
-  flex: 1;
+@media (min-width: 480px) {
+  .product-buy-panel__actions {
+    flex-direction: row;
+  }
 }
 
-.section-title {
-  font-size: var(--text-lg);
-  font-weight: 700;
-  margin-bottom: 16px;
-  color: var(--color-text);
-  border-left: 4px solid var(--color-accent);
-  padding-left: 12px;
+/* ─── Trust badges ──────────────────────────────────── */
+.product-buy-panel__trust {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
 }
 
-.product-info__description {
-  margin-bottom: 40px;
+@media (min-width: 480px) {
+  .product-buy-panel__trust {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
 }
 
-.product-info__description p,
-.description-content {
+.trust-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
   color: var(--color-text-2);
-  line-height: 1.6;
-  white-space: pre-line;
+  font-weight: 500;
+}
+
+/* ─── Buttons ───────────────────────────────────────── */
+.product-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast),
+    color var(--transition-fast);
+  border: none;
+  font-family: var(--font-sans);
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.product-btn--primary {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--text-sm);
+  padding: 12px 20px;
+}
+
+.product-btn--primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-glow-accent);
+}
+
+.product-btn--primary:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.product-btn--ghost {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  padding: 12px 20px;
+}
+
+.product-btn--ghost:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.product-btn--lg {
+  padding: 14px 24px;
   font-size: var(--text-base);
 }
 
-.attributes-grid {
-  display: grid;
-  gap: 0;
+.product-btn--md {
+  padding: 10px 18px;
+  font-size: var(--text-sm);
+}
+
+.product-btn--full {
+  flex: 1;
+  width: 100%;
+}
+
+.product-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Button spinner */
+.btn-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: var(--color-on-accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+/* ─── Section title ─────────────────────────────────── */
+.product-section-title {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  color: var(--color-text);
+  margin: 0 0 24px;
+  padding-left: 14px;
+  border-left: 4px solid var(--color-accent);
+  font-family: var(--font-sans);
+}
+
+/* ─── Description ───────────────────────────────────── */
+.product-description {
+  max-width: 800px;
+  margin-inline: auto;
+  width: 100%;
+}
+
+.product-description__content {
+  font-size: 1.1rem;
+  line-height: 1.8;
+  color: var(--color-text-2);
+}
+
+.product-description__plain {
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+/* Prose styles for description_html */
+.product-description__html :deep(h1),
+.product-description__html :deep(h2),
+.product-description__html :deep(h3),
+.product-description__html :deep(h4) {
+  color: var(--color-text);
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 1.5em 0 0.5em;
+}
+
+.product-description__html :deep(h2) {
+  font-size: var(--text-xl);
+}
+
+.product-description__html :deep(h3) {
+  font-size: var(--text-lg);
+}
+
+.product-description__html :deep(p) {
+  margin-bottom: 1em;
+}
+
+.product-description__html :deep(ul),
+.product-description__html :deep(ol) {
+  padding-left: 1.5em;
+  margin-bottom: 1em;
+}
+
+.product-description__html :deep(li) {
+  margin-bottom: 0.4em;
+}
+
+.product-description__html :deep(img) {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-lg);
+  margin: 1.5em auto;
+  display: block;
+}
+
+.product-description__html :deep(iframe) {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: none;
+  border-radius: var(--radius-lg);
+  margin: 1.5em 0;
+}
+
+.product-description__html :deep(blockquote) {
+  border-left: 4px solid var(--color-accent);
+  padding-left: 1.2em;
+  color: var(--color-muted);
+  font-style: italic;
+  margin: 1.5em 0;
+}
+
+.product-description__html :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+}
+
+.product-description__html :deep(th),
+.product-description__html :deep(td) {
+  padding: 10px 14px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  text-align: left;
+}
+
+.product-description__html :deep(th) {
+  background: var(--color-surface-2);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* TipTap viewer override for product description */
+.product-description__tiptap :deep(.tiptap-viewer) {
+  font-size: 1.1rem;
+  line-height: 1.8;
+}
+
+/* ─── Attributes table ──────────────────────────────── */
+.product-attributes {
+  max-width: 800px;
+  margin-inline: auto;
+  width: 100%;
+}
+
+.attributes-table {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
-.attribute-row {
+.attributes-table__row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   padding: 12px 16px;
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface);
 }
 
-.attribute-row:last-child {
+.attributes-table__row:last-child {
   border-bottom: none;
 }
 
-.attribute-row:nth-child(even) {
+.attributes-table__row:nth-child(even) {
   background: var(--color-bg-subtle);
 }
 
-.attribute-key {
+.attributes-table__row:nth-child(odd) {
+  background: var(--color-surface);
+}
+
+.attributes-table__key {
   color: var(--color-text-2);
   font-size: var(--text-sm);
   font-weight: 500;
 }
 
-.attribute-value {
+.attributes-table__value {
   color: var(--color-text);
   font-size: var(--text-sm);
   font-weight: 600;
 }
 
-/* Sticky Buy Bar */
+/* ─── Sticky Buy Bar ────────────────────────────────── */
 .sticky-buy-bar {
   position: fixed;
   bottom: 0;
@@ -633,15 +1045,11 @@ const handleQuickBuySubmitted = () => {
   border-top: 1px solid var(--color-border);
   padding: 12px 0;
   z-index: var(--z-overlay);
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-card);
   backdrop-filter: blur(12px);
 }
 
-[data-theme="dark"] .sticky-buy-bar {
-  background: rgba(17, 17, 24, 0.8);
-}
-
-.sticky-buy-bar__container {
+.sticky-buy-bar__inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -652,18 +1060,24 @@ const handleQuickBuySubmitted = () => {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .sticky-buy-bar__image {
+  width: 44px;
+  height: 44px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
+  object-fit: cover;
+  flex-shrink: 0;
 }
 
 .sticky-buy-bar__info {
   display: none;
+  min-width: 0;
 }
 
-@media (min-width: 640px) {
+@media (min-width: 480px) {
   .sticky-buy-bar__info {
     display: block;
   }
@@ -676,12 +1090,7 @@ const handleQuickBuySubmitted = () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 300px;
-}
-
-.sticky-buy-bar__variant {
-  font-size: var(--text-xs);
-  color: var(--color-muted);
+  max-width: 280px;
 }
 
 .sticky-buy-bar__price {
@@ -691,7 +1100,97 @@ const handleQuickBuySubmitted = () => {
   font-family: var(--font-mono);
 }
 
-/* Transitions */
+/* ─── Skeleton ──────────────────────────────────────── */
+.product-skeleton {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 32px;
+}
+
+@media (min-width: 768px) {
+  .product-skeleton {
+    grid-template-columns: 3fr 2fr;
+  }
+}
+
+.product-skeleton__gallery {
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-xl);
+}
+
+.product-skeleton__info {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px;
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border);
+}
+
+.product-skeleton__badge {
+  height: 24px;
+  width: 90px;
+  border-radius: var(--radius-full);
+}
+
+.product-skeleton__title {
+  height: 56px;
+  border-radius: var(--radius-md);
+}
+
+.product-skeleton__price {
+  height: 44px;
+  width: 60%;
+  border-radius: var(--radius-md);
+}
+
+.product-skeleton__btn {
+  height: 52px;
+  border-radius: var(--radius-md);
+}
+
+/* ─── Error ─────────────────────────────────────────── */
+.product-error {
+  padding: 80px 0;
+  display: flex;
+  justify-content: center;
+}
+
+.product-error__card {
+  text-align: center;
+  max-width: 420px;
+  background: var(--color-surface);
+  padding: 48px 40px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+}
+
+.product-error__title {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  color: var(--color-text);
+  margin: 24px 0 12px;
+}
+
+.product-error__text {
+  color: var(--color-text-2);
+  margin-bottom: 32px;
+  font-size: var(--text-base);
+}
+
+/* ─── Transitions ───────────────────────────────────── */
+.img-fade-enter-active,
+.img-fade-leave-active {
+  transition: opacity var(--transition-normal);
+}
+
+.img-fade-enter-from,
+.img-fade-leave-to {
+  opacity: 0;
+}
+
 .sticky-bar-enter-active,
 .sticky-bar-leave-active {
   transition: transform var(--transition-normal);
@@ -700,94 +1199,5 @@ const handleQuickBuySubmitted = () => {
 .sticky-bar-enter-from,
 .sticky-bar-leave-to {
   transform: translateY(100%);
-}
-
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
-
-/* Skeletons */
-.product-page__skeleton-wrapper {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 48px;
-}
-
-.skeleton-image { aspect-ratio: 1/1; border-radius: var(--radius-xl); }
-.skeleton-content { display: flex; flex-direction: column; gap: 16px; }
-.skeleton-line { border-radius: 4px; }
-.w-1\/2 { width: 50%; }
-.w-1\/3 { width: 33%; }
-.h-12 { height: 48px; }
-.h-24 { height: 96px; }
-
-/* Error State */
-.product-page__error {
-  padding: 80px 0;
-  display: flex;
-  justify-content: center;
-}
-
-.error-card {
-  text-align: center;
-  max-width: 400px;
-  background: var(--color-surface);
-  padding: 40px;
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--color-border);
-}
-
-.error-card h2 { margin: 24px 0 12px; }
-.error-card p { color: var(--color-text-2); margin-bottom: 32px; }
-
-/* Buttons */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 24px;
-  border-radius: var(--radius-md);
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  border: none;
-  font-size: var(--text-sm);
-  gap: 8px;
-}
-
-.btn--primary {
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-}
-
-.btn--primary:hover:not(:disabled) {
-  background: var(--color-accent-hover);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-glow-accent);
-}
-
-.btn--ghost {
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-text-2);
-}
-
-.btn--ghost:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-}
-
-.btn--lg {
-  padding: 16px 24px;
-  font-size: var(--text-base);
-}
-
-.btn--md {
-  padding: 10px 20px;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none !important;
 }
 </style>

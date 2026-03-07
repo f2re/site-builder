@@ -52,6 +52,11 @@ class ProductVariantRead(ProductVariantBase):
     id: UUID
     model_config = ConfigDict(from_attributes=True)
 
+class ProductVariantUpdate(ProductVariantBase):
+    """Schema for updating variants via PUT /admin/products/{id}.
+    id is optional: if provided — update existing variant; if None — create new one."""
+    id: Optional[UUID] = None
+
 class StockMovementRead(BaseModel):
     id: UUID
     variant_id: UUID
@@ -108,7 +113,7 @@ class ProductUpdate(BaseModel):
     is_active: Optional[bool] = None
     is_featured: Optional[bool] = None
     images: Optional[List[ProductImageRead]] = None
-    variants: Optional[List[ProductVariantRead]] = None
+    variants: Optional[List[ProductVariantUpdate]] = None
 
 class ProductShortRead(BaseModel):
     id: UUID

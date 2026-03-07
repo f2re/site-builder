@@ -1,0 +1,24 @@
+{
+  "task_id": "feature_product_page_redesign_001",
+  "agent": "frontend-agent",
+  "priority": "HIGH",
+  "title": "Feature: Переработать страницу товара — акцент на описании и удобстве покупки",
+  "context": "Страница /products/[slug].vue существует, но нужна переработка UX. Сейчас там: галерея слева + краткая инфо справа, потом контент внизу. Описание не на первом месте.\n\nЦЕЛЬ: Современная страница товара с акцентом на:\n1. Описании (rich content с картинками, видео, слайдами через TipTapViewer)\n2. Удобстве покупки (крупная CTA, вариант выбора, цена, наличие)\n\nЖЕЛАЕМАЯ СТРУКТУРА СТРАНИЦЫ:\n\n--- ВЕРХ: Хлебные крошки ---\n\n[HERO СЕКЦИЯ — grid 60/40 на desktop, full на mobile]\nЛЕВО — Галерея:\n  - Главное изображение (большое, clickable для zoom)\n  - Миниатюры снизу (горизонтальный скролл)\n  - Поддержка нескольких изображений со слайдером\n\nПРАВО — Buy Panel (sticky при скролле):\n  - Название товара (h1, крупно)\n  - Категория (badge ссылка)\n  - Цена (крупно, акцентный цвет)\n  - Наличие (stock badge — зелёный/жёлтый/красный)\n  - Выбор варианта (если несколько — кнопки/теги, не dropdown)\n  - Кнопка 'В корзину' (большая, яркая)\n  - Кнопка 'Быстрый заказ' (secondary)\n  - Краткое описание (3-5 строк, truncated, expand)\n  - Бейджи: гарантия, доставка, оплата\n\n--- ОПИСАНИЕ (ОСНОВНАЯ ЧАСТЬ) ---\nПолная ширина, красиво типографированный rich content:\n  - TipTapViewer для content_json\n  - Или description_html если нет content_json\n  - Поддержка: h2/h3, параграфы, картинки (full-width), видео (iframe 16:9), таблицы, списки\n  - Стилизовать для комфортного чтения (max-width 800px centered, font-size 1.1rem, line-height 1.8)\n\n--- ХАРАКТЕРИСТИКИ (если есть attributes) ---\nТаблица или карточки с key-value\n\n--- ПОХОЖИЕ ТОВАРЫ (если есть) ---\nСетка 2-4 карточки ProductCard\n\nTECHNICAL:\n- Existing file: frontend/pages/products/[slug].vue\n- Composables: useProducts, cartStore, useToast, formatPrice\n- Components: TipTapViewer, AppBreadcrumbs, NuxtImg, QuickBuyModal\n- data-testid обязательны: product-title, product-price, add-to-cart-btn, product-gallery, product-description, product-variant-selector\n- Только var(--color-*) токены, mobile-first\n- Sticky buy bar уже частично есть — сохранить и улучшить\n- При pending — skeleton loader\n- При error — красивая error страница с кнопкой 'В каталог'\n\nДополнительно: страница /products/ (каталог) — если она тоже существует в неполноценном виде, проверь её (frontend/pages/products/index.vue) и убедись что карточки товаров отображаются нормально. Если там есть очевидные проблемы — исправь.",
+  "acceptance_criteria": [
+    "Страница /products/[slug] загружается и показывает товар",
+    "Галерея работает (смена активного изображения)",
+    "Выбор варианта работает (меняется цена и наличие)",
+    "Кнопка 'В корзину' работает",
+    "TipTapViewer корректно рендерит rich content",
+    "Sticky buy panel появляется при скролле",
+    "Mobile-first верстка работает на 320px+",
+    "data-testid на всех ключевых элементах",
+    "Только var(--color-*) токены",
+    "npm run lint && npm run type-check проходят"
+  ],
+  "files_to_modify": [
+    "frontend/pages/products/[slug].vue",
+    "frontend/pages/products/index.vue (возможно)"
+  ],
+  "report_to": ".claude/agents/reports/frontend/feature_product_page_redesign_001.md"
+}

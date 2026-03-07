@@ -389,6 +389,13 @@ class ProductRepository:
         res = await self.session.execute(stmt)
         return res.scalar_one_or_none()
 
+    async def create_variant(self, product_id: UUID, **kwargs) -> ProductVariant:
+        """Create a new variant for a product."""
+        variant = ProductVariant(product_id=product_id, **kwargs)
+        self.session.add(variant)
+        await self.session.flush()
+        return variant
+
     async def update_variant(self, variant_id: UUID, **kwargs) -> Optional[ProductVariant]:
         """Update a variant record."""
         # Clean up data for update

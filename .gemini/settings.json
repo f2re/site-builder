@@ -1,6 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/google-gemini/gemini-cli/main/schemas/settings.schema.json",
-  "model": "gemini-2.5-pro",
+  "model": {
+    "name":"gemini-3-flash"
+  },
   "maxSessionTurns": 150,
   "general": {
     "defaultApprovalMode": "auto_edit"

@@ -34,8 +34,13 @@ from app.api.v1.iot.repository import IoTRepository
 from app.api.v1.cart.service import CartService
 from app.api.v1.firmware.service import FirmwareService, get_firmware_service
 from app.api.v1.firmware.schemas import (
-    DeviceRead, ComplectationCreate, ComplectationRead, 
-    UserMergeRequest, ExcelImportResponse
+    AdminAddDeviceRequest,
+    ComplectationCreate,
+    ComplectationRead,
+    DeviceRead,
+    ExcelImportResponse,
+    MergeByIdRequest,
+    UserMergeRequest,
 )
 from .pages_router import router as pages_admin_router
 
@@ -453,10 +458,35 @@ async def list_all_devices(
 # ─── Firmware Admin ──────────────────────────────────────────────────────────
 @router.get("/firmware/devices", response_model=List[DeviceRead])
 async def list_firmware_devices(
+    search: Optional[str] = Query(None, description="Search by serial"),
     _admin: User = AdminDep,
-    service: FirmwareService = Depends(get_firmware_service)
+    service: FirmwareService = Depends(get_firmware_service),
 ) -> Any:
-    return await service.get_all_devices()
+    return await service.get_all_devices(search=search)
+
+
+@router.post("/firmware/devices", response_model=DeviceRead, status_code=status.HTTP_201_CREATED)
+async def admin_add_device(
+    payload: AdminAddDeviceRequest,
+    _admin: User = AdminDep,
+    service: FirmwareService = Depends(get_firmware_service),
+) -> Any:
+    if payload.user_id:
+        return await service.add_device(payload.user_id, payload.serial)
+    # No user_id — create anonymous device under admin token
+    return await service.add_device(_admin.id, payload.serial)
+
+
+@router.delete("/firmware/devices/{serial}", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_delete_device(
+    serial: str,
+    _admin: User = AdminDep,
+    service: FirmwareService = Depends(get_firmware_service),
+) -> None:
+    deleted = await service.repo.delete_device(serial)
+    await service.repo.session.commit()
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Device not found")
 
 @router.post("/firmware/complectations", response_model=ComplectationRead, status_code=status.HTTP_201_CREATED)
 async def create_complectation(
@@ -492,18 +522,64 @@ async def link_complectation_to_device(
     serial: str,
     comp_id: UUID,
     _admin: User = AdminDep,
-    service: FirmwareService = Depends(get_firmware_service)
+    service: FirmwareService = Depends(get_firmware_service),
 ) -> Any:
     await service.add_complectation_to_device(serial, comp_id)
     return {"status": "success"}
+
+
+@router.post(
+    "/firmware/devices/{serial}/complectations/{comp_id}/toggle",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def admin_toggle_complectation(
+    serial: str,
+    comp_id: UUID,
+    _admin: User = AdminDep,
+    service: FirmwareService = Depends(get_firmware_service),
+) -> None:
+    # Admin toggle: no owner check
+    await service.repo.toggle_device_complectation(serial, comp_id)
+    await service.repo.session.commit()
+
+
+@router.get("/firmware/duplicates")
+async def get_firmware_duplicates(
+    _admin: User = AdminDep,
+    session: AsyncSession = Depends(get_db),
+) -> Any:
+    """Return users sharing the same email_hash (potential duplicates)."""
+    from sqlalchemy import text
+
+    stmt = text(
+        "SELECT email_hash, COUNT(*) AS cnt "
+        "FROM users "
+        "GROUP BY email_hash "
+        "HAVING COUNT(*) > 1"
+    )
+    result = await session.execute(stmt)
+    rows = result.fetchall()
+    return {"duplicates": [{"email_hash": r[0], "count": r[1]} for r in rows]}
+
 
 @router.post("/firmware/merge-users")
 async def merge_users_firmware(
     payload: UserMergeRequest,
     _admin: User = AdminDep,
-    service: FirmwareService = Depends(get_firmware_service)
+    service: FirmwareService = Depends(get_firmware_service),
 ) -> Any:
     await service.merge_users_firmware(payload.source_email, payload.target_email)
+    return {"status": "success"}
+
+
+@router.post("/firmware/merge")
+async def merge_users_by_id(
+    payload: MergeByIdRequest,
+    _admin: User = AdminDep,
+    service: FirmwareService = Depends(get_firmware_service),
+) -> Any:
+    """Merge source user firmware devices into target user, delete source token."""
+    await service.merge_users_by_id(payload.source_user_id, payload.target_user_id)
     return {"status": "success"}
 
 @router.post("/firmware/import", response_model=ExcelImportResponse)

@@ -1,0 +1,17 @@
+{
+  "task_id": "bugfix_admin_migration_layout_001",
+  "agent": "frontend-agent",
+  "priority": "MEDIUM",
+  "title": "Fix: Страница миграции в пустом окне (layout: false)",
+  "context": "frontend/pages/admin/migration.vue использует definePageMeta({ layout: false }), из-за чего страница рендерится без layout — без навигации, без sidebar, пустое белое/тёмное окно.\n\nЕсть admin layout: frontend/layouts/admin.vue\n\nФикс: изменить layout: false на layout: 'admin' в definePageMeta.\n\nНо сначала нужно проверить:\n1. Что admin.vue layout существует и нормально работает (прочитай файл)\n2. Что страница migration.vue корректно отображается внутри admin layout\n3. Что middleware: 'auth' остаётся\n\nЕсли admin layout не работает или его нет — создать минимальный wrapper или добавить базовую навигацию прямо в migration.vue.",
+  "acceptance_criteria": [
+    "/admin/migration показывает страницу с навигацией (admin layout)",
+    "Функциональность миграции не нарушена",
+    "npm run lint проходит"
+  ],
+  "files_to_modify": [
+    "frontend/pages/admin/migration.vue",
+    "frontend/layouts/admin.vue (проверить)"
+  ],
+  "report_to": ".claude/agents/reports/frontend/bugfix_admin_migration_layout_001.md"
+}

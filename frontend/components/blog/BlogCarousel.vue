@@ -85,14 +85,11 @@ watch(() => props.images.length, () => {
           :key="src"
           class="blog-carousel__slide"
         >
-          <NuxtImg
+          <img
             :src="src"
             :alt="alt"
             :loading="i === 0 ? 'eager' : 'lazy'"
             class="blog-carousel__img"
-            width="800"
-            height="450"
-            fit="cover"
           />
         </div>
       </transition-group>

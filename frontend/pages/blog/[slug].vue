@@ -138,15 +138,12 @@ const formattedDate = computed(() => {
             :alt="post!.title"
             aspect-ratio="16/9"
           />
-          <NuxtImg
+          <img
             v-else
             :src="singleCover"
             :alt="post!.title"
             class="post-cover"
             loading="eager"
-            width="800"
-            height="450"
-            fit="cover"
           />
         </div>
 
@@ -227,40 +224,42 @@ const formattedDate = computed(() => {
         </div>
 
         <!-- Share section -->
-        <div class="post-share">
-          <a
-            :href="`https://t.me/share/url?url=${encodeURIComponent(pageUrl)}&text=${encodeURIComponent(post!.title)}`"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="share-btn share-btn--telegram"
-            data-testid="share-telegram"
-            aria-label="Поделиться в Telegram"
-          >
-            <Icon name="ph:telegram-logo-bold" size="18" />
-            Telegram
-          </a>
-          <a
-            :href="`https://vk.com/share.php?url=${encodeURIComponent(pageUrl)}`"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="share-btn share-btn--vk"
-            data-testid="share-vk"
-            aria-label="Поделиться ВКонтакте"
-          >
-            <Icon name="ph:share-network-bold" size="18" />
-            ВКонтакте
-          </a>
-          <button
-            type="button"
-            class="share-btn share-btn--copy"
-            data-testid="share-copy"
-            aria-label="Скопировать ссылку"
-            @click="copyLink"
-          >
-            <Icon name="ph:link-bold" size="18" />
-            Скопировать
-          </button>
-        </div>
+        <ClientOnly>
+          <div class="post-share">
+            <a
+              :href="`https://t.me/share/url?url=${encodeURIComponent(pageUrl)}&text=${encodeURIComponent(post!.title)}`"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="share-btn share-btn--telegram"
+              data-testid="share-telegram"
+              aria-label="Поделиться в Telegram"
+            >
+              <Icon name="ph:telegram-logo-bold" size="18" />
+              Telegram
+            </a>
+            <a
+              :href="`https://vk.com/share.php?url=${encodeURIComponent(pageUrl)}`"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="share-btn share-btn--vk"
+              data-testid="share-vk"
+              aria-label="Поделиться ВКонтакте"
+            >
+              <Icon name="ph:share-network-bold" size="18" />
+              ВКонтакте
+            </a>
+            <button
+              type="button"
+              class="share-btn share-btn--copy"
+              data-testid="share-copy"
+              aria-label="Скопировать ссылку"
+              @click="copyLink"
+            >
+              <Icon name="ph:link-bold" size="18" />
+              Скопировать
+            </button>
+          </div>
+        </ClientOnly>
 
         <!-- Back link -->
         <NuxtLink to="/blog" class="back-link">

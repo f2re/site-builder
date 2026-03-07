@@ -118,7 +118,7 @@ const breadcrumbItems = computed(() => {
 <template>
   <div class="catalog-page">
     <div class="container">
-      <AppBreadcrumbs :items="breadcrumbItems" />
+      <AppBreadcrumbs :crumbs="breadcrumbItems.map(i => ({ label: i.name, to: i.path }))" />
       
       <div class="catalog-page__layout">
         <!-- Sidebar (Desktop) -->
