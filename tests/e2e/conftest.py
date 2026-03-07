@@ -23,6 +23,7 @@ def handle_console(msg):
 
 
 def testid_selector(testid: str) -> str:
+    """Helper to create data-testid selector."""
     return f"[data-testid='{testid}']"
 
 
