@@ -125,18 +125,18 @@ const handleDelete = async (id: string) => {
         <table class="admin-table">
           <thead>
             <tr>
-              <th>ID</th>
+              <th class="desktop-only">ID</th>
               <th>Название</th>
-              <th>Slug</th>
+              <th class="desktop-only">Slug</th>
               <th>Товаров</th>
               <th class="actions-col">Действия</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="category in categories" :key="category.id">
-              <td class="id-cell" :title="category.id">{{ category.id.substring(0, 8) }}...</td>
+              <td class="id-cell desktop-only" :title="category.id">{{ category.id.substring(0, 8) }}...</td>
               <td class="name-cell">{{ category.name }}</td>
-              <td class="slug-cell">{{ category.slug }}</td>
+              <td class="slug-cell desktop-only">{{ category.slug }}</td>
               <td>{{ category.product_count || 0 }}</td>
               <td class="actions-cell">
                 <div class="flex gap-2 justify-end">
@@ -145,6 +145,7 @@ const handleDelete = async (id: string) => {
                     size="sm" 
                     icon="ph:pencil-simple-bold"
                     @click="openEditModal(category)"
+                    aria-label="Редактировать"
                   />
                   <UButton 
                     variant="ghost" 
@@ -152,6 +153,7 @@ const handleDelete = async (id: string) => {
                     icon="ph:trash-bold"
                     color="danger"
                     @click="handleDelete(category.id)"
+                    aria-label="Удалить"
                   />
                 </div>
               </td>
@@ -229,24 +231,56 @@ const handleDelete = async (id: string) => {
   text-align: left;
 }
 
+.admin-table th,
+.admin-table td {
+  padding: 12px 16px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--color-border);
+}
+
 .admin-table th {
   background-color: var(--color-surface-2);
-  padding: 12px 16px;
   font-size: var(--text-xs);
   text-transform: uppercase;
   font-weight: 700;
   color: var(--color-text-2);
-  border-bottom: 1px solid var(--color-border);
 }
 
 .admin-table td {
-  padding: 16px;
-  border-bottom: 1px solid var(--color-border);
   font-size: var(--text-sm);
 }
 
-.admin-table tr:last-child td {
-  border-bottom: none;
+/* Responsive Visibility for Table Elements */
+.desktop-only {
+  display: none !important;
+}
+
+@media (min-width: 768px) {
+  .desktop-only {
+    display: block !important;
+  }
+  
+  th.desktop-only,
+  td.desktop-only {
+    display: table-cell !important;
+  }
+}
+
+.mobile-only {
+  display: block !important;
+}
+
+th.mobile-only,
+td.mobile-only {
+  display: table-cell !important;
+}
+
+@media (min-width: 768px) {
+  .mobile-only,
+  th.mobile-only,
+  td.mobile-only {
+    display: none !important;
+  }
 }
 
 .id-cell {

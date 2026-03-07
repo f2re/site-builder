@@ -1,0 +1,16 @@
+{
+  "task_id": "bugfix_frontend_admin_users_table",
+  "phase": 7,
+  "agent": "frontend-agent",
+  "title": "Fix admin users table layout misalignment",
+  "description": "The admin users table rows are misaligned and unreadable. 1. Inspect `frontend/pages/admin/users/index.vue` and its CSS. 2. Ensure table headers and cells have consistent padding and vertical alignment. 3. Fix the `desktop-only` / `mobile-only` logic to prevent layout shifts. 4. Ensure `UCard` padding overrides don't break the table's full-width appearance.",
+  "depends_on": [],
+  "priority": "high",
+  "contracts_required": [],
+  "acceptance_criteria": [
+    "Table headers align with table body columns",
+    "Columns have sufficient spacing and don't overflow",
+    "Vertical alignment in cells is 'middle' or 'top' consistently",
+    "Mobile view shows correct subset of columns without breaking layout"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "task_id": "bugfix_backend_category_count",
+  "phase": 4,
+  "agent": "backend-agent",
+  "title": "Update Category schemas and repository to include product_count",
+  "description": "Modify backend to return the number of products associated with each category. This involves updating SQLAlchemy models/repositories and Pydantic schemas.",
+  "depends_on": [],
+  "priority": "high",
+  "contracts_required": [
+    ".gemini/agents/contracts/api_contracts.md"
+  ],
+  "acceptance_criteria": [
+    "CategoryRead schema includes 'product_count: int'",
+    "Repository uses func.count() or similar to efficiently fetch product counts in list views",
+    "GET /api/v1/categories returns the correct count for each category",
+    "No N+1 query issue introduced"
+  ]
+}

@@ -9,6 +9,20 @@ export default defineNuxtConfig({
     '@nuxt/icon'
   ],
 
+  image: {
+    domains: [
+      'localhost:8000',
+      'localhost:3000',
+      '127.0.0.1:8000',
+      'wifiobd.ru',
+      'media.wifiobd.ru'
+    ],
+    alias: {
+      // Allows using src="/media/..." which resolves correctly in all environments
+      '/media': (process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000').replace('/api/v1', '') + '/media'
+    }
+  },
+
   runtimeConfig: {
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1',

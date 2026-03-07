@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 export interface StoreCartItem {
-  id: number
+  id: number | string
   name: string
   price: number
   quantity: number
@@ -20,30 +20,34 @@ export const useCartStore = defineStore('cart', () => {
   )
 
   const totalPrice = computed(() =>
-    items.value.reduce((sum, item) => sum + item.price * item.quantity, 0)
+    items.value.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0)
   )
 
   const addItem = (product: Omit<StoreCartItem, 'quantity'>): boolean => {
-    const existing = items.value.find(i => i.id === product.id)
+    // Ensure price is a number
+    const price = typeof product.price === 'string' ? parseFloat(product.price) : product.price
+    const productWithNumPrice = { ...product, price }
+
+    const existing = items.value.find(i => String(i.id) === String(product.id))
     if (existing) {
       if (existing.quantity >= (existing.maxStock ?? Infinity)) {
         return false
       }
       existing.quantity++
     } else {
-      items.value.push({ ...product, quantity: 1 })
+      items.value.push({ ...productWithNumPrice, quantity: 1 })
     }
     persist()
     return true
   }
 
-  const removeItem = (id: number) => {
-    items.value = items.value.filter(i => i.id !== id)
+  const removeItem = (id: number | string) => {
+    items.value = items.value.filter(i => String(i.id) !== String(id))
     persist()
   }
 
-  const updateQuantity = (id: number, quantity: number) => {
-    const item = items.value.find(i => i.id === id)
+  const updateQuantity = (id: number | string, quantity: number) => {
+    const item = items.value.find(i => String(i.id) === String(id))
     if (item) {
       if (quantity <= 0) {
         removeItem(id)

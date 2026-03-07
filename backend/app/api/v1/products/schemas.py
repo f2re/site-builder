@@ -1,4 +1,4 @@
-# Module: api/v1/products/schemas.py | Agent: backend-agent | Task: bugfix_backend_product_002
+# Module: api/v1/products/schemas.py | Agent: backend-agent | Task: bugfix_backend_category_count
 from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from uuid import UUID
@@ -15,6 +15,7 @@ class CategoryBase(BaseModel):
 class CategoryRead(CategoryBase):
     id: UUID
     slug: str  # Mandatory in Read
+    product_count: int = 0
     model_config = ConfigDict(from_attributes=True)
 
 class CategoryCreate(CategoryBase):

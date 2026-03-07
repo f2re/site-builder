@@ -1,0 +1,15 @@
+{
+  "task_id": "bugfix_testing_admin_users_ui",
+  "phase": 8,
+  "agent": "testing-agent",
+  "title": "Verify admin users table layout with Playwright",
+  "description": "Create a Playwright test to verify the visibility and alignment of the admin users table. 1. Mock `/api/v1/users/admin` endpoint. 2. Verify all expected columns (User, Role, Status, Registration, Actions) are present on desktop. 3. Verify that on mobile view, the 'desktop-only' columns are hidden. 4. Check for basic visibility (is table row height > 0).",
+  "depends_on": ["bugfix_frontend_admin_users_table"],
+  "priority": "medium",
+  "contracts_required": [],
+  "acceptance_criteria": [
+    "Test file `frontend/tests/e2e/admin-users.spec.ts` exists",
+    "Test passes for desktop and mobile viewports",
+    "Test checks for correct column visibility"
+  ]
+}

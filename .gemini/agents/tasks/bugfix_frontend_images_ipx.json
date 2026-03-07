@@ -1,0 +1,16 @@
+{
+  "task_id": "bugfix_frontend_images_ipx",
+  "phase": 7,
+  "agent": "frontend-agent",
+  "title": "Fix 404 IPX error for product images in nuxt.config.ts and rendering logic",
+  "description": "Product images are returning 404 when requested through @nuxt/image's IPX provider. Fix the configuration in nuxt.config.ts to correctly map media paths to the backend/storage and ensure components use valid URLs.",
+  "depends_on": [],
+  "priority": "high",
+  "contracts_required": [],
+  "acceptance_criteria": [
+    "Nuxt configuration for 'image' module maps media domains correctly",
+    "Product images display correctly without 404s when using <NuxtImg> or similar components",
+    "Works both in local development and in docker environment (mapping to 'media' directory)",
+    "Correct fallback for products without images"
+  ]
+}

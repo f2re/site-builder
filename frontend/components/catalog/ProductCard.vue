@@ -56,7 +56,9 @@ const handleAddToCart = () => {
     </div>
 
     <div class="product-card__content">
-      <div class="product-card__category">{{ product.category?.name }}</div>
+      <div class="product-card__category">
+        {{ product.category?.name || (product as any).category_name || 'Товар' }}
+      </div>
       <h3 class="product-card__title" data-testid="product-title">{{ product.name }}</h3>
 
       <div class="product-card__footer">

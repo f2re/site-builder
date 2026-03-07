@@ -1,0 +1,19 @@
+{
+  "task_id": "bugfix_testing_categories",
+  "phase": 8,
+  "agent": "testing-agent",
+  "title": "Add tests for category counts and admin UI",
+  "description": "Ensure the bug fixes for category counts (backend) and the UI elements (frontend) are correctly tested. Add backend integration tests for the count logic and (if possible) E2E or snapshot tests for the UI changes.",
+  "depends_on": [
+    "bugfix_backend_category_count",
+    "bugfix_frontend_categories_ui"
+  ],
+  "priority": "medium",
+  "contracts_required": [],
+  "acceptance_criteria": [
+    "Backend test: assert count increases when adding product to category",
+    "Backend test: assert count decreases when removing product or deleting product",
+    "E2E (Playwright): verify category table columns include product counts",
+    "Verify no regressions in other category endpoints"
+  ]
+}

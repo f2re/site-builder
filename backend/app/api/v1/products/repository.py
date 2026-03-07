@@ -1,6 +1,6 @@
-# Module: products/repository.py | Agent: backend-agent | Task: p_bugfix_backend_001
+# Module: products/repository.py | Agent: backend-agent | Task: bugfix_backend_category_count
 from datetime import datetime
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Any
 from uuid import UUID
 from decimal import Decimal
 
@@ -223,22 +223,87 @@ class ProductRepository:
         result = await self.session.execute(stmt)
         return getattr(result, "rowcount", 0) > 0
 
-    async def list_categories(self, active_only: bool = False) -> List[Category]:
-        stmt = select(Category)
+    async def list_categories(self, active_only: bool = False) -> List[dict[str, Any]]:
+        # Define product count subquery
+        count_stmt = select(Product.category_id, func.count(Product.id).label("cnt"))
         if active_only:
-            stmt = stmt.where(Category.is_active)
-        stmt = stmt.order_by(Category.name)
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
-
-    async def get_categories_tree(self) -> list[Category]:
-        stmt = (
-            select(Category)
-            .where(Category.parent_id.is_(None))
-            .options(selectinload(Category.children))
+            count_stmt = count_stmt.where(Product.is_active.is_(True))
+        
+        count_sq = (
+            count_stmt.group_by(Product.category_id)
+            .subquery()
         )
+
+        stmt = (
+            select(
+                Category,
+                func.coalesce(count_sq.c.cnt, 0).label("product_count")
+            )
+            .outerjoin(count_sq, Category.id == count_sq.c.category_id)
+        )
+        if active_only:
+            stmt = stmt.where(Category.is_active.is_(True))
+        stmt = stmt.order_by(Category.name)
+        
         result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        items = []
+        for row in result.all():
+            cat = row.Category
+            items.append({
+                "id": cat.id,
+                "name": cat.name,
+                "slug": cat.slug,
+                "is_active": cat.is_active,
+                "parent_id": cat.parent_id,
+                "product_count": row.product_count
+            })
+        return items
+
+    async def get_categories_tree(self) -> list[dict[str, Any]]:
+        # Count only active products
+        count_sq = (
+            select(Product.category_id, func.count(Product.id).label("cnt"))
+            .where(Product.is_active.is_(True))
+            .group_by(Product.category_id)
+            .subquery()
+        )
+
+        # To build a tree with counts, we better fetch all categories and build it in memory
+        # Or at least fetch them all with their counts.
+        stmt = (
+            select(
+                Category,
+                func.coalesce(count_sq.c.cnt, 0).label("product_count")
+            )
+            .outerjoin(count_sq, Category.id == count_sq.c.category_id)
+        )
+        
+        result = await self.session.execute(stmt)
+        all_cats = result.all()
+        
+        # Build mapping
+        id_map = {}
+        for row in all_cats:
+            cat = row.Category
+            id_map[cat.id] = {
+                "id": cat.id,
+                "name": cat.name,
+                "slug": cat.slug,
+                "is_active": cat.is_active,
+                "parent_id": cat.parent_id,
+                "product_count": row.product_count,
+                "children": []
+            }
+            
+        tree = []
+        for cat_id, cat_data in id_map.items():
+            parent_id = cat_data["parent_id"]
+            if parent_id and parent_id in id_map:
+                id_map[parent_id]["children"].append(cat_data)
+            else:
+                tree.append(cat_data)
+        
+        return tree
 
     async def get_category_by_id(self, category_id: UUID) -> Optional[Category]:
         stmt = select(Category).where(Category.id == category_id)

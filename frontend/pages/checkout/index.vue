@@ -34,6 +34,47 @@ const cityResults = ref<CdekCity[]>([])
 const citySearchOpen = ref(false)
 const citySearchPending = ref(false)
 
+// --- Contact Info ---
+const userStore = useUserStore()
+const customer = ref({
+  name: userStore.user?.full_name || '',
+  email: userStore.user?.email || '',
+  phone: userStore.user?.phone || '',
+})
+const phoneError = ref('')
+
+const handlePhoneInput = (e: Event) => {
+  const input = e.target as HTMLInputElement
+  let value = input.value.replace(/\D/g, '')
+  if (value.startsWith('7') || value.startsWith('8')) {
+    value = value.substring(1)
+  }
+  
+  let formatted = '+7 ('
+  if (value.length > 0) formatted += value.substring(0, 3)
+  if (value.length > 3) formatted += ') ' + value.substring(3, 6)
+  if (value.length > 6) formatted += '-' + value.substring(6, 8)
+  if (value.length > 8) formatted += '-' + value.substring(8, 10)
+  
+  customer.value.phone = value.length === 0 ? '' : formatted
+  phoneError.value = ''
+}
+
+const validateForm = () => {
+  let isValid = true
+  if (customer.value.phone) {
+    const digits = customer.value.phone.replace(/\D/g, '')
+    if (digits.length < 11) {
+      phoneError.value = 'Введите корректный номер телефона'
+      isValid = false
+    }
+  } else {
+    phoneError.value = 'Телефон обязателен'
+    isValid = false
+  }
+  return isValid
+}
+
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(cityQuery, (val) => {
@@ -123,10 +164,17 @@ const apiFetch = useApiFetch()
 
 async function placeOrder() {
   if (!deliveryStore.isDeliveryReady || orderPending.value) return
+  if (!validateForm()) {
+    toast.error('Ошибка заполнения', 'Проверьте корректность введенных данных')
+    return
+  }
   orderPending.value = true
   try {
     const body: Record<string, unknown> = {
       payment_method: 'yoomoney',
+      email: customer.value.email,
+      full_name: customer.value.name,
+      phone: customer.value.phone,
     }
     if (deliveryStore.deliveryType === 'pickup') {
       body.delivery_type = 'cdek_pvz'
@@ -183,8 +231,53 @@ onMounted(() => {
       </div>
 
       <div v-else class="checkout-layout">
-        <!-- LEFT: Delivery form -->
-        <section class="delivery-section" data-testid="delivery-form">
+        <!-- LEFT: Info and Delivery -->
+        <div class="checkout-main-col">
+          <!-- Contact Info -->
+          <section class="checkout-section mb-6">
+            <h2 class="section-title">Контактные данные</h2>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label" for="customer-name">Имя и фамилия</label>
+                <input
+                  id="customer-name"
+                  v-model="customer.name"
+                  type="text"
+                  class="form-input form-input--no-icon"
+                  placeholder="Иван Иванов"
+                  data-testid="customer-name"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="customer-email">Email</label>
+                <input
+                  id="customer-email"
+                  v-model="customer.email"
+                  type="email"
+                  class="form-input form-input--no-icon"
+                  placeholder="example@mail.ru"
+                  data-testid="customer-email"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="customer-phone">Телефон</label>
+                <input
+                  id="customer-phone"
+                  :value="customer.phone"
+                  type="tel"
+                  class="form-input form-input--no-icon"
+                  :class="{ 'form-input--error': phoneError }"
+                  placeholder="+7 (___) ___-__-__"
+                  data-testid="customer-phone"
+                  @input="handlePhoneInput"
+                />
+                <span v-if="phoneError" class="form-error">{{ phoneError }}</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Delivery section -->
+          <section class="delivery-section" data-testid="delivery-form">
           <h2 class="section-title">Способ доставки</h2>
 
           <!-- Delivery type toggle -->
@@ -489,6 +582,44 @@ onMounted(() => {
     grid-template-columns: 1fr 380px;
   }
 }
+
+.checkout-main-col {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.checkout-section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 28px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.form-error {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--color-error);
+  margin-top: 4px;
+}
+
+.form-input--error {
+  border-color: var(--color-error) !important;
+}
+
+.mb-6 { margin-bottom: 24px; }
 
 /* ── Section title ── */
 .section-title {
