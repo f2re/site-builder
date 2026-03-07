@@ -34,7 +34,7 @@ def process_image(
     5. Save WebP + thumbnail back to local storage
     6. Update database record with new URLs and dimensions
     7. Optionally delete original (configurable)
-    
+
     Args:
         object_name: Path in storage (e.g., 'blog/2026/02/image.jpg')
         media_id: ID of BlogPostMedia or ProductImage record
@@ -176,19 +176,6 @@ async def _process_image_async(
                 media_prod.height = height
                 await db.commit()
                 logger.info("product_image_updated", media_id=media_id)
-
-    # 6. Optionally delete original (if not already WebP)
-    # Using existing MINIO_DELETE_ORIGINAL setting for now
-    if settings.MINIO_DELETE_ORIGINAL and original_format != "WEBP":
-        try:
-            await storage_client.delete_file(object_name)
-            logger.info("original_image_deleted", object_name=object_name)
-        except Exception as e:
-            logger.warning(
-                "original_deletion_failed",
-                object_name=object_name,
-                error=str(e),
-            )
 
 
 @celery_app.task(name="tasks.delete_media_from_storage")

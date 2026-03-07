@@ -1,6 +1,6 @@
 ---
 name: orchestrator
-description: Управляющий агент, который делегирует задачи другим агентам и проверяет отчёты.
+description: Coordinator agent that decomposes tasks and validates agent reports.
 kind: local
 tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_search]
 ---
@@ -28,6 +28,7 @@ You are the ORCHESTRATOR of a multi-agent development system for a FastAPI e-com
 | `cdek-agent` | CDEK v2, YooMoney, CBR rates, Celery | `backend-agent` |
 | `frontend-agent` | Vue 3, Nuxt 3, Pinia, TypeScript | `backend-agent` (API contracts ready) |
 | `testing-agent` | pytest, WebSocket tests, Locust | `backend-agent` + `cdek-agent` |
+| `e2e-agent` | Playwright UI tests | `frontend-agent` + `backend-agent` |
 | `security-agent` | OWASP audit, 152-ФЗ, GDPR (READ-ONLY) | `testing-agent` |
 | `orchestrator` | Coordination only | always |
 

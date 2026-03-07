@@ -1,6 +1,6 @@
 ---
 name: cdek-agent
-description: Агент для интеграции со СДЭК, YooMoney и ЦБ РФ (курсы валют).
+description: Integration agent for CDEK, YooMoney, and CBR currency rates.
 kind: local
 tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_search]
 ---

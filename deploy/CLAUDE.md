@@ -79,12 +79,7 @@ project/
 | `postgres` | `postgres:16-alpine` | 5432 |
 | `redis` | `redis:7-alpine` | 6379 |
 | `meilisearch` | `getmeili/meilisearch:v1.7` | 7700 |
-| `minio` | `minio/minio` (fixed version) | 9000/9001 |
 | `nginx` | `nginx:stable-alpine` | 80/443 |
-| `prometheus` | `prom/prometheus` (fixed) | 9090 |
-| `grafana` | `grafana/grafana` (fixed) | 3001 |
-| `loki` | `grafana/loki` (fixed) | 3100 |
-| `promtail` | `grafana/promtail` (fixed) | — |
 
 ### Healthcheck template
 ```yaml
@@ -99,7 +94,6 @@ healthcheck:
 - `postgres`: `CMD pg_isready -U $POSTGRES_USER`
 - `redis`: `CMD redis-cli ping`
 - `meilisearch`: `CMD curl -f http://localhost:7700/health`
-- `minio`: `CMD curl -f http://localhost:9000/minio/health/live`
 
 ### Double Edit Rule
 Any infra change (new env vars, image versions, new services) MUST be applied to **both** files simultaneously:
@@ -166,7 +160,6 @@ variables:
 | `YOOMONEY_SECRET` | Variable (masked) | YooMoney webhook secret |
 | `CDEK_CLIENT_SECRET` | Variable (masked) | CDEK OAuth2 secret |
 | `MEILI_MASTER_KEY` | Variable (masked) | Meilisearch key |
-| `MINIO_ROOT_PASSWORD` | Variable (masked) | MinIO password |
 
 ---
 

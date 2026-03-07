@@ -339,7 +339,6 @@ Response: `{ revenue_rub: Decimal, orders_count: int, users_count: int, period: 
 Auth: Bearer
 Request: `multipart/form-data` (file, context, alt)
 Response: `{ url: str, width: int, height: int }`
-- прямой upload в MinIO
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: testing-agent
-description: Агент для написания тестов и обеспечения покрытия кода.
+description: QA agent for unit, integration, and load testing.
 kind: local
 tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_search]
 ---

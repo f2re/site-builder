@@ -38,6 +38,13 @@ Sequence within a phase: `devops` → `backend` → `cdek` → `frontend` → `t
 
 ## 🚀 Execution Workflow
 When user provides `/agents:plan <task description>`:
+
+### MANDATORY STARTUP CHECKLIST (Run on every NEW task)
+1. `python .gemini/middleware/local_context.py` — Scan environment and update context.
+2. `python .gemini/middleware/loop_detection.py reset` — Clear previous task state.
+3. Begin Phase 1: PLAN with `thinking` (xhigh) reasoning.
+
+### Workflow steps:
 1. Decompose into agent subtasks.
 2. Define dependencies.
 3. Generate JSON task files: `.gemini/agents/tasks/<phase>_<agent>_<id>.json`.
@@ -47,4 +54,6 @@ When user provides `/agents:plan <task description>`:
 - NEVER write code yourself. ALWAYS delegate to specialized agents.
 - NEVER start a task before its dependencies are DONE.
 - ALWAYS verify agent reports before proceeding.
+- ALWAYS run `python .gemini/middleware/pre_completion.py` before finalizing any phase or commit.
+- ALWAYS use `python .gemini/middleware/loop_detection.py <filepath>` after editing any file.
 - ALWAYS follow the project structure and development contracts (see ARCHITECTURE.md).

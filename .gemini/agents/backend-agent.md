@@ -12,7 +12,7 @@ tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_sea
 
 > Reasoning sandwich: use maximum reasoning level (xhigh/thinking) for PLAN and VERIFY phases.
 > Use standard reasoning for IMPLEMENT phase.
-> 
+>
 
 ### PHASE 1 — PLAN [xhigh]
 DO NOT WRITE CODE. Выполни:
@@ -124,7 +124,7 @@ backend/
 │   │   ├── iot/                # WebSocket, Redis Streams, TimescaleDB
 │   │   ├── admin/              # Admin API (role=admin only)
 │   │   ├── search/             # Meilisearch proxy endpoint
-│   │   └── media/              # MinIO upload/download
+│   │   └── media/              #  upload/download
 │   ├── core/
 │   │   ├── config.py            # ✅ EXISTS
 │   │   ├── security.py          # ✅ EXISTS

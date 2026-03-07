@@ -90,6 +90,18 @@ commandPrefix = "docker compose config"
 decision = "allow"
 priority = 80
 
+[[rules]]
+toolName = "run_shell_command"
+commandPrefix = "alembic"
+decision = "allow"
+priority = 80
+
+[[rules]]
+toolName = "run_shell_command"
+commandPrefix = "cd backend && alembic"
+decision = "allow"
+priority = 80
+
 # Опасные команды — всегда спрашивать подтверждение
 [[rules]]
 toolName = "run_shell_command"

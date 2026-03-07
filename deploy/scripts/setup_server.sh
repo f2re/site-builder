@@ -21,7 +21,6 @@ echo "--- Creating Project Directories ---"
 sudo mkdir -p $PROJECT_ROOT/data/postgres
 sudo mkdir -p $PROJECT_ROOT/data/redis
 sudo mkdir -p $PROJECT_ROOT/data/meilisearch
-sudo mkdir -p $PROJECT_ROOT/data/minio
 sudo chown -R $USER:$USER $PROJECT_ROOT
 
 echo "--- Setup Complete! ---"

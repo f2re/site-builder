@@ -1,6 +1,6 @@
 ---
 name: devops-agent
-description: Агент для настройки инфраструктуры Docker, GitLab CI/CD (self-hosted), Nginx, Prometheus, Loki, MinIO, Meilisearch.
+description: Infrastructure agent for Docker, GitLab CI/CD, Nginx, and Meilisearch.
 kind: local
 tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_search]
 ---
@@ -11,7 +11,7 @@ tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_sea
 
 > Reasoning sandwich: use maximum reasoning level (xhigh/thinking) for PLAN and VERIFY phases.
 > Use standard reasoning for IMPLEMENT phase.
-> 
+>
 
 ### PHASE 1 — PLAN [xhigh]
 DO NOT WRITE CODE. Выполни:
@@ -88,12 +88,7 @@ MUST define ALL of these services, each with `healthcheck`:
 | `postgres` | `postgres:16-alpine` | volume `pg_data` |
 | `redis` | `redis:7-alpine` | `command: redis-server --save 60 1` |
 | `meilisearch` | `getmeili/meilisearch:v1.7` | volume `meili_data`, env `MEILI_MASTER_KEY` |
-| `minio` | `minio/minio:latest` | `command: server /data --console-address :9001`, volumes |
 | `nginx` | `nginx:stable-alpine` | ports 80/443, mounts `deploy/nginx/nginx.conf` |
-| `prometheus` | `prom/prometheus:latest` | mounts `deploy/prometheus/prometheus.yml` |
-| `grafana` | `grafana/grafana:latest` | mounts provisioning dir |
-| `loki` | `grafana/loki:latest` | log aggregation |
-| `promtail` | `grafana/promtail:latest` | ships container logs to Loki |
 
 ### Healthcheck template
 ```yaml
@@ -108,7 +103,6 @@ healthcheck:
 - `postgres`: `CMD pg_isready -U $POSTGRES_USER`
 - `redis`: `CMD redis-cli ping`
 - `meilisearch`: `CMD curl -f http://localhost:7700/health`
-- `minio`: `CMD curl -f http://localhost:9000/minio/health/live`
 
 ### Secrets contract
 - ALL secrets via environment variable references: `${VAR_NAME}` — NEVER hardcoded
@@ -165,7 +159,6 @@ build → test → push → deploy
 | `YOOMONEY_SECRET` | Manual | YooMoney webhook secret |
 | `CDEK_CLIENT_SECRET` | Manual | CDEK OAuth2 secret |
 | `MEILI_MASTER_KEY` | Manual | Meilisearch master key |
-| `MINIO_ROOT_PASSWORD` | Manual | MinIO root password |
 
 ### `.gitlab-ci.yml` structure MUST match:
 ```yaml
@@ -322,12 +315,6 @@ CELERY_RESULT_BACKEND=redis://redis:6379/2
 # === Meilisearch ===
 MEILI_URL=http://meilisearch:7700
 MEILI_MASTER_KEY=change-me
-
-# === MinIO ===
-MINIO_ENDPOINT=minio:9000
-MINIO_ROOT_USER=minioadmin
-MINIO_ROOT_PASSWORD=change-me
-MINIO_BUCKET_MEDIA=media
 
 # === CDEK ===
 CDEK_CLIENT_ID=your-cdek-client-id
