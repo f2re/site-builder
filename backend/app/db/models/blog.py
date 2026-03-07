@@ -124,6 +124,17 @@ class BlogPost(Base):
         nullable=False,
     )
     
+    # SEO / OG fields
+    og_image_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+
+    # Carousel images (list of URLs)
+    carousel_images: Mapped[Any] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        default=list,
+        server_default="[]",
+    )
+
     # Metrics
     views: Mapped[int] = mapped_column(Integer, default=0)
     reading_time: Mapped[int] = mapped_column(Integer, default=0)

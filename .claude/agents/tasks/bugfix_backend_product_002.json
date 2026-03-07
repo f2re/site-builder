@@ -1,0 +1,64 @@
+{
+  "task_id": "bugfix_backend_product_002",
+  "phase": "hotfix",
+  "agent": "backend-agent",
+  "title": "Fix product API: stock field, content_html generation, category_slug filter, categories response",
+  "description": "Исправить 4 бага в backend, блокирующих корректное отображение карточки товара на публичном фронте.",
+  "depends_on": [],
+  "priority": "critical",
+  "bugs": [
+    {
+      "id": "BUG-BE-01",
+      "title": "ProductRead не содержит поле stock",
+      "files": [
+        "backend/app/api/v1/products/schemas.py"
+      ],
+      "root_cause": "ProductShortRead имеет поле stock: int = 0 (суммарный остаток по всем вариантам), но ProductRead — нет. Фронт (pages/products/[slug].vue) обращается к product.stock для отображения наличия и дизейблинга кнопки 'В корзину'. Получает undefined → stock всегда 0 → кнопка всегда disabled, надпись 'Нет в наличии' даже когда товар есть.",
+      "fix": "Добавить в ProductRead поле stock: int = 0. В service.py метод get_product_by_slug / get_product_detail после model_validate дополнительно вычислять stock как sum(v.stock_quantity for v in product.variants). Либо добавить @computed_field или @model_validator в ProductRead для авто-расчёта из variants. Предпочтительно: добавить @model_validator(mode='after') в ProductRead: self.stock = sum(v.stock_quantity for v in self.variants)."
+    },
+    {
+      "id": "BUG-BE-02",
+      "title": "description_html не генерируется из content_json при сохранении",
+      "files": [
+        "backend/app/api/v1/products/service.py",
+        "backend/app/core/utils.py"
+      ],
+      "root_cause": "TipTap сохраняет расширенный контент в content_json (JSON). Публичная страница товара отображает description_html через v-html. Но при создании/обновлении товара description_html НЕ генерируется автоматически из content_json. Метод _apply_auto_seo обрабатывает только meta_description и og_image_url. В результате расширенное описание (включая картинки в тексте) недоступно на публичной странице.",
+      "fix": "В service.py в методах create_product и update_product: если content_json непустой и description_html не передан явно — сгенерировать description_html из content_json. Использовать существующую утилиту extract_text_from_tiptap из app.core.utils для plain text, либо написать tiptap_json_to_html(content_json) в utils.py. Функция должна обходить nodes TipTap AST и генерировать HTML: paragraph→<p>, heading→<h2>/<h3>, image→<img src=...>, bulletList→<ul><li>, orderedList→<ol><li>, bold/italic/code inline marks. Результат sanitizировать через bleach с ALLOWED_TAGS/ALLOWED_ATTRS. Важно: НЕ перезаписывать description_html если он уже задан явно (не null и не пустой)."
+    },
+    {
+      "id": "BUG-BE-03",
+      "title": "GET /api/v1/products не поддерживает фильтрацию по category_slug",
+      "files": [
+        "backend/app/api/v1/products/router.py",
+        "backend/app/api/v1/products/repository.py",
+        "backend/app/api/v1/products/service.py"
+      ],
+      "root_cause": "Эндпоинт GET /api/v1/products принимает category_id (UUID). Фронтенд (pages/products/index.vue + composables/useProducts.ts) передаёт category_slug (строка). Фильтрация по категории полностью не работает в публичном каталоге.",
+      "fix": "Добавить опциональный параметр category_slug: Optional[str] в router.py (Query). В service.get_products добавить category_slug: Optional[str] = None. В repository.list_products: если передан category_slug, выполнить join с таблицей Category и фильтровать по Category.slug == category_slug (вместо или вместе с category_id). Если переданы оба — приоритет у category_id."
+    },
+    {
+      "id": "BUG-BE-04",
+      "title": "GET /api/v1/products/categories возвращает List вместо {items: List}",
+      "files": [
+        "backend/app/api/v1/products/router.py"
+      ],
+      "root_cause": "Эндпоинт GET /api/v1/products/categories возвращает List[CategoryTreeRead]. Фронт (pages/products/index.vue строка 109) обращается к categoriesData.value.items — получает undefined. Категории не отображаются в сайдбаре каталога.",
+      "fix": "Обернуть ответ в объект: изменить response_model на Dict[str, Any] или создать CategoryListResponse(BaseModel) с полем items: List[CategoryTreeRead]. Вернуть {'items': categories}. Аналогично проверить admin categories endpoint — там тот же паттерн (возвращает List, а adminGetCategories ожидает List — это OK, не трогать)."
+    }
+  ],
+  "acceptance_criteria": [
+    "GET /api/v1/products/{slug} возвращает поле stock: число (сумма stock_quantity всех вариантов)",
+    "Если content_json непустой и description_html пустой — description_html генерируется автоматически при save/update",
+    "GET /api/v1/products?category_slug=obd-adaptery возвращает только товары этой категории",
+    "GET /api/v1/products/categories возвращает {items: [...]}",
+    "ruff check app/ → 0 errors",
+    "mypy app/ --ignore-missing-imports → Success"
+  ],
+  "verification": [
+    "cd backend && ruff check app/ --fix && ruff check app/",
+    "cd backend && mypy app/ --ignore-missing-imports",
+    "pytest tests/ -x -v -k 'product' 2>/dev/null || echo 'no product tests yet'"
+  ],
+  "report_path": ".claude/agents/reports/backend/bugfix_backend_product_002.md"
+}

@@ -1,0 +1,16 @@
+{
+  "task_id": "bugfix_testing_001",
+  "phase": 8,
+  "agent": "testing-agent",
+  "title": "Verify image addition in admin panel",
+  "description": "Verify that images added in the admin panel now show up in the shop and item detail page after the backend and frontend fixes.",
+  "depends_on": ["bugfix_backend_003", "bugfix_frontend_002"],
+  "priority": "high",
+  "acceptance_criteria": [
+    "Test scenario: Add image to a product in admin",
+    "Test scenario: Image is visible in product catalog list",
+    "Test scenario: Image is visible in product detail page",
+    "Integration tests for ProductService.update_product pass",
+    "E2E test (if possible) for shop visibility"
+  ]
+}

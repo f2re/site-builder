@@ -51,6 +51,8 @@ class BlogPostBase(BaseModel):
     is_featured: bool = False
     category_id: Optional[UUID] = None
     cover_image: Optional[str] = None
+    og_image_url: Optional[str] = None
+    carousel_images: List[str] = Field(default_factory=list)
     meta_title: Optional[str] = None
     meta_description: Optional[str] = None
 
@@ -64,6 +66,8 @@ class BlogPostUpdate(BaseModel):
     is_featured: Optional[bool] = None
     category_id: Optional[UUID] = None
     cover_image: Optional[str] = None
+    og_image_url: Optional[str] = None
+    carousel_images: Optional[List[str]] = None
     meta_title: Optional[str] = None
     meta_description: Optional[str] = None
     tags: Optional[List[str]] = None
@@ -81,7 +85,11 @@ class BlogPostRead(BlogPostBase):
     created_at: datetime
     updated_at: datetime
     reading_time: int = 0
+    reading_time_minutes: int = 0
     views: int = 0
+    # Aliases for frontend compatibility
+    cover_url: Optional[str] = None
+    excerpt: Optional[str] = None
 
     category: Optional[BlogCategoryRead] = None
     tags: List[TagRead] = []
@@ -95,19 +103,24 @@ class BlogPostShortRead(BaseModel):
     title: str
     summary: Optional[str] = None
     cover_image: Optional[str] = None
+    # Frontend-compatible aliases
+    cover_url: Optional[str] = None
+    excerpt: Optional[str] = None
+    carousel_images: List[str] = []
     author: AuthorRead
     tags: List[TagRead] = []
     published_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
-    reading_time: int = Field(default=5, description="Estimated reading time in minutes")
+    reading_time: int = Field(default=0, description="Estimated reading time in minutes")
+    reading_time_minutes: int = Field(default=0, description="Alias for reading_time")
     status: BlogStatus
 
     model_config = ConfigDict(from_attributes=True)
 
 class BlogPagination(BaseModel):
     items: List[BlogPostShortRead]
-    pageInfo: dict
+    next_cursor: Optional[str] = None
     total: int
 
 class CommentBase(BaseModel):

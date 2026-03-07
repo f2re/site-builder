@@ -2,6 +2,7 @@
 import type { Product, ProductShort } from '~/composables/useProducts'
 import { useCartStore } from '~/stores/cartStore'
 import { useToast } from '~/composables/useToast'
+import { formatPrice } from '~/composables/useFormatters'
 
 const props = defineProps<{
   product: Product | ProductShort
@@ -20,19 +21,24 @@ const imageUrl = computed(() => {
 const handleAddToCart = () => {
   if (props.product.stock <= 0) return
 
-  cartStore.addItem({
+  const added = cartStore.addItem({
     id: props.product.id as any,
     name: props.product.name,
     price: props.product.price_display,
-    image: imageUrl.value
+    image: imageUrl.value,
+    maxStock: props.product.stock
   })
 
-  toast.success('Добавлено', `${props.product.name} теперь в корзине`)
+  if (added === false) {
+    toast.warning('Недостаточно товара', `В наличии только ${props.product.stock} шт.`)
+  } else {
+    toast.success('Добавлено', `${props.product.name} теперь в корзине`)
+  }
 }
 </script>
 
 <template>
-  <NuxtLink :to="`/products/${product.slug}`" class="product-card">
+  <NuxtLink :to="`/products/${product.slug}`" class="product-card" data-testid="product-card">
     <div class="product-card__image-wrapper">
       <NuxtImg
         :src="imageUrl"
@@ -44,19 +50,18 @@ const handleAddToCart = () => {
         height="300"
         fit="cover"
       />
-      <div v-if="product.stock <= 0" class="product-card__badge product-card__badge--out-of-stock">
+      <div v-if="product.stock <= 0" class="product-card__badge product-card__badge--out-of-stock" data-testid="product-stock">
         Нет в наличии
       </div>
     </div>
 
     <div class="product-card__content">
       <div class="product-card__category">{{ product.category?.name }}</div>
-      <h3 class="product-card__title">{{ product.name }}</h3>
+      <h3 class="product-card__title" data-testid="product-title">{{ product.name }}</h3>
 
       <div class="product-card__footer">
         <div class="product-card__price">
-          <span class="product-card__price-value">{{ product.price_display }}</span>
-          <span class="product-card__price-currency">{{ product.currency }}</span>
+          <span class="product-card__price-value" data-testid="product-price">{{ formatPrice(product.price_display) }}</span>
         </div>
 
         <button

@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from fastapi import Depends, HTTPException, status
 import structlog
 
-from pydantic import TypeAdapter
 from app.api.v1.blog.repository import BlogRepository, get_blog_repo
 from app.api.v1.blog.schemas import (
     BlogPostCreate,
@@ -155,24 +154,45 @@ class BlogService:
             cursor=cursor,
             per_page=per_page
         )
+        short_items = []
+        for post in items:
+            item = BlogPostShortRead.model_validate(post)
+            item.cover_url = post.cover_image
+            item.excerpt = post.summary
+            item.reading_time_minutes = post.reading_time
+            if not item.carousel_images and hasattr(post, "carousel_images") and post.carousel_images:
+                item.carousel_images = list(post.carousel_images)
+            short_items.append(item)
         return BlogPagination(
-            items=TypeAdapter(List[BlogPostShortRead]).validate_python(items),
-            pageInfo={
-                "nextCursor": next_cursor,
-                "total": total,
-                "hasMore": next_cursor is not None
-            },
+            items=short_items,
+            next_cursor=next_cursor,
             total=total
         )
 
-    async def get_post_detail(self, slug: str) -> BlogPostRead:
+    def _enrich_post_read(self, post: BlogPost, result: BlogPostRead) -> BlogPostRead:
+        """Fill frontend-compatible alias fields on BlogPostRead."""
+        result.cover_url = post.cover_image
+        result.excerpt = post.summary
+        result.reading_time_minutes = post.reading_time
+        if not result.og_image_url:
+            carousel = list(post.carousel_images) if post.carousel_images else []
+            result.og_image_url = (carousel[0] if carousel else None) or post.cover_image
+        return result
+
+    async def get_post_detail(self, slug: str, is_admin: bool = False) -> BlogPostRead:
         post = await self.repo.get_by_slug(slug)
         if not post:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Blog post not found"
             )
-        return BlogPostRead.model_validate(post)
+        if post.status in (BlogPostStatus.DRAFT, BlogPostStatus.ARCHIVED) and not is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Post not found"
+            )
+        result = BlogPostRead.model_validate(post)
+        return self._enrich_post_read(post, result)
 
     async def get_or_create_author(self, user_id: UUID, display_name: str = "Anonymous") -> Author:
         author = await self.repo.get_author_by_user_id(user_id)
@@ -222,6 +242,8 @@ class BlogService:
             category_id=data.category_id,
             author_id=author.id,
             cover_image=data.cover_image,
+            og_image_url=data.og_image_url,
+            carousel_images=data.carousel_images or [],
             meta_title=data.meta_title,
             meta_description=data.meta_description,
             reading_time=reading_time,
@@ -251,8 +273,9 @@ class BlogService:
         # Reload with relationships to avoid MissingGreenlet during validation
         loaded_post = await self.repo.get_by_id(created_post.id)
         if not loaded_post:
-             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found after creation")
-        return BlogPostRead.model_validate(loaded_post)
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found after creation")
+        result = BlogPostRead.model_validate(loaded_post)
+        return self._enrich_post_read(loaded_post, result)
 
     async def update_post(self, post_id: UUID, data: BlogPostUpdate) -> BlogPostRead:
         """
@@ -345,8 +368,9 @@ class BlogService:
         # Reload with relationships to avoid MissingGreenlet
         loaded_post = await self.repo.get_by_id(post.id)
         if not loaded_post:
-             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found after update")
-        return BlogPostRead.model_validate(loaded_post)
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found after update")
+        result = BlogPostRead.model_validate(loaded_post)
+        return self._enrich_post_read(loaded_post, result)
 
     async def delete_post(self, post_id: UUID) -> bool:
         """

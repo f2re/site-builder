@@ -53,10 +53,12 @@ async def list_posts(
 @router.get("/posts/{slug}", response_model=BlogPostRead)
 async def get_post(
     slug: str,
+    current_user: Optional[User] = Depends(get_optional_current_user),
     service: BlogService = Depends(get_blog_service),
 ):
     """Get single blog post by slug."""
-    return await service.get_post_detail(slug)
+    is_admin = current_user is not None and current_user.role == "admin"
+    return await service.get_post_detail(slug, is_admin=is_admin)
 
 
 @router.get("/categories")

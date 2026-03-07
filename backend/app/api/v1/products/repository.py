@@ -45,10 +45,11 @@ class ProductRepository:
     async def list_products(
         self,
         category_id: Optional[UUID] = None,
+        category_slug: Optional[str] = None,
         min_price: Optional[Decimal] = None,
         max_price: Optional[Decimal] = None,
         is_featured: Optional[bool] = None,
-        cursor: Optional[str] = None, # Expect a cursor string "created_at,id"
+        cursor: Optional[str] = None,  # Expect a cursor string "created_at,id"
         per_page: int = 20,
         active_only: bool = True,
     ) -> Tuple[list[dict], Optional[str]]:
@@ -108,17 +109,24 @@ class ProductRepository:
                 cover_image_sq.c.url.label("main_image_url"),
                 min_price_sq.c.min_price,
                 stock_sq.c.total_stock,
+                Category.name.label("category_name"),
             )
             .outerjoin(min_price_sq, Product.id == min_price_sq.c.product_id)
             .outerjoin(stock_sq, Product.id == stock_sq.c.product_id)
             .outerjoin(cover_image_sq, Product.id == cover_image_sq.c.product_id)
+            .outerjoin(Category, Product.category_id == Category.id)
         )
 
         if active_only:
             stmt = stmt.where(Product.is_active)
 
+        # category_id takes priority over category_slug
         if category_id:
             stmt = stmt.where(Product.category_id == category_id)
+        elif category_slug:
+            stmt = stmt.join(Category, Product.category_id == Category.id).where(
+                Category.slug == category_slug
+            )
         
         if is_featured is not None:
             stmt = stmt.where(Product.is_featured == is_featured)
@@ -150,19 +158,27 @@ class ProductRepository:
         
         items = []
         for row in rows[:per_page]:
+            price = row.min_price if row.min_price is not None else Decimal(0)
+            if price and price % 1 == 0:
+                price_display = str(int(price))
+            elif price:
+                price_display = str(price.quantize(Decimal("0.01")))
+            else:
+                price_display = "0"
             items.append({
                 "id": row.id,
                 "name": row.name,
                 "slug": row.slug,
                 "category_id": row.category_id,
+                "category_name": row.category_name,
                 "main_image_url": row.main_image_url,
-                "min_price": row.min_price if row.min_price is not None else Decimal(0),
+                "min_price": price,
                 "is_active": row.is_active,
                 "is_featured": row.is_featured,
                 "created_at": row.created_at,
                 "updated_at": row.updated_at,
                 "stock": int(row.total_stock or 0),
-                "price_display": str(row.min_price.quantize(Decimal("0.01")) if row.min_price else Decimal("0.00")),
+                "price_display": price_display,
                 "currency": "RUB",
             })
             
@@ -356,6 +372,38 @@ class ProductRepository:
         stmt = select(ProductImage.id).where(ProductImage.product_id == product_id).where(ProductImage.is_cover == True).limit(1)  # noqa: E712
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none() is not None
+
+    async def update_image(self, image_id: UUID, **kwargs) -> Optional[ProductImage]:
+        """Update an image record."""
+        # Clean up data for update — only allow base fields
+        update_fields = {k: v for k, v in kwargs.items() if k in ["alt", "is_cover", "sort_order", "url"]}
+        if not update_fields:
+            return None
+        
+        stmt = (
+            update(ProductImage)
+            .where(ProductImage.id == image_id)
+            .values(**update_fields)
+            .returning(ProductImage)
+        )
+        res = await self.session.execute(stmt)
+        return res.scalar_one_or_none()
+
+    async def update_variant(self, variant_id: UUID, **kwargs) -> Optional[ProductVariant]:
+        """Update a variant record."""
+        # Clean up data for update
+        update_fields = {k: v for k, v in kwargs.items() if k in ["name", "sku", "price", "stock_quantity", "attributes"]}
+        if not update_fields:
+            return None
+            
+        stmt = (
+            update(ProductVariant)
+            .where(ProductVariant.id == variant_id)
+            .values(**update_fields)
+            .returning(ProductVariant)
+        )
+        res = await self.session.execute(stmt)
+        return res.scalar_one_or_none()
 
 async def get_product_repo(session: AsyncSession = Depends(get_db)) -> ProductRepository:
     return ProductRepository(session)

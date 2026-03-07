@@ -1,0 +1,43 @@
+{
+  "task_id": "bugfix_admin_misc_001",
+  "phase": "hotfix",
+  "agent": "backend-agent",
+  "title": "Fix: blog drafts public, category_name in products list, price kopecks",
+  "depends_on": [],
+  "priority": "critical",
+  "bugs": [
+    {
+      "id": "BUG-ADM-BE-01",
+      "title": "GET /blog/posts/{slug} возвращает черновики всем пользователям",
+      "file": "backend/app/api/v1/blog/router.py",
+      "root_cause": "Эндпоинт get_post не принимает current_user и не проверяет статус поста. Любой может открыть черновик напрямую по slug.",
+      "fix": "Добавить параметр current_user: Optional[User] = Depends(get_optional_current_user). В сервисе get_post_detail добавить проверку: если пост в статусе DRAFT или ARCHIVED И пользователь не admin → вернуть HTTPException(404, 'Post not found'). Это скрывает сам факт существования черновика от гостей."
+    },
+    {
+      "id": "BUG-ADM-BE-02",
+      "title": "Список товаров в админке: в колонке Категория всегда прочерк",
+      "file": "backend/app/api/v1/products/repository.py",
+      "root_cause": "Метод list_products возвращает только category_id (UUID). Фронт пытается обратиться к product.category?.name, но объект category не передаётся в ProductShortRead.",
+      "fix": "В list_products добавить JOIN с таблицей Category и SELECT Category.name. Добавить в результирующий dict ключ 'category_name': row.category_name. В schemas.py добавить в ProductShortRead поле category_name: Optional[str] = None. В SQL: .outerjoin(Category, Product.category_id == Category.id) и .add_columns(Category.name.label('category_name'))."
+    },
+    {
+      "id": "BUG-ADM-BE-03",
+      "title": "Цены отображаются с копейками (1500.00 вместо 1500)",
+      "file": "backend/app/api/v1/products/repository.py",
+      "root_cause": "price_display строится как str(row.min_price.quantize(Decimal('0.01'))) → '1500.00'. Нужно отображать целые числа без копеек.",
+      "fix": "Изменить формирование price_display: если дробная часть равна нулю — показывать целое число. Использовать: price_str = str(int(row.min_price)) if row.min_price == int(row.min_price) else str(row.min_price.quantize(Decimal('0.01'))). Или проще: всегда отображать как int: str(int(row.min_price.quantize(Decimal('1'), rounding=ROUND_HALF_UP))). Добавить импорт ROUND_HALF_UP из decimal."
+    }
+  ],
+  "acceptance_criteria": [
+    "GET /blog/posts/{slug} с черновиком возвращает 404 для гостей",
+    "Список товаров в /admin/products содержит category_name в каждом элементе",
+    "price_display = '1500' а не '1500.00'",
+    "ruff check app/ → 0 errors",
+    "mypy app/ --ignore-missing-imports → Success"
+  ],
+  "verification": [
+    "cd backend && ruff check app/ --fix && ruff check app/",
+    "cd backend && mypy app/ --ignore-missing-imports"
+  ],
+  "report_path": ".claude/agents/reports/backend/bugfix_admin_misc_001.md"
+}

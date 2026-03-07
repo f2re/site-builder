@@ -1,0 +1,160 @@
+{
+  "task_id": "feature_blog_frontend_001",
+  "phase": "feature",
+  "agent": "frontend-agent",
+  "title": "Blog: full redesign (Telegraph-style reading) + admin overhaul + carousel + working tags",
+  "description": "Полный редизайн публичного блога в стиле Telegraph (фокус на чтении, минимализм, mobile-first) и улучшение админки блога (TipTap, загрузка карусели обложек, управление тегами). Реализовать рабочие теги как кликабельные фильтры.",
+  "depends_on": ["feature_blog_backend_001"],
+  "priority": "high",
+
+  "files_to_read_first": [
+    "frontend/CLAUDE.md",
+    "frontend/assets/css/tokens.css",
+    "frontend/composables/useBlog.ts",
+    "frontend/pages/blog/index.vue",
+    "frontend/pages/blog/[slug].vue",
+    "frontend/components/blog/BlogCard.vue",
+    "frontend/components/blog/TipTapEditor.vue",
+    "frontend/pages/admin/blog/index.vue",
+    "frontend/pages/admin/blog/create.vue",
+    "frontend/pages/admin/blog/[slug].vue",
+    "frontend/components/Admin/ProductMediaManager.vue"
+  ],
+
+  "part_1_composable_fixes": {
+    "file": "frontend/composables/useBlog.ts",
+    "changes": [
+      "Исправить BlogPost интерфейс: добавить cover_image?: string (алиас cover_url), og_image_url?: string, carousel_images?: string[], summary?: string (алиас excerpt). Убедиться что оба имени работают через геттеры или дополнительные поля.",
+      "В BlogPost добавить: reading_time?: number (alias reading_time_minutes). Оба поля для обратной совместимости.",
+      "Добавить метод uploadBlogCover(postId: string, file: File) → POST /admin/blog/posts/{id}/cover → {cover_url: string}.",
+      "Добавить getTags() → GET /blog/tags → List<{id,name,slug}> — для облака тегов на странице блога."
+    ]
+  },
+
+  "part_2_blog_index_redesign": {
+    "file": "frontend/pages/blog/index.vue",
+    "description": "Редизайн страницы списка статей. Стиль: минималистичный, читаемый, mobile-first.",
+    "layout": {
+      "hero_featured": "Первая статья (is_featured или просто первая) — большой hero блок: полноширинное фото с overlay, заголовок крупным шрифтом, excerpt, категория, теги, дата, время чтения. Ссылка на статью. Высота: 60vh на десктопе, 50vw на мобиле.",
+      "grid": "Остальные статьи — 1 колонка на мобиле, 2 на tablet (≥768px), 3 на десктопе (≥1024px). Зазор 24px.",
+      "tag_cloud": "Под hero блоком — горизонтальный скролл облака тегов (получить из API GET /blog/tags). Каждый тег — кликабельная ссылка /blog?tag=название. Активный тег (из query) выделен var(--color-accent). Анимация scroll: overflow-x auto, scrollbar-width none.",
+      "skeleton": "Во время загрузки — skeleton для hero (высокий прямоугольник) + 6 карточек-скелетонов."
+    },
+    "tags_behavior": "Клик по тегу → router.push({query: {tag: tag.slug}}). watch(tag) → refetch posts. Отображение активного фильтра — chip с кнопкой X.",
+    "load_more": "Кнопка 'Загрузить ещё' в центре, secondary style. Показывать счётчик загруженных/всего."
+  },
+
+  "part_3_blog_card_redesign": {
+    "file": "frontend/components/blog/BlogCard.vue",
+    "changes": [
+      "Теги — ОБЯЗАТЕЛЬНО кликабельные NuxtLink: /blog?tag={tag.slug}. @click.prevent на родительском NuxtLink чтобы тег не триггерил переход на статью.",
+      "Добавить reading_time_minutes под датой. Использовать post.reading_time_minutes ?? post.reading_time ?? 0.",
+      "Картинка: если carousel_images[0] существует — показывать первую из карусели, иначе cover_url || cover_image.",
+      "Категория: если есть — показывать над заголовком с NuxtLink /blog?category={category.slug}.",
+      "На hover: overlay с иконкой 'читать' в правом нижнем углу.",
+      "data-testid: blog-post-card (уже есть), blog-post-title (уже есть), blog-post-tags."
+    ]
+  },
+
+  "part_4_blog_carousel_component": {
+    "file_to_create": "frontend/components/blog/BlogCarousel.vue",
+    "description": "Компонент авто-листающейся карусели изображений. Используется в BlogCard (превью) и на странице статьи.",
+    "props": "images: string[], alt: string, autoplay: boolean = true, interval: number = 3500",
+    "behavior": [
+      "Авто-листание: useIntervalFn(next, interval) из @vueuse/core или нативный setInterval.",
+      "Точки-индикаторы внизу (dots). Клик по точке = переход к слайду.",
+      "Стрелки влево/вправо на hover (на десктопе).",
+      "Transition: opacity fade между слайдами (300ms).",
+      "Если images пустой или один элемент — показывать без навигации.",
+      "Pause on hover: при наведении мыши — остановить автоплей.",
+      "aspect-ratio: 16/9 для карточки, может принимать prop для страницы статьи.",
+      "lazy loading: NuxtImg с loading='lazy' для не-активных слайдов, 'eager' для первого.",
+      "Полная поддержка dark/light тем через var(--color-*)."
+    ]
+  },
+
+  "part_5_blog_post_redesign": {
+    "file": "frontend/pages/blog/[slug].vue",
+    "description": "Полный редизайн страницы статьи в стиле Telegram Telegraph. Фокус: читаемость, минимализм, контент — главное.",
+    "layout": "Одна колонка, max-width: 680px, centered. padding-inline: 20px (мобиле) → 0 (десктопе). Читабельный шрифт, правильные отступы.",
+    "components": {
+      "reading_progress": "Тонкая полоса прогресса чтения вверху страницы (fixed, z-index высокий). Цвет: var(--color-accent). Ширина = scrollY / (documentHeight - viewportHeight) * 100%.",
+      "hero_image": "Если carousel_images.length > 1 — показывать BlogCarousel. Если одна картинка — NuxtImg. Если нет — ничего. aspect-ratio: 16/9, full-width (выходит за max-width контейнера на десктопе через negative margin), border-radius: 0 на мобиле, var(--radius-xl) на десктопе.",
+      "article_header": [
+        "Категория — ссылка /blog?category={slug}, var(--color-accent), uppercase, letter-spacing.",
+        "Заголовок: font-size clamp(1.75rem, 5vw, 2.5rem), font-weight: 800, line-height: 1.15, color: var(--color-text).",
+        "Meta строка: дата (локализованная) · время чтения · просмотры (если > 0). Разделитель: ·.",
+        "Автор: аватар (24px круглый) + имя + bio при наведении (tooltip)."
+      ],
+      "content": [
+        "v-html рендер content_html. Типографика: font-size: 1.125rem, line-height: 1.75, color: var(--color-text).",
+        "Отступы между элементами: p margin-bottom: 1.5em.",
+        "Заголовки h2: font-size: 1.5rem, font-weight: 700, margin-top: 2.5em, margin-bottom: 0.75em, border-left: 3px solid var(--color-accent), padding-left: 0.75em.",
+        "h3: font-size: 1.25rem, font-weight: 600, margin-top: 2em.",
+        "Изображения в тексте: width: 100%, border-radius: var(--radius-md), margin: 2em 0. На десктопе — выходить за max-width через negative margin (±40px).",
+        "Цитаты blockquote: border-left: 4px solid var(--color-accent), padding-left: 1.5em, font-style: italic, color: var(--color-text-2).",
+        "Код inline: font-family: var(--font-mono), background: var(--color-surface-2), padding: 2px 6px, border-radius: 4px.",
+        "Блок кода pre: background: var(--color-surface-2), padding: 1.5em, border-radius: var(--radius-md), overflow-x: auto.",
+        "Ссылки: color: var(--color-accent), text-decoration: underline dotted, underline-offset: 3px.",
+        "Списки ul/ol: padding-left: 1.5em, margin-bottom: 1.5em.",
+        "Видео iframe (YouTube/Vimeo): full-width, aspect-ratio 16/9, border-radius: var(--radius-md).",
+        "Горизонтальная линия hr: border: none, height: 1px, background: var(--color-border), margin: 3em 0."
+      ],
+      "tags_section": "После контента — теги статьи как NuxtLink /blog?tag={tag.slug}. Стиль: pill, var(--color-surface-2), hover: var(--color-accent-glow). Заголовок 'Теги:'.",
+      "author_section": "Блок автора: аватар 48px + имя (bold) + bio (если есть). Фон: var(--color-surface), border-radius: var(--radius-lg), padding: 1.5em. Отделён от контента border-top.",
+      "share_section": "Кнопки шаринга: Telegram, VK, скопировать ссылку. Иконки Phosphor. При копировании — toast.success. Горизонтальный ряд, gap: 12px.",
+      "navigation": "Стрелки prev/next статья (если данные есть от бэкенда). Если нет — кнопка 'Вернуться в блог'.",
+      "related_posts": "Если есть похожие статьи — 3 карточки BlogCard в строку (или 1 на мобиле). Заголовок секции: 'Читайте также'."
+    },
+    "data_testid": "blog-post-title (уже есть), blog-post-content (уже есть), blog-post-tags (новый), blog-post-author, reading-progress-bar."
+  },
+
+  "part_6_admin_blog_overhaul": {
+    "files": [
+      "frontend/pages/admin/blog/create.vue",
+      "frontend/pages/admin/blog/[slug].vue"
+    ],
+    "description": "Полная переработка форм создания/редактирования поста. Унификация с редактором товаров.",
+    "changes": [
+      "Заменить BlogEditor на TipTapEditor (уже используется в products). Поле: content_json (JSON). При загрузке поста: если есть content_html но нет content_json — показывать content_html в readonly; если есть content_json — загружать в редактор.",
+      "Cover image: заменить UInput URL на компонент BlogCoverUploader. Показывать превью если URL задан. Кнопка 'Загрузить файл' → POST /admin/blog/posts/{id}/cover. Для нового поста (create) — сначала создать черновик, потом загружать обложку (или использовать media upload как промежуточный шаг).",
+      "Добавить секцию 'Карусель изображений': компонент BlogCarouselManager (аналог ProductMediaManager). Props: v-model: string[] (массив URL). Кнопка добавить → file input → загрузка через media upload API → добавить URL в массив. Удаление. Перетаскивание для сортировки (drag через mousedown+move или использовать sortable).",
+      "Теги: существующий тег-инпут улучшить — автодополнение из GET /blog/tags. Показывать suggestlist при вводе. Клик по предложению = добавить тег.",
+      "Добавить поле 'Краткое описание' (summary/excerpt): UTextarea, 2-3 строки.",
+      "Добавить поле 'Slug' (readonly + редактируемый). Auto-генерация из заголовка при создании.",
+      "SEO секция: meta_title, meta_description (как в продуктах).",
+      "Статус: переключатель draft/published/archived (3 варианта вместо 2).",
+      "is_featured чекбокс.",
+      "Предпросмотр: кнопка 'Предпросмотр' открывает /blog/{slug} в новой вкладке (target='_blank').",
+      "API: create.vue → POST /admin/blog/posts с правильными полями (content_json, not content_md). [slug].vue → PUT /admin/blog/posts/{id}."
+    ]
+  },
+
+  "part_7_admin_blog_index": {
+    "file": "frontend/pages/admin/blog/index.vue",
+    "description": "Прочитать текущий файл и убедиться что: список постов показывает статус, дату, автора, теги. Кнопка 'Новый пост' ведёт на /admin/blog/create. Строки таблицы кликабельны → /admin/blog/{slug}. Фильтрация по статусу (draft/published). Если нужен рефакторинг — сделать."
+  },
+
+  "acceptance_criteria": [
+    "Теги в BlogCard и на странице статьи — кликабельные ссылки /blog?tag={slug}",
+    "Клик по тегу → фильтрация списка статей",
+    "BlogCarousel автоматически листает изображения с паузой 3.5с",
+    "Страница статьи: reading progress bar работает",
+    "Страница статьи: Typography Telegraph-style — правильные отступы, изображения на всю ширину",
+    "Страница статьи: теги, автор, шаринг отображаются",
+    "Страница статьи: cover или carousel отображается в hero",
+    "Admin: TipTapEditor вместо BlogEditor",
+    "Admin: загрузка файла обложки работает (или fallback URL)",
+    "Admin: carousel images manager работает",
+    "Admin: теги с autocomplete",
+    "Admin: summary/slug/SEO поля присутствуют",
+    "npm run lint → 0 errors",
+    "npm run type-check → 0 errors",
+    "Mobile-first: весь UI работает на 320px+"
+  ],
+  "verification": [
+    "cd frontend && npm run lint",
+    "cd frontend && npm run type-check"
+  ],
+  "report_path": ".claude/agents/reports/frontend/feature_blog_frontend_001.md"
+}

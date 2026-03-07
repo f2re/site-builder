@@ -1,0 +1,85 @@
+{
+  "task_id": "feature_blog_backend_001",
+  "phase": "hotfix+feature",
+  "agent": "backend-agent",
+  "title": "Blog backend: fix schema mismatches + add carousel_images support",
+  "description": "Исправить несоответствия имён полей между бэкенд-схемами и фронтенд-интерфейсами. Добавить поддержку carousel_images для обложки поста.",
+  "depends_on": [],
+  "priority": "high",
+  "bugs": [
+    {
+      "id": "BUG-BLOG-BE-01",
+      "title": "Несоответствие имён полей BlogPostShortRead vs фронтенд-интерфейс BlogPost",
+      "file": "backend/app/api/v1/blog/schemas.py",
+      "mismatches": [
+        {
+          "frontend_expects": "cover_url",
+          "backend_has": "cover_image",
+          "fix": "Добавить alias: cover_url = Field(None, alias='cover_image') ИЛИ переименовать cover_image в cover_url везде (в схемах, модели, сервисе). Предпочтительно: добавить Field(serialization_alias='cover_url') или computed_field cover_url."
+        },
+        {
+          "frontend_expects": "excerpt",
+          "backend_has": "summary",
+          "fix": "Добавить в BlogPostShortRead и BlogPostRead: excerpt: Optional[str] = Field(None, alias='summary') или вычислять из summary при сериализации."
+        },
+        {
+          "frontend_expects": "reading_time_minutes",
+          "backend_has": "reading_time",
+          "fix": "Добавить в BlogPostShortRead и BlogPostRead: reading_time_minutes: int = Field(default=5, alias='reading_time') ИЛИ добавить оба поля. Не удалять reading_time — может использоваться другими местами."
+        },
+        {
+          "frontend_expects": "og_image_url",
+          "backend_has": "отсутствует в BlogPostRead",
+          "fix": "Добавить og_image_url: Optional[str] = None в BlogPostBase. Автовычислять в сервисе: если og_image_url пустой — брать первый элемент carousel_images или cover_image."
+        }
+      ]
+    },
+    {
+      "id": "BUG-BLOG-BE-02",
+      "title": "BlogPagination возвращает pageInfo: dict вместо next_cursor",
+      "file": "backend/app/api/v1/blog/schemas.py",
+      "root_cause": "Фронт (useBlog.ts: BlogListResponse) ожидает: items, next_cursor: string|null, total: int. Но BlogPagination возвращает: items, pageInfo: dict, total. pageInfo предположительно содержит cursor, но под неправильным именем.",
+      "fix": "Изменить BlogPagination: убрать pageInfo, добавить next_cursor: Optional[str] = None. Проверить где формируется pageInfo в сервисе/роутере и переименовать ключ."
+    }
+  ],
+  "features": [
+    {
+      "id": "FEAT-BLOG-BE-01",
+      "title": "Добавить carousel_images в модель и схему блог-поста",
+      "description": "Для отображения карусели изображений на превью поста.",
+      "steps": [
+        "Добавить в BlogPostBase поле carousel_images: List[str] = Field(default_factory=list). Это список URL-ов изображений для карусели.",
+        "Добавить в BlogPostUpdate поле carousel_images: Optional[List[str]] = None.",
+        "Проверить модель blog.py в db/models/ — если поле carousel_images отсутствует, добавить его как JSON/ARRAY колонку: carousel_images = Column(JSONB, default=list, nullable=False, server_default='[]').",
+        "Создать миграцию Alembic: alembic revision --autogenerate -m 'blog: add carousel_images column'.",
+        "В сервисе blog при auto-SEO: если og_image_url пустой — брать carousel_images[0] или cover_image.",
+        "В BlogPostShortRead: добавить carousel_images: List[str] = []."
+      ]
+    },
+    {
+      "id": "FEAT-BLOG-BE-02",
+      "title": "Добавить endpoint загрузки обложки блог-поста через multipart/form-data",
+      "description": "Сейчас обложка задаётся только URL-ом. Нужен endpoint для загрузки файла.",
+      "endpoint": "POST /api/v1/admin/blog/posts/{post_id}/cover — UploadFile → сохранить через storage_client → вернуть {cover_url: string}",
+      "note": "Аналогично product image upload. Использовать существующий storage_client."
+    }
+  ],
+  "acceptance_criteria": [
+    "BlogPostShortRead сериализует cover_url (или cover_image с alias)",
+    "BlogPostShortRead сериализует excerpt (или summary с alias)",
+    "BlogPostShortRead сериализует reading_time_minutes",
+    "BlogPostRead содержит og_image_url",
+    "BlogPagination содержит next_cursor вместо/рядом с pageInfo",
+    "BlogPostBase/BlogPostRead содержит carousel_images: List[str]",
+    "POST /api/v1/admin/blog/posts/{post_id}/cover работает",
+    "Миграция создана и применена",
+    "ruff check app/ → 0 errors",
+    "mypy app/ --ignore-missing-imports → Success"
+  ],
+  "verification": [
+    "cd backend && ruff check app/ --fix && ruff check app/",
+    "cd backend && mypy app/ --ignore-missing-imports",
+    "cd backend && alembic check && alembic heads"
+  ],
+  "report_path": ".claude/agents/reports/backend/feature_blog_backend_001.md"
+}

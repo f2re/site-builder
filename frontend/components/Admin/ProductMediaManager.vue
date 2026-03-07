@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useMediaUpload } from '~/composables/useMediaUpload'
+import { useProducts } from '~/composables/useProducts'
 import { useToast } from '~/composables/useToast'
 
 interface ProductImage {
@@ -13,6 +14,7 @@ interface ProductImage {
 
 const props = defineProps<{
   modelValue: ProductImage[]
+  productId?: string
 }>()
 
 const emit = defineEmits<{
@@ -20,6 +22,7 @@ const emit = defineEmits<{
 }>()
 
 const { uploadImage } = useMediaUpload()
+const { adminUploadProductImage, adminDeleteProductImage, adminSetProductCoverImage } = useProducts()
 const toast = useToast()
 const fileInput = ref<HTMLInputElement | null>(null)
 const isUploading = ref(false)
@@ -38,13 +41,23 @@ const handleUpload = async (event: Event) => {
 
   try {
     for (const file of Array.from(files)) {
-      const url = await uploadImage(file, file.name, 'product')
-      newImages.push({
-        url,
-        alt: file.name,
-        is_cover: newImages.length === 0,
-        sort_order: newImages.length
-      })
+      let image: ProductImage
+      
+      if (props.productId) {
+        // Use specialized product image upload
+        image = await adminUploadProductImage(props.productId, file)
+      } else {
+        // Use generic media upload (for new products not yet saved)
+        const url = await uploadImage(file, file.name, 'product')
+        image = {
+          url,
+          alt: file.name,
+          is_cover: newImages.length === 0,
+          sort_order: newImages.length
+        }
+      }
+      
+      newImages.push(image)
     }
     emit('update:modelValue', newImages)
     toast.success('Успех', 'Изображения загружены')
@@ -56,19 +69,46 @@ const handleUpload = async (event: Event) => {
   }
 }
 
-const removeImage = (index: number) => {
+const removeImage = async (index: number) => {
+  const image = props.modelValue[index]
+  
+  if (props.productId && image.id) {
+    try {
+      await adminDeleteProductImage(image.id)
+    } catch (error) {
+      console.error('Delete failed:', error)
+      toast.error('Ошибка при удалении изображения')
+      return
+    }
+  }
+
   const newImages = [...props.modelValue]
   const removed = newImages.splice(index, 1)[0]
   
   // If we removed the cover, set the first remaining as cover
   if (removed.is_cover && newImages.length > 0) {
     newImages[0].is_cover = true
+    if (props.productId && newImages[0].id) {
+       await adminSetProductCoverImage(props.productId, newImages[0].id)
+    }
   }
   
   emit('update:modelValue', newImages)
 }
 
-const setCover = (index: number) => {
+const setCover = async (index: number) => {
+  const image = props.modelValue[index]
+  
+  if (props.productId && image.id) {
+    try {
+      await adminSetProductCoverImage(props.productId, image.id)
+    } catch (error) {
+      console.error('Set cover failed:', error)
+      toast.error('Ошибка при назначении обложки')
+      return
+    }
+  }
+
   const newImages = props.modelValue.map((img, i) => ({
     ...img,
     is_cover: i === index

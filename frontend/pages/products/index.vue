@@ -45,7 +45,7 @@ async function fetchProducts(cursor?: string) {
         products.value = data.value.items
       }
       nextCursor.value = data.value.next_cursor
-      total.value = data.value.total
+      total.value = data.value.total ?? 0
     }
   } catch (err) {
     console.error('Error fetching products:', err)
@@ -124,7 +124,7 @@ const breadcrumbItems = computed(() => {
         <!-- Sidebar (Desktop) -->
         <aside class="catalog-page__sidebar desktop-only">
           <CategorySidebar
-            v-if="categoriesData"
+            v-if="categoriesData?.items"
             :categories="categoriesData.items"
             :active-slug="categorySlug"
             @select="handleCategorySelect"

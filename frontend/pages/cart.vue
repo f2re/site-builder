@@ -2,6 +2,7 @@
 import { useCartStore } from '~/stores/cartStore'
 import { useToast } from '~/composables/useToast'
 import AppBreadcrumbs from '~/components/AppBreadcrumbs.vue'
+import { formatPrice } from '~/composables/useFormatters'
 
 const cartStore = useCartStore()
 const toast = useToast()
@@ -14,6 +15,10 @@ const breadcrumbItems = [
 const updateQuantity = (id: number, delta: number) => {
   const item = cartStore.items.find(i => i.id === id)
   if (item) {
+    if (delta > 0 && item.quantity >= (item.maxStock ?? Infinity)) {
+      toast.warning('Достигнут максимум', `В наличии только ${item.maxStock} шт.`)
+      return
+    }
     cartStore.updateQuantity(id, item.quantity + delta)
   }
 }
@@ -55,33 +60,46 @@ useHead({
 
       <div v-else class="cart-layout">
         <div class="cart-items">
-          <div v-for="item in cartStore.items" :key="item.id" class="cart-item">
+          <div v-for="item in cartStore.items" :key="item.id" class="cart-item" data-testid="cart-item">
             <div class="cart-item__image">
               <NuxtImg :src="item.image" :alt="item.name" width="100" height="100" fit="contain" format="webp" />
             </div>
-            
+
             <div class="cart-item__content">
               <div class="cart-item__info">
                 <NuxtLink :to="`/products/${item.id}`" class="cart-item__name">{{ item.name }}</NuxtLink>
-                <div class="cart-item__price">{{ item.price }} ₽ / шт.</div>
+                <div class="cart-item__price">{{ formatPrice(item.price) }} / шт.</div>
               </div>
 
               <div class="cart-item__actions">
-                <div class="qty-stepper">
-                  <button class="qty-btn" @click="updateQuantity(item.id, -1)" :disabled="item.quantity <= 1">
-                    <Icon name="ph:minus-bold" size="16" />
-                  </button>
-                  <span class="qty-value">{{ item.quantity }}</span>
-                  <button class="qty-btn" @click="updateQuantity(item.id, 1)">
-                    <Icon name="ph:plus-bold" size="16" />
-                  </button>
+                <div class="cart-item__stepper-wrap">
+                  <div class="qty-stepper" data-testid="cart-item-qty">
+                    <button
+                      class="qty-btn"
+                      data-testid="cart-qty-decrease"
+                      @click="updateQuantity(item.id, -1)"
+                      :disabled="item.quantity <= 1"
+                    >
+                      <Icon name="ph:minus-bold" size="16" />
+                    </button>
+                    <span class="qty-value">{{ item.quantity }}</span>
+                    <button
+                      class="qty-btn"
+                      data-testid="cart-qty-increase"
+                      @click="updateQuantity(item.id, 1)"
+                      :disabled="item.quantity >= (item.maxStock ?? Infinity)"
+                    >
+                      <Icon name="ph:plus-bold" size="16" />
+                    </button>
+                  </div>
+                  <span v-if="item.maxStock" class="qty-max-hint">макс. {{ item.maxStock }} шт.</span>
                 </div>
 
                 <div class="cart-item__total">
-                  {{ item.price * item.quantity }} ₽
+                  {{ formatPrice(item.price * item.quantity) }}
                 </div>
 
-                <button class="remove-btn" @click="removeItem(item.id, item.name)" aria-label="Удалить">
+                <button class="remove-btn" data-testid="cart-remove-btn" @click="removeItem(item.id, item.name)" aria-label="Удалить">
                   <Icon name="ph:trash-bold" size="20" />
                 </button>
               </div>
@@ -95,7 +113,7 @@ useHead({
             
             <div class="summary-row">
               <span class="summary-label">Товаров ({{ cartStore.totalCount }})</span>
-              <span class="summary-value">{{ cartStore.totalPrice }} ₽</span>
+              <span class="summary-value">{{ formatPrice(cartStore.totalPrice) }}</span>
             </div>
             
             <div class="summary-row">
@@ -107,10 +125,10 @@ useHead({
 
             <div class="summary-row summary-row--total">
               <span class="summary-label">К оплате</span>
-              <span class="summary-value">{{ cartStore.totalPrice }} ₽</span>
+              <span class="summary-value" data-testid="cart-total">{{ formatPrice(cartStore.totalPrice) }}</span>
             </div>
 
-            <NuxtLink to="/checkout" class="btn btn--primary btn--lg btn-checkout">
+            <NuxtLink to="/checkout" class="btn btn--primary btn--lg btn-checkout" data-testid="checkout-btn">
               Оформить заказ
             </NuxtLink>
 
@@ -397,5 +415,18 @@ useHead({
   margin-top: 24px;
   color: var(--color-muted);
   font-size: var(--text-xs);
+}
+
+.cart-item__stepper-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.qty-max-hint {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  white-space: nowrap;
 }
 </style>

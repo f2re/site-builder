@@ -2,6 +2,7 @@ export interface Author {
   id: string
   name: string
   avatar_url?: string
+  bio?: string
 }
 
 export interface Tag {
@@ -21,17 +22,25 @@ export interface BlogPost {
   slug: string
   title: string
   excerpt: string
+  summary?: string          // alias for excerpt
   cover_url: string
+  cover_image?: string      // alias for cover_url
+  og_image_url?: string
+  carousel_images?: string[]
   author: Author
   category?: BlogCategory
-  tags: Tag[] | string[] // backend might return Tag objects or strings depending on endpoint
+  tags: Tag[] | string[]    // backend might return Tag objects or strings depending on endpoint
   published_at?: string
   reading_time_minutes: number
+  reading_time?: number     // alias for reading_time_minutes
   content_html?: string
-  content_json?: any // TipTap JSON
+  content_json?: Record<string, unknown> // TipTap JSON
   status: 'draft' | 'published' | 'archived' | 'deleted'
+  is_featured?: boolean
   views: number
   related?: BlogPost[]
+  meta_title?: string
+  meta_description?: string
 }
 
 export interface BlogComment {
@@ -50,7 +59,6 @@ export interface BlogListResponse {
 }
 
 export const useBlog = () => {
-  const config = useRuntimeConfig()
   const apiFetch = useApiFetch()
 
   // Public/Admin list posts
@@ -62,7 +70,7 @@ export const useBlog = () => {
     per_page?: number
     status?: string
   }) => {
-    // We use useApi here because if the user is an admin, 
+    // We use useApi here because if the user is an admin,
     // we want to send the token to see drafts.
     return useApi<BlogListResponse>(`/blog/posts`, {
       params,
@@ -79,6 +87,7 @@ export const useBlog = () => {
 
   // Comments
   const getComments = (postId: string) => {
+    const config = useRuntimeConfig()
     return useFetch<BlogComment[]>(`${config.public.apiBase}/blog/posts/${postId}/comments`, {
       key: `blog-comments-${postId}`
     })
@@ -91,19 +100,36 @@ export const useBlog = () => {
     })
   }
 
+  // Get all tags (for tag cloud)
+  const getTags = () => {
+    return useApi<Tag[]>(`/blog/tags`, {
+      key: 'blog-tags'
+    })
+  }
+
   // Admin mutations
   const savePost = async (slug: string | null, data: Partial<BlogPost>) => {
-    const url = slug ? `/blog/posts/${slug}` : `/blog/posts`
-    const method = slug ? 'PATCH' : 'POST'
+    const url = slug ? `/admin/blog/posts/${slug}` : `/admin/blog/posts`
+    const method = slug ? 'PUT' : 'POST'
     return await apiFetch<BlogPost>(url, {
       method,
       body: data
     })
   }
 
-  const deletePost = async (slug: string) => {
-    return await apiFetch(`/blog/posts/${slug}`, {
+  const deletePost = async (postId: string) => {
+    return await apiFetch(`/admin/blog/posts/${postId}`, {
       method: 'DELETE'
+    })
+  }
+
+  // Upload blog post cover image
+  const uploadBlogCover = async (postId: string, file: File): Promise<{ cover_url: string }> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return await apiFetch<{ cover_url: string }>(`/admin/blog/posts/${postId}/cover`, {
+      method: 'POST',
+      body: formData
     })
   }
 
@@ -112,7 +138,9 @@ export const useBlog = () => {
     getPost,
     getComments,
     postComment,
+    getTags,
     savePost,
-    deletePost
+    deletePost,
+    uploadBlogCover,
   }
 }

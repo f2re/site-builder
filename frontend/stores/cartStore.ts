@@ -7,6 +7,7 @@ export interface StoreCartItem {
   price: number
   quantity: number
   image?: string
+  maxStock?: number
 }
 
 export const useCartStore = defineStore('cart', () => {
@@ -22,14 +23,18 @@ export const useCartStore = defineStore('cart', () => {
     items.value.reduce((sum, item) => sum + item.price * item.quantity, 0)
   )
 
-  const addItem = (product: any) => {
+  const addItem = (product: Omit<StoreCartItem, 'quantity'>): boolean => {
     const existing = items.value.find(i => i.id === product.id)
     if (existing) {
+      if (existing.quantity >= (existing.maxStock ?? Infinity)) {
+        return false
+      }
       existing.quantity++
     } else {
       items.value.push({ ...product, quantity: 1 })
     }
     persist()
+    return true
   }
 
   const removeItem = (id: number) => {
@@ -43,7 +48,7 @@ export const useCartStore = defineStore('cart', () => {
       if (quantity <= 0) {
         removeItem(id)
       } else {
-        item.quantity = quantity
+        item.quantity = Math.min(quantity, item.maxStock ?? quantity)
         persist()
       }
     }

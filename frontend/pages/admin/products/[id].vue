@@ -49,6 +49,7 @@ watch(product, (newVal) => {
       meta_title: newVal.meta_title,
       meta_description: newVal.meta_description,
       images: newVal.images.map(img => ({
+        id: img.id,
         url: img.url,
         alt: img.alt,
         is_cover: img.is_cover,
@@ -73,7 +74,8 @@ const handleUpdate = async () => {
     const payload = { ...form.value }
     if (payload.category_id === '') payload.category_id = null
     
-    await updateProduct(productId, payload)
+    const updated = await updateProduct(productId, payload)
+    product.value = updated
     toast.success('Успех', 'Товар успешно обновлен')
   } catch (err: any) {
     console.error('Error updating product:', err)
@@ -180,7 +182,7 @@ const handleDelete = async () => {
         </UCard>
 
         <UCard title="Изображения">
-          <ProductMediaManager v-model="form.images" />
+          <ProductMediaManager v-model="form.images" :product-id="productId" />
         </UCard>
 
         <UCard title="Полное описание (Rich Text)">

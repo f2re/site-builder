@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { useProducts } from '~/composables/useProducts'
+import type { ProductVariant } from '~/composables/useProducts'
 import { useCartStore } from '~/stores/cartStore'
 import { useProductSchema } from '~/composables/useSchemaOrg'
 import { useToast } from '~/composables/useToast'
+import { formatPrice } from '~/composables/useFormatters'
 import AppBreadcrumbs from '~/components/AppBreadcrumbs.vue'
+import TipTapViewer from '~/components/blog/TipTapViewer.vue'
+import QuickBuyModal from '~/components/shop/QuickBuyModal.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 
 const route = useRoute()
@@ -23,15 +27,51 @@ watch(product, (newVal) => {
   }
 }, { immediate: true })
 
+// Real variant selection
+const selectedVariant = ref<ProductVariant | null>(null)
+
+watch(product, (newVal) => {
+  if (newVal?.variants?.length) {
+    selectedVariant.value = newVal.variants[0]
+  }
+}, { immediate: true })
+
+const hasMultipleVariants = computed(() => (product.value?.variants?.length ?? 0) > 1)
+
+const currentStock = computed(() => selectedVariant.value?.stock_quantity ?? product.value?.stock ?? 0)
+const currentPrice = computed(() => {
+  if (selectedVariant.value) {
+    return formatPrice(selectedVariant.value.price)
+  }
+  return formatPrice(product.value?.price_display ?? 0)
+})
+
+const stockLabel = computed(() => {
+  const qty = currentStock.value
+  if (qty <= 0) return null
+  if (qty <= 5) return { text: `Осталось мало: ${qty} шт.`, warning: true }
+  return { text: `В наличии: ${qty} шт.`, warning: false }
+})
+
+const hasDescription = computed(() => {
+  return !!(product.value?.description_html || product.value?.content_json || product.value?.description)
+})
+
 const addToCart = () => {
-  if (product.value) {
-    cartStore.addItem({
-      id: product.value.id as any,
-      name: product.value.name,
-      price: product.value.price_display,
-      image: product.value.images[0]?.url || '/placeholder-product.png'
-    })
-    
+  if (!product.value) return
+  if (currentStock.value <= 0) return
+
+  const added = cartStore.addItem({
+    id: product.value.id as unknown as number,
+    name: product.value.name,
+    price: selectedVariant.value?.price ?? (product.value.price_rub ?? 0),
+    image: product.value.images[0]?.url || '/placeholder-product.png',
+    maxStock: currentStock.value
+  })
+
+  if (added === false) {
+    toast.warning('Недостаточно товара', `В наличии только ${currentStock.value} шт.`)
+  } else {
     toast.success('Добавлено в корзину', `${product.value.name} успешно добавлен.`)
   }
 }
@@ -39,7 +79,7 @@ const addToCart = () => {
 // SEO & Schema.org
 useHead(() => {
   if (!product.value) return {}
-  
+
   const title = product.value.meta_title || `${product.value.name} — Купить в магазине WifiOBD`
   const description = product.value.meta_description || product.value.description
   const image = product.value.og_image_url || product.value.images[0]?.url
@@ -70,11 +110,17 @@ watch(product, (val) => {
   }
 }, { immediate: true })
 
-const breadcrumbCrumbs = computed(() => [
-  { label: 'Каталог', to: '/products' },
-  { label: product.value?.category?.name || '...', to: `/products?category=${product.value?.category?.slug}` },
-  { label: product.value?.name || '...', to: `/products/${slug}` }
-])
+const breadcrumbCrumbs = computed(() => {
+  const crumbs = [{ label: 'Каталог', to: '/products' }]
+  if (product.value?.category?.name) {
+    crumbs.push({
+      label: product.value.category.name,
+      to: `/products?category=${product.value.category.slug}`
+    })
+  }
+  crumbs.push({ label: product.value?.name || '', to: `/products/${slug}` })
+  return crumbs
+})
 
 // Sticky Buy Bar logic
 const buyBtnRef = ref<HTMLElement | null>(null)
@@ -94,9 +140,16 @@ onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll)
 })
 
-// Variant mock
-const selectedVariant = ref('Standard')
-const variants = ['Standard', 'Premium', 'Pro']
+// Quick Buy Modal
+const isQuickBuyOpen = ref(false)
+
+const openQuickBuy = () => {
+  isQuickBuyOpen.value = true
+}
+
+const handleQuickBuySubmitted = () => {
+  toast.success('Заявка принята!', 'Мы перезвоним вам в течение 30 минут.')
+}
 </script>
 
 <template>
@@ -128,10 +181,10 @@ const variants = ['Standard', 'Premium', 'Pro']
         <div class="product-gallery">
           <div class="product-gallery__main">
             <Transition name="fade" mode="out-in">
-              <NuxtImg 
+              <NuxtImg
                 :key="activeImage"
-                :src="activeImage" 
-                :alt="product.name" 
+                :src="activeImage"
+                :alt="product.name"
                 class="product-gallery__main-image"
                 loading="eager"
                 format="webp"
@@ -161,31 +214,37 @@ const variants = ['Standard', 'Premium', 'Pro']
 
           <div class="product-info__price-block">
             <div class="product-info__price">
-              <span class="product-info__price-value">{{ product.price_display }}</span>
-              <span class="product-info__price-currency">{{ product.currency }}</span>
+              <span class="product-info__price-value">{{ currentPrice }}</span>
             </div>
 
             <div
               class="product-info__stock"
-              :class="product.stock > 0 ? 'product-info__stock--in' : 'product-info__stock--out'"
+              data-testid="product-stock"
+              :class="{
+                'product-info__stock--in': currentStock > 0 && !stockLabel?.warning,
+                'product-info__stock--warning': stockLabel?.warning,
+                'product-info__stock--out': currentStock <= 0
+              }"
             >
               <span class="stock-dot"></span>
-              {{ product.stock > 0 ? `В наличии (${product.stock} шт.)` : 'Нет в наличии' }}
+              <span v-if="currentStock <= 0">Нет в наличии</span>
+              <span v-else-if="stockLabel">{{ stockLabel.text }}</span>
             </div>
           </div>
 
-          <!-- Variant Switcher (Mock) -->
-          <div class="product-variants">
+          <!-- Real Variant Switcher -->
+          <div v-if="hasMultipleVariants" class="product-variants">
             <div class="product-variants__label">Версия</div>
             <div class="product-variants__list">
-              <button 
-                v-for="v in variants" 
-                :key="v"
+              <button
+                v-for="v in product.variants"
+                :key="v.id"
                 class="variant-btn"
-                :class="{ 'is-active': selectedVariant === v }"
+                :class="{ 'is-active': selectedVariant?.id === v.id }"
                 @click="selectedVariant = v"
               >
-                {{ v }}
+                {{ v.name }}
+                <span class="variant-btn__price">{{ formatPrice(v.price) }}</span>
               </button>
             </div>
           </div>
@@ -193,20 +252,34 @@ const variants = ['Standard', 'Premium', 'Pro']
           <div class="product-info__actions" ref="buyBtnRef">
             <button
               class="btn btn--primary btn--lg btn-add-cart"
-              :disabled="product.stock <= 0"
+              :disabled="currentStock <= 0"
+              data-testid="add-to-cart-btn"
               @click="addToCart"
             >
               <Icon name="ph:shopping-cart-simple-bold" size="20" />
-              <span>Добавить в корзину</span>
+              <span>{{ currentStock <= 0 ? 'Нет в наличии' : 'Добавить в корзину' }}</span>
             </button>
-            <button class="btn btn--ghost btn--lg btn-one-click">
+            <button
+              class="btn btn--ghost btn--lg btn-one-click"
+              data-testid="btn-one-click"
+              @click="openQuickBuy"
+            >
               Купить в 1 клик
             </button>
           </div>
 
-          <div class="product-info__description">
+          <!-- Description -->
+          <div v-if="hasDescription" class="product-info__description">
             <h3 class="section-title">Описание</h3>
-            <div class="description-content" v-if="product.description_html" v-html="product.description_html"></div>
+            <div
+              v-if="product.description_html"
+              class="description-content"
+              v-html="product.description_html"
+            ></div>
+            <TipTapViewer
+              v-else-if="product.content_json"
+              :content="product.content_json"
+            />
             <p v-else>{{ product.description }}</p>
           </div>
 
@@ -231,12 +304,13 @@ const variants = ['Standard', 'Premium', 'Pro']
             <NuxtImg :src="product.images[0]?.url" width="48" height="48" fit="cover" class="sticky-buy-bar__image" />
             <div class="sticky-buy-bar__info">
               <div class="sticky-buy-bar__name">{{ product.name }}</div>
-              <div class="sticky-buy-bar__price">{{ product.price_display }} {{ product.currency }}</div>
+              <div class="sticky-buy-bar__price">{{ currentPrice }}</div>
+              <div v-if="selectedVariant && hasMultipleVariants" class="sticky-buy-bar__variant">{{ selectedVariant.name }}</div>
             </div>
           </div>
-          <button 
-            class="btn btn--primary btn--md" 
-            :disabled="product.stock <= 0"
+          <button
+            class="btn btn--primary btn--md"
+            :disabled="currentStock <= 0"
             @click="addToCart"
           >
             В корзину
@@ -244,6 +318,17 @@ const variants = ['Standard', 'Premium', 'Pro']
         </div>
       </div>
     </Transition>
+
+    <!-- Quick Buy Modal -->
+    <QuickBuyModal
+      :is-open="isQuickBuyOpen"
+      :product-name="product?.name ?? ''"
+      :product-image="product?.images[0]?.url ?? ''"
+      :variant-name="selectedVariant?.name ?? ''"
+      :price="currentPrice"
+      @close="isQuickBuyOpen = false"
+      @submitted="handleQuickBuySubmitted"
+    />
   </div>
 </template>
 
@@ -373,11 +458,6 @@ const variants = ['Standard', 'Premium', 'Pro']
   font-family: var(--font-mono);
 }
 
-.product-info__price-currency {
-  font-size: var(--text-base);
-  color: var(--color-text-2);
-}
-
 .product-info__stock {
   display: flex;
   align-items: center;
@@ -390,6 +470,7 @@ const variants = ['Standard', 'Premium', 'Pro']
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .product-info__stock--in {
@@ -398,6 +479,14 @@ const variants = ['Standard', 'Premium', 'Pro']
 .product-info__stock--in .stock-dot {
   background: var(--color-success);
   box-shadow: 0 0 10px var(--color-success);
+}
+
+.product-info__stock--warning {
+  color: var(--color-warning);
+}
+.product-info__stock--warning .stock-dot {
+  background: var(--color-warning);
+  box-shadow: 0 0 10px var(--color-warning-bg);
 }
 
 .product-info__stock--out {
@@ -436,6 +525,10 @@ const variants = ['Standard', 'Premium', 'Pro']
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-fast);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
 
 .variant-btn:hover {
@@ -445,6 +538,16 @@ const variants = ['Standard', 'Premium', 'Pro']
 .variant-btn.is-active {
   border-color: var(--color-accent);
   background: var(--color-accent-glow);
+  color: var(--color-accent);
+}
+
+.variant-btn__price {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+}
+
+.variant-btn.is-active .variant-btn__price {
   color: var(--color-accent);
 }
 
@@ -576,6 +679,11 @@ const variants = ['Standard', 'Premium', 'Pro']
   max-width: 300px;
 }
 
+.sticky-buy-bar__variant {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
 .sticky-buy-bar__price {
   font-size: var(--text-xs);
   color: var(--color-accent);
@@ -630,4 +738,56 @@ const variants = ['Standard', 'Premium', 'Pro']
 
 .error-card h2 { margin: 24px 0 12px; }
 .error-card p { color: var(--color-text-2); margin-bottom: 32px; }
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: none;
+  font-size: var(--text-sm);
+  gap: 8px;
+}
+
+.btn--primary {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-glow-accent);
+}
+
+.btn--ghost {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-2);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.btn--lg {
+  padding: 16px 24px;
+  font-size: var(--text-base);
+}
+
+.btn--md {
+  padding: 10px 20px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
 </style>

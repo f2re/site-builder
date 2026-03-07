@@ -5,6 +5,7 @@ import UBadge from '~/components/U/UBadge.vue'
 import USkeleton from '~/components/U/USkeleton.vue'
 import { useProducts } from '~/composables/useProducts'
 import { useToast } from '~/composables/useToast'
+import { formatPrice } from '~/composables/useFormatters'
 
 definePageMeta({
   layout: false,
@@ -12,6 +13,7 @@ definePageMeta({
   middleware: 'auth',
 })
 
+const router = useRouter()
 const { adminGetProducts, deleteProduct } = useProducts()
 const { data: products, pending, refresh } = await adminGetProducts()
 
@@ -80,7 +82,13 @@ const handleDelete = async (id: string, name: string) => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="product in filteredProducts" :key="product.id" data-testid="product-card">
+            <tr
+              v-for="product in filteredProducts"
+              :key="product.id"
+              class="product-row"
+              data-testid="product-card"
+              @click="router.push('/admin/products/' + product.id)"
+            >
               <td>
                 <div class="product-cell">
                   <img v-if="product.main_image_url" :src="product.main_image_url" :alt="product.name" width="40" height="40" loading="lazy" />
@@ -88,9 +96,14 @@ const handleDelete = async (id: string, name: string) => {
                     <Icon name="ph:package-bold" size="20" />
                   </div>
                   <div class="product-info">
-                    <span class="product-name" data-testid="product-title">{{ product.name }}</span>
+                    <NuxtLink
+                      :to="`/admin/products/${product.id}`"
+                      class="product-name product-name--link"
+                      data-testid="product-title"
+                      @click.stop
+                    >{{ product.name }}</NuxtLink>
                     <div class="sm:hidden product-meta">
-                      <span>{{ product.price_display }} {{ product.currency }}</span>
+                      <span>{{ formatPrice(product.price_display) }}</span>
                       <span class="dot">·</span>
                       <span :class="product.stock > 0 ? 'text-success' : 'text-error'">
                         {{ product.stock > 0 ? `В наличии: ${product.stock}` : 'Нет на складе' }}
@@ -99,15 +112,15 @@ const handleDelete = async (id: string, name: string) => {
                   </div>
                 </div>
               </td>
-              <td class="hidden md:table-cell">{{ product.category?.name || '—' }}</td>
-              <td class="hidden sm:table-cell" data-testid="product-price">{{ product.price_display }} {{ product.currency }}</td>
+              <td class="hidden md:table-cell">{{ product.category_name || '—' }}</td>
+              <td class="hidden sm:table-cell" data-testid="product-price">{{ formatPrice(product.price_display) }}</td>
               <td class="hidden sm:table-cell" data-testid="product-stock">
                 <UBadge :variant="product.stock > 0 ? 'success' : 'danger'">
                   {{ product.stock }}
                 </UBadge>
               </td>
               <td>
-                <div class="actions">
+                <div class="actions" @click.stop>
                   <UButton variant="ghost" size="sm" :to="`/admin/products/${product.id}`" aria-label="Редактировать">
                     <Icon name="ph:pencil-simple-bold" size="18" />
                   </UButton>
@@ -180,6 +193,25 @@ const handleDelete = async (id: string, name: string) => {
   font-weight: 500;
   color: var(--color-text);
   font-size: var(--text-sm);
+}
+
+.product-name--link {
+  text-decoration: none;
+  color: var(--color-text);
+  transition: color var(--transition-fast);
+}
+
+.product-name--link:hover {
+  color: var(--color-accent);
+}
+
+.product-row {
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.product-row:hover {
+  background: var(--color-surface-2);
 }
 
 .product-meta {

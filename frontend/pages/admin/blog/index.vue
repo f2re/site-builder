@@ -10,6 +10,8 @@ definePageMeta({
   middleware: 'auth',
 })
 
+const router = useRouter()
+
 const { data: posts, pending, refresh } = await useApi<any>('/blog/posts', { params: { limit: 100 } })
 const apiFetch = useApiFetch()
 
@@ -59,10 +61,19 @@ async function deletePost(slug: string) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="post in posts?.items" :key="post.id">
+            <tr
+              v-for="post in posts?.items"
+              :key="post.id"
+              class="post-row"
+              @click="router.push('/admin/blog/' + post.slug)"
+            >
               <td class="title-cell">
                 <div class="post-info">
-                  <span class="post-title">{{ post.title }}</span>
+                  <NuxtLink
+                    :to="`/admin/blog/${post.slug}`"
+                    class="post-title post-title--link"
+                    @click.stop
+                  >{{ post.title }}</NuxtLink>
                   <div class="post-meta mobile-only">
                     <UBadge :variant="post.status === 'published' ? 'success' : 'warning'" size="sm">
                       {{ post.status === 'published' ? 'Опубликован' : 'Черновик' }}
@@ -77,7 +88,7 @@ async function deletePost(slug: string) {
                 </UBadge>
               </td>
               <td class="desktop-only">{{ formatDate(post.published_at, post.created_at) }}</td>
-              <td class="actions-cell">
+              <td class="actions-cell" @click.stop>
                 <div class="actions">
                   <UButton variant="ghost" size="sm" :to="`/admin/blog/${post.slug}`" data-testid="admin-blog-edit-btn">
                     <Icon name="ph:pencil-simple-bold" size="20" />
@@ -151,6 +162,25 @@ async function deletePost(slug: string) {
 .post-title {
   font-weight: 600;
   color: var(--color-text);
+}
+
+.post-title--link {
+  text-decoration: none;
+  color: var(--color-text);
+  transition: color var(--transition-fast);
+}
+
+.post-title--link:hover {
+  color: var(--color-accent);
+}
+
+.post-row {
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.post-row:hover {
+  background: var(--color-surface-2);
 }
 
 .post-meta {

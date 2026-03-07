@@ -1,5 +1,6 @@
 # Module: api/v1/admin/router.py | Agent: backend-agent | Task: Fix unused var
 import io
+import uuid as _uuid_module
 import openpyxl
 from uuid import UUID
 from typing import Any, List, Optional
@@ -25,6 +26,7 @@ from app.api.v1.products.schemas import (
 )
 from app.api.v1.blog.service import BlogService, get_blog_service
 from app.api.v1.blog.schemas import BlogPostCreate, BlogPostUpdate
+from app.integrations.local_storage import storage_client
 from app.api.v1.orders.service import OrderService
 from app.api.v1.orders.repository import OrderRepository
 from app.api.v1.users.repository import UserRepository
@@ -315,6 +317,25 @@ async def delete_blog_post(
     success = await service.delete_post(post_id)
     if not success:
         raise HTTPException(status_code=404, detail="Post not found")
+
+@router.post("/blog/posts/{post_id}/cover")
+async def upload_blog_cover(
+    post_id: UUID,
+    file: UploadFile = File(...),
+    _admin: User = AdminDep,
+    service: BlogService = Depends(get_blog_service),
+) -> Any:
+    """Upload blog post cover image."""
+    content = await file.read()
+    object_name = f"blog/{post_id}/{_uuid_module.uuid4().hex[:8]}_{file.filename}"
+    await storage_client.save_file(
+        object_name=object_name,
+        data=content,
+        content_type=file.content_type or "image/jpeg",
+    )
+    cover_url = storage_client.get_public_url(object_name)
+    await service.update_post(post_id, BlogPostUpdate(cover_image=cover_url))
+    return {"cover_url": cover_url}
 
 # ─── Customers ───────────────────────────────────────────────────────────────
 @router.get("/users")

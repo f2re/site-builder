@@ -2,8 +2,9 @@ export interface ProductCategory {
   id: string
   slug: string
   name: string
-  parent_id: string | null
+  parent_id?: string | null
   product_count: number
+  is_active?: boolean
 }
 
 export interface ProductVariant {
@@ -55,13 +56,14 @@ export interface ProductShort {
   name: string
   slug: string
   category_id?: string | null
+  category_name?: string
   main_image_url?: string
   min_price: number
   is_active: boolean
   is_featured: boolean
   created_at: string
   updated_at: string
-  
+
   // Dynamic fields
   price_display: string
   currency: string
@@ -102,9 +104,15 @@ export const useProducts = () => {
     page_cursor?: string
     per_page?: number
     currency?: string
+    search?: string
   }) => {
+    const query: Record<string, string | number | undefined> = { ...params }
+    if (params?.search) {
+      query.q = params.search
+      delete query.search
+    }
     return useFetch<ProductListResponse>(`${apiBase}/products`, {
-      params,
+      params: query,
       key: `products-${JSON.stringify(params)}`
     })
   }
@@ -154,6 +162,30 @@ export const useProducts = () => {
     })
   }
 
+  // Admin: Upload product image
+  const adminUploadProductImage = async (productId: string, file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return await apiFetch<ProductImage>(`/admin/products/${productId}/images`, {
+      method: 'POST',
+      body: formData
+    })
+  }
+
+  // Admin: Delete product image
+  const adminDeleteProductImage = async (imageId: string) => {
+    return await apiFetch(`/admin/products/images/${imageId}`, {
+      method: 'DELETE'
+    })
+  }
+
+  // Admin: Set product cover image
+  const adminSetProductCoverImage = async (productId: string, image_id: string) => {
+    return await apiFetch<ProductImage>(`/admin/products/${productId}/images/${image_id}/cover`, {
+      method: 'PUT'
+    })
+  }
+
   // Public: Get categories
   const getCategories = () => {
     return useFetch<{ items: ProductCategory[] }>(`${apiBase}/products/categories`, {
@@ -196,6 +228,9 @@ export const useProducts = () => {
     createProduct,
     updateProduct,
     deleteProduct,
+    adminUploadProductImage,
+    adminDeleteProductImage,
+    adminSetProductCoverImage,
     getCategories,
     adminGetCategories,
     adminCreateCategory,

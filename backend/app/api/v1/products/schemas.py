@@ -1,6 +1,6 @@
-# Module: api/v1/products/schemas.py | Agent: backend-agent | Task: BE-01
+# Module: api/v1/products/schemas.py | Agent: backend-agent | Task: bugfix_backend_product_002
 from __future__ import annotations
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from uuid import UUID
 from datetime import datetime
 from typing import List, Optional, Any
@@ -82,7 +82,13 @@ class ProductRead(ProductBase):
     category: Optional[CategoryRead] = None
     images: List[ProductImageRead] = []
     variants: List[ProductVariantRead] = []
+    stock: int = 0
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="after")
+    def compute_stock(self) -> "ProductRead":
+        self.stock = sum(v.stock_quantity for v in self.variants)
+        return self
 
 class ProductCreate(ProductBase):
     images: List[ProductImageBase] = []
@@ -101,12 +107,15 @@ class ProductUpdate(BaseModel):
     attributes: Optional[dict[str, Any]] = None
     is_active: Optional[bool] = None
     is_featured: Optional[bool] = None
+    images: Optional[List[ProductImageRead]] = None
+    variants: Optional[List[ProductVariantRead]] = None
 
 class ProductShortRead(BaseModel):
     id: UUID
     name: str
     slug: str
     category_id: Optional[UUID]
+    category_name: Optional[str] = None
     main_image_url: Optional[str] = None
     min_price: Decimal
     is_active: bool
@@ -124,3 +133,6 @@ class PaginatedResponse(BaseModel):
 
 class ProductPagination(PaginatedResponse):
     items: List[ProductShortRead]
+
+class CategoryListResponse(BaseModel):
+    items: List[CategoryTreeRead]

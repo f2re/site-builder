@@ -111,6 +111,8 @@ const generateSlug = () => {
 </script>
 
 <template>
+  <NuxtLayout name="admin">
+    <template #header-title>{{ isEdit ? 'Редактирование страницы' : 'Создание страницы' }}</template>
   <div class="admin-page-editor">
     <div class="mb-6">
       <NuxtLink to="/admin/pages" class="text-sm text-muted hover:text-accent flex items-center gap-1 mb-2">
@@ -221,6 +223,7 @@ const generateSlug = () => {
       </aside>
     </form>
   </div>
+  </NuxtLayout>
 </template>
 
 <style scoped>

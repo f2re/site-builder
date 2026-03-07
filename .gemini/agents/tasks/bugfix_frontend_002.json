@@ -1,0 +1,15 @@
+{
+  "task_id": "bugfix_frontend_002",
+  "phase": 7,
+  "agent": "frontend-agent",
+  "title": "Ensure ProductMediaManager.vue and admin/products/[id].vue correctly send images",
+  "description": "Verify and update ProductMediaManager.vue and admin/products/[id].vue to correctly send images and variants in the payload during updateProduct API calls.",
+  "depends_on": ["bugfix_backend_003"],
+  "priority": "high",
+  "acceptance_criteria": [
+    "ProductMediaManager.vue includes 'images' array in payload",
+    "admin/products/[id].vue includes 'images' and 'variants' arrays in payload",
+    "Frontend builds successfully",
+    "Linting and type checking pass"
+  ]
+}

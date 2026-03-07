@@ -23,7 +23,7 @@ from app.api.v1.products.schemas import (
 )
 from app.db.models.product import Product, ProductImage, ProductVariant, Category
 from app.tasks.search import index_product_task, remove_product_from_index_task
-from app.core.utils import generate_slug, extract_text_from_tiptap
+from app.core.utils import generate_slug, extract_text_from_tiptap, tiptap_json_to_html
 from app.integrations.local_storage import storage_client
 
 # Allowed tags and attributes for sanitization
@@ -43,6 +43,7 @@ class ProductService:
     async def get_products(
         self,
         category_id: Optional[UUID] = None,
+        category_slug: Optional[str] = None,
         min_price: Optional[Decimal] = None,
         max_price: Optional[Decimal] = None,
         is_featured: Optional[bool] = None,
@@ -52,6 +53,7 @@ class ProductService:
     ) -> ProductPagination:
         items, next_cursor = await self.repo.list_products(
             category_id=category_id,
+            category_slug=category_slug,
             min_price=min_price,
             max_price=max_price,
             is_featured=is_featured,
@@ -140,7 +142,10 @@ class ProductService:
                 tags=ALLOWED_TAGS,
                 attributes=ALLOWED_ATTRS
             )
-        
+        elif product_dict.get("content_json"):
+            # Auto-generate description_html from TipTap JSON if not provided explicitly
+            product_dict["description_html"] = tiptap_json_to_html(product_dict["content_json"])
+
         product = Product(**product_dict)
         
         # Handle images
@@ -179,6 +184,10 @@ class ProductService:
         """
         update_data = data.model_dump(exclude_unset=True)
         
+        # Extract nested data to update separately via repository
+        images_data = update_data.pop("images", None)
+        variants_data = update_data.pop("variants", None)
+
         if "slug" in update_data:
             update_data["slug"] = generate_slug(update_data.get("name", ""), update_data["slug"])
         elif "name" in update_data:
@@ -193,13 +202,30 @@ class ProductService:
                 tags=ALLOWED_TAGS,
                 attributes=ALLOWED_ATTRS
             )
-            
+        elif "content_json" in update_data and update_data["content_json"] and "description_html" not in update_data:
+            # Auto-generate description_html from TipTap JSON if not provided explicitly
+            update_data["description_html"] = tiptap_json_to_html(update_data["content_json"])
+
         updated_product = await self.repo.update(product_id, **update_data)
         if not updated_product:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Product not found"
             )
+
+        # Handle nested updates for images (e.g. reordering)
+        if images_data:
+            for img_dict in images_data:
+                img_id = img_dict.get("id")
+                if img_id:
+                    await self.repo.update_image(img_id, **img_dict)
+
+        # Handle nested updates for variants
+        if variants_data:
+            for var_dict in variants_data:
+                var_id = var_dict.get("id")
+                if var_id:
+                    await self.repo.update_variant(var_id, **var_dict)
 
         # Apply Auto-SEO logic
         # We need to reload to have access to current fields for logic

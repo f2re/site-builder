@@ -1,0 +1,84 @@
+{
+  "task_id": "bugfix_frontend_product_002",
+  "phase": "hotfix",
+  "agent": "frontend-agent",
+  "title": "Fix product page: stock display, content_json renderer, real variants, missing composable exports, data-testid",
+  "description": "Исправить 6 багов на фронтенде связанных с карточкой товара, публичным каталогом и медиа-менеджером. Улучшить UX карточки товара.",
+  "depends_on": ["bugfix_backend_product_002"],
+  "priority": "critical",
+  "bugs": [
+    {
+      "id": "BUG-FE-01",
+      "title": "useProducts.ts: 3 метода не экспортируются из return",
+      "file": "frontend/composables/useProducts.ts",
+      "root_cause": "Методы adminUploadProductImage, adminDeleteProductImage, adminSetProductCoverImage определены внутри useProducts(), но НЕ включены в объект return (строки 215-228). ProductMediaManager деструктурирует их из useProducts() и получает undefined → загрузка/удаление/смена обложки в админке полностью не работают.",
+      "fix": "Добавить adminUploadProductImage, adminDeleteProductImage, adminSetProductCoverImage в объект return useProducts()."
+    },
+    {
+      "id": "BUG-FE-02",
+      "title": "Публичная страница товара: варианты захардкожены",
+      "file": "frontend/pages/products/[slug].vue",
+      "root_cause": "Строки 98-99: const selectedVariant = ref('Standard') и const variants = ['Standard', 'Premium', 'Pro'] — полностью фиктивные данные. Реальные варианты (цена, SKU, stock_quantity) из product.variants не используются вообще. UI switcher ни на что не влияет.",
+      "fix": "Убрать мок. Использовать product.variants из API. Если вариантов > 1 — показать реальный switcher (по product.variants[i].name). Выбранный вариант определяет отображаемую цену и остаток. Если вариант один — switcher не показывать. selectedVariant должен быть ref<ProductVariant | null> и инициализироваться первым вариантом при загрузке товара. Цена и stock брать из selectedVariant.value вместо product.price_display/product.stock."
+    },
+    {
+      "id": "BUG-FE-03",
+      "title": "Публичная страница товара: content_json не рендерится",
+      "file": "frontend/pages/products/[slug].vue",
+      "root_cause": "Шаблон показывает description_html (v-html) или plain description. Поле content_json (TipTap JSON) полностью игнорируется. Если backend вернул content_json но description_html пустой — расширенное описание не отображается. После фикса BUG-BE-02 backend будет генерировать description_html автоматически, но нужно также убедиться что фронт корректно рендерит его.",
+      "fix": "Убедиться что шаблон приоритетно показывает description_html (v-html). Добавить fallback: если description_html пустой но content_json непустой — показать компонент TipTapViewer (только для чтения). Создать компонент components/blog/TipTapViewer.vue: использует @tiptap/vue-3 с extensions (StarterKit, Image) в режиме editable=false. Props: content (any — TipTap JSON). Установка: npm install @tiptap/vue-3 @tiptap/starter-kit @tiptap/extension-image --legacy-peer-deps (уже должны быть установлены для редактора). Стили картинок в TipTap viewer: max-width: 100%, height: auto, border-radius: var(--radius-md)."
+    },
+    {
+      "id": "BUG-FE-04",
+      "title": "Каталог: categories response mismatch",
+      "file": "frontend/composables/useProducts.ts",
+      "root_cause": "getCategories() ожидает ответ { items: ProductCategory[] }, но после фикса BE-04 backend вернёт именно такой формат. Однако CategorySidebar в pages/products/index.vue получает categoriesData.value.items — нужно убедиться что тип ProductCategory включает product_count (поле из CategoryRead). Также catalog index.vue использует categoriesData.value.items.find() — пока items undefined, это падает с TypeError.",
+      "fix": "Добавить null-safe проверки на categoriesData.value?.items во всех местах в pages/products/index.vue. Обновить тип ответа getCategories() с useFetch<{ items: ProductCategory[] }> на явный тип. Убедиться что ProductCategory интерфейс совпадает с CategoryRead (добавить is_active: boolean, parent_id опциональный)."
+    },
+    {
+      "id": "BUG-FE-05",
+      "title": "Каталог: параметр search не передаётся в getProducts",
+      "file": "frontend/composables/useProducts.ts",
+      "root_cause": "pages/products/index.vue строка 37 передаёт { search: searchQuery.value }, но в интерфейсе параметров getProducts() поля search нет. TypeScript это не поймает из-за any, но параметр тихо теряется — поиск не работает.",
+      "fix": "Добавить search?: string в параметры getProducts() и пробрасывать его в useFetch params как q (параметр Meilisearch через backend GET /products/search или прямым query параметром)."
+    },
+    {
+      "id": "BUG-FE-06",
+      "title": "ProductCard и product page: отсутствуют data-testid атрибуты",
+      "files": [
+        "frontend/components/catalog/ProductCard.vue",
+        "frontend/pages/products/[slug].vue"
+      ],
+      "root_cause": "Согласно frontend/CLAUDE.md Testability Contract, все интерактивные элементы должны иметь data-testid. ProductCard не имеет: product-card, product-title, product-price, product-stock. Страница товара не имеет: add-to-cart-btn, product-stock.",
+      "fix": "ProductCard.vue: добавить data-testid='product-card' на корневой NuxtLink, data-testid='product-title' на h3, data-testid='product-price' на price-value span, data-testid='product-stock' на badge. pages/products/[slug].vue: data-testid='add-to-cart-btn' на кнопку, data-testid='product-stock' на stock block."
+    }
+  ],
+  "ux_improvements": {
+    "description": "Улучшить UX карточки товара на публичной странице (pages/products/[slug].vue)",
+    "items": [
+      "Variant switcher: если у товара один вариант — скрыть секцию 'Версия'. Если несколько — показать реальные названия вариантов с ценой каждого (бейдж с ценой рядом с именем варианта).",
+      "Stock display: показывать точное количество 'В наличии: 10 шт.' (из selectedVariant.stock_quantity). При остатке <= 5 — показывать 'Осталось мало: 3 шт.' с оранжевым цветом (var(--color-warning)).",
+      "Кнопка 'В корзину': disabled когда selectedVariant.stock_quantity <= 0. Текст динамически: 'Добавить в корзину' / 'Нет в наличии'.",
+      "addToCart: передавать variant_id (selectedVariant.value.id) и правильную цену из selectedVariant.value.price.",
+      "Breadcrumbs: если категория не загружена — не показывать её, не показывать '...' как битый хлебный крошек.",
+      "Секция описания: если description_html и description оба пустые — скрыть секцию 'Описание' вместо пустого блока.",
+      "Sticky buy bar: при прокрутке вниз показывать имя товара, выбранный вариант и цену — брать из selectedVariant."
+    ]
+  },
+  "acceptance_criteria": [
+    "useProducts() экспортирует adminUploadProductImage, adminDeleteProductImage, adminSetProductCoverImage",
+    "Страница товара: stock берётся из выбранного варианта (selectedVariant.stock_quantity), а не product.stock",
+    "Страница товара: реальные варианты из product.variants отображаются в switcher",
+    "content_json рендерится через TipTapViewer если description_html пустой",
+    "Картинки в content_json отображаются корректно",
+    "getProducts() принимает и передаёт search параметр",
+    "Все data-testid добавлены согласно контракту",
+    "npm run lint → 0 errors",
+    "npm run type-check → 0 errors"
+  ],
+  "verification": [
+    "cd frontend && npm run lint",
+    "cd frontend && npm run type-check"
+  ],
+  "report_path": ".claude/agents/reports/frontend/bugfix_frontend_product_002.md"
+}

@@ -1,0 +1,68 @@
+{
+  "task_id": "bugfix_admin_frontend_001",
+  "phase": "hotfix",
+  "agent": "frontend-agent",
+  "title": "Fix admin: clickable names, pages layout, category display, price format",
+  "depends_on": [],
+  "priority": "critical",
+  "bugs": [
+    {
+      "id": "BUG-ADM-FE-01",
+      "title": "Клик по названию товара в админке не ведёт на редактирование",
+      "file": "frontend/pages/admin/products/index.vue",
+      "root_cause": "Название товара отображается как <span class='product-name'>, не как ссылка.",
+      "fix": "Заменить <span class='product-name'> на <NuxtLink :to='\"/admin/products/\" + product.id' class='product-name product-name--link'>. Добавить стиль .product-name--link: cursor pointer, color var(--color-text) при обычном состоянии, color var(--color-accent) при hover, text-decoration none. Убедиться что вся ячейка td (Товар) кликабельна на мобильных. Также сделать кликабельным всю строку tr при клике (кроме кнопок действий): добавить @click на tr с router.push."
+    },
+    {
+      "id": "BUG-ADM-FE-02",
+      "title": "Клик по названию статьи в админке блога не ведёт на редактирование",
+      "file": "frontend/pages/admin/blog/index.vue",
+      "root_cause": "Заголовок поста отображается как <span class='post-title'>, не как ссылка.",
+      "fix": "Заменить <span class='post-title'> на <NuxtLink :to='\"/admin/blog/\" + post.slug' class='post-title post-title--link'>. Аналогичный стиль: hover → var(--color-accent). Вся строка tr должна быть кликабельной для перехода на edit через router.push, кроме области кнопок действий."
+    },
+    {
+      "id": "BUG-ADM-FE-03",
+      "title": "Раздел 'Страницы' в админке открывается без навигационного меню",
+      "files": [
+        "frontend/pages/admin/pages/index.vue",
+        "frontend/pages/admin/pages/[id].vue"
+      ],
+      "root_cause": "Оба файла имеют definePageMeta({ layout: false }) но не используют <NuxtLayout name='admin'>. Контент рендерится голым, без сайдбара и шапки.",
+      "fix": "Обернуть содержимое template в <NuxtLayout name='admin'>. В index.vue добавить #header-title слот со значением 'Страницы'. В [id].vue добавить #header-title = 'Создание / Редактирование страницы'. Убедиться что middleware: 'auth' присутствует в definePageMeta. Для [id].vue нужно прочитать файл полностью перед правкой."
+    },
+    {
+      "id": "BUG-ADM-FE-04",
+      "title": "Категория в списке товаров показывает '—' вместо названия",
+      "file": "frontend/pages/admin/products/index.vue",
+      "root_cause": "product.category?.name — поле category отсутствует в ProductShortRead (есть только category_id). После фикса backend (bugfix_admin_misc_001 BUG-ADM-BE-02) придёт поле category_name.",
+      "fix": "Заменить {{ product.category?.name || '—' }} на {{ product.category_name || '—' }}. Обновить тип ProductShort в useProducts.ts: добавить category_name?: string."
+    },
+    {
+      "id": "BUG-ADM-FE-05",
+      "title": "Цены показываются с копейками везде",
+      "files": [
+        "frontend/pages/admin/products/index.vue",
+        "frontend/pages/products/index.vue",
+        "frontend/pages/products/[slug].vue",
+        "frontend/components/catalog/ProductCard.vue",
+        "frontend/pages/cart.vue"
+      ],
+      "root_cause": "price_display приходит как строка '1500.00'. После фикса backend это будет '1500', но нужно также подстраховать на фронте.",
+      "fix": "Создать утилитарную функцию formatPrice(value: string | number): string в composables/useFormatters.ts или прямо в utils. Логика: parseFloat(value) → если целое (% 1 === 0) → toLocaleString('ru-RU') без десятичных. Если дробное — с 2 знаками. Применить во всех местах где показывается цена: product.price_display, item.price. Везде добавлять символ ₽ вместо отдельного поля currency (убрать 'RUB', показывать '₽')."
+    }
+  ],
+  "acceptance_criteria": [
+    "Клик по названию товара → переход на /admin/products/{id}",
+    "Клик по названию статьи блога → переход на /admin/blog/{slug}",
+    "Страница /admin/pages и /admin/pages/{id} отображают admin layout с меню",
+    "Колонка Категория в списке товаров показывает название (если есть)",
+    "Цены во всех компонентах без копеек: '1500 ₽' не '1500.00 RUB'",
+    "npm run lint → 0 errors",
+    "npm run type-check → 0 errors"
+  ],
+  "verification": [
+    "cd frontend && npm run lint",
+    "cd frontend && npm run type-check"
+  ],
+  "report_path": ".claude/agents/reports/frontend/bugfix_admin_frontend_001.md"
+}

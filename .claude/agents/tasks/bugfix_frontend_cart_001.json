@@ -1,0 +1,83 @@
+{
+  "task_id": "bugfix_frontend_cart_001",
+  "phase": "hotfix",
+  "agent": "frontend-agent",
+  "title": "Cart: stock limit enforcement + Buy in 1 click implementation",
+  "description": "Исправить возможность добавить в корзину больше товара, чем есть в наличии. Реализовать полный функционал кнопки 'Купить в 1 клик'.",
+  "depends_on": ["bugfix_frontend_product_002"],
+  "priority": "critical",
+  "bugs": [
+    {
+      "id": "BUG-CART-01",
+      "title": "Можно добавить в корзину больше, чем stock_quantity",
+      "files": [
+        "frontend/stores/cartStore.ts",
+        "frontend/pages/cart.vue",
+        "frontend/pages/products/[slug].vue",
+        "frontend/components/catalog/ProductCard.vue"
+      ],
+      "root_cause": "cartStore.addItem() просто делает existing.quantity++ без проверки лимита. В cart.vue кнопка '+' (updateQuantity +1) не имеет верхнего предела. StoreCartItem не хранит maxStock. Таким образом пользователь может добавить 100 единиц товара, которого есть 10.",
+      "fix": {
+        "step_1_cartStore": "В StoreCartItem добавить поле maxStock?: number. В addItem() при push устанавливать maxStock из product.maxStock (нужно передавать при вызове). При existing.quantity++ — сначала проверить if (existing.quantity < (existing.maxStock ?? Infinity)). Если лимит достигнут — не увеличивать и вернуть false (сигнал вызывающему коду). В updateQuantity() добавить верхний лимит: if (quantity > (item.maxStock ?? Infinity)) quantity = item.maxStock. Не позволять quantity > maxStock.",
+        "step_2_product_page": "В [slug].vue при вызове cartStore.addItem() передавать maxStock: selectedVariant.value?.stock_quantity. Если addItem вернул false — показать toast.warning с сообщением 'В наличии только N шт.'",
+        "step_3_product_card": "В ProductCard.vue при вызове cartStore.addItem() передавать maxStock: product.stock. Аналогичная проверка и toast при превышении.",
+        "step_4_cart_page": "В cart.vue кнопка '+' quantity: :disabled='item.quantity >= (item.maxStock ?? Infinity)'. При нажатии — проверять лимит перед вызовом updateQuantity. Показывать рядом с qty-stepper строку 'макс. N шт.' если stock известен."
+      }
+    }
+  ],
+  "features": [
+    {
+      "id": "FEAT-CART-01",
+      "title": "Реализовать 'Купить в 1 клик'",
+      "description": "Кнопка 'Купить в 1 клик' на странице товара сейчас ничего не делает. Нужен полный UX-флоу.",
+      "files_to_create": [
+        "frontend/components/shop/QuickBuyModal.vue"
+      ],
+      "files_to_modify": [
+        "frontend/pages/products/[slug].vue",
+        "frontend/composables/useProducts.ts"
+      ],
+      "flow": {
+        "step_1": "Клик на 'Купить в 1 клик' → открывается модальное окно QuickBuyModal",
+        "step_2": "Модальное окно содержит: заголовок 'Быстрый заказ', превью товара (картинка, название, выбранный вариант, цена), поле 'Имя' (required), поле 'Телефон' (required, маска +7 (___) ___-__-__), textarea 'Комментарий' (optional), кнопка 'Отправить заявку'",
+        "step_3": "Валидация: имя непустое, телефон валидный (10+ цифр). Ошибки под каждым полем.",
+        "step_4_backend_call": "При submit POST /api/v1/orders/quick-buy (или если нет такого эндпоинта — POST /api/v1/orders с минимальными данными). Если бэкенд не готов — fallback на имитацию через setTimeout(1000) + показ успеха.",
+        "step_5_success": "Закрыть модалку. Toast success: 'Заявка принята! Мы перезвоним вам в течение 30 минут.' Не добавлять товар в корзину.",
+        "step_6_error": "Toast error с кнопкой 'Повторить'. Не закрывать модалку при ошибке."
+      },
+      "ux_details": {
+        "modal": "Transition fade + scale. Backdrop blur. ESC закрывает. Клик на backdrop закрывает. Focus trap внутри модалки. Закрытие через X кнопку.",
+        "phone_input": "Автоматически добавлять +7 при фокусе если поле пустое. Маска ввода без зависимостей (чистый JS handler).",
+        "loading_state": "Кнопка 'Отправить заявку' в loading-состоянии во время запроса — spinner, текст 'Отправляем...'",
+        "accessibility": "role='dialog', aria-modal='true', aria-label='Быстрый заказ'. Focus на первое поле при открытии.",
+        "mobile": "На мобильных — full-screen bottom sheet (transform translateY) вместо centered modal."
+      },
+      "data_testid": {
+        "modal": "quick-buy-modal",
+        "name_input": "quick-buy-name",
+        "phone_input": "quick-buy-phone",
+        "comment_input": "quick-buy-comment",
+        "submit_btn": "quick-buy-submit",
+        "close_btn": "quick-buy-close",
+        "trigger_btn": "btn-one-click (уже есть, добавить testid)"
+      }
+    }
+  ],
+  "acceptance_criteria": [
+    "Нельзя добавить товар в корзину больше чем stock_quantity раз",
+    "Кнопка '+' в корзине disabled когда quantity >= maxStock",
+    "При попытке превысить лимит показывается toast.warning",
+    "Кнопка 'Купить в 1 клик' открывает модальное окно",
+    "Форма валидируется перед отправкой",
+    "После успешной отправки — toast success, модалка закрывается",
+    "ESC и клик на backdrop закрывают модалку",
+    "На мобильных модалка — bottom sheet",
+    "npm run lint → 0 errors",
+    "npm run type-check → 0 errors"
+  ],
+  "verification": [
+    "cd frontend && npm run lint",
+    "cd frontend && npm run type-check"
+  ],
+  "report_path": ".claude/agents/reports/frontend/bugfix_frontend_cart_001.md"
+}

@@ -2,6 +2,7 @@
 definePageMeta({
   layout: false,
   pageTransition: false,
+  middleware: 'auth',
 })
 
 const { getPages, deletePage } = usePages()
@@ -22,6 +23,8 @@ const handleDelete = async (id: string) => {
 </script>
 
 <template>
+  <NuxtLayout name="admin">
+    <template #header-title>Страницы</template>
   <div class="admin-pages-list">
     <div class="mb-6 flex items-center justify-between">
       <h1>Управление страницами</h1>
@@ -67,6 +70,7 @@ const handleDelete = async (id: string) => {
       </div>
     </div>
   </div>
+  </NuxtLayout>
 </template>
 
 <style scoped>
