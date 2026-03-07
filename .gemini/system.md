@@ -36,6 +36,13 @@ Sequence within a phase: `devops` → `backend` → `cdek` → `frontend` → `t
 | `e2e-agent`     | Playwright UI tests. | `frontend-agent` + `backend-agent` |
 | `security-agent`| OWASP audit, security compliance (READ-ONLY). | `testing-agent` |
 
+## ⏱ Agent Timeout Policy
+- Каждый агент имеет **максимум 30 минут** на выполнение своей задачи.
+- Если агент не завершился за 30 мин → установить статус `BLOCKED`, немедленно эскалировать пользователю.
+- **НЕ ждать** агента дольше таймаута — это считается зависанием.
+- При зависании описать в `Blockers` раздел отчёта и передать управление оркестратору.
+- Команды shell имеют жёсткие таймауты: `ruff/mypy` — 120с, `pytest` — 180с, `alembic` — 30с, `npm lint` — 120с.
+
 ## 🚀 Execution Workflow
 When user provides `/agents:plan <task description>`:
 
@@ -57,3 +64,4 @@ When user provides `/agents:plan <task description>`:
 - ALWAYS run `python .gemini/middleware/pre_completion.py` before finalizing any phase or commit.
 - ALWAYS use `python .gemini/middleware/loop_detection.py <filepath>` after editing any file.
 - ALWAYS follow the project structure and development contracts (see ARCHITECTURE.md).
+- Agent reports MUST be written to `.gemini/agents/reports/<domain>/<task_id>.md`.
