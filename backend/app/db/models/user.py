@@ -39,6 +39,10 @@ class User(Base):
     auth_provider: Mapped[str] = mapped_column(String(50), default="local")
     provider_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_login_ip: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    last_login_device: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

@@ -1,9 +1,11 @@
 # Module: api/v1/admin/schemas.py | Agent: backend-agent | Task: BE-03_cart_orders_payments
 from datetime import datetime
 from uuid import UUID
-from typing import List, Optional, Dict
-from pydantic import BaseModel, ConfigDict
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, ConfigDict, EmailStr
 from app.db.models.migration import MigrationStatus, MigrationEntity
+from app.api.v1.auth.schemas import UserResponse
+from app.api.v1.orders.schemas import OrderRead
 
 class MigrationJobResponse(BaseModel):
     id: UUID
@@ -33,3 +35,42 @@ class MigrationStatusResponse(BaseModel):
     overall_status: str # IDLE | RUNNING | PAUSED | COMPLETED | FAILED
     overall_progress: float
     entities: Dict[str, MigrationEntityStatus]
+
+
+# Admin Full User Response Models
+
+class AdminDeliveryAddressRead(BaseModel):
+    id: UUID
+    name: str
+    recipient_name: str
+    recipient_phone: str
+    full_address: str
+    address_type: str
+    city: str
+    postal_code: Optional[str] = None
+    provider: str
+    pickup_point_code: Optional[str] = None
+    is_default: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+class AdminUserDeviceRead(BaseModel):
+    id: UUID
+    device_uid: str
+    name: Optional[str] = None
+    model: Optional[str] = None
+    last_seen_at: Optional[datetime] = None
+    is_active: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+class AdminUserFullResponse(UserResponse):
+    last_login_at: Optional[datetime] = None
+    last_login_ip: Optional[str] = None
+    last_login_device: Optional[str] = None
+    
+    addresses: List[AdminDeliveryAddressRead] = []
+    orders: List[OrderRead] = []
+    devices: List[AdminUserDeviceRead] = []
+
+    model_config = ConfigDict(from_attributes=True)
