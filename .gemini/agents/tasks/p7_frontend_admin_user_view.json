@@ -1,0 +1,17 @@
+{
+  "task_id": "p7_frontend_admin_user_view",
+  "phase": 7,
+  "agent": "frontend-agent",
+  "title": "Redesign Admin User View Page",
+  "description": "Redesign the user view page (/admin/users/:id) to be modern, mobile-first, full-width, and feature-rich (buttons, tabs, improved UI/UX). Ensure it aligns with 'race-style' aesthetics.",
+  "depends_on": [],
+  "priority": "high",
+  "contracts_required": [],
+  "acceptance_criteria": [
+    "Design is responsive (mobile-first)",
+    "Uses full-width layout",
+    "Contains tabs for better UX",
+    "Uses race-style aesthetic",
+    "Passes linting and tests"
+  ]
+}
