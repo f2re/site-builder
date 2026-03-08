@@ -13,10 +13,19 @@ def run_migration_task(self, job_id: str):
     Celery task to run a specific migration job.
     """
     async def _run():
-        async with AsyncSessionLocal() as session:
-            repo = MigrationRepository(session)
-            service = MigrationService(repo, session)
-            await service.run_batch(UUID(job_id))
+        from app.db.session import engine as pg_engine
+        from app.db.opencart_session import oc_engine
+        try:
+            async with AsyncSessionLocal() as session:
+                repo = MigrationRepository(session)
+                service = MigrationService(repo, session)
+                await service.run_batch(UUID(job_id))
+        finally:
+            # Dispose engines INSIDE the running event loop to prevent
+            # "RuntimeError: Event loop is closed" from asyncpg/aiomysql
+            # pool cleanup after asyncio.run() closes the loop.
+            await pg_engine.dispose()
+            await oc_engine.dispose()
 
     try:
         return asyncio.run(_run())
