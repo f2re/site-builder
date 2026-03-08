@@ -1,4 +1,4 @@
-# Module: api/v1/orders/service.py | Agent: backend-agent | Task: phase13_profile_orders_refactoring
+# Module: api/v1/orders/service.py | Agent: backend-agent | Task: update-admin-orders
 import uuid
 from decimal import Decimal
 from typing import Dict, Any, cast
@@ -13,6 +13,7 @@ from app.api.v1.orders.repository import OrderRepository
 from app.api.v1.products.repository import ProductRepository
 from app.api.v1.orders.schemas import OrderCreate
 from app.db.models.order import Order, OrderItem, OrderStatus
+from app.db.models.order_tracking import OrderTrackingEvent
 from app.db.models.user import User
 from app.integrations.yoomoney import yoomoney_client
 from app.integrations.redis_inventory import inventory
@@ -144,10 +145,21 @@ class OrderService:
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
 
+        old_status = order.status
         order.status = new_status
         if new_status == OrderStatus.PAID:
             order.paid_at = datetime.now(timezone.utc)
             
+        # Add tracking event for manual status change
+        if old_status != new_status:
+            tracking_event = OrderTrackingEvent(
+                order_id=order.id,
+                provider="admin",
+                status=new_status.value,
+                message=f"Status changed from {old_status.value} to {new_status.value} by administrator"
+            )
+            self.session.add(tracking_event)
+
         await self.order_repo.update(order)
         await self.session.commit()
         await self.session.refresh(order)
@@ -211,6 +223,16 @@ class OrderService:
 
         # 2. Update order status
         order.status = OrderStatus.CANCELLED
+        
+        # Add tracking event
+        tracking_event = OrderTrackingEvent(
+            order_id=order.id,
+            provider="system",
+            status=OrderStatus.CANCELLED.value,
+            message="Order cancelled by user"
+        )
+        self.session.add(tracking_event)
+        
         await self.order_repo.update(order)
         await self.session.commit()
         await self.session.refresh(order)
@@ -300,6 +322,16 @@ class OrderService:
 
             order.status = OrderStatus.SHIPPED
             order.delivery_status = "created"
+            
+            # Add tracking event
+            tracking_event = OrderTrackingEvent(
+                order_id=order.id,
+                provider=provider,
+                status="SHIPPED",
+                message=f"Shipment created via {provider}. Tracking: {order.tracking_number}"
+            )
+            self.session.add(tracking_event)
+            
             await self.order_repo.update(order)
             await self.session.commit()
             await self.session.refresh(order)

@@ -1,13 +1,14 @@
-# Module: api/v1/orders/repository.py | Agent: backend-agent | Task: p22_backend_orders_date_filter
+# Module: api/v1/orders/repository.py | Agent: backend-agent | Task: update-admin-orders
 from datetime import date, datetime, timedelta
 from typing import Optional, Sequence
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db.models.order import Order
+from app.db.models.order import Order, OrderItem
+from app.db.models.product import ProductVariant, Product
 
 
 class OrderRepository:
@@ -24,8 +25,9 @@ class OrderRepository:
             select(Order)
             .where(Order.id == order_id)
             .options(
-                selectinload(Order.items),
-                selectinload(Order.user)
+                selectinload(Order.user),
+                selectinload(Order.items).selectinload(OrderItem.product_variant).selectinload(ProductVariant.product).selectinload(Product.images),
+                selectinload(Order.tracking_events)
             )
         )
         result = await self.session.execute(stmt)
@@ -36,8 +38,9 @@ class OrderRepository:
             select(Order)
             .where(Order.user_id == user_id)
             .options(
-                selectinload(Order.items),
-                selectinload(Order.user)
+                selectinload(Order.user),
+                selectinload(Order.items).selectinload(OrderItem.product_variant).selectinload(ProductVariant.product).selectinload(Product.images),
+                selectinload(Order.tracking_events)
             )
             .order_by(Order.created_at.desc())
         )
@@ -52,10 +55,13 @@ class OrderRepository:
         date_from: Optional[date] = None,
         date_to: Optional[date] = None,
     ) -> tuple[Sequence[Order], int]:
-        from sqlalchemy import func
         stmt = (
             select(Order)
-            .options(selectinload(Order.items), selectinload(Order.user))
+            .options(
+                selectinload(Order.user),
+                selectinload(Order.items).selectinload(OrderItem.product_variant).selectinload(ProductVariant.product).selectinload(Product.images),
+                selectinload(Order.tracking_events)
+            )
             .order_by(Order.created_at.desc())
         )
         count_stmt = select(func.count()).select_from(Order)
