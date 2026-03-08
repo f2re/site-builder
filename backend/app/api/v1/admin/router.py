@@ -599,7 +599,7 @@ async def import_firmware_excel(
     }
 
 # ─── Migration ───────────────────────────────────────────────────────────────
-@router.post("/migration/start")
+@router.post("/migration/start", response_model=List[MigrationJobResponse])
 async def start_migration(
     payload: MigrationStartRequest = MigrationStartRequest(),
     _admin: User = AdminDep,

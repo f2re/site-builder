@@ -1,0 +1,15 @@
+{
+  "task_id": "bugfix_migration_start_501",
+  "phase": "bugfix",
+  "agent": "backend-agent",
+  "title": "Fix OpenCart migration: 500 on /migration/start + Celery trigger",
+  "description": "Fix three bugs in the OpenCart → WifiOBD migration system:\n\n1. POST /migration/start returns 500: PydanticSerializationError because the endpoint has no response_model and returns raw SQLAlchemy List[MigrationJob] objects. Fix: add response_model=List[MigrationJobResponse] to the @router.post decorator.\n\n2. Migration never actually runs: start_migration() in migration_service.py creates jobs with PENDING status but has only a comment '# In a real app, this would trigger Celery tasks here'. Fix: trigger run_migration_task.delay(str(job.id), job.entity.value) for each newly created job (not for active_job that already existed). Import run_migration_task from app.tasks.migration_tasks.\n\n3. update_job_status uses .returning(MigrationJob) with ORM object - RETURNING with ORM object may not work correctly with asyncpg. Fix: after update, do a separate select to reload the job by id.\n\nFiles to modify:\n- backend/app/api/v1/admin/router.py: add response_model=List[MigrationJobResponse] to POST /migration/start\n- backend/app/api/v1/admin/migration_service.py: trigger Celery tasks in start_migration()\n- backend/app/api/v1/admin/migration_repository.py: fix update_job_status to use select after update instead of RETURNING\n\nDo NOT change migration business logic, OC models, or any other files.",
+  "depends_on": [],
+  "priority": "critical",
+  "acceptance_criteria": [
+    "POST /api/v1/admin/migration/start returns 200 with List[MigrationJobResponse] JSON",
+    "start_migration() calls run_migration_task.delay() for each new job",
+    "ruff check app/ passes",
+    "pytest tests/ -x passes"
+  ]
+}

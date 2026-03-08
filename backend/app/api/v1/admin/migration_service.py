@@ -47,15 +47,25 @@ class MigrationService:
             ]
         
         jobs = []
+        new_jobs = []
         for ent in entities:
             active_job = await self.repo.get_active_job_by_entity(ent)
             if active_job:
                 jobs.append(active_job)
             else:
-                jobs.append(await self.repo.create_job(ent))
-        
-        # In a real app, this would trigger Celery tasks here
-        # For now, we return the jobs
+                new_job = await self.repo.create_job(ent)
+                jobs.append(new_job)
+                new_jobs.append(new_job)
+
+        # Trigger Celery tasks for newly created jobs
+        from app.tasks.migration_tasks import run_migration_task  # noqa: PLC0415
+        from app.core.logging import logger  # noqa: PLC0415
+        for job in new_jobs:
+            try:
+                run_migration_task.delay(str(job.id))
+            except Exception as exc:
+                logger.warning("migration_task_dispatch_failed", job_id=str(job.id), error=str(exc))
+
         return jobs
 
     async def get_all_jobs(self) -> List[MigrationJob]:

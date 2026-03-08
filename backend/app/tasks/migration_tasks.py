@@ -18,9 +18,8 @@ def run_migration_task(self, job_id: str):
             service = MigrationService(repo, session)
             await service.run_batch(UUID(job_id))
 
-    loop = asyncio.get_event_loop()
     try:
-        return loop.run_until_complete(_run())
+        return asyncio.run(_run())
     except Exception as exc:
         logger.error("migration_task_failed", job_id=job_id, error=str(exc))
         raise self.retry(exc=exc, countdown=60)
