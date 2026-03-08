@@ -4,6 +4,7 @@ import UCard from '~/components/U/UCard.vue'
 import UBadge from '~/components/U/UBadge.vue'
 import USkeleton from '~/components/U/USkeleton.vue'
 import { useConfirm } from '~/composables/useConfirm'
+import type { BlogListResponse } from '~/composables/useBlog'
 
 definePageMeta({
   layout: false,
@@ -13,9 +14,41 @@ definePageMeta({
 
 const router = useRouter()
 const { confirm } = useConfirm()
-
-const { data: posts, pending, refresh } = await useApi<any>('/blog/posts', { params: { limit: 100 } })
 const apiFetch = useApiFetch()
+
+// Cursor-based pagination state
+const currentCursor = ref<string | null>(null)
+const cursorHistory = ref<(string | null)[]>([null]) // history[0] = null (first page)
+const currentPage = ref(0)
+
+const { data: postsData, pending, refresh } = await useApi<BlogListResponse>('/blog/posts', {
+  params: computed(() => ({
+    per_page: 20,
+    status: 'all',
+    ...(currentCursor.value ? { after: currentCursor.value } : {}),
+  })),
+  watch: [currentCursor],
+})
+
+const posts = computed(() => postsData.value?.items ?? [])
+const nextCursor = computed(() => postsData.value?.next_cursor ?? null)
+const total = computed(() => postsData.value?.total ?? 0)
+const hasNext = computed(() => nextCursor.value !== null)
+const hasPrev = computed(() => currentPage.value > 0)
+
+function goNext() {
+  if (!hasNext.value) return
+  const next = nextCursor.value!
+  cursorHistory.value = [...cursorHistory.value.slice(0, currentPage.value + 1), next]
+  currentPage.value += 1
+  currentCursor.value = next
+}
+
+function goPrev() {
+  if (!hasPrev.value) return
+  currentPage.value -= 1
+  currentCursor.value = cursorHistory.value[currentPage.value]
+}
 
 function formatDate(dateStr?: string | null, fallback?: string | null): string {
   const raw = dateStr || fallback
@@ -36,6 +69,7 @@ async function deletePost(slug: string) {
     console.error(e)
   }
 }
+
 </script>
 
 <template>
@@ -54,7 +88,7 @@ async function deletePost(slug: string) {
         <USkeleton v-for="i in 5" :key="i" height="48px" />
       </div>
       <div v-else class="admin-table-wrapper">
-        <table class="admin-table">
+        <table class="admin-table" data-testid="admin-blog-table">
           <thead>
             <tr>
               <th>Заголовок</th>
@@ -65,9 +99,10 @@ async function deletePost(slug: string) {
           </thead>
           <tbody>
             <tr
-              v-for="post in posts?.items"
+              v-for="post in posts"
               :key="post.id"
               class="post-row"
+              data-testid="admin-blog-post-row"
               @click="router.push('/admin/blog/' + post.slug)"
             >
               <td class="title-cell">
@@ -93,10 +128,10 @@ async function deletePost(slug: string) {
               <td class="desktop-only">{{ formatDate(post.published_at, post.created_at) }}</td>
               <td class="actions-cell" @click.stop>
                 <div class="actions">
-                  <UButton variant="ghost" size="sm" :to="`/admin/blog/${post.slug}`" data-testid="admin-blog-edit-btn">
+                  <UButton variant="ghost" size="sm" :to="`/admin/blog/${post.slug}`" data-testid="admin-blog-edit-btn" aria-label="Редактировать">
                     <template #icon><Icon name="ph:pencil-simple-bold" size="20" /></template>
                   </UButton>
-                  <UButton variant="danger" size="sm" @click="deletePost(post.slug)" data-testid="admin-blog-delete-btn">
+                  <UButton variant="danger" size="sm" @click="deletePost(post.slug)" data-testid="admin-blog-delete-btn" aria-label="Удалить">
                     <template #icon><Icon name="ph:trash-bold" size="20" /></template>
                   </UButton>
                 </div>
@@ -104,9 +139,36 @@ async function deletePost(slug: string) {
             </tr>
           </tbody>
         </table>
-        
-        <div v-if="!posts?.items?.length" class="empty-state">
+
+        <div v-if="!posts.length" class="empty-state">
           Посты не найдены
+        </div>
+
+        <!-- Pagination controls -->
+        <div v-if="total > 0" class="pagination" data-testid="admin-blog-pagination">
+          <span class="pagination-info">Всего: {{ total }}</span>
+          <div class="pagination-controls">
+            <UButton
+              variant="ghost"
+              size="sm"
+              :disabled="!hasPrev"
+              data-testid="admin-blog-prev-btn"
+              @click="goPrev"
+            >
+              <template #icon><Icon name="ph:caret-left-bold" /></template>
+              Назад
+            </UButton>
+            <UButton
+              variant="ghost"
+              size="sm"
+              :disabled="!hasNext"
+              data-testid="admin-blog-next-btn"
+              @click="goNext"
+            >
+              Далее
+              <template #icon><Icon name="ph:caret-right-bold" /></template>
+            </UButton>
+          </div>
         </div>
       </div>
     </UCard>
@@ -205,6 +267,24 @@ async function deletePost(slug: string) {
   padding: 48px;
   text-align: center;
   color: var(--color-text-2);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.pagination-info {
+  font-size: var(--text-sm);
+  color: var(--color-text-2);
+}
+
+.pagination-controls {
+  display: flex;
+  gap: 8px;
 }
 
 .p-4 { padding: 16px; }

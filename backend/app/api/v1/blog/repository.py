@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import select, func, update, delete, tuple_
+from sqlalchemy import and_, literal, or_, select, func, update, delete
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
@@ -114,14 +114,21 @@ class BlogRepository:
 
         # Composite cursor pagination: ORDER BY published_at DESC, id DESC
         # Cursor encodes the last seen (published_at, id) pair.
-        # WHERE (published_at, id) < (cursor_published_at, cursor_id) using tuple comparison.
+        # Equivalent SQL:
+        #   WHERE published_at < cursor_published_at
+        #      OR (published_at = cursor_published_at AND id < cursor_id)
         if cursor:
             decoded = _decode_cursor(cursor)
             if decoded is not None:
                 cursor_published_at, cursor_id = decoded
                 stmt = stmt.where(
-                    tuple_(BlogPost.published_at, BlogPost.id)
-                    < tuple_(cursor_published_at, cursor_id)
+                    or_(
+                        BlogPost.published_at < literal(cursor_published_at),
+                        and_(
+                            BlogPost.published_at == literal(cursor_published_at),
+                            BlogPost.id < literal(cursor_id),
+                        ),
+                    )
                 )
 
         stmt = stmt.order_by(BlogPost.published_at.desc(), BlogPost.id.desc()).limit(per_page + 1)

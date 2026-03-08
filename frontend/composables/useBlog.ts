@@ -15,6 +15,12 @@ export interface BlogCategory {
   id: string
   name: string
   slug: string
+  description?: string | null
+  posts_count: number
+}
+
+export interface BlogCategoryListResponse {
+  items: BlogCategory[]
 }
 
 export interface BlogPost {
@@ -41,6 +47,7 @@ export interface BlogPost {
   related?: BlogPost[]
   meta_title?: string
   meta_description?: string
+  created_at?: string
 }
 
 export interface BlogComment {
@@ -107,6 +114,40 @@ export const useBlog = () => {
     })
   }
 
+  // Public blog categories
+  const getCategories = () => {
+    return useApi<BlogCategoryListResponse>('/blog/categories', {
+      key: 'blog-categories'
+    })
+  }
+
+  // Admin blog categories
+  const adminGetCategories = () => {
+    return useApi<BlogCategory[]>('/blog/admin/categories', {
+      key: 'admin-blog-categories'
+    })
+  }
+
+  const adminCreateCategory = async (data: { name: string; slug: string; description?: string }) => {
+    return await apiFetch<BlogCategory>('/blog/admin/categories', {
+      method: 'POST',
+      body: data
+    })
+  }
+
+  const adminUpdateCategory = async (categoryId: string, data: { name?: string; slug?: string; description?: string }) => {
+    return await apiFetch<BlogCategory>(`/blog/admin/categories/${categoryId}`, {
+      method: 'PUT',
+      body: data
+    })
+  }
+
+  const adminDeleteCategory = async (categoryId: string) => {
+    return await apiFetch(`/blog/admin/categories/${categoryId}`, {
+      method: 'DELETE'
+    })
+  }
+
   // Admin mutations
   const savePost = async (slug: string | null, data: Partial<BlogPost>) => {
     const url = slug ? `/admin/blog/posts/${slug}` : `/admin/blog/posts`
@@ -139,6 +180,11 @@ export const useBlog = () => {
     getComments,
     postComment,
     getTags,
+    getCategories,
+    adminGetCategories,
+    adminCreateCategory,
+    adminUpdateCategory,
+    adminDeleteCategory,
     savePost,
     deletePost,
     uploadBlogCover,

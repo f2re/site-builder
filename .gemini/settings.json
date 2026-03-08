@@ -1,12 +1,50 @@
 {
   "$schema": "https://raw.githubusercontent.com/google-gemini/gemini-cli/main/schemas/settings.schema.json",
-  "model": {
-    "name": "gemini-3-flash-preview"
-  },
+  // "model": {
+  //   "name": "gemini-3-flash-preview"
+  //   // "name": "gemini-3.1-pro-preview"
+  // },
   "maxSessionTurns": 150,
   "general": {
-    "defaultApprovalMode": "auto_edit"
+    "defaultApprovalMode": "auto_edit",
+    "plan": {
+      "modelRouting": true
+    }
   },
+  "agents": {
+    "overrides": {
+      "orchestrator": {
+        "model": "gemini-3.1-pro-preview"
+      },
+      "backend-agent": {
+        "model": "gemini-3.1-pro-preview"
+      },
+      "security-agent": {
+        "model": "gemini-3.1-pro-preview"
+      },
+      "devops-agent": {
+        "model": "gemini-3.1-pro-preview"
+      },
+      "frontend-agent": {
+        "model": "gemini-3-flash-preview"
+      },
+      "testing-agent": {
+        "model": "gemini-3-flash-preview"
+      },
+      "e2e-agent": {
+        "model": "gemini-3-flash-preview"
+      },
+      "cdek-agent": {
+        "model": "gemini-3-flash-preview"
+      }
+    }
+  },
+
+  "experimental": {
+    "enableAgents": true,
+    "plan": true
+  },
+
   "experimental": {
     "enableAgents": true
   },

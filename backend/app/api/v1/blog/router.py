@@ -1,4 +1,4 @@
-# Module: api/v1/blog/router.py | Agent: backend-agent | Task: BE-02
+# Module: api/v1/blog/router.py | Agent: backend-agent | Task: p28_backend_blog_categories
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing import List, Optional, Union
 from uuid import UUID
@@ -7,6 +7,9 @@ from app.core.dependencies import get_optional_current_user, require_admin
 from app.db.models.user import User
 from app.db.models.blog import BlogPostStatus
 from .schemas import (
+    BlogCategoryCreate,
+    BlogCategoryRead,
+    BlogCategoryUpdate,
     BlogPagination,
     BlogPostRead,
     BlogPostCreate,
@@ -14,7 +17,7 @@ from .schemas import (
     CommentCreate,
     CommentRead,
     CommentAdminRead,
-    TagRead
+    TagRead,
 )
 from .service import BlogService, get_blog_service
 
@@ -26,7 +29,7 @@ async def list_posts(
     status: Optional[BlogPostStatus] = Query(None, description="Filter by status: DRAFT|PUBLISHED|ARCHIVED. Default is PUBLISHED for guests, all for admins."),
     category: Optional[str] = Query(None, description="Filter by category slug"),
     tag: Optional[str] = Query(None, description="Filter by tag slug"),
-    after: Optional[UUID] = Query(None, description="Cursor for pagination"),
+    after: Optional[str] = Query(None, description="Cursor for pagination (base64-encoded composite cursor)"),
     limit: int = Query(12, ge=1, le=100),
     current_user: Optional[User] = Depends(get_optional_current_user),
     service: BlogService = Depends(get_blog_service),
@@ -37,10 +40,10 @@ async def list_posts(
     # - guests see only PUBLISHED
     effective_status = status
     is_admin = current_user and current_user.role == "admin"
-    
+
     if effective_status is None and not is_admin:
         effective_status = BlogPostStatus.PUBLISHED
-        
+
     return await service.list_posts(
         status=effective_status,
         category_slug=category,
@@ -61,9 +64,9 @@ async def get_post(
     return await service.get_post_detail(slug, is_admin=is_admin)
 
 
-@router.get("/categories")
+@router.get("/categories", response_model=List[BlogCategoryRead])
 async def list_categories(service: BlogService = Depends(get_blog_service)):
-    """List all blog categories."""
+    """List all blog categories with post counts."""
     return await service.list_categories()
 
 
@@ -110,7 +113,7 @@ async def list_posts_admin(
     status: Optional[BlogPostStatus] = Query(None),
     category: Optional[str] = Query(None),
     tag: Optional[str] = Query(None),
-    after: Optional[UUID] = Query(None),
+    after: Optional[str] = Query(None, description="Cursor for pagination (base64-encoded composite cursor)"),
     limit: int = Query(20, ge=1, le=100),
     current_user: User = Depends(require_admin),
     service: BlogService = Depends(get_blog_service),
@@ -123,6 +126,49 @@ async def list_posts_admin(
         cursor=after,
         per_page=limit,
     )
+
+
+# Admin Blog Category CRUD
+@router.get("/admin/categories", response_model=List[BlogCategoryRead])
+async def admin_list_categories(
+    current_user: User = Depends(require_admin),
+    service: BlogService = Depends(get_blog_service),
+):
+    """List all blog categories (admin)."""
+    return await service.list_categories()
+
+
+@router.post("/admin/categories", response_model=BlogCategoryRead, status_code=status.HTTP_201_CREATED)
+async def admin_create_category(
+    data: BlogCategoryCreate,
+    current_user: User = Depends(require_admin),
+    service: BlogService = Depends(get_blog_service),
+):
+    """Create a new blog category (admin)."""
+    return await service.create_category(data)
+
+
+@router.put("/admin/categories/{category_id}", response_model=BlogCategoryRead)
+async def admin_update_category(
+    category_id: UUID,
+    data: BlogCategoryUpdate,
+    current_user: User = Depends(require_admin),
+    service: BlogService = Depends(get_blog_service),
+):
+    """Update a blog category (admin)."""
+    return await service.update_category(category_id, data)
+
+
+@router.delete("/admin/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_delete_category(
+    category_id: UUID,
+    current_user: User = Depends(require_admin),
+    service: BlogService = Depends(get_blog_service),
+):
+    """Delete a blog category (admin)."""
+    success = await service.delete_category(category_id)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
 
 
 @router.put("/posts/{post_id}", response_model=BlogPostRead)

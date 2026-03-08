@@ -1,10 +1,10 @@
 # API Contracts — WifiOBD Site
 
-## Contract Version: 2.0
+## Contract Version: 2.1
 ## Status: ACTIVE
 ## Owner: backend-agent
 ## Consumers: frontend-agent, testing-agent, security-agent
-## Updated: 2026-03-06
+## Updated: 2026-03-08
 
 > Настоящий файл — канонический источник API-контрактов для всех агентов.
 > frontend-agent читает его **перед** любыми запросами к API.
@@ -257,9 +257,17 @@ BlogPost schema:
   author: Author, tags: str[], published_at: datetime, reading_time_min: int }
 ```
 
+BlogCategory schema:
+```
+{ id: UUID, name: str, slug: str, description: str|null, posts_count: int }
+```
+
 ### GET /api/v1/blog/posts
-Request: `tag?, author_id?, page_cursor?, per_page?`
-Response: `{ items: BlogPost[], next_cursor, total }`
+Request: `tag?, category?, after? (base64 cursor), limit?`
+Response: `{ items: BlogPost[], next_cursor: str|null, total: int }`
+- `after` — composite cursor: base64(JSON({published_at: ISO, id: UUID}))
+- Pagination order: `published_at DESC, id DESC` — stable, chronological
+- `next_cursor` is null when all posts have been fetched
 - неаутентифицированный: только `status=published`
 
 ### GET /api/v1/blog/posts/{slug}
@@ -281,6 +289,28 @@ Request: partial BlogPost
 ### DELETE /api/v1/blog/posts/{slug}
 Auth: Bearer + role `admin`
 - soft-delete (`status=deleted`)
+
+### GET /api/v1/blog/categories
+Response: `{ items: BlogCategory[] }` — list with `posts_count` (published posts only)
+
+### GET /api/v1/blog/admin/categories
+Auth: Bearer+admin
+Response: `BlogCategory[]`
+
+### POST /api/v1/blog/admin/categories
+Auth: Bearer+admin
+Request: `{ name: str, slug: str, description?: str }`
+Response: BlogCategory (201 Created)
+
+### PUT /api/v1/blog/admin/categories/{category_id}
+Auth: Bearer+admin
+Request: `{ name?: str, slug?: str, description?: str }`
+Response: BlogCategory
+
+### DELETE /api/v1/blog/admin/categories/{category_id}
+Auth: Bearer+admin
+Response: 204 No Content
+- 404 if not found
 
 ---
 

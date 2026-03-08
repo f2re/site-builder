@@ -1,0 +1,17 @@
+{
+  "task_id": "feature_admin_user_details_backend",
+  "phase": 99,
+  "agent": "backend-agent",
+  "title": "Implement admin endpoint for comprehensive user details",
+  "description": "1. Update User model to track `last_login_at`, `last_login_ip`, and `last_login_device` (could be parsed User-Agent). 2. Update login endpoint to record these values. 3. Create an admin-only endpoint `GET /api/v1/users/{user_id}/admin-profile` that returns all user data, including their addresses, phone, order history, linked IoT devices, and the new login diagnostic fields. Make sure to use appropriate response schemas.",
+  "depends_on": [],
+  "priority": "high",
+  "contracts_required": [],
+  "acceptance_criteria": [
+    "User model has `last_login_at`, `last_login_ip`, `last_login_device`",
+    "Login endpoint updates these fields",
+    "`GET /api/v1/users/{user_id}/admin-profile` returns 200 with full user data including addresses, orders, and devices for admins only",
+    "Non-admins receive 403 Forbidden on the new endpoint",
+    "Proper Alembic migration is created for the new fields"
+  ]
+}
