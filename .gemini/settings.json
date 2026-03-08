@@ -14,28 +14,28 @@
   "agents": {
     "overrides": {
       "orchestrator": {
-        "model": "gemini-3.1-pro-preview"
+        "modelConfig": { "model": "gemini-3-pro-preview" }
       },
       "backend-agent": {
-        "model": "gemini-3.1-pro-preview"
+        "modelConfig": { "model": "gemini-3-pro-preview" }
       },
       "security-agent": {
-        "model": "gemini-3.1-pro-preview"
+        "modelConfig": { "model": "gemini-3-pro-preview" }
       },
       "devops-agent": {
-        "model": "gemini-3.1-pro-preview"
+        "modelConfig": { "model": "gemini-3-pro-preview" }
       },
       "frontend-agent": {
-        "model": "gemini-3-flash-preview"
+        "modelConfig": { "model": "gemini-3-flash-preview" }
       },
       "testing-agent": {
-        "model": "gemini-3-flash-preview"
+        "modelConfig": { "model": "gemini-3-flash-preview" }
       },
       "e2e-agent": {
-        "model": "gemini-3-flash-preview"
+        "modelConfig": { "model": "gemini-3-flash-preview" }
       },
       "cdek-agent": {
-        "model": "gemini-3-flash-preview"
+        "modelConfig": { "model": "gemini-3-flash-preview" }
       }
     }
   },
