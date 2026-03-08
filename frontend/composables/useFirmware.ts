@@ -1,9 +1,6 @@
 import { useFirmwareStore } from '~/stores/firmwareStore'
 import type { DeviceRead, AdminDevice, DuplicateGroup, Complectation, VersionInfo } from '~/stores/firmwareStore'
 
-// Keep legacy export for any code that imports Device from here
-export type { DeviceRead, AdminDevice, DuplicateGroup, Complectation }
-
 export const useFirmware = () => {
   const store = useFirmwareStore()
   const apiFetch = useApiFetch()

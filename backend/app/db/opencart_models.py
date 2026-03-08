@@ -266,3 +266,33 @@ class OCOrderProduct(OCBase):
 
     def __repr__(self) -> str:
         return f"<OCOrderProduct order={self.order_id} product={self.product_id}>"
+
+
+class OCInformation(OCBase):
+    """OpenCart information/static pages table"""
+    __tablename__ = "oc_information"
+
+    information_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[bool] = mapped_column(Boolean, default=True)
+    date_added: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    date_modified: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<OCInformation {self.information_id}>"
+
+
+class OCInformationDescription(OCBase):
+    """OpenCart information descriptions (multi-language)"""
+    __tablename__ = "oc_information_description"
+
+    information_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    language_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(64), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    meta_title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    meta_description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    meta_keyword: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<OCInformationDescription info={self.information_id} lang={self.language_id}>"

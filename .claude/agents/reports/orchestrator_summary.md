@@ -2,7 +2,7 @@
 
 Обновлено: 2026-03-08
 
-## Текущая фаза: 14 (Critical Bug Fixes — Migration + Admin Users)
+## Текущая фаза: 15 (OpenCart SEO Redirects)
 ## Выполнено задач: 8 / 22 ✅
 
 ---
@@ -126,6 +126,62 @@ E2E подграф (параллельно с p8):
 # Шаг 2 — после завершения p14_backend_user_edit:
 /agents:run frontend-agent p14_frontend_user_edit
 ```
+
+---
+
+## Фаза 15 — OpenCart SEO Redirects (2026-03-08)
+
+### Анализ проблем (оркестратор, 2026-03-08)
+
+| Направление | Статус | Вывод |
+|---|---|---|
+| redirect_router.py — query string | ПРОБЛЕМА | `{path:path}` не захватывает query string; `/index.php?route=...&path=61_67` обрезается до `index.php` |
+| redirect_repository.py | ЗАВИСИТ от роутера | После исправления роутера логика корректна |
+| migration_service.py — blog+теги+изображения | РЕАЛИЗОВАНО | Теги из meta_keyword, категории как теги, изображения — всё есть |
+| Скрипт seed_redirects.py | ОТСУТСТВУЕТ | Нет ни одного скрипта для наполнения таблицы Redirect |
+| GET /blog/posts фильтрация | РЕАЛИЗОВАНО | category и tag параметры присутствуют в router и repository |
+| Frontend OpenCart URL interceptor | ОТСУТСТВУЕТ | В frontend/middleware/ только auth.ts; нет перехватчика index.php URLs |
+
+### Созданные задачи
+
+| task_id | Агент | Описание | Приоритет |
+|---|---|---|---|
+| p15_backend_redirect_fix | backend-agent | Исправить redirect_router (Query param вместо path:path), создать scripts/seed_redirects.py | high |
+| p15_frontend_opencart_redirect | frontend-agent | Создать frontend/middleware/opencart-redirect.global.ts | high |
+
+### Порядок запуска:
+```
+# Шаг 1:
+/agents:run backend-agent p15_backend_redirect_fix
+
+# Шаг 2 — после завершения backend задачи:
+/agents:run frontend-agent p15_frontend_opencart_redirect
+```
+
+---
+
+## Фаза 16 — C2C Shipment Card (2026-03-08)
+
+### Описание
+
+Система информирования администратора об отправке заказов через Ozon C2C и WB Track. Поскольку у обоих провайдеров нет публичного API, реализуется генерация "карточки отправки" с готовыми данными для копирования и deeplink в мобильное приложение.
+
+| task_id | Агент | Описание | Статус | Приоритет |
+|---|---|---|---|---|
+| **p16_backend_c2c_shipment** | backend-agent | C2CShipmentPayload dataclass, generate_c2c_payload() для Ozon и WB, endpoint GET /api/v1/delivery/orders/{id}/c2c-shipment | ⏳ PENDING | high |
+| **p16_frontend_c2c_card** | frontend-agent | Страница /admin/orders/[id].vue + блок карточки C2C с инструкцией, deeplink и копированием | BLOCKED (p16_backend_c2c_shipment) | high |
+
+### Порядок запуска:
+```
+# Шаг 1:
+/agents:run backend-agent p16_backend_c2c_shipment
+
+# Шаг 2 — после завершения backend задачи:
+/agents:run frontend-agent p16_frontend_c2c_card
+```
+
+### Новые API endpoints (после завершения):
+- `GET /api/v1/delivery/orders/{order_id}/c2c-shipment` — карточка C2C отправки (auth: admin)
 
 ---
 

@@ -1,0 +1,32 @@
+{
+  "task_id": "p16_frontend_c2c_card",
+  "phase": 16,
+  "agent": "frontend-agent",
+  "title": "C2C Shipment Card — блок в странице заказа в админке",
+  "description": "Реализовать страницу детального просмотра заказа в админке с блоком 'Карточка отправки' для C2C-провайдеров (Ozon, WB Track).\n\n## Контекст\n- `frontend/pages/admin/orders/index.vue` — список заказов — существует\n- `frontend/pages/admin/orders/[id].vue` — страница заказа — НЕ существует, нужно создать\n- Backend endpoint готов: `GET /api/v1/delivery/orders/{order_id}/c2c-shipment`\n- Ответ backend: `{ provider, order_id, recipient_name, recipient_phone, pvz_code, pvz_address, declared_value, weight_kg, comment, deeplink, instructions: string[] }`\n\n## Что реализовать\n\n### 1. Страница frontend/pages/admin/orders/[id].vue\nСоздать страницу детального просмотра заказа:\n- `definePageMeta({ layout: false, middleware: 'auth' })`\n- Загрузить заказ: `useApi('/admin/orders/' + route.params.id)`\n- Отображать основные поля: номер заказа, статус, сумма, дата создания, адрес доставки, провайдер доставки\n- Ссылка 'Назад к списку' → `/admin/orders`\n- Скелетон пока pending\n\n### 2. Блок 'Карточка C2C отправки'\nПоказывать ТОЛЬКО если `order.delivery_provider === 'ozon' || order.delivery_provider === 'wb'`.\nДизайн — `UCard` с заголовком 'Карточка отправки [Ozon/WB Track]'.\n\n**Загрузка данных:**\n```ts\nconst { data: c2cData, pending: c2cPending, error: c2cError } = await useApi(\n  `/delivery/orders/${route.params.id}/c2c-shipment`\n)\n```\nПоказывать skeleton пока `c2cPending`, ошибку если `c2cError`.\n\n**Отображаемые поля (таблица или dl):**\n- Получатель: `c2cData.recipient_name`\n- Телефон: `c2cData.recipient_phone`\n- ПВЗ: `c2cData.pvz_code` — `c2cData.pvz_address`\n- Объявленная ценность: `c2cData.declared_value` ₽\n- Вес: `c2cData.weight_kg` кг\n- Комментарий: `c2cData.comment` (скрыть если пустой)\n\n**Инструкция:**\n- Заголовок 'Инструкция для администратора'\n- Нумерованный список `<ol>` из `c2cData.instructions`\n- Стиль: каждый шаг — отдельная строка, нумерация через CSS counter или `<li>`\n\n**Кнопки:**\n1. Кнопка 'Открыть [Ozon/WB]' (label динамический по provider):\n   - `variant='primary'`\n   - `@click=\"window.open(c2cData.deeplink, '_blank')\"`\n   - `data-testid='c2c-open-app-btn'`\n2. Кнопка 'Скопировать данные':\n   - `variant='secondary'`\n   - `data-testid='c2c-copy-btn'`\n   - При клике формировать строку:\n     ```\n     Заказ: {order_id}\n     Получатель: {recipient_name}\n     Телефон: {recipient_phone}\n     ПВЗ: {pvz_code} — {pvz_address}\n     Ценность: {declared_value} руб\n     Вес: {weight_kg} кг\n     ```\n   - Скопировать через `navigator.clipboard.writeText(text)`\n   - После успеха — `useNotify().success('Данные скопированы')` или аналог через `useToast()`/`useNotify()` — использовать тот composable что уже есть в проекте\n   - Обработать ошибку clipboard (не все браузеры поддерживают без HTTPS)\n\n### 3. Обновить список заказов (index.vue)\nДобавить в каждую строку таблицы ссылку на детальную страницу:\n- В колонке ID заказа добавить `<NuxtLink :to=\"`/admin/orders/${order.id}`\">` вокруг текста `#${order.id.slice(0, 8)}`\n- `data-testid='order-card'` на строку `<tr>`\n- `data-testid='order-detail-link'` на ссылку\n\n## data-testid обязательные\nВсе перечисленные testid должны присутствовать:\n- `order-detail-page` — корневой div страницы [id].vue\n- `order-back-link` — кнопка/ссылка 'Назад'\n- `order-detail-status` — бейдж статуса\n- `order-detail-total` — сумма заказа\n- `c2c-shipment-card` — блок карточки отправки (UCard)\n- `c2c-recipient` — поле имени получателя\n- `c2c-phone` — телефон\n- `c2c-pvz` — поле ПВЗ\n- `c2c-value` — объявленная ценность\n- `c2c-instructions` — блок инструкции\n- `c2c-open-app-btn` — кнопка deeplink\n- `c2c-copy-btn` — кнопка копирования\n\n## Стиль\n- Только `var(--color-*)` токены из `assets/css/tokens.css`\n- Блок карточки C2C: `background: var(--color-surface-2)` или `var(--color-surface)`, граница `var(--color-border)`\n- Заголовок блока выделить акцентом `var(--color-accent)` или `var(--color-neon)`\n- Инструкция: нумерованный список, шаги через `gap`, `color: var(--color-text-2)` с нумерацией `var(--color-accent)`\n- Mobile-first: на мобиле кнопки полной ширины (`width: 100%`), на десктопе — рядом\n- Skeleton для блока C2C пока идёт загрузка\n\n## Composable\nЕсли в проекте нет `useNotify()` — проверить наличие `useToast()` или аналога. Использовать существующий. Если нет ни одного — реализовать минимальный `alert()` как fallback и оставить TODO-комментарий.\n\n## Проверка\n```bash\ncd frontend && npm run lint\ncd frontend && npm run type-check\n```\nОба должны пройти без ошибок.",
+  "depends_on": ["p16_backend_c2c_shipment"],
+  "priority": "high",
+  "contracts_required": [
+    ".claude/agents/contracts/api_contracts.md"
+  ],
+  "acceptance_criteria": [
+    "Файл frontend/pages/admin/orders/[id].vue создан",
+    "Страница загружает данные заказа через useApi('/admin/orders/{id}')",
+    "Блок 'Карточка C2C отправки' показывается только если delivery_provider === 'ozon' или 'wb'",
+    "Данные C2C загружаются через GET /api/v1/delivery/orders/{id}/c2c-shipment",
+    "Отображаются: получатель, телефон, ПВЗ, ценность, вес, комментарий",
+    "Инструкция отображается нумерованным списком из поля instructions",
+    "Кнопка 'Открыть Ozon/WB' открывает deeplink в новой вкладке",
+    "Кнопка 'Скопировать данные' копирует все поля одним текстовым блоком",
+    "После копирования показывается уведомление через composable",
+    "Все обязательные data-testid присутствуют: c2c-shipment-card, c2c-open-app-btn, c2c-copy-btn, c2c-instructions, c2c-recipient, c2c-phone, c2c-pvz, c2c-value",
+    "Skeleton отображается пока идёт загрузка C2C данных",
+    "Ошибка загрузки обрабатывается и отображается пользователю",
+    "В index.vue добавлены ссылки на детальную страницу",
+    "Используются только var(--color-*) токены, без hex-цветов",
+    "Mobile-first: на мобиле кнопки полной ширины",
+    "npm run lint проходит без ошибок",
+    "npm run type-check проходит без ошибок",
+    "Отчёт записан в .claude/agents/reports/frontend/p16_frontend_c2c_card.md"
+  ]
+}

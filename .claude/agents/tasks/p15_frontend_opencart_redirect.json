@@ -1,0 +1,22 @@
+{
+  "task_id": "p15_frontend_opencart_redirect",
+  "phase": 15,
+  "agent": "frontend-agent",
+  "title": "Add OpenCart URL interceptor middleware in Nuxt 3",
+  "description": "Create a Nuxt 3 route middleware that detects OpenCart-style URLs and redirects to the new site structure.\n\n## Context\n\nThe old site used OpenCart with URL pattern:\n  /index.php?route=product/category&path=61_67   (category page)\n  /index.php?route=product/product&product_id=123  (product page)\n\nUsers may have old bookmarks, external links, or search engine cache pointing to these URLs.\n\n## What to implement\n\n### 1. Create frontend/middleware/opencart-redirect.global.ts\n\nThis is a GLOBAL route middleware (runs on every navigation).\n\nLogic:\n1. Check if `to.path` is `/index.php` OR `to.path` starts with `/index.php`\n2. If yes: call the backend API `GET /api/v1/redirects/lookup?old_path=<full_url_with_query>`\n   - The `old_path` value must be the full path+query string, URL-encoded properly\n   - Use `useRuntimeConfig().public.apiBase` for the base URL\n3. If the API returns a redirect record with `new_path`, call `navigateTo(new_path, { redirectCode: 301 })`\n4. If the API returns 404 (no redirect found): let the navigation proceed normally (do NOT block)\n5. If the API call itself fails (network error): log a warning and let navigation proceed\n6. The middleware must NOT call the API for normal (non-OpenCart) URLs — only when path is `/index.php`\n\n### 2. Pattern detection\n\nOpenCart routes to detect and handle:\n- `route=product/category` — redirect to `/catalog/<slug>` (backend returns this)\n- `route=product/product` — redirect to `/shop/<slug>` (backend returns this)\n- `route=information/information` — redirect to `/pages/<slug>` (backend returns this)\n- Any other route — try API lookup, if 404 then go to `/`\n\n### 3. TypeScript interface for the API response\n\n```typescript\ninterface RedirectRecord {\n  id: string\n  old_path: string\n  new_path: string\n  redirect_code: number  // 301 or 302\n  is_active: boolean\n}\n```\n\n### 4. File header and coding contracts\n- File header comment: `// Middleware: opencart-redirect.global.ts | Agent: frontend-agent | Task: p15_frontend_opencart_redirect`\n- Use `useRuntimeConfig()` for API base URL — NO hardcoded URLs\n- TypeScript strict — no `any`\n- Handle both SSR and client-side navigation\n- On SSR: use `$fetch` directly (no browser APIs)\n- Add `data-testid` is not applicable here (middleware has no template)\n\n### 5. Error handling\n- Network timeout or 5xx: `console.warn` and allow navigation to proceed\n- 404 from API: allow navigation to proceed (no redirect configured for this URL)\n- Malformed response: allow navigation to proceed\n\n## Files to create\n- `frontend/middleware/opencart-redirect.global.ts`\n\n## Verification\n```bash\ncd frontend && npm run lint\ncd frontend && npm run type-check\n```\n\nReport to: `.claude/agents/reports/frontend/p15_frontend_opencart_redirect.md`",
+  "depends_on": ["p15_backend_redirect_fix"],
+  "priority": "high",
+  "contracts_required": [".claude/agents/contracts/api_contracts.md"],
+  "acceptance_criteria": [
+    "frontend/middleware/opencart-redirect.global.ts created",
+    "Middleware only activates when to.path is /index.php",
+    "Calls GET /api/v1/redirects/lookup?old_path=... with full query string",
+    "On success: navigateTo(new_path, { redirectCode: 301 })",
+    "On 404 or network error: allows navigation to proceed without throwing",
+    "Uses useRuntimeConfig().public.apiBase — no hardcoded URLs",
+    "TypeScript strict — no any types",
+    "npm run lint passes",
+    "npm run type-check passes",
+    "Report written to .claude/agents/reports/frontend/p15_frontend_opencart_redirect.md"
+  ]
+}

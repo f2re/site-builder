@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, ConfigDict
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, List
 
 class DeliveryCalculateResponse(BaseModel):
     cost_rub: Decimal
@@ -78,4 +78,19 @@ class AggregatedRateResponse(BaseModel):
 class AllPickupPointsResponse(BaseModel):
     points: list[PickupPointResponse]
     total: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+class C2CShipmentResponse(BaseModel):
+    provider: str
+    order_id: str
+    recipient_name: str
+    recipient_phone: str
+    pvz_code: str
+    pvz_address: str
+    declared_value: Decimal
+    weight_kg: float
+    comment: str
+    deeplink: str
+    instructions: List[str]
     model_config = ConfigDict(from_attributes=True)

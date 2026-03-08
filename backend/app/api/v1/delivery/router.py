@@ -1,13 +1,31 @@
-# Module: delivery/router | Agent: backend-agent | Task: BE-03_cart_orders_payments (refined)
+# Module: delivery/router | Agent: backend-agent | Task: p16_backend_c2c_shipment
 
-from fastapi import APIRouter, HTTPException, status, Query
-from app.api.v1.delivery.service import delivery_service
-from app.api.v1.delivery.schemas import (
-    DeliveryCalculateResponse, CityRead, PickupPointRead,
-    AggregatedRateRequest, AggregatedRateResponse, AllPickupPointsResponse
-)
+import dataclasses
+from decimal import Decimal
 from typing import List
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.v1.delivery.schemas import (
+    AllPickupPointsResponse,
+    AggregatedRateRequest,
+    AggregatedRateResponse,
+    C2CShipmentResponse,
+    CityRead,
+    DeliveryCalculateResponse,
+    PickupPointRead,
+)
+from app.api.v1.delivery.service import delivery_service
+from app.api.v1.orders.repository import OrderRepository
+from app.core.dependencies import require_admin
 from app.core.logging import logger
+from app.db.models.user import User
+from app.db.session import get_db
+from app.integrations import ozon_delivery, wb_delivery
+from app.integrations.ozon_delivery import C2CShipmentPayload as OzonC2CPayload
+from app.integrations.wb_delivery import C2CShipmentPayload as WbC2CPayload
 
 router = APIRouter(prefix="/delivery", tags=["Delivery"])
 
@@ -109,3 +127,64 @@ async def get_all_pickup_points(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch pickup points from all providers: {str(e)}"
         )
+
+
+@router.get("/orders/{order_id}/c2c-shipment", response_model=C2CShipmentResponse)
+async def get_c2c_shipment(
+    order_id: UUID,
+    _admin: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_db),
+) -> C2CShipmentResponse:
+    """
+    Сгенерировать карточку отправки C2C для Ozon или WB.
+    Доступно только администраторам.
+    """
+    repo = OrderRepository(session)
+    order = await repo.get_by_id(order_id)
+    if order is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found",
+        )
+
+    provider = (order.delivery_provider or "").lower()
+    if provider not in ("ozon", "wb"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Provider is not C2C (ozon/wb)",
+        )
+
+    # Resolve recipient data from order
+    recipient_name: str = "Имя не указано"
+    recipient_phone: str = "Телефон не указан"
+    if order.user is not None:
+        if order.user.name:
+            recipient_name = order.user.name
+        if order.user.phone:
+            recipient_phone = order.user.phone
+
+    pvz_code: str = order.tracking_number or "Не выбран"
+    pvz_address: str = order.shipping_address or "Не указан"
+    declared_value: Decimal = order.total_amount
+
+    c2c_payload: OzonC2CPayload | WbC2CPayload
+    if provider == "ozon":
+        c2c_payload = ozon_delivery.generate_c2c_payload(
+            order_id=str(order.id),
+            recipient_name=recipient_name,
+            recipient_phone=recipient_phone,
+            pvz_code=pvz_code,
+            pvz_address=pvz_address,
+            declared_value=declared_value,
+        )
+    else:
+        c2c_payload = wb_delivery.generate_c2c_payload(
+            order_id=str(order.id),
+            recipient_name=recipient_name,
+            recipient_phone=recipient_phone,
+            pvz_code=pvz_code,
+            pvz_address=pvz_address,
+            declared_value=declared_value,
+        )
+
+    return C2CShipmentResponse(**dataclasses.asdict(c2c_payload))

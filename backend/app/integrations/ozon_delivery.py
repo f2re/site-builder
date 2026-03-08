@@ -1,7 +1,60 @@
-# Module: integrations/ozon_delivery | Agent: backend-agent | Task: p11_backend_user_addresses
+# Module: integrations/ozon_delivery | Agent: backend-agent | Task: p16_backend_c2c_shipment
 """Ozon C2C delivery via pickup points (no API, static data)."""
+from dataclasses import dataclass, field
+from decimal import Decimal
+
 from app.api.v1.delivery.provider import PickupPoint
 from app.api.v1.delivery.city_mapping import CITY_MAPPING
+
+
+@dataclass
+class C2CShipmentPayload:
+    provider: str
+    order_id: str
+    recipient_name: str
+    recipient_phone: str
+    pvz_code: str
+    pvz_address: str
+    declared_value: Decimal
+    weight_kg: float
+    comment: str
+    deeplink: str
+    instructions: list[str] = field(default_factory=list)
+
+
+def generate_c2c_payload(
+    order_id: str,
+    recipient_name: str,
+    recipient_phone: str,
+    pvz_code: str,
+    pvz_address: str,
+    declared_value: Decimal,
+    weight_kg: float = 0.5,
+    comment: str = "",
+) -> C2CShipmentPayload:
+    """Generate C2C shipment payload for Ozon (no public API — via mobile app)."""
+    deeplink = f"https://www.ozon.ru/my/profile?utm_source=wifiobd&order={order_id}"
+    instructions = [
+        "Откройте приложение Ozon на смартфоне",
+        "Перейдите: Профиль → Мои заказы → Отправить посылку",
+        f"Введите данные получателя: {recipient_name}, {recipient_phone}",
+        f"Выберите ПВЗ получения: {pvz_code} — {pvz_address}",
+        f"Укажите объявленную ценность: {declared_value} руб., вес: {weight_kg} кг"
+        + (f", комментарий: {comment}" if comment else ""),
+    ]
+    return C2CShipmentPayload(
+        provider="ozon",
+        order_id=order_id,
+        recipient_name=recipient_name,
+        recipient_phone=recipient_phone,
+        pvz_code=pvz_code,
+        pvz_address=pvz_address,
+        declared_value=declared_value,
+        weight_kg=weight_kg,
+        comment=comment,
+        deeplink=deeplink,
+        instructions=instructions,
+    )
 
 
 # Static Ozon pickup points (Moscow examples)

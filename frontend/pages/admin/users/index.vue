@@ -7,7 +7,7 @@ import UInput from '~/components/U/UInput.vue'
 import UCard from '~/components/U/UCard.vue'
 import UModal from '~/components/U/UModal.vue'
 import USelect from '~/components/U/USelect.vue'
-import UserAddressesList from '~/components/admin/UserAddressesList.vue'
+import UserAddressesList from '~/components/Admin/UserAddressesList.vue'
 
 definePageMeta({
   layout: false,
