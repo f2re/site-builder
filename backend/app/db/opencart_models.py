@@ -296,3 +296,24 @@ class OCInformationDescription(OCBase):
 
     def __repr__(self) -> str:
         return f"<OCInformationDescription info={self.information_id} lang={self.language_id}>"
+
+
+class OCAddress(OCBase):
+    """OpenCart customer address table"""
+    __tablename__ = "oc_address"
+
+    address_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    customer_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    firstname: Mapped[str] = mapped_column(String(32), nullable=False)
+    lastname: Mapped[str] = mapped_column(String(32), nullable=False)
+    company: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
+    address_1: Mapped[str] = mapped_column(String(128), nullable=False)
+    address_2: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    city: Mapped[str] = mapped_column(String(128), nullable=False)
+    postcode: Mapped[str] = mapped_column(String(10), nullable=False)
+    country_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    zone_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    custom_field: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<OCAddress {self.address_id} customer={self.customer_id}>"

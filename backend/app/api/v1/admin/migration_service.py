@@ -397,6 +397,9 @@ class MigrationService:
             should_retrigger = False
             if job.entity == MigrationEntity.USERS:
                 should_retrigger = await self.migrate_users(job)
+                if not should_retrigger:
+                    # Users migration complete, now migrate addresses
+                    await self.migrate_addresses()
             elif job.entity in [MigrationEntity.PRODUCTS, MigrationEntity.CATEGORIES]:
                 # First migrate information pages, then catalog
                 metadata: Dict[str, Any] = job.extra_data or {}  # type: ignore[assignment]
@@ -473,9 +476,12 @@ class MigrationService:
                     new_user = User(
                         email_hash=email_hash,
                         email=encrypt_data(oc_cust.email),
+                        email_normalized=oc_cust.email.lower().strip(),
                         full_name=encrypt_data(f"{oc_cust.firstname} {oc_cust.lastname}"),
+                        full_name_normalized=f"{oc_cust.firstname} {oc_cust.lastname}".lower().strip(),
                         phone=encrypt_data(oc_cust.telephone) if oc_cust.telephone else None,
                         phone_hash=get_blind_index(oc_cust.telephone) if oc_cust.telephone else None,
+                        phone_normalized=oc_cust.telephone.lower().strip() if oc_cust.telephone else None,
                         hashed_password=oc_cust.password,  # Store OC hash as is
                         role="customer",
                         is_active=bool(oc_cust.status),
@@ -506,6 +512,76 @@ class MigrationService:
                 await self.repo.update_job_status(job.id, MigrationStatus.DONE)
                 return False
             return True
+
+    async def migrate_addresses(self) -> None:
+        """Migrate customer addresses from OpenCart to delivery_addresses."""
+        from app.core.logging import logger
+        from app.db.opencart_models import OCAddress, OCCustomer
+        from app.db.models.delivery_address import DeliveryAddress, AddressType, DeliveryProvider
+        from app.core.security import encrypt_data, get_blind_index
+
+        async with OCAsyncSessionLocal() as oc_session:
+            stmt = select(OCAddress).order_by(OCAddress.address_id)
+            result = await oc_session.execute(stmt)
+            addresses = result.scalars().all()
+
+            processed = 0
+            skipped = 0
+
+            for oc_addr in addresses:
+                # Check idempotency
+                check_stmt = select(DeliveryAddress).where(DeliveryAddress.oc_address_id == oc_addr.address_id)
+                existing = await self.session.execute(check_stmt)
+                if existing.scalar_one_or_none():
+                    skipped += 1
+                    continue
+
+                # Find user by customer_id
+                cust_stmt = select(OCCustomer).where(OCCustomer.customer_id == oc_addr.customer_id)
+                cust_result = await oc_session.execute(cust_stmt)
+                oc_cust = cust_result.scalar_one_or_none()
+                if not oc_cust:
+                    skipped += 1
+                    continue
+
+                # Find user by email_hash
+                email_hash = get_blind_index(oc_cust.email)
+                user_stmt = select(User).where(User.email_hash == email_hash)
+                user_result = await self.session.execute(user_stmt)
+                user = user_result.scalar_one_or_none()
+                if not user:
+                    skipped += 1
+                    continue
+
+                try:
+                    recipient_name = f"{oc_addr.firstname} {oc_addr.lastname}".strip()
+                    full_address = f"{oc_addr.address_1} {oc_addr.address_2 or ''}".strip()
+
+                    new_address = DeliveryAddress(
+                        user_id=user.id,
+                        name=f"Адрес {oc_addr.address_id}",
+                        recipient_name=encrypt_data(recipient_name),
+                        recipient_phone=encrypt_data(oc_cust.telephone),
+                        recipient_phone_hash=get_blind_index(oc_cust.telephone),
+                        full_address=encrypt_data(full_address),
+                        address_type=AddressType.COURIER,
+                        city=oc_addr.city,
+                        postal_code=oc_addr.postcode,
+                        provider=DeliveryProvider.MANUAL,
+                        pickup_point_code=None,
+                        is_default=(oc_addr.address_id == oc_cust.address_id),
+                        oc_address_id=oc_addr.address_id
+                    )
+                    self.session.add(new_address)
+                    await self.session.flush()
+                    processed += 1
+                except Exception as exc:
+                    await self.session.rollback()
+                    skipped += 1
+                    logger.warning("migrate_addresses_skip", oc_address_id=oc_addr.address_id, error=str(exc))
+
+            await self.session.commit()
+            logger.info("migrate_addresses_complete", processed=processed, skipped=skipped)
 
     async def migrate_catalog(self, job: MigrationJob) -> bool:
         from app.core.logging import logger  # noqa: PLC0415

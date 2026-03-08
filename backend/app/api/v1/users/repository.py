@@ -94,15 +94,18 @@ class UserRepository:
         """Encrypt PII data before creating a new user."""
         if user_in.email:
             user_in.email_hash = get_blind_index(user_in.email)
+            user_in.email_normalized = user_in.email.lower().strip()
             user_in.email = encrypt_data(user_in.email)
         if user_in.full_name:
+            user_in.full_name_normalized = user_in.full_name.lower().strip()
             user_in.full_name = encrypt_data(user_in.full_name)
         if user_in.phone:
             user_in.phone_hash = get_blind_index(user_in.phone)
+            user_in.phone_normalized = user_in.phone.lower().strip()
             user_in.phone = encrypt_data(user_in.phone)
         if user_in.address:
             user_in.address = encrypt_data(user_in.address)
-            
+
         self.session.add(user_in)
         await self.session.commit()
         await self.session.refresh(user_in)
@@ -112,33 +115,37 @@ class UserRepository:
         """Encrypt PII data before updating."""
         if not kwargs:
             return await self.get_by_id(user_id)
-            
+
         if "email" in kwargs:
             if kwargs["email"]:
                 kwargs["email_hash"] = get_blind_index(kwargs["email"])
+                kwargs["email_normalized"] = kwargs["email"].lower().strip()
                 kwargs["email"] = encrypt_data(kwargs["email"])
-            # Email usually shouldn't be None as it's nullable=False
-            
+
         if "full_name" in kwargs:
             if kwargs["full_name"]:
+                kwargs["full_name_normalized"] = kwargs["full_name"].lower().strip()
                 kwargs["full_name"] = encrypt_data(kwargs["full_name"])
             else:
                 kwargs["full_name"] = None
-                
+                kwargs["full_name_normalized"] = None
+
         if "phone" in kwargs:
             if kwargs["phone"]:
                 kwargs["phone_hash"] = get_blind_index(kwargs["phone"])
+                kwargs["phone_normalized"] = kwargs["phone"].lower().strip()
                 kwargs["phone"] = encrypt_data(kwargs["phone"])
             else:
                 kwargs["phone_hash"] = None
                 kwargs["phone"] = None
-                
+                kwargs["phone_normalized"] = None
+
         if "address" in kwargs:
             if kwargs["address"]:
                 kwargs["address"] = encrypt_data(kwargs["address"])
             else:
                 kwargs["address"] = None
-            
+
         await self.session.execute(
             update(User)
             .where(User.id == user_id)
@@ -155,20 +162,24 @@ class UserRepository:
         offset: int = 0,
         limit: int = 100
     ) -> List[User]:
-        """List users with filtering and search (by email hash)."""
+        """List users with filtering and search (by email, name, phone)."""
         query = select(User)
-        
+
         if search:
-            # We can only search by exact email hash or ID
-            # For a more advanced search, we'd need more blind indices
+            search_lower = search.lower()
             email_hash = get_blind_index(search)
-            query = query.where(User.email_hash == email_hash)
-            
+            query = query.where(
+                (User.email_normalized.ilike(f"%{search_lower}%")) |
+                (User.full_name_normalized.ilike(f"%{search_lower}%")) |
+                (User.phone_normalized.ilike(f"%{search_lower}%")) |
+                (User.email_hash == email_hash)
+            )
+
         if role:
             query = query.where(User.role == role)
         if is_active is not None:
             query = query.where(User.is_active == is_active)
-            
+
         query = (
             query.offset(offset)
             .limit(limit)
@@ -178,7 +189,7 @@ class UserRepository:
                 selectinload(User.devices)
             )
         )
-        
+
         result = await self.session.execute(query)
         users = result.scalars().all()
         return [self._decrypt_user(u) for u in users]
@@ -191,16 +202,22 @@ class UserRepository:
     ) -> int:
         """Count users with filtering."""
         query = select(func.count(User.id))
-        
+
         if search:
+            search_lower = search.lower()
             email_hash = get_blind_index(search)
-            query = query.where(User.email_hash == email_hash)
-            
+            query = query.where(
+                (User.email_normalized.ilike(f"%{search_lower}%")) |
+                (User.full_name_normalized.ilike(f"%{search_lower}%")) |
+                (User.phone_normalized.ilike(f"%{search_lower}%")) |
+                (User.email_hash == email_hash)
+            )
+
         if role:
             query = query.where(User.role == role)
         if is_active is not None:
             query = query.where(User.is_active == is_active)
-            
+
         result = await self.session.execute(query)
         return int(result.scalar() or 0)
 

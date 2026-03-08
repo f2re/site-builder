@@ -240,9 +240,87 @@ E2E подграф (параллельно с p8):
 
 ---
 
+## Фаза 20 — Admin Orders Enhancements (2026-03-08)
+
+| task_id | Агент | Титул | Статус | Приоритет |
+|---|---|---|---|------|
+| **p22_backend_orders_date_filter** | backend-agent | Add Date Range Filters to Admin Orders API | ✅ DONE | medium |
+
+### Реализовано:
+- ✅ Добавлены параметры date_from и date_to в GET /api/v1/admin/orders
+- ✅ OrderRepository.list_all() фильтрует по диапазону дат created_at
+- ✅ Логика: created_at >= date_from AND created_at < date_to + 1 day
+
+### Верификация:
+- ruff: ✅ | mypy: ✅ (142 files)
+
+### Отчёт:
+- [backend/p22_backend_orders_date_filter.md](.claude/agents/reports/backend/p22_backend_orders_date_filter.md)
+
+---
+
+## Фаза 21 — Admin User Search Fix (2026-03-08)
+
+| task_id | Агент | Титул | Статус | Приоритет |
+|---|---|---|---|------|
+| **p23_backend_user_search_fix** | backend-agent | Fix Admin User Search - Add Name Search Support | ⏳ PENDING | high |
+| **p24_backend_address_import** | backend-agent | Import Customer Addresses from OpenCart | ⏳ PENDING (depends: p23) | medium |
+
+### Проблемы:
+1. **Поиск не работает**: Frontend отправляет `q=Alexand`, backend ожидает `search`
+2. **Поиск только по email**: Текущая реализация ищет только по точному email через blind index
+3. **Имена зашифрованы**: full_name зашифровано, поиск по имени невозможен
+4. **Адреса не импортируются**: Нет логики импорта адресов из oc_address
+
+### Решение:
+- Добавить параметр `q` как алиас для `search`
+- Добавить поле `full_name_normalized` (незашифрованное, lowercase)
+- Реализовать ILIKE поиск по `full_name_normalized`
+- Импортировать адреса из OpenCart после исправления поиска
+
+### Порядок запуска:
+```
+# Шаг 1:
+/agents:run backend-agent p23_backend_user_search_fix
+
+# Шаг 2 — после завершения p23:
+/agents:run backend-agent p24_backend_address_import
+```
+
+---
+
 ## Последнее действие
 
-> **2026-03-08: ✅ Исправлена миграция OpenCart**
+> **2026-03-08: ✅ Добавлена фильтрация заказов по дате**
+>
+> Выполнена задача:
+> - ✅ p22_backend_orders_date_filter — добавлены параметры date_from/date_to в GET /admin/orders
+>
+> **Реализовано:**
+> - Параметры date_from и date_to в GET /api/v1/admin/orders
+> - OrderRepository.list_all() фильтрует по created_at >= date_from AND created_at < date_to + 1 day
+> - Frontend может использовать фильтр по дате
+>
+> **Верификация:**
+> - Backend: ruff ✅, mypy ✅ (142 files)
+>
+> **Новые проблемы обнаружены:**
+> - Поиск пользователей не работает (q=Alexand возвращает пустой результат)
+> - Frontend отправляет параметр `q`, backend ожидает `search`
+> - Поиск работает только по точному email через blind index
+> - Адреса пользователей не импортируются из OpenCart
+>
+> **Созданы задачи:**
+> - p23_backend_user_search_fix — исправить поиск пользователей (добавить full_name_normalized)
+> - p24_backend_address_import — импортировать адреса из oc_address
+>
+> **Следующие шаги:**
+> ```
+> /agents:run backend-agent p23_backend_user_search_fix
+> ```
+>
+> **Отчёт:**
+> - [backend/p22_backend_orders_date_filter.md](.claude/agents/reports/backend/p22_backend_orders_date_filter.md)
 >
 > Выполнена задача:
 > - ✅ p18_backend_migration_opencart_fixes — исправлены критические проблемы миграции

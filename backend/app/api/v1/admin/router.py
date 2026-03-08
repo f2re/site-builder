@@ -405,7 +405,8 @@ async def upload_blog_cover(
 # ─── Customers ───────────────────────────────────────────────────────────────
 @router.get("/users")
 async def list_users(
-    search: Optional[str] = None,
+    q: Optional[str] = Query(None, description="Search by name or email"),
+    search: Optional[str] = Query(None, description="Deprecated: use q instead"),
     role: Optional[str] = None,
     is_active: Optional[bool] = None,
     page: int = Query(1, ge=1),
@@ -413,10 +414,11 @@ async def list_users(
     _admin: User = AdminDep,
     repo: UserRepository = Depends(get_user_repo)
 ) -> Any:
+    search_term = q or search
     offset = (page - 1) * per_page
-    users = await repo.list_users(search, role, is_active, offset, per_page)
-    total = await repo.count_users(search, role, is_active)
-    
+    users = await repo.list_users(search_term, role, is_active, offset, per_page)
+    total = await repo.count_users(search_term, role, is_active)
+
     return {
         "items": [UserResponse.model_validate(u) for u in users],
         "total": total,

@@ -10,6 +10,7 @@ import enum
 class AddressType(str, enum.Enum):
     HOME = "home"
     PICKUP = "pickup"
+    COURIER = "courier"
 
 
 class DeliveryProvider(str, enum.Enum):
@@ -17,6 +18,7 @@ class DeliveryProvider(str, enum.Enum):
     POCHTA = "pochta"
     OZON = "ozon"
     WB = "wb"
+    MANUAL = "manual"
 
 
 class DeliveryAddress(Base):
@@ -41,6 +43,7 @@ class DeliveryAddress(Base):
     provider: Mapped[DeliveryProvider] = mapped_column(SQLEnum(DeliveryProvider, name="delivery_provider_enum"), nullable=False)
     pickup_point_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    oc_address_id: Mapped[int | None] = mapped_column(nullable=True, index=True, unique=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
