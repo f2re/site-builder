@@ -50,7 +50,7 @@ async def list_posts(
         except ValueError:
             raise HTTPException(status_code=422, detail=f"Invalid status: {effective_status}")
 
-    actual_limit = limit if limit is not None else per_page
+    actual_limit = limit if limit is not None else (per_page if per_page is not None else 20)
 
     return await service.list_posts(
         status=effective_status,
@@ -137,7 +137,7 @@ async def list_posts_admin(
         except ValueError:
             raise HTTPException(status_code=422, detail=f"Invalid status: {effective_status}")
 
-    actual_limit = limit if limit is not None else per_page
+    actual_limit = limit if limit is not None else (per_page if per_page is not None else 20)
 
     return await service.list_posts(
         status=effective_status,

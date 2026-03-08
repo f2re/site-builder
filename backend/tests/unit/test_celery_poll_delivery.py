@@ -29,7 +29,7 @@ async def test_poll_delivery_statuses_cdek(db_session):
         }
     }
 
-    with patch("app.tasks.delivery.AsyncSessionLocal") as mock_session:
+    with patch("app.tasks.delivery.CelerySessionLocal") as mock_session:
         mock_session.return_value.__aenter__.return_value = db_session
         with patch("app.integrations.cdek.cdek_client.get_order_status", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_cdek_response
@@ -64,7 +64,7 @@ async def test_poll_delivery_statuses_pochta(db_session):
         "status_text": "Прибыло"
     }
 
-    with patch("app.tasks.delivery.AsyncSessionLocal") as mock_session:
+    with patch("app.tasks.delivery.CelerySessionLocal") as mock_session:
         mock_session.return_value.__aenter__.return_value = db_session
         with patch("app.integrations.pochta.pochta_client.get_shipment_status", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_pochta_response
@@ -93,7 +93,7 @@ async def test_poll_delivery_statuses_handles_errors(db_session):
     db_session.add(order)
     await db_session.commit()
 
-    with patch("app.tasks.delivery.AsyncSessionLocal") as mock_session:
+    with patch("app.tasks.delivery.CelerySessionLocal") as mock_session:
         mock_session.return_value.__aenter__.return_value = db_session
         with patch("app.integrations.cdek.cdek_client.get_order_status", new_callable=AsyncMock) as mock_get:
             mock_get.side_effect = Exception("API Error")
