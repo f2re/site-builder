@@ -117,10 +117,12 @@ const downloadExcel = async () => {
     <template #header-title>Пользователи</template>
     <template #header-actions>
       <div class="flex gap-2">
-        <UButton variant="ghost" @click="downloadExcel" icon="ph:file-xls-bold" class="desktop-only">
+        <UButton variant="ghost" @click="downloadExcel" class="desktop-only">
+          <template #icon><Icon name="ph:file-xls-bold" /></template>
           Экспорт
         </UButton>
-        <UButton variant="primary" @click="isModalOpen = true" icon="ph:user-plus-bold" data-testid="admin-add-user-btn">
+        <UButton variant="primary" @click="isModalOpen = true" data-testid="admin-add-user-btn">
+          <template #icon><Icon name="ph:user-plus-bold" /></template>
           <span class="desktop-only">Создать</span>
         </UButton>
       </div>
@@ -146,7 +148,9 @@ const downloadExcel = async () => {
               <option value="admin">Админ</option>
             </select>
           </div>
-          <UButton variant="ghost" @click="downloadExcel" icon="ph:file-xls-bold" class="mobile-only" aria-label="Экспорт" />
+          <UButton variant="ghost" @click="downloadExcel" class="mobile-only" aria-label="Экспорт">
+            <template #icon><Icon name="ph:file-xls-bold" /></template>
+          </UButton>
         </div>
       </UCard>
 
@@ -172,8 +176,8 @@ const downloadExcel = async () => {
               <tr v-for="user in users" :key="user.id" data-testid="user-row">
                 <td>
                   <div class="user-info">
-                    <span class="user-name" data-testid="user-name">{{ user.full_name || 'Без имени' }}</span>
-                    <span class="user-email">{{ user.email }}</span>
+                    <span class="user-name truncate" data-testid="user-name">{{ user.full_name || 'Без имени' }}</span>
+                    <span class="user-email truncate">{{ user.email }}</span>
                     <div class="user-meta mobile-only">
                       <span class="role-badge" :class="`role-${user.role}`">{{ user.role }}</span>
                       <span v-if="user.is_active" class="status-active">● Активен</span>
@@ -193,14 +197,15 @@ const downloadExcel = async () => {
                 </td>
                 <td class="actions-cell">
                   <UButton 
-                    variant="ghost" 
+                    :variant="user.is_active ? 'ghost' : 'primary'" 
                     size="sm" 
-                    :color="user.is_active ? 'danger' : 'success'"
                     @click="handleBlockStatus(user)"
                     :aria-label="user.is_active ? 'Заблокировать' : 'Разблокировать'"
                     data-testid="block-unblock-btn"
                   >
-                    <Icon :name="user.is_active ? 'ph:user-minus-bold' : 'ph:user-plus-bold'" size="20" />
+                    <template #icon>
+                      <Icon :name="user.is_active ? 'ph:user-minus-bold' : 'ph:user-plus-bold'" size="20" />
+                    </template>
                     <span class="desktop-only ml-2">{{ user.is_active ? 'Блок' : 'Разблок' }}</span>
                   </UButton>
                 </td>
@@ -216,11 +221,11 @@ const downloadExcel = async () => {
       
       <div class="pagination" v-if="total > 20">
         <UButton variant="ghost" :disabled="currentPage === 1" @click="currentPage--" data-testid="prev-page">
-          <Icon name="ph:caret-left-bold" />
+          <template #icon><Icon name="ph:caret-left-bold" /></template>
         </UButton>
         <span class="page-info" data-testid="current-page">{{ currentPage }}</span>
         <UButton variant="ghost" :disabled="users.length < 20" @click="currentPage++" data-testid="next-page">
-          <Icon name="ph:caret-right-bold" />
+          <template #icon><Icon name="ph:caret-right-bold" /></template>
         </UButton>
       </div>
 
@@ -289,67 +294,36 @@ const downloadExcel = async () => {
   overflow: hidden;
 }
 
+/* Override admin-table for specific needs */
 .admin-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: auto;
+  table-layout: fixed;
 }
 
-.admin-table th,
-.admin-table td {
-  padding: 12px 16px;
-  vertical-align: middle;
-  text-align: left;
-  border-bottom: 1px solid var(--color-border);
-}
-
-/* Responsive Visibility for Table Elements */
-.desktop-only {
-  display: none !important;
+/* Column widths */
+.admin-table th:nth-child(1),
+.admin-table td:nth-child(1) {
+  width: auto;
 }
 
 @media (min-width: 768px) {
-  .desktop-only {
-    display: block !important;
+  .admin-table th:nth-child(1),
+  .admin-table td:nth-child(1) {
+    width: 30%;
   }
-  
-  th.desktop-only,
-  td.desktop-only {
-    display: table-cell !important;
-  }
-  
-  /* For common inline/flex elements */
-  span.desktop-only,
-  button.desktop-only,
-  .btn.desktop-only {
-    display: inline-flex !important;
+  .admin-table th.desktop-only,
+  .admin-table td.desktop-only {
+    width: 15%;
   }
 }
 
-.mobile-only {
-  display: block !important;
-}
-
-th.mobile-only,
-td.mobile-only {
-  display: table-cell !important;
-}
-
-/* Reset for common inline/flex elements */
-span.mobile-only,
-button.mobile-only,
-.btn.mobile-only {
-  display: inline-flex !important;
+.actions-col, .actions-cell {
+  text-align: right;
+  width: 80px;
 }
 
 @media (min-width: 768px) {
-  .mobile-only,
-  th.mobile-only,
-  td.mobile-only,
-  span.mobile-only,
-  button.mobile-only,
-  .btn.mobile-only {
-    display: none !important;
+  .actions-col, .actions-cell {
+    width: 160px;
   }
 }
 
@@ -357,6 +331,13 @@ button.mobile-only,
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0; /* Critical for truncate */
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .user-name {
@@ -394,17 +375,6 @@ button.mobile-only,
 .status-active { color: var(--color-success); font-weight: 600; }
 .status-blocked { color: var(--color-error); font-weight: 600; }
 
-.actions-col, .actions-cell {
-  text-align: right;
-  width: 80px;
-}
-
-@media (min-width: 768px) {
-  .actions-col, .actions-cell {
-    width: 160px;
-  }
-}
-
 .pagination {
   display: flex;
   justify-content: center;
@@ -424,16 +394,10 @@ button.mobile-only,
   color: var(--color-text-2);
 }
 
+/* Utilities not in main.css */
 .ml-2 { margin-left: 8px; }
-.mb-2 { margin-bottom: 8px; }
 .pt-4 { padding-top: 16px; }
-.mt-6 { margin-top: 24px; }
-.gap-2 { gap: 8px; }
-.gap-3 { gap: 12px; }
-.flex-col { flex-direction: column; }
 @media (min-width: 640px) {
-  .sm\:flex-row { flex-direction: row; }
-  .sm\:justify-end { justify-content: flex-end; }
   .sm\:order-1 { order: 1; }
   .sm\:order-2 { order: 2; }
 }

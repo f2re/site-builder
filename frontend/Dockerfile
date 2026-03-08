@@ -43,6 +43,8 @@ RUN npm install
 
 # Copy source and build
 COPY . .
+ARG NUXT_PUBLIC_API_BASE=http://backend:8000/api/v1
+ENV NUXT_PUBLIC_API_BASE=$NUXT_PUBLIC_API_BASE
 RUN npm run build
 
 

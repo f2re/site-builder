@@ -1,0 +1,15 @@
+{
+  "task_id": "p10_devops_ipx_fix",
+  "phase": 10,
+  "agent": "devops-agent",
+  "title": "Add NUXT_PUBLIC_API_BASE build arg to frontend Dockerfile",
+  "description": "Add ARG NUXT_PUBLIC_API_BASE=http://backend:8000/api/v1 and ENV NUXT_PUBLIC_API_BASE=$NUXT_PUBLIC_API_BASE to the builder stage of frontend/Dockerfile BEFORE the 'RUN npm run build' line. This ensures nuxt.config.ts image.alias evaluates to 'http://backend:8000/media' at build time so Nuxt Image IPX fetches media files from the backend container via internal Docker network, resolving IPX_FILE_NOT_FOUND errors for product images including files with Cyrillic filenames.",
+  "depends_on": [],
+  "priority": "high",
+  "files_to_modify": ["frontend/Dockerfile"],
+  "acceptance_criteria": [
+    "frontend/Dockerfile builder stage has ARG NUXT_PUBLIC_API_BASE=http://backend:8000/api/v1 before npm run build",
+    "frontend/Dockerfile builder stage has ENV NUXT_PUBLIC_API_BASE=$NUXT_PUBLIC_API_BASE before npm run build",
+    "docker run --rm -i hadolint/hadolint < frontend/Dockerfile passes with no errors"
+  ]
+}

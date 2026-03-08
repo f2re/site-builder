@@ -26,17 +26,6 @@ export default defineNuxtConfig({
       // that IPX can resolve locally if the volume is mounted.
       '/media': (process.env.NUXT_PUBLIC_API_BASE || '').replace('/api/v1', '') + '/media'
     },
-    // Fix for 404 IPX_FILE_NOT_FOUND:
-    // Ensure IPX knows how to fetch images from the backend if they are relative or on specific domains.
-    providers: {
-      backend: {
-        name: 'ipx',
-        provider: 'ipx',
-        options: {
-          baseURL: (process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000').replace('/api/v1', '') + '/media'
-        }
-      }
-    }
   },
 
   runtimeConfig: {

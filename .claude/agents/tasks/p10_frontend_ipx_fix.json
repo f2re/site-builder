@@ -1,0 +1,17 @@
+{
+  "task_id": "p10_frontend_ipx_fix",
+  "phase": 10,
+  "agent": "frontend-agent",
+  "title": "Clean up nuxt.config.ts image section and verify IPX config",
+  "description": "Clean up the image section in frontend/nuxt.config.ts: 1) Remove the unnecessary 'providers.backend' custom provider block (it is never used since <NuxtImg> components don't specify provider='backend'). 2) Keep the 'domains' list, the 'alias' (it works correctly when NUXT_PUBLIC_API_BASE is set at build time), and the nitro.devProxy. 3) Verify that the alias logic is correct: '/media' maps to backend URL. The expected behavior: in Docker build with NUXT_PUBLIC_API_BASE=http://backend:8000/api/v1, alias becomes 'http://backend:8000/media' so IPX fetches from backend internally. This fixes IPX_FILE_NOT_FOUND for product images with Cyrillic filenames.",
+  "depends_on": ["p10_devops_ipx_fix"],
+  "priority": "high",
+  "files_to_modify": ["frontend/nuxt.config.ts"],
+  "acceptance_criteria": [
+    "nuxt.config.ts image.providers block is removed (not needed)",
+    "nuxt.config.ts image.alias for '/media' is kept",
+    "nuxt.config.ts image.domains is kept",
+    "nuxt.config.ts nitro.devProxy is kept",
+    "npm run lint passes in frontend/"
+  ]
+}
