@@ -1,0 +1,40 @@
+{
+  "task_id": "p12_backend_migration_images_fix",
+  "phase": 12,
+  "agent": "backend-agent",
+  "priority": "medium",
+  "status": "pending",
+  "title": "Fix Image Download in OpenCart Migration",
+  "description": "Fix issues with image downloading during OpenCart migration",
+  "requirements": [
+    "Fix URL parsing: use urllib.parse.urlparse to extract filename without query params",
+    "Generate unique filenames using UUID to avoid conflicts",
+    "Preserve file extension from Content-Type header if missing in URL",
+    "Add proper error logging with logger.warning when download fails",
+    "Add retry logic with tenacity (3 attempts) for network errors",
+    "Validate downloaded image: check file size > 0 and Content-Type starts with 'image/'",
+    "Add progress tracking: log successful downloads with image URL and local path",
+    "Handle edge cases: empty URL, invalid URL, 404 responses, timeout errors"
+  ],
+  "acceptance_criteria": [
+    "Images with query params (e.g., image.jpg?v=123) download correctly",
+    "No filename conflicts when multiple images have same base name",
+    "Failed downloads are logged with error details",
+    "Downloaded images are validated (size > 0, correct Content-Type)",
+    "Network errors retry up to 3 times before failing",
+    "Method returns None for invalid/failed downloads, valid path for successful ones"
+  ],
+  "dependencies": [],
+  "estimated_effort": "1h",
+  "files_to_modify": [
+    "backend/app/api/v1/admin/migration_service.py"
+  ],
+  "implementation_notes": [
+    "Use urllib.parse.urlparse(url).path to get clean path without query params",
+    "Generate filename: f'{uuid.uuid4().hex[:8]}_{clean_basename}'",
+    "Check response.headers.get('Content-Type') to validate image",
+    "Use tenacity @retry decorator with stop_after_attempt(3)",
+    "Log with logger.warning('image_download_failed', url=url, error=str(e))",
+    "Log with logger.info('image_downloaded', url=url, path=rel_path) on success"
+  ]
+}
