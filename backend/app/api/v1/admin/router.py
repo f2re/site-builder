@@ -656,5 +656,13 @@ async def resume_specific_migration(
         raise HTTPException(status_code=404, detail="Migration job not found")
     return job
 
+@router.delete("/migration/reset")
+async def reset_migration(
+    _admin: User = AdminDep,
+    service: MigrationService = Depends(get_migration_service)
+) -> Any:
+    """Delete all migrated data (products, categories, orders, blog posts) and all MigrationJob rows."""
+    return await service.reset_migration()
+
 # ─── Pages ───────────────────────────────────────────────────────────────────
 router.include_router(pages_admin_router)

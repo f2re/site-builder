@@ -236,6 +236,19 @@ class OCOrder(OCBase):
         return f"<OCOrder {self.order_id}>"
 
 
+class OCProductImage(OCBase):
+    """OpenCart additional product images"""
+    __tablename__ = "oc_product_image"
+
+    product_image_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    product_id: Mapped[int] = mapped_column(Integer)
+    image: Mapped[str] = mapped_column(String(255))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+    def __repr__(self) -> str:
+        return f"<OCProductImage prod={self.product_id} img={self.product_image_id}>"
+
+
 class OCOrderProduct(OCBase):
     """OpenCart order products"""
     __tablename__ = "oc_order_product"

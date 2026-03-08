@@ -1,9 +1,9 @@
 # Orchestrator Summary — WifiOBD Site
 
-Обновлено: 2026-03-06
+Обновлено: 2026-03-08
 
-## Текущая фаза: 1 (Infrastructure Setup)
-## Выполнено задач: 0 / 13
+## Текущая фаза: 10 (Delivery Providers + Migration Fixes)
+## Выполнено задач: 0 / 18 (добавлено 2 новые задачи — migration fixes)
 
 ---
 
@@ -12,18 +12,23 @@
 | task_id | Агент | Титул | Статус | Приоритет |
 |---|---|---|---|---|
 | p1_devops_001 | devops-agent | Infrastructure Setup | ⏳ PENDING | high |
-| p2_backend_001 | backend-agent | Backend Core | 🔒 BLOCKED (p1) | high |
-| p3_backend_001 | backend-agent | Catalog & Blog | 🔒 BLOCKED (p2) | high |
-| p4_backend_001 | backend-agent | E-Commerce Core | 🔒 BLOCKED (p3) | high |
-| p4_cdek_001 | cdek-agent | CDEK + YooKassa | 🔒 BLOCKED (p4_b) | high |
-| p5_backend_001 | backend-agent | IoT Layer | 🔒 BLOCKED (p2) | medium |
-| p6_cdek_001 | cdek-agent | CBR Rates + Celery | 🔒 BLOCKED (p4_c) | medium |
-| p7_frontend_001 | frontend-agent | Nuxt 3 Frontend | 🔒 BLOCKED (p3,p4) | high |
-| p8_testing_001 | testing-agent | Tests + Locust | 🔒 BLOCKED (p4,p5,p6) | high |
-| **p8_e2e_backend_001** | backend-agent | seed_e2e.py | 🔒 BLOCKED (p2,p3,p4) | critical |
-| **p8_e2e_frontend_001** | frontend-agent | data-testid расстановка | 🔒 BLOCKED (p7) | critical |
-| **p8_e2e_testing_001** | testing-agent | Запуск E2E + отчёт | 🔒 BLOCKED (p8_e2e_b + p8_e2e_f) | high |
-| p9_security_001 | security-agent | Security Audit | 🔒 BLOCKED (p8) | high |
+| p2_backend_001 | backend-agent | Backend Core | BLOCKED (p1) | high |
+| p3_backend_001 | backend-agent | Catalog & Blog | BLOCKED (p2) | high |
+| p4_backend_001 | backend-agent | E-Commerce Core | BLOCKED (p3) | high |
+| p4_cdek_001 | cdek-agent | CDEK + YooKassa | BLOCKED (p4_b) | high |
+| p5_backend_001 | backend-agent | IoT Layer | BLOCKED (p2) | medium |
+| p6_cdek_001 | cdek-agent | CBR Rates + Celery | BLOCKED (p4_c) | medium |
+| p7_frontend_001 | frontend-agent | Nuxt 3 Frontend | BLOCKED (p3,p4) | high |
+| p8_testing_001 | testing-agent | Tests + Locust | BLOCKED (p4,p5,p6) | high |
+| p8_e2e_backend_001 | backend-agent | seed_e2e.py | BLOCKED (p2,p3,p4) | critical |
+| p8_e2e_frontend_001 | frontend-agent | data-testid расстановка | BLOCKED (p7) | critical |
+| p8_e2e_testing_001 | testing-agent | Запуск E2E + отчёт | BLOCKED (p8_e2e_b + p8_e2e_f) | high |
+| p9_security_001 | security-agent | Security Audit | BLOCKED (p8) | high |
+| **p10_devops_delivery_secrets** | devops-agent | Env vars для новых провайдеров доставки | ⏳ PENDING | high |
+| **p10_backend_delivery_providers** | backend-agent | 3 новых провайдера доставки + агрегатор | BLOCKED (p10_devops) | high |
+| **p10_frontend_delivery_selector** | frontend-agent | UI выбора провайдера доставки | BLOCKED (p10_backend) | high |
+| **p10_backend_migration_fixes** | backend-agent | Reset endpoint, blog-categories, additional images, bleach | ⏳ PENDING | high |
+| **p10_frontend_migration_ux** | frontend-agent | Fix empty page, polling, reset button + dialog | BLOCKED (p10_backend_migration_fixes) | high |
 
 ---
 
@@ -84,5 +89,7 @@ E2E подграф (параллельно с p8):
 
 ## Последнее действие
 
-> 2026-03-06: Добавлены задачи E2E-цикла (p8_e2e_backend_001, p8_e2e_frontend_001, p8_e2e_testing_001) и контракт e2e_testid_contract.md.
-> Обновляется автоматически через `/agents:status`.
+> 2026-03-08: Добавлены задачи migration fixes:
+> - p10_backend_migration_fixes (backend-agent) — reset endpoint, OCProductImage, BlogPost.oc_product_id, blog-category detection, bleach, additional images
+> - p10_frontend_migration_ux (frontend-agent) — fix SSR hydration bug, polling, reset button + confirmation dialog
+> Порядок запуска: сначала backend, потом frontend.
