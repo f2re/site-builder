@@ -31,6 +31,7 @@ interface MigrationStatus {
 const status = ref<MigrationStatus | null>(null)
 const isLoading = ref(true)
 const isActionPending = ref(false)
+const isResetPending = ref(false)
 const refreshInterval = ref<NodeJS.Timeout | null>(null)
 
 const { add: addToast } = useToast()
@@ -43,19 +44,23 @@ const fetchStatus = async () => {
     if (error.value) throw error.value
     if (data.value) {
       status.value = data.value
-      // Auto-refresh if running
+      // Adjust polling based on status
       if (status.value.overall_status === 'RUNNING') {
-        startPolling()
+        startPolling(3000)
       } else {
-        stopPolling()
+        startPolling(10000) // Slower polling when idle/paused
       }
     }
   } catch (err: any) {
-    addToast({
-      type: 'error',
-      title: 'Ошибка получения статуса',
-      message: err.message || 'Не удалось загрузить данные миграции'
-    })
+    console.error('Migration status fetch error:', err)
+    // Don't show toast on every polling error to avoid spam
+    if (isLoading.value) {
+      addToast({
+        type: 'error',
+        title: 'Ошибка получения статуса',
+        message: err.message || 'Не удалось загрузить данные миграции'
+      })
+    }
   } finally {
     isLoading.value = false
   }
@@ -100,12 +105,30 @@ const resumeMigration = async () => {
   }
 }
 
+const resetMigration = async () => {
+  if (!confirm('Вы уверены, что хотите очистить ВСЕ мигрированные данные? Это удалит товары, категории, заказы и записи в блоге, созданные в процессе миграции.')) {
+    return
+  }
+
+  isResetPending.value = true
+  try {
+    await apiFetch('/admin/migration/reset', { method: 'DELETE' })
+    addToast({ type: 'success', title: 'Данные очищены' })
+    status.value = null
+    await fetchStatus()
+  } catch (err: any) {
+    addToast({ type: 'error', title: 'Ошибка очистки', message: err.message })
+  } finally {
+    isResetPending.value = false
+  }
+}
+
 // Polling Logic
-const startPolling = () => {
-  if (refreshInterval.value) return
+const startPolling = (ms: number) => {
+  stopPolling()
   refreshInterval.value = setInterval(() => {
     fetchStatus()
-  }, 3000)
+  }, ms)
 }
 
 const stopPolling = () => {
@@ -164,40 +187,54 @@ const getEntityLabel = (key: string) => {
     </template>
 
     <template #header-actions>
-      <template v-if="status?.overall_status === 'RUNNING'">
+      <div class="flex items-center gap-4">
         <UButton
-          variant="secondary"
-          @click="pauseMigration"
-          :loading="isActionPending"
-          data-testid="migration-pause-btn"
+          v-if="status && (status.overall_status === 'COMPLETED' || status.overall_status === 'FAILED' || status.overall_status === 'PAUSED' || status.overall_status === 'IDLE')"
+          variant="ghost"
+          color="error"
+          @click="resetMigration"
+          :loading="isResetPending"
+          data-testid="migration-reset-btn"
         >
-          <template #icon><Icon name="ph:pause-bold" /></template>
-          Приостановить
+          <template #icon><Icon name="ph:trash-bold" /></template>
+          Очистить данные
         </UButton>
-      </template>
-      <template v-else-if="status?.overall_status === 'PAUSED'">
-        <UButton
-          variant="primary"
-          @click="resumeMigration"
-          :loading="isActionPending"
-          data-testid="migration-resume-btn"
-        >
-          <template #icon><Icon name="ph:play-bold" /></template>
-          Возобновить
-        </UButton>
-      </template>
-      <template v-else>
-        <UButton
-          variant="primary"
-          @click="startMigration"
-          :loading="isActionPending"
-          :disabled="status?.overall_status === 'COMPLETED'"
-          data-testid="migration-start-btn"
-        >
-          <template #icon><Icon name="ph:rocket-launch-bold" /></template>
-          Запустить миграцию
-        </UButton>
-      </template>
+
+        <template v-if="status?.overall_status === 'RUNNING'">
+          <UButton
+            variant="secondary"
+            @click="pauseMigration"
+            :loading="isActionPending"
+            data-testid="migration-pause-btn"
+          >
+            <template #icon><Icon name="ph:pause-bold" /></template>
+            Приостановить
+          </UButton>
+        </template>
+        <template v-else-if="status?.overall_status === 'PAUSED'">
+          <UButton
+            variant="primary"
+            @click="resumeMigration"
+            :loading="isActionPending"
+            data-testid="migration-resume-btn"
+          >
+            <template #icon><Icon name="ph:play-bold" /></template>
+            Возобновить
+          </UButton>
+        </template>
+        <template v-else>
+          <UButton
+            variant="primary"
+            @click="startMigration"
+            :loading="isActionPending"
+            :disabled="status?.overall_status === 'COMPLETED'"
+            data-testid="migration-start-btn"
+          >
+            <template #icon><Icon name="ph:rocket-launch-bold" /></template>
+            Запустить миграцию
+          </UButton>
+        </template>
+      </div>
     </template>
 
     <div class="migration-page">

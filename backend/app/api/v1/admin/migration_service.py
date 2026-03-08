@@ -29,11 +29,14 @@ from .migration_repository import MigrationRepository
 
 # Blog-category detection keywords (case-insensitive containment check)
 BLOG_CATEGORY_KEYWORDS: frozenset[str] = frozenset({
-    "новости", "статьи", "инструкции", "blog", "news", "articles", "статья", "новость",
+    "новости", "статьи", "инструкции", "blog", "news", "articles", "статья", "новость", "инструкция", "manual",
 })
 
 # Allowed HTML tags for bleach strip (empty = strip all tags to plain text)
-_BLEACH_ALLOWED_TAGS: list[str] = []
+_BLEACH_ALLOWED_TAGS: list[str] = [
+    "p", "br", "b", "i", "strong", "em", "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6", 
+    "div", "span", "img", "a", "table", "thead", "tbody", "tr", "th", "td", "blockquote", "code", "pre"
+]
 
 T = TypeVar("T")
 
@@ -57,30 +60,32 @@ class MigrationService:
             ]
         
         jobs = []
-        jobs_to_dispatch = []
         for ent in entities:
             active_job = await self.repo.get_active_job_by_entity(ent)
             if active_job:
+                # If it's PAUSED or FAILED, we might want to restart it
+                if active_job.status in [MigrationStatus.PAUSED, MigrationStatus.FAILED]:
+                    await self.repo.update_job_status(active_job.id, MigrationStatus.PENDING)
                 jobs.append(active_job)
-                # Re-dispatch stale PENDING jobs that were never picked up by a worker
+                # Re-dispatch if PENDING
                 if active_job.status == MigrationStatus.PENDING:
-                    jobs_to_dispatch.append(active_job)
+                    self._dispatch_task(active_job.id)
             else:
                 new_job = await self.repo.create_job(ent)
                 jobs.append(new_job)
-                jobs_to_dispatch.append(new_job)
-
-        # Trigger Celery tasks
-        from app.tasks.migration_tasks import run_migration_task  # noqa: PLC0415
-        from app.core.logging import logger  # noqa: PLC0415
-        for job in jobs_to_dispatch:
-            try:
-                run_migration_task.delay(str(job.id))
-                logger.info("migration_task_dispatched", job_id=str(job.id), entity=job.entity.value)
-            except Exception as exc:
-                logger.warning("migration_task_dispatch_failed", job_id=str(job.id), error=str(exc))
+                self._dispatch_task(new_job.id)
 
         return jobs
+
+    def _dispatch_task(self, job_id: UUID) -> None:
+        """Trigger Celery task for the job."""
+        from app.tasks.migration_tasks import run_migration_task  # noqa: PLC0415
+        from app.core.logging import logger  # noqa: PLC0415
+        try:
+            run_migration_task.delay(str(job_id))
+            logger.info("migration_task_dispatched", job_id=str(job_id))
+        except Exception as exc:
+            logger.warning("migration_task_dispatch_failed", job_id=str(job_id), error=str(exc))
 
     async def get_all_jobs(self) -> List[MigrationJob]:
         return await self.repo.get_all_jobs()
@@ -92,7 +97,10 @@ class MigrationService:
         return await self.repo.update_job_status(job_id, MigrationStatus.PAUSED)
 
     async def resume_migration(self, job_id: UUID) -> Optional[MigrationJob]:
-        return await self.repo.update_job_status(job_id, MigrationStatus.PENDING)
+        job = await self.repo.update_job_status(job_id, MigrationStatus.PENDING)
+        if job:
+            self._dispatch_task(job.id)
+        return job
 
     async def pause_all(self) -> None:
         """Pause all running or pending jobs."""
@@ -106,12 +114,13 @@ class MigrationService:
 
     async def resume_all(self) -> None:
         """Resume all paused jobs."""
-        stmt = (
-            update(MigrationJob)
-            .where(MigrationJob.status == MigrationStatus.PAUSED)
-            .values(status=MigrationStatus.PENDING)
-        )
-        await self.session.execute(stmt)
+        # Find all paused jobs
+        stmt = select(MigrationJob).where(MigrationJob.status == MigrationStatus.PAUSED)
+        res = await self.session.execute(stmt)
+        jobs = res.scalars().all()
+        for job in jobs:
+            await self.repo.update_job_status(job.id, MigrationStatus.PENDING)
+            self._dispatch_task(job.id)
         await self.session.commit()
 
     async def reset_migration(self) -> Dict[str, str]:
@@ -188,7 +197,6 @@ class MigrationService:
             MigrationEntity.USERS, 
             MigrationEntity.CATEGORIES, 
             MigrationEntity.PRODUCTS, 
-            MigrationEntity.IMAGES, 
             MigrationEntity.ORDERS
         ]
         
@@ -287,14 +295,21 @@ class MigrationService:
                     await self.session.commit()
 
         try:
+            should_retrigger = False
             if job.entity == MigrationEntity.USERS:
-                await self.migrate_users(job)
+                should_retrigger = await self.migrate_users(job)
             elif job.entity in [MigrationEntity.PRODUCTS, MigrationEntity.CATEGORIES]:
-                await self.migrate_catalog(job)
+                should_retrigger = await self.migrate_catalog(job)
             elif job.entity == MigrationEntity.ORDERS:
-                await self.migrate_orders(job)
+                should_retrigger = await self.migrate_orders(job)
             else:
                 await self.repo.update_job_status(job_id, MigrationStatus.DONE)
+            
+            # Re-trigger if more data and still running
+            if should_retrigger:
+                await self.session.refresh(job)
+                if job.status == MigrationStatus.RUNNING:
+                    self._dispatch_task(job.id)
             
         except Exception as e:
             error_msg = f"{str(e)}\n{traceback.format_exc()}"
@@ -305,7 +320,7 @@ class MigrationService:
             )
             raise
 
-    async def migrate_users(self, job: MigrationJob) -> None:
+    async def migrate_users(self, job: MigrationJob) -> bool:
         async with OCAsyncSessionLocal() as oc_session:
             stmt = (
                 select(OCCustomer)
@@ -318,7 +333,7 @@ class MigrationService:
 
             if not customers:
                 await self.repo.update_job_status(job.id, MigrationStatus.DONE)
-                return
+                return False
 
             processed = 0
             skipped = 0
@@ -357,8 +372,10 @@ class MigrationService:
             
             if len(customers) < self.batch_size:
                 await self.repo.update_job_status(job.id, MigrationStatus.DONE)
+                return False
+            return True
 
-    async def migrate_catalog(self, job: MigrationJob) -> None:
+    async def migrate_catalog(self, job: MigrationJob) -> bool:
         from app.core.logging import logger  # noqa: PLC0415
 
         # 1. Handle hierarchical categories first (recursive)
@@ -377,7 +394,7 @@ class MigrationService:
 
             if not products:
                 await self.repo.update_job_status(job.id, MigrationStatus.DONE)
-                return
+                return False
 
             processed = 0
             skipped = 0
@@ -461,10 +478,14 @@ class MigrationService:
                                 image_url = f"{settings.OC_SITE_URL.rstrip('/')}/image/{oc_prod.image}"
                                 cover_image = await self._download_image(client, image_url, "blog")
 
+                            # Preserve more HTML for blog posts
+                            raw_html = oc_desc.description or "" if oc_desc else ""
+                            cleaned_html = bleach.clean(raw_html, tags=_BLEACH_ALLOWED_TAGS, strip=False)
+
                             new_post = BlogPost(
                                 title=title,
                                 slug=slug,
-                                content_html=oc_desc.description or "" if oc_desc else "",
+                                content_html=cleaned_html,
                                 content_json={},
                                 status=(
                                     BlogPostStatus.PUBLISHED if oc_prod.status else BlogPostStatus.DRAFT
@@ -485,8 +506,19 @@ class MigrationService:
                                 t.strip() for t in re.split(r"[,\s]+", raw_keywords) if t.strip()
                             ]
                             tag_names.append("импорт")
+                            
+                            # Add category name as tag
+                            for oc_cid in oc_cat_ids:
+                                cat_desc_stmt2 = select(OCCategoryDescription).where(
+                                    OCCategoryDescription.category_id == oc_cid,
+                                    OCCategoryDescription.language_id == settings.OC_LANGUAGE_ID
+                                )
+                                cat_desc_res2 = await oc_session.execute(cat_desc_stmt2)
+                                cd2 = cat_desc_res2.scalar_one_or_none()
+                                if cd2:
+                                    tag_names.append(cd2.name)
 
-                            for tag_name in tag_names:
+                            for tag_name in set(tag_names):
                                 tag_slug = self._slugify(tag_name)
                                 tag_stmt = select(Tag).where(Tag.slug == tag_slug)
                                 tag_res = await self.session.execute(tag_stmt)
@@ -512,18 +544,24 @@ class MigrationService:
                             slug = await self._ensure_unique_slug(Product, slug)
 
                             # --- 4d: bleach for plain-text description ---
-                            raw_description = oc_desc.description if oc_desc else None
+                            raw_description = oc_desc.description if oc_desc else ""
                             plain_description: Optional[str] = (
-                                bleach.clean(raw_description, tags=_BLEACH_ALLOWED_TAGS, strip=True)
+                                bleach.clean(raw_description, tags=[], strip=True)
                                 if raw_description
-                                else None
+                                else ""
+                            )
+                            # And preserve HTML version with allowed tags
+                            html_description = (
+                                bleach.clean(raw_description, tags=_BLEACH_ALLOWED_TAGS, strip=False)
+                                if raw_description
+                                else ""
                             )
 
                             new_prod = Product(
                                 name=name,
                                 slug=slug,
                                 description=plain_description,
-                                description_html=raw_description,
+                                description_html=html_description,
                                 meta_title=oc_desc.meta_title if oc_desc else None,
                                 meta_description=oc_desc.meta_description if oc_desc else None,
                                 oc_product_id=oc_prod.product_id,
@@ -606,8 +644,10 @@ class MigrationService:
 
             if len(products) < self.batch_size:
                 await self.repo.update_job_status(job.id, MigrationStatus.DONE)
+                return False
+            return True
 
-    async def migrate_orders(self, job: MigrationJob) -> None:
+    async def migrate_orders(self, job: MigrationJob) -> bool:
         async with OCAsyncSessionLocal() as oc_session:
             stmt = (
                 select(OCOrder)
@@ -620,7 +660,7 @@ class MigrationService:
 
             if not orders:
                 await self.repo.update_job_status(job.id, MigrationStatus.DONE)
-                return
+                return False
 
             processed = 0
             skipped = 0
@@ -692,6 +732,9 @@ class MigrationService:
             
             if len(orders) < self.batch_size:
                 await self.repo.update_job_status(job.id, MigrationStatus.DONE)
+                return False
+            return True
+
 
     async def _migrate_categories(self) -> None:
         """Migrate all categories recursively if they don't exist"""
