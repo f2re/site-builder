@@ -2,7 +2,10 @@
 
 from fastapi import APIRouter, HTTPException, status, Query
 from app.api.v1.delivery.service import delivery_service
-from app.api.v1.delivery.schemas import DeliveryCalculateResponse, CityRead, PickupPointRead
+from app.api.v1.delivery.schemas import (
+    DeliveryCalculateResponse, CityRead, PickupPointRead,
+    AggregatedRateRequest, AggregatedRateResponse, AllPickupPointsResponse
+)
 from typing import List
 from app.core.logging import logger
 
@@ -64,4 +67,45 @@ async def search_cities(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to search cities: {str(e)}"
+        )
+
+
+@router.post("/calculate-all", response_model=AggregatedRateResponse)
+async def calculate_all_providers(body: AggregatedRateRequest) -> AggregatedRateResponse:
+    """
+    Получить тарифы от всех доступных провайдеров доставки параллельно.
+    Кэшируется в Redis на 10 минут.
+    """
+    try:
+        return await delivery_service.calculate_all_providers(
+            from_city_code=body.from_city_code,
+            to_city_code=body.to_city_code,
+            weight_grams=body.weight_grams,
+            length_cm=body.length_cm,
+            width_cm=body.width_cm,
+            height_cm=body.height_cm,
+        )
+    except Exception as e:
+        logger.error("aggregated_delivery_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to calculate delivery from all providers: {str(e)}"
+        )
+
+
+@router.get("/pickup-points-all", response_model=AllPickupPointsResponse)
+async def get_all_pickup_points(
+    city_code: int = Query(..., description="City code for PVZ"),
+    provider: str = Query(None, description="Фильтр по провайдеру: cdek|pochta|ozon|wildberries")
+) -> AllPickupPointsResponse:
+    """
+    Получить ПВЗ от всех провайдеров для города.
+    """
+    try:
+        return await delivery_service.get_all_pickup_points(city_code, provider)
+    except Exception as e:
+        logger.error("aggregated_pvz_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch pickup points from all providers: {str(e)}"
         )

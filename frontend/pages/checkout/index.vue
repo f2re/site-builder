@@ -145,6 +145,13 @@ function setDeliveryType(type: 'pickup' | 'courier') {
   }
 }
 
+// --- Provider selection ---
+function handleProviderSelected(provider: string) {
+  if (deliveryStore.deliveryType === 'pickup' && deliveryStore.selectedCity) {
+    loadPickupPoints(deliveryStore.selectedCity.code)
+  }
+}
+
 // --- Calculate delivery ---
 async function triggerRecalculate() {
   const city = deliveryStore.selectedCity
@@ -175,6 +182,7 @@ async function placeOrder() {
       email: customer.value.email,
       full_name: customer.value.name,
       phone: customer.value.phone,
+      provider: deliveryStore.selectedProvider || 'cdek',
     }
     if (deliveryStore.deliveryType === 'pickup') {
       body.delivery_type = 'cdek_pvz'
@@ -280,8 +288,16 @@ onMounted(() => {
           <section class="delivery-section" data-testid="delivery-form">
           <h2 class="section-title">Способ доставки</h2>
 
-          <!-- Delivery type toggle -->
-          <div class="type-toggle">
+          <!-- Provider selector -->
+          <DeliveryProviderSelector
+            v-if="deliveryStore.selectedCity"
+            :city-code="deliveryStore.selectedCity.code"
+            :total-weight-grams="500"
+            @provider-selected="handleProviderSelected"
+          />
+
+          <!-- Delivery type toggle (legacy CDEK) -->
+          <div v-if="!deliveryStore.selectedProvider" class="type-toggle">
             <button
               class="type-btn"
               :class="{ 'type-btn--active': deliveryStore.deliveryType === 'pickup' }"
@@ -480,7 +496,11 @@ onMounted(() => {
             </div>
 
             <div class="summary-row">
-              <span class="summary-label">Доставка СДЭК</span>
+              <span class="summary-label">
+                {{ deliveryStore.selectedProvider
+                  ? `Доставка ${deliveryStore.availableOptions.find(o => o.provider === deliveryStore.selectedProvider)?.provider_label || 'СДЭК'}`
+                  : 'Доставка' }}
+              </span>
               <span class="summary-value" data-testid="delivery-cost">
                 <template v-if="deliveryStore.isCalculating">
                   <Icon name="ph:spinner-gap-bold" size="14" class="city-spin" />

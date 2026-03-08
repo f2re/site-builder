@@ -3,7 +3,12 @@
 import json
 from typing import List
 from app.integrations.cdek import cdek_client
-from app.api.v1.delivery.schemas import DeliveryCalculateResponse, CityRead, PickupPointRead
+from app.api.v1.delivery.schemas import (
+    DeliveryCalculateResponse, CityRead, PickupPointRead,
+    DeliveryOptionResponse, PickupPointResponse, AggregatedRateResponse, AllPickupPointsResponse
+)
+from app.api.v1.delivery.provider import PackageDimensions
+from app.api.v1.delivery.aggregator import aggregator
 from app.db.redis import redis_client
 from app.core.logging import logger
 
@@ -80,5 +85,46 @@ class DeliveryService:
         )
         
         return cleaned_points
+
+    async def calculate_all_providers(
+        self,
+        from_city_code: int,
+        to_city_code: int,
+        weight_grams: int,
+        length_cm: int = 20,
+        width_cm: int = 15,
+        height_cm: int = 10,
+    ) -> AggregatedRateResponse:
+        cache_key = f"delivery:all:{from_city_code}:{to_city_code}:{weight_grams}"
+        cached = await redis_client.get(cache_key)
+        if cached:
+            data = json.loads(cached)
+            return AggregatedRateResponse(**data)
+
+        dimensions = PackageDimensions(
+            weight_grams=weight_grams,
+            length_cm=length_cm,
+            width_cm=width_cm,
+            height_cm=height_cm,
+        )
+        options = await aggregator.calculate_all(from_city_code, to_city_code, dimensions)
+        response = AggregatedRateResponse(
+            options=[DeliveryOptionResponse(**opt.__dict__) for opt in options],
+            total_providers=len(set(opt.provider for opt in options)),
+        )
+        await redis_client.set(cache_key, json.dumps(response.model_dump()), ex=600)
+        return response
+
+    async def get_all_pickup_points(
+        self,
+        city_code: int,
+        provider_filter: str | None = None,
+    ) -> AllPickupPointsResponse:
+        points = await aggregator.get_all_pickup_points(city_code, provider_filter)
+        return AllPickupPointsResponse(
+            points=[PickupPointResponse(**p.__dict__) for p in points],
+            total=len(points),
+        )
+
 
 delivery_service = DeliveryService()

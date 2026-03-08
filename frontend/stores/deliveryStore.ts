@@ -1,16 +1,29 @@
-// store: deliveryStore | frontend-agent | task: feature_cdek_checkout_001
+// store: deliveryStore | frontend-agent | task: feature_cdek_checkout_001 + p10_frontend_delivery_selector
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { CdekCity, CdekPickupPoint, DeliveryCalcResult } from '~/composables/useCdek'
 
 export type DeliveryType = 'pickup' | 'courier'
+export type DeliveryProvider = 'cdek' | 'pochta' | 'ozon' | 'wildberries'
 
 export interface CourierAddress {
   street: string
   building: string
   apartment: string
   comment: string
+}
+
+export interface DeliveryOption {
+  provider: DeliveryProvider
+  provider_label: string
+  service_type: 'pickup' | 'courier'
+  service_name: string
+  cost_rub: number
+  days_min: number
+  days_max: number
+  tariff_code: string
+  logo_url: string
 }
 
 export const useDeliveryStore = defineStore('delivery', () => {
@@ -26,6 +39,11 @@ export const useDeliveryStore = defineStore('delivery', () => {
   })
   const calcResult = ref<DeliveryCalcResult | null>(null)
   const isCalculating = ref(false)
+
+  // --- New: Multi-provider state ---
+  const selectedProvider = ref<DeliveryProvider | null>(null)
+  const availableOptions = ref<DeliveryOption[]>([])
+  const isLoadingRates = ref(false)
 
   // --- Computed ---
   const deliveryCost = computed(() => calcResult.value?.cost_rub ?? 0)
@@ -59,6 +77,22 @@ export const useDeliveryStore = defineStore('delivery', () => {
     persist()
   }
 
+  function setProvider(provider: DeliveryProvider | null) {
+    selectedProvider.value = provider
+    selectedPickupPoint.value = null
+    calcResult.value = null
+    persist()
+  }
+
+  function setAvailableOptions(options: DeliveryOption[]) {
+    availableOptions.value = options
+    persist()
+  }
+
+  function setIsLoadingRates(val: boolean) {
+    isLoadingRates.value = val
+  }
+
   function setPickupPoint(pvz: CdekPickupPoint | null) {
     selectedPickupPoint.value = pvz
     persist()
@@ -81,6 +115,9 @@ export const useDeliveryStore = defineStore('delivery', () => {
     courierAddress.value = { street: '', building: '', apartment: '', comment: '' }
     calcResult.value = null
     isCalculating.value = false
+    selectedProvider.value = null
+    availableOptions.value = []
+    isLoadingRates.value = false
     if (import.meta.client) {
       localStorage.removeItem('delivery')
     }
@@ -94,6 +131,8 @@ export const useDeliveryStore = defineStore('delivery', () => {
         selectedPickupPoint: selectedPickupPoint.value,
         courierAddress: courierAddress.value,
         calcResult: calcResult.value,
+        selectedProvider: selectedProvider.value,
+        availableOptions: availableOptions.value,
       }))
     }
   }
@@ -109,6 +148,8 @@ export const useDeliveryStore = defineStore('delivery', () => {
           if (data.selectedPickupPoint) selectedPickupPoint.value = data.selectedPickupPoint
           if (data.courierAddress) courierAddress.value = data.courierAddress
           if (data.calcResult) calcResult.value = data.calcResult
+          if (data.selectedProvider) selectedProvider.value = data.selectedProvider
+          if (data.availableOptions) availableOptions.value = data.availableOptions
         } catch {
           // ignore parse errors
         }
@@ -123,11 +164,17 @@ export const useDeliveryStore = defineStore('delivery', () => {
     courierAddress,
     calcResult,
     isCalculating,
+    selectedProvider,
+    availableOptions,
+    isLoadingRates,
     deliveryCost,
     deliveryDays,
     isDeliveryReady,
     setDeliveryType,
     setCity,
+    setProvider,
+    setAvailableOptions,
+    setIsLoadingRates,
     setPickupPoint,
     setCourierAddress,
     setCalcResult,

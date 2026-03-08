@@ -3,7 +3,7 @@
 Обновлено: 2026-03-08
 
 ## Текущая фаза: 10 (Delivery Providers + Migration Fixes)
-## Выполнено задач: 0 / 18 (добавлено 2 новые задачи — migration fixes)
+## Выполнено задач: 3 / 18 ✅
 
 ---
 
@@ -24,9 +24,9 @@
 | p8_e2e_frontend_001 | frontend-agent | data-testid расстановка | BLOCKED (p7) | critical |
 | p8_e2e_testing_001 | testing-agent | Запуск E2E + отчёт | BLOCKED (p8_e2e_b + p8_e2e_f) | high |
 | p9_security_001 | security-agent | Security Audit | BLOCKED (p8) | high |
-| **p10_devops_delivery_secrets** | devops-agent | Env vars для новых провайдеров доставки | ⏳ PENDING | high |
-| **p10_backend_delivery_providers** | backend-agent | 3 новых провайдера доставки + агрегатор | BLOCKED (p10_devops) | high |
-| **p10_frontend_delivery_selector** | frontend-agent | UI выбора провайдера доставки | BLOCKED (p10_backend) | high |
+| **p10_devops_delivery_secrets** | devops-agent | Env vars для новых провайдеров доставки | ✅ DONE | high |
+| **p10_backend_delivery_providers** | backend-agent | 3 новых провайдера доставки + агрегатор | ✅ DONE | high |
+| **p10_frontend_delivery_selector** | frontend-agent | UI выбора провайдера доставки | ✅ DONE | high |
 | **p10_backend_migration_fixes** | backend-agent | Reset endpoint, blog-categories, additional images, bleach | ⏳ PENDING | high |
 | **p10_frontend_migration_ux** | frontend-agent | Fix empty page, polling, reset button + dialog | BLOCKED (p10_backend_migration_fixes) | high |
 
@@ -89,7 +89,34 @@ E2E подграф (параллельно с p8):
 
 ## Последнее действие
 
-> 2026-03-08: Добавлены задачи migration fixes:
-> - p10_backend_migration_fixes (backend-agent) — reset endpoint, OCProductImage, BlogPost.oc_product_id, blog-category detection, bleach, additional images
-> - p10_frontend_migration_ux (frontend-agent) — fix SSR hydration bug, polling, reset button + confirmation dialog
-> Порядок запуска: сначала backend, потом frontend.
+> **2026-03-08: ✅ Завершена интеграция трёх новых провайдеров доставки**
+>
+> Выполнены задачи:
+> - ✅ p10_devops_delivery_secrets — добавлены env vars для Почты России, Ozon, Wildberries
+> - ✅ p10_backend_delivery_providers — реализованы 3 провайдера + Protocol + агрегатор с параллельными запросами
+> - ✅ p10_frontend_delivery_selector — UI выбора провайдера с карточками, skeleton loader, мобильным bottom sheet
+>
+> **Новые API endpoints:**
+> - POST /api/v1/delivery/calculate-all — агрегатор тарифов от всех провайдеров
+> - GET /api/v1/delivery/pickup-points-all — ПВЗ от всех провайдеров с фильтром
+>
+> **Провайдеры:**
+> - СДЭК (существующий, обёрнут адаптером)
+> - Почта России (API v2, кэш 10 мин)
+> - Ozon (Seller API, кэш 10 мин)
+> - Wildberries (статичный тариф, ПВЗ через API, кэш 1 час)
+>
+> **Верификация:**
+> - Backend: ruff ✅, mypy ✅, pytest ✅
+> - Frontend: lint ✅, type-check ✅
+> - Инварианты: cdek.py не изменён ✅, существующие endpoints работают ✅
+>
+> **Отчёты:**
+> - [devops/p10_devops_delivery_secrets.md](.claude/agents/reports/devops/p10_devops_delivery_secrets.md)
+> - [backend/p10_backend_delivery_providers.md](.claude/agents/reports/backend/p10_backend_delivery_providers.md)
+> - [frontend/p10_frontend_delivery_selector.md](.claude/agents/reports/frontend/p10_frontend_delivery_selector.md)
+>
+> **Следующие шаги:**
+> 1. Получить реальные API credentials для провайдеров
+> 2. Добавить в .env.prod на сервере
+> 3. Протестировать на production с реальными данными

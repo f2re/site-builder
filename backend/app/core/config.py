@@ -88,6 +88,18 @@ class Settings(BaseSettings):
     CDEK_CLIENT_ID: str = ""
     CDEK_CLIENT_SECRET: str = ""
 
+    # ── Почта России ──────────────────────────────────────────────────────────
+    POCHTA_API_TOKEN: str = ""
+    POCHTA_USER_AUTHORIZATION: str = ""
+    POCHTA_SANDBOX: bool = True
+
+    # ── Ozon Delivery ─────────────────────────────────────────────────────────
+    OZON_CLIENT_ID: str = ""
+    OZON_API_KEY: str = ""
+
+    # ── Wildberries Delivery ──────────────────────────────────────────────────
+    WB_API_KEY: str = ""
+
     # ── OpenCart Migration ───────────────────────────────────────────────────
     OC_DB_HOST: str = "localhost"
     OC_DB_PORT: int = 3306

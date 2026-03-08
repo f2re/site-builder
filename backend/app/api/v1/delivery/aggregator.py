@@ -1,0 +1,137 @@
+# Module: delivery/aggregator | Agent: backend-agent | Task: p10_backend_delivery_providers
+import asyncio
+from app.api.v1.delivery.provider import DeliveryOption, PickupPoint, PackageDimensions, ShipmentResult
+from app.integrations.cdek import cdek_client
+from app.integrations.pochta import pochta_client
+from app.integrations.ozon_delivery import ozon_client
+from app.integrations.wb_delivery import wb_client
+from app.core.logging import logger
+
+
+class CdekAdapter:
+    """Adapter для cdek_client под Protocol DeliveryProvider."""
+
+    async def calculate_rate(
+        self,
+        from_city_code: int,
+        to_city_code: int,
+        dimensions: PackageDimensions,
+    ) -> list[DeliveryOption]:
+        try:
+            result = await cdek_client.calculate_tariff(
+                from_city_code=from_city_code,
+                to_city_code=to_city_code,
+                weight_grams=dimensions.weight_grams,
+                tariff_code=136
+            )
+            return [
+                DeliveryOption(
+                    provider="cdek",
+                    provider_label="СДЭК",
+                    service_type="pickup",
+                    service_name="СДЭК до ПВЗ",
+                    cost_rub=result["cost_rub"],
+                    days_min=result["days_min"],
+                    days_max=result["days_max"],
+                    tariff_code=result["tariff_code"],
+                    logo_url="/img/delivery/cdek.svg",
+                )
+            ]
+        except Exception as e:
+            logger.warning("cdek_adapter_error", error=str(e))
+            return []
+
+    async def get_pickup_points(self, city_code: int) -> list[PickupPoint]:
+        try:
+            raw_points = await cdek_client.get_pickup_points(city_code)
+            points = []
+            for p in raw_points:
+                phone = ""
+                if p.get("phones") and len(p["phones"]) > 0:
+                    phone = p["phones"][0].get("number", "")
+
+                points.append(
+                    PickupPoint(
+                        provider="cdek",
+                        code=p["code"],
+                        name=p["name"],
+                        address=p["location"]["address"],
+                        latitude=p["location"]["latitude"],
+                        longitude=p["location"]["longitude"],
+                        work_time=p["work_time"],
+                        phone=phone,
+                        note=p.get("note") or p.get("address_comment"),
+                    )
+                )
+            return points
+        except Exception as e:
+            logger.warning("cdek_adapter_pvz_error", error=str(e))
+            return []
+
+    async def create_shipment(self, order_id: str, option: DeliveryOption) -> ShipmentResult:
+        raise NotImplementedError("Use cdek_client.create_order directly")
+
+
+class DeliveryAggregator:
+    def __init__(self):
+        self.cdek = CdekAdapter()
+        self.providers = {
+            "cdek": self.cdek,
+            "pochta": pochta_client,
+            "ozon": ozon_client,
+            "wildberries": wb_client,
+        }
+
+    async def calculate_all(
+        self,
+        from_city_code: int,
+        to_city_code: int,
+        dimensions: PackageDimensions,
+    ) -> list[DeliveryOption]:
+        tasks = [
+            self._safe_calculate(provider, from_city_code, to_city_code, dimensions, name)
+            for name, provider in self.providers.items()
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=False)
+        options = []
+        for result in results:
+            options.extend(result)
+        return sorted(options, key=lambda x: x.cost_rub)
+
+    async def get_all_pickup_points(
+        self,
+        city_code: int,
+        provider_filter: str | None = None,
+    ) -> list[PickupPoint]:
+        if provider_filter:
+            if provider_filter not in self.providers:
+                return []
+            provider = self.providers[provider_filter]
+            return await self._safe_get_pvz(provider, city_code, provider_filter)
+
+        tasks = [
+            self._safe_get_pvz(provider, city_code, name)
+            for name, provider in self.providers.items()
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=False)
+        points = []
+        for result in results:
+            points.extend(result)
+        return points
+
+    async def _safe_calculate(self, client, from_code, to_code, dimensions, provider_name):
+        try:
+            return await client.calculate_rate(from_code, to_code, dimensions)
+        except Exception as e:
+            logger.warning("delivery_provider_error", provider=provider_name, error=str(e))
+            return []
+
+    async def _safe_get_pvz(self, client, city_code, provider_name):
+        try:
+            return await client.get_pickup_points(city_code)
+        except Exception as e:
+            logger.warning("delivery_pvz_error", provider=provider_name, error=str(e))
+            return []
+
+
+aggregator = DeliveryAggregator()
