@@ -137,6 +137,7 @@ class BlogPost(Base):
 
     # OpenCart migration tracking
     oc_product_id: Mapped[Optional[int]] = mapped_column(Integer, index=True, nullable=True)
+    oc_information_id: Mapped[Optional[int]] = mapped_column(Integer, index=True, nullable=True)
 
     # Metrics
     views: Mapped[int] = mapped_column(Integer, default=0)

@@ -105,6 +105,9 @@ services:
     container_name: sb_celery
     restart: unless-stopped
     env_file: .env
+    volumes:
+      - ./backend:/app
+      - ./media:/app/media
     depends_on:
       redis:
         condition: service_healthy

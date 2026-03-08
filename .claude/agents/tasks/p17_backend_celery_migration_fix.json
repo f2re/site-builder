@@ -1,0 +1,39 @@
+{
+  "task_id": "p17_backend_celery_migration_fix",
+  "phase": 17,
+  "agent": "backend-agent",
+  "priority": "critical",
+  "status": "pending",
+  "title": "Fix Celery Migration: Permissions and Event Loop",
+  "description": "Fix permission denied for media directory and event loop closure in Celery migration tasks",
+  "requirements": [
+    "Fix permission denied: ensure /app/media/products directory exists with correct permissions in Docker",
+    "Fix event loop closure: properly dispose async engines in Celery tasks",
+    "Update migration_tasks.py: wrap async code in asyncio.run() and dispose engines in finally block",
+    "Update Dockerfile: create media directories with correct ownership (USER celery or www-data)",
+    "Update docker-compose.yml: ensure media volume has correct permissions",
+    "Add error handling: catch PermissionError and log clear message with solution",
+    "Test: verify migration runs without permission errors and event loop warnings"
+  ],
+  "acceptance_criteria": [
+    "Celery can create directories in /app/media/",
+    "No 'Permission denied' errors in logs",
+    "No 'Event loop is closed' errors in logs",
+    "Async engines properly disposed after each task",
+    "Migration completes successfully with images downloaded"
+  ],
+  "dependencies": [],
+  "estimated_effort": "1h",
+  "files_to_modify": [
+    "backend/app/tasks/migration_tasks.py",
+    "backend/Dockerfile",
+    "docker-compose.yml"
+  ],
+  "implementation_notes": [
+    "In migration_tasks.py: use try/finally to dispose engines",
+    "In Dockerfile: RUN mkdir -p /app/media/products /app/media/blog && chown -R celery:celery /app/media",
+    "In docker-compose.yml: add volume ./media:/app/media with correct permissions",
+    "Wrap async session usage: async with engine.begin() as conn: ... finally: await engine.dispose()",
+    "Log clear error: logger.error('media_permission_error', path=path, solution='Check Docker volume permissions')"
+  ]
+}

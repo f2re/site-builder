@@ -1,4 +1,4 @@
-# Module: api/v1/admin/migration_service.py | Agent: backend-agent | Task: p14_backend_migration_fix
+# Module: api/v1/admin/migration_service.py | Agent: backend-agent | Task: p18_backend_migration_opencart_fixes
 import bleach
 import hashlib
 import httpx
@@ -6,6 +6,7 @@ import os
 import re
 import traceback
 import uuid
+from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
@@ -24,6 +25,7 @@ from app.db.opencart_models import (
     OCCustomer, OCProduct, OCProductDescription,
     OCCategory, OCCategoryDescription, OCOrder, OCOrderProduct,
     OCProductToCategory, OCProductImage,
+    OCInformation, OCInformationDescription,
 )
 from app.db.models.user import User
 from app.db.models.product import Category, Product, ProductVariant, ProductImage
@@ -50,6 +52,75 @@ class MigrationService:
         self.repo = repo
         self.session = session
         self.batch_size = 50
+
+    def _html_to_tiptap(self, html: str) -> Dict[str, Any]:
+        """Convert HTML to TipTap JSON format (minimal implementation)."""
+        if not html or not html.strip():
+            return {"type": "doc", "content": []}
+
+        soup = BeautifulSoup(html, "lxml")
+        content = []
+
+        def process_node(node) -> Optional[Dict[str, Any]]:
+            if node.name == "p":
+                return {"type": "paragraph", "content": process_children(node)}
+            elif node.name in ["h1", "h2", "h3", "h4", "h5", "h6"]:
+                level = int(node.name[1])
+                return {"type": "heading", "attrs": {"level": level}, "content": process_children(node)}
+            elif node.name == "ul":
+                return {"type": "bulletList", "content": process_children(node)}
+            elif node.name == "ol":
+                return {"type": "orderedList", "content": process_children(node)}
+            elif node.name == "li":
+                return {"type": "listItem", "content": [{"type": "paragraph", "content": process_children(node)}]}
+            elif node.name == "img":
+                return {"type": "image", "attrs": {"src": node.get("src", ""), "alt": node.get("alt", "")}}
+            elif node.name == "br":
+                return {"type": "hardBreak"}
+            return None
+
+        def process_children(parent) -> List[Dict[str, Any]]:
+            result = []
+            for child in parent.children:
+                if isinstance(child, str):
+                    text = str(child).strip()
+                    if text:
+                        result.append({"type": "text", "text": text})
+                elif child.name:
+                    if child.name in ["strong", "b"]:
+                        for sub in process_children(child):
+                            if sub.get("type") == "text":
+                                sub.setdefault("marks", []).append({"type": "bold"})
+                            result.append(sub)
+                    elif child.name in ["em", "i"]:
+                        for sub in process_children(child):
+                            if sub.get("type") == "text":
+                                sub.setdefault("marks", []).append({"type": "italic"})
+                            result.append(sub)
+                    elif child.name == "a":
+                        href = child.get("href", "")
+                        for sub in process_children(child):
+                            if sub.get("type") == "text":
+                                sub.setdefault("marks", []).append({"type": "link", "attrs": {"href": href}})
+                            result.append(sub)
+                    else:
+                        node_result = process_node(child)
+                        if node_result:
+                            result.append(node_result)
+            return result
+
+        body = soup.find("body")
+        if body:
+            for child in body.children:  # type: ignore[attr-defined]
+                if child.name:
+                    node_result = process_node(child)
+                    if node_result:
+                        content.append(node_result)
+
+        if not content:
+            content = [{"type": "paragraph", "content": [{"type": "text", "text": soup.get_text().strip()}]}]
+
+        return {"type": "doc", "content": content}
 
     async def start_migration(self, entity: Optional[MigrationEntity] = None) -> List[MigrationJob]:
         """Start migration for one or all entities."""
@@ -304,21 +375,44 @@ class MigrationService:
                 if job.entity == MigrationEntity.USERS:
                     count_stmt = select(func.count()).select_from(OCCustomer)
                 elif job.entity in [MigrationEntity.PRODUCTS, MigrationEntity.CATEGORIES]:
-                    count_stmt = select(func.count()).select_from(OCProduct)
+                    # Count both information pages and products
+                    info_count_stmt = select(func.count()).select_from(OCInformation)
+                    info_res = await oc_session.execute(info_count_stmt)
+                    info_count = int(info_res.scalar() or 0)
+
+                    prod_count_stmt = select(func.count()).select_from(OCProduct)
+                    prod_res = await oc_session.execute(prod_count_stmt)
+                    prod_count = int(prod_res.scalar() or 0)
+
+                    job.total = info_count + prod_count
                 elif job.entity == MigrationEntity.ORDERS:
                     count_stmt = select(func.count()).select_from(OCOrder)
-                
+
                 if count_stmt is not None:
                     count_res = await oc_session.execute(count_stmt)
                     job.total = int(count_res.scalar() or 0)
-                    await self.session.commit()
+                await self.session.commit()
 
         try:
             should_retrigger = False
             if job.entity == MigrationEntity.USERS:
                 should_retrigger = await self.migrate_users(job)
             elif job.entity in [MigrationEntity.PRODUCTS, MigrationEntity.CATEGORIES]:
-                should_retrigger = await self.migrate_catalog(job)
+                # First migrate information pages, then catalog
+                metadata: Dict[str, Any] = job.metadata or {}  # type: ignore[assignment]
+                if not metadata.get("information_done"):
+                    should_retrigger = await self.migrate_information(job)
+                    if not should_retrigger:
+                        # Information migration complete, switch to catalog
+                        metadata["information_done"] = True
+                        await self.repo.update_job_status(
+                            job.id, MigrationStatus.RUNNING,
+                            last_oc_id=0, metadata=metadata
+                        )
+                        await self.session.refresh(job)
+                        should_retrigger = await self.migrate_catalog(job)
+                else:
+                    should_retrigger = await self.migrate_catalog(job)
             elif job.entity == MigrationEntity.ORDERS:
                 should_retrigger = await self.migrate_orders(job)
             else:
@@ -519,12 +613,13 @@ class MigrationService:
                             # Preserve more HTML for blog posts
                             raw_html = oc_desc.description or "" if oc_desc else ""
                             cleaned_html = bleach.clean(raw_html, tags=_BLEACH_ALLOWED_TAGS, strip=False)
+                            content_json = self._html_to_tiptap(cleaned_html)
 
                             new_post = BlogPost(
                                 title=title,
                                 slug=slug,
                                 content_html=cleaned_html,
-                                content_json={},
+                                content_json=content_json,
                                 status=(
                                     BlogPostStatus.PUBLISHED if oc_prod.status else BlogPostStatus.DRAFT
                                 ),
@@ -594,12 +689,15 @@ class MigrationService:
                                 if raw_description
                                 else ""
                             )
+                            # Convert HTML to TipTap JSON
+                            content_json = self._html_to_tiptap(html_description)
 
                             new_prod = Product(
                                 name=name,
                                 slug=slug,
                                 description=plain_description,
                                 description_html=html_description,
+                                content_json=content_json,
                                 meta_title=oc_desc.meta_title if oc_desc else None,
                                 meta_description=oc_desc.meta_description if oc_desc else None,
                                 oc_product_id=oc_prod.product_id,
@@ -683,6 +781,119 @@ class MigrationService:
             if len(products) < self.batch_size:
                 await self.repo.update_job_status(job.id, MigrationStatus.DONE)
                 return False
+            return True
+
+    async def migrate_information(self, job: MigrationJob) -> bool:
+        """Migrate OCInformation (news/instructions pages) to BlogPost."""
+        from app.core.logging import logger  # noqa: PLC0415
+
+        async with OCAsyncSessionLocal() as oc_session:
+            stmt = (
+                select(OCInformation)
+                .where(OCInformation.information_id > (job.last_oc_id or 0))
+                .order_by(OCInformation.information_id)
+                .limit(self.batch_size)
+            )
+            result = await oc_session.execute(stmt)
+            infos = result.scalars().all()
+
+            if not infos:
+                await self.repo.update_job_status(job.id, MigrationStatus.DONE)
+                return False
+
+            # Find or create system author
+            author_stmt = select(Author).limit(1)
+            author_res = await self.session.execute(author_stmt)
+            system_author = author_res.scalar_one_or_none()
+            if not system_author:
+                admin_stmt = select(User).where(User.role == "admin").limit(1)
+                admin_res = await self.session.execute(admin_stmt)
+                admin_user = admin_res.scalar_one_or_none()
+                if admin_user:
+                    system_author = Author(
+                        user_id=admin_user.id,
+                        display_name=admin_user.full_name or "System",
+                    )
+                    self.session.add(system_author)
+                    await self.session.flush()
+
+            if not system_author:
+                logger.warning("migrate_information_no_author")
+                await self.repo.update_job_status(job.id, MigrationStatus.FAILED, errors=["No author found"])
+                return False
+
+            processed = 0
+            skipped = 0
+
+            for oc_info in infos:
+                # Check if already migrated
+                check_stmt = select(BlogPost).where(BlogPost.oc_information_id == oc_info.information_id)
+                existing = await self.session.execute(check_stmt)
+                if existing.scalar_one_or_none():
+                    skipped += 1
+                    continue
+
+                # Get description
+                desc_stmt = select(OCInformationDescription).where(
+                    OCInformationDescription.information_id == oc_info.information_id,
+                    OCInformationDescription.language_id == settings.OC_LANGUAGE_ID,
+                )
+                desc_res = await oc_session.execute(desc_stmt)
+                oc_desc = desc_res.scalar_one_or_none()
+
+                if not oc_desc:
+                    skipped += 1
+                    continue
+
+                title = oc_desc.title
+                slug = self._slugify(title)
+                slug = await self._ensure_unique_slug(BlogPost, slug)
+
+                # Convert HTML to TipTap
+                raw_html = oc_desc.description or ""
+                cleaned_html = bleach.clean(raw_html, tags=_BLEACH_ALLOWED_TAGS, strip=False)
+                content_json = self._html_to_tiptap(cleaned_html)
+
+                new_post = BlogPost(
+                    title=title,
+                    slug=slug,
+                    content_html=cleaned_html,
+                    content_json=content_json,
+                    status=BlogPostStatus.PUBLISHED if oc_info.status else BlogPostStatus.DRAFT,
+                    published_at=(
+                        oc_info.date_added.replace(tzinfo=timezone.utc)
+                        if oc_info.date_added
+                        else datetime.now(timezone.utc)
+                    ),
+                    oc_information_id=oc_info.information_id,
+                    author_id=system_author.id,
+                )
+
+                # Create tags from meta_keyword
+                raw_keywords = oc_desc.meta_keyword or ""
+                tag_names = [t.strip() for t in re.split(r"[,\s]+", raw_keywords) if t.strip()]
+                tag_names.append("информация")
+
+                for tag_name in set(tag_names):
+                    tag_slug = self._slugify(tag_name)
+                    tag_stmt = select(Tag).where(Tag.slug == tag_slug)
+                    tag_res = await self.session.execute(tag_stmt)
+                    tag_obj = tag_res.scalar_one_or_none()
+                    if not tag_obj:
+                        tag_obj = Tag(name=tag_name, slug=tag_slug)
+                        self.session.add(tag_obj)
+                        await self.session.flush()
+                    new_post.tags.append(tag_obj)
+
+                self.session.add(new_post)
+                processed += 1
+
+            await self.session.commit()
+            last_id = infos[-1].information_id
+            await self.repo.update_job_status(
+                job.id, MigrationStatus.RUNNING, last_oc_id=last_id, processed=job.processed + processed
+            )
+            logger.info("migrate_information_batch", processed=processed, skipped=skipped, last_id=last_id)
             return True
 
     async def migrate_orders(self, job: MigrationJob) -> bool:
@@ -890,7 +1101,17 @@ class MigrationService:
 
             rel_path = f"{folder}/{filename}"
             full_path = Path(settings.MEDIA_ROOT) / rel_path
-            full_path.parent.mkdir(parents=True, exist_ok=True)
+
+            try:
+                full_path.parent.mkdir(parents=True, exist_ok=True)
+            except PermissionError as perm_err:
+                logger.error(
+                    "media_permission_error",
+                    path=str(full_path.parent),
+                    error=str(perm_err),
+                    solution="Check Docker volume permissions: ensure /app/media is writable by the container user"
+                )
+                raise
 
             # Write file
             with open(full_path, "wb") as f:
@@ -900,6 +1121,8 @@ class MigrationService:
             logger.info("image_downloaded", url=url, path=rel_path, size=len(response.content))
             return result_url
 
+        except PermissionError:
+            raise  # Re-raise to propagate to caller
         except (httpx.RequestError, httpx.TimeoutException) as e:
             logger.warning("image_download_failed", url=url, error=str(e))
             raise  # Let tenacity retry

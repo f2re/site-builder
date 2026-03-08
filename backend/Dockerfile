@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Development stage
 FROM base as development
+RUN mkdir -p /app/media/products /app/media/blog
 COPY . .
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
@@ -26,6 +27,7 @@ FROM base as production
 # Security: Add a non-root user
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 WORKDIR /app
+RUN mkdir -p /app/media/products /app/media/blog && chown -R appuser:appuser /app/media
 COPY --chown=appuser:appuser . .
 
 USER appuser

@@ -186,37 +186,77 @@ E2E подграф (параллельно с p8):
 
 ---
 
+## Фаза 18 — OpenCart Migration Fixes (2026-03-08)
+
+| task_id | Агент | Титул | Статус | Приоритет |
+|---|---|---|---|------|
+| **p18_backend_migration_opencart_fixes** | backend-agent | Fix OpenCart Migration: Information Pages, TipTap, Images, Tags | ✅ DONE | critical |
+
+### Реализовано:
+- ✅ HTML → TipTap JSON конвертер (_html_to_tiptap)
+- ✅ Миграция OCInformation → BlogPost (новости/инструкции)
+- ✅ Product.content_json и BlogPost.content_json заполняются TipTap JSON
+- ✅ Поле oc_information_id в BlogPost
+- ✅ Скрипт seed_redirects.py для information/information URLs
+- ✅ Теги создаются из meta_keyword
+
+### Верификация:
+- ruff: ✅ | mypy: ✅ (141 files) | alembic heads: ✅
+
+### Отчёт:
+- [backend/p18_backend_migration_opencart_fixes.md](.claude/agents/reports/backend/p18_backend_migration_opencart_fixes.md)
+
+---
+
+## Фаза 17 — Celery Migration Fix (2026-03-08)
+
+| task_id | Агент | Титул | Статус | Приоритет |
+|---|---|---|---|------|
+| **p17_backend_celery_migration_fix** | backend-agent | Fix Celery Migration: Permissions and Event Loop | ✅ DONE | critical |
+
+### Описание проблемы:
+- Permission denied при создании `/app/media/products` в Celery worker
+- RuntimeError: Event loop is closed при dispose async engines
+
+### Решение:
+1. **Dockerfile**: Создание `/app/media/{products,blog}` с правильными правами в development и production stages
+2. **docker-compose.yml**: Добавлен volume `./media:/app/media` для celery сервиса
+3. **migration_tasks.py**: Убран вложенный `asyncio.run()`, обработка ошибок внутри основного event loop
+4. **migration_service.py**: Добавлена обработка PermissionError с понятным сообщением
+
+### Верификация:
+- ruff: ✅ | mypy: ✅ (140 files) | alembic heads: ✅
+
+### Отчёт:
+- [backend/p17_backend_celery_migration_fix.md](.claude/agents/reports/backend/p17_backend_celery_migration_fix.md)
+
+---
+
 ## Последнее действие
 
-> **2026-03-08: ✅ Реализована система C2C отправлений для Ozon и WB**
+> **2026-03-08: ✅ Исправлена миграция OpenCart**
 >
-> Выполнены задачи:
-> - ✅ p15_backend_redirect_fix — редиректы OpenCart с query string, seed скрипт
-> - ✅ p15_frontend_opencart_redirect — глобальный interceptor для `index.php`
-> - ✅ p16_backend_c2c_shipment — API для карточки отправки Ozon/WB
-> - ✅ p16_frontend_c2c_card — страница заказа в админке с инструкцией и deeplink
+> Выполнена задача:
+> - ✅ p18_backend_migration_opencart_fixes — исправлены критические проблемы миграции
 >
-> **Новые API endpoints:**
-> - GET /api/v1/delivery/orders/{order_id}/c2c-shipment — карточка C2C отправки
->
-> **Функциональность:**
-> - Автоматический редирект со старых URL OpenCart на новые страницы блога/товаров
-> - Генерация карточки отправки для Ozon C2C и Wildberries с deeplink в моб. приложения
-> - Инструкции для оператора по приему C2C отправлений
->
-> **Ozon и WB переделаны:**
-> - Убраны API для селлеров
-> - Реализована C2C доставка через статические ПВЗ
-> - Токены не требуются
+> **Реализовано:**
+> - HTML → TipTap JSON конвертер для Product и BlogPost
+> - Миграция OCInformation (новости/инструкции) → BlogPost
+> - Теги создаются из meta_keyword
+> - Скрипт seed_redirects.py для information/information URLs
+> - Добавлено поле oc_information_id в BlogPost
 >
 > **Верификация:**
-> - Backend: ruff ✅, mypy ✅, alembic heads ✅
-> - Frontend: lint ✅, type-check ✅
-> - Tests: 27/27 passed ✅
+> - Backend: ruff ✅, mypy ✅ (141 files), alembic heads ✅
 >
-> **Отчёты:**
-> - [backend/p11_backend_user_addresses.md](.claude/agents/reports/backend/p11_backend_user_addresses.md)
-> - [cdek/p11_cdek_order_tracking.md](.claude/agents/reports/cdek/p11_cdek_order_tracking.md)
-> - [frontend/p11_frontend_address_management.md](.claude/agents/reports/frontend/p11_frontend_address_management.md)
-> - [testing/p11_testing_addresses_tracking.md](.claude/agents/reports/testing/p11_testing_addresses_tracking.md)
-> - [backend/p12_backend_migration_images_fix.md](.claude/agents/reports/backend/p12_backend_migration_images_fix.md)
+> **Следующие шаги:**
+> - Установить зависимости: `pip install -r backend/requirements.txt`
+> - Применить миграцию: `alembic upgrade head`
+> - Запустить миграцию через API
+> - Запустить seed_redirects.py
+>
+> **Известные ограничения:**
+> - Изображения 404: требует исследования frontend (Nuxt IPX)
+>
+> **Отчёт:**
+> - [backend/p18_backend_migration_opencart_fixes.md](.claude/agents/reports/backend/p18_backend_migration_opencart_fixes.md)

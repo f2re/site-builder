@@ -1,0 +1,43 @@
+{
+  "task_id": "p18_backend_migration_opencart_fixes",
+  "phase": 18,
+  "agent": "backend-agent",
+  "priority": "critical",
+  "status": "pending",
+  "title": "Fix OpenCart Migration: Information Pages, TipTap, Images, Tags",
+  "description": "Fix critical issues in OpenCart migration: migrate information pages to blog, convert HTML to TipTap JSON, fix missing product images, create tags from categories",
+  "requirements": [
+    "Migrate oc_information (information/information pages) to BlogPost - these are news/instructions pages, NOT products",
+    "Convert HTML content from OpenCart to TipTap JSON format for product.description and blog.content",
+    "Fix product images: ensure images download correctly and paths are saved properly",
+    "Create tags from blog categories (Новости, Инструкции) and link to blog posts",
+    "Add redirect rules for information/information URLs to blog posts",
+    "Ensure product descriptions include all HTML content converted to TipTap format"
+  ],
+  "acceptance_criteria": [
+    "OCInformation pages migrate to BlogPost with correct tags",
+    "Product descriptions are valid TipTap JSON (not plain HTML)",
+    "Blog posts have valid TipTap JSON content",
+    "Product images download and display correctly (no 404)",
+    "Tags created: 'Новости', 'Инструкции' from category names",
+    "Blog posts linked to appropriate tags",
+    "Redirects work: index.php?route=information/information&information_id=X → /blog/{slug}"
+  ],
+  "dependencies": ["p17_backend_celery_migration_fix"],
+  "estimated_effort": "3h",
+  "files_to_modify": [
+    "backend/app/api/v1/admin/migration_service.py",
+    "backend/app/db/models/blog.py",
+    "backend/app/api/v1/admin/redirect_repository.py"
+  ],
+  "implementation_notes": [
+    "Add migrate_information() method to handle oc_information → BlogPost",
+    "Use meta_keyword from oc_information_description to create tags",
+    "Install html-to-tiptap or similar library for HTML → TipTap JSON conversion",
+    "Update _download_image() to return both URL and verify file exists",
+    "Create Tag model if not exists, link via blog_post_tags association table",
+    "Update seed_redirects.py to include information/information URLs",
+    "For products: parse oc_product_description.description HTML → TipTap JSON",
+    "Ensure image paths use settings.MEDIA_ROOT correctly"
+  ]
+}
