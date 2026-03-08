@@ -1,4 +1,4 @@
-# Module: api/v1/orders/schemas.py | Agent: backend-agent | Task: update-admin-orders
+# Module: api/v1/orders/schemas.py | Agent: backend-agent | Task: p30_backend_order_items_schema_fix
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
@@ -19,6 +19,27 @@ class OrderTrackingEventRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ProductImageBrief(BaseModel):
+    url: str
+    is_cover: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProductBrief(BaseModel):
+    name: str
+    images: List[ProductImageBrief] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProductVariantBrief(BaseModel):
+    sku: Optional[str] = None
+    product: Optional[ProductBrief] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class OrderItemBase(BaseModel):
     product_variant_id: UUID
     quantity: int = Field(gt=0)
@@ -27,28 +48,26 @@ class OrderItemBase(BaseModel):
 class OrderItemRead(OrderItemBase):
     id: UUID
     price: Decimal
-    
+    product_variant: Optional[ProductVariantBrief] = None
+
     @computed_field
     def product_name(self) -> str:
-        if hasattr(self, "product_variant") and self.product_variant:
-            if hasattr(self.product_variant, "product") and self.product_variant.product:
-                return self.product_variant.product.name
-            return self.product_variant.name
+        if self.product_variant and self.product_variant.product:
+            return self.product_variant.product.name
         return "Unknown Product"
 
     @computed_field
     def sku(self) -> Optional[str]:
-        if hasattr(self, "product_variant") and self.product_variant:
+        if self.product_variant:
             return self.product_variant.sku
         return None
 
     @computed_field
     def image_url(self) -> Optional[str]:
-        if hasattr(self, "product_variant") and self.product_variant:
-            product = getattr(self.product_variant, "product", None)
-            if product and hasattr(product, "images") and product.images:
-                # Find cover image or first image
-                cover = next((img for img in product.images if img.is_cover), product.images[0])
+        if self.product_variant and self.product_variant.product:
+            images = self.product_variant.product.images
+            if images:
+                cover = next((img for img in images if img.is_cover), images[0])
                 return cover.url
         return None
 

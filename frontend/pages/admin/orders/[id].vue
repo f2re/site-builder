@@ -23,7 +23,7 @@ interface TrackingEvent {
 
 interface OrderRead {
   id: string
-  user_id: string
+  user_id: string | null
   user_full_name: string | null
   user_email: string | null
   user_phone: string | null
@@ -52,9 +52,7 @@ const isC2CProvider = computed(() =>
   order.value?.delivery_provider === 'ozon' || order.value?.delivery_provider === 'wb'
 )
 
-const { data: c2cData, pending: c2cPending, error: c2cError } = isC2CProvider.value
-  ? await useC2CShipment(orderId)
-  : { data: ref(null), pending: ref(false), error: ref(null) }
+const { data: c2cData, pending: c2cPending, error: c2cError } = await useC2CShipment(orderId)
 
 const statusOptions = [
   { label: 'Новый', value: 'pending' },
@@ -223,6 +221,9 @@ const getStatusLabel = (status: string) => {
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-border">
+                    <tr v-if="!order.items || order.items.length === 0">
+                      <td colspan="5" class="px-4 py-8 text-center text-muted italic">Нет товаров в заказе</td>
+                    </tr>
                     <tr v-for="item in order.items" :key="item.sku" class="hover:bg-bg-subtle/50 transition-colors">
                       <td class="px-4 py-4">
                         <div class="flex items-center gap-3">
@@ -293,9 +294,21 @@ const getStatusLabel = (status: string) => {
                 </div>
               </template>
               <div class="space-y-3">
-                <NuxtLink :to="`/admin/users/${order.user_id}`" class="block font-bold hover:text-accent transition-colors" data-testid="customer-link">
-                  {{ order.user_full_name || 'Анонимный пользователь' }}
+                <NuxtLink
+                  v-if="order.user_id"
+                  :to="`/admin/users/${order.user_id}`"
+                  class="block font-bold hover:text-accent transition-colors"
+                  data-testid="customer-link"
+                >
+                  {{ order.user_full_name || 'Гость' }}
                 </NuxtLink>
+                <span
+                  v-else
+                  class="block font-bold"
+                  data-testid="customer-link"
+                >
+                  {{ order.user_full_name || 'Гость' }}
+                </span>
                 <div class="flex items-center gap-2 text-sm">
                   <UIcon name="i-heroicons-envelope" class="text-muted" />
                   <a v-if="order.user_email" :href="`mailto:${order.user_email}`" class="hover:underline" data-testid="customer-email">{{ order.user_email }}</a>

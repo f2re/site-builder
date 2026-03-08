@@ -1,0 +1,19 @@
+{
+  "task_id": "p30_frontend_order_detail_fix",
+  "phase": 30,
+  "agent": "frontend-agent",
+  "title": "Fix admin order detail page crash: destructured parameter is undefined",
+  "description": "Страница /admin/orders/[id].vue падает с ошибкой 'TypeError: (destructured parameter) is undefined'. Диагностика выявила проблему в строках 51-57: computed `isC2CProvider` читает `order.value?.delivery_provider` корректно, но его `.value` немедленно вызывается как обычная переменная для условного `await useC2CShipment(orderId)`. При SSR `order.value` может быть null/undefined в момент исполнения script setup.\n\nКонкретные исправления в `frontend/pages/admin/orders/[id].vue`:\n\n1. **Строки 51-57 — главная ошибка (crash)**: `isC2CProvider` объявлен как `computed()`, но его `.value` вызывается немедленно в том же script setup для условного вызова `await useC2CShipment()`. При SSR `order.value` === null в этот момент. Исправить: заменить условный вызов `useC2CShipment` на безусловный — всегда вызывать `useC2CShipment(orderId)`, а в шаблоне проверять `isC2CProvider && c2cData` для отображения карточки. Либо использовать `order.value?.delivery_provider` в if перед вызовом, но c учётом что это `await` в setup.\n\n2. **Строка 296 — ссылка на пользователя с null user_id**: `<NuxtLink :to=\"\\`/admin/users/${order.user_id}\\`\">` — когда `user_id === null`, создаёт `/admin/users/null`. Исправить: если `order.user_id` равен null, показывать span вместо NuxtLink, либо ссылку делать только при наличии user_id (`v-if=\"order.user_id\"`). Текст: `order.user_full_name || 'Гость'`.\n\n3. **Пустой массив items** — таблица рендерится корректно через `v-for` (пустой tbody), но нужно добавить пустое состояние: если `order.items.length === 0`, показывать строку `<tr><td colspan=\"5\" class=\"text-center py-8 text-muted italic\">Нет товаров в заказе</td></tr>` внутри tbody.\n\n4. **Типизация**: в интерфейсе `OrderRead` строка 26: `user_id: string` должна быть `user_id: string | null` — так как API возвращает null.\n\n5. Проверить все `data-testid` на месте (они уже есть, не ломать).\n\nПосле исправления запустить `npm run lint` и `npm run type-check`. Написать отчёт в `.claude/agents/reports/frontend/p30_frontend_order_detail_fix.md`.",
+  "depends_on": [],
+  "priority": "high",
+  "contracts_required": [".claude/agents/contracts/api_contracts.md"],
+  "acceptance_criteria": [
+    "Страница /admin/orders/[id] открывается без ошибок для заказов с items:[] и user_id:null",
+    "NuxtLink к пользователю не генерирует href='/admin/users/null' при user_id=null",
+    "Пустой массив items показывает строку 'Нет товаров в заказе' вместо пустой таблицы",
+    "Интерфейс OrderRead.user_id типизирован как string | null",
+    "isC2CProvider не вызывает краш при order.value === null во время SSR",
+    "npm run lint — 0 ошибок",
+    "npm run type-check — 0 ошибок"
+  ]
+}

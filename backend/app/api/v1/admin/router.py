@@ -33,6 +33,7 @@ from app.integrations.local_storage import storage_client
 from app.core.utils import sanitize_filename
 from app.api.v1.orders.service import OrderService
 from app.api.v1.orders.repository import OrderRepository
+from app.api.v1.orders.schemas import OrderRead
 from app.api.v1.users.repository import UserRepository, DeliveryAddressRepository
 from app.api.v1.iot.repository import IoTRepository
 from app.api.v1.cart.service import CartService
@@ -380,7 +381,6 @@ async def list_orders(
     items, total = await repo.list_all(
         status=status, offset=offset, limit=per_page, date_from=date_from, date_to=date_to
     )
-    from app.api.v1.orders.schemas import OrderRead
     return {
         "items": [OrderRead.model_validate(o) for o in items],
         "total": total,
@@ -388,13 +388,12 @@ async def list_orders(
         "per_page": per_page,
     }
 
-@router.get("/orders/{order_id}")
+@router.get("/orders/{order_id}", response_model=OrderRead)
 async def get_order(
     order_id: UUID,
     _admin: User = AdminDep,
     repo: OrderRepository = Depends(get_order_repo),
 ) -> Any:
-    from app.api.v1.orders.schemas import OrderRead
     order = await repo.get_by_id(order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")

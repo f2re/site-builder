@@ -1,0 +1,18 @@
+{
+  "task_id": "p30_backend_order_items_schema_fix",
+  "phase": 30,
+  "agent": "backend-agent",
+  "title": "Fix OrderItemRead computed fields not resolving product_variant relationship",
+  "description": "В `backend/app/api/v1/orders/schemas.py` класс `OrderItemRead` использует `@computed_field` для вычисления `product_name`, `sku`, `image_url`. Проблема: Pydantic v2 computed_field на модели с `model_config = ConfigDict(from_attributes=True)` не имеет автоматического доступа к SQLAlchemy relationship `product_variant` через `self`, если это поле не объявлено явно в модели как поле схемы.\n\n`OrderItemRead` наследует `OrderItemBase` который содержит только `product_variant_id` и `quantity`. Поле `product_variant` не объявлено, поэтому `hasattr(self, 'product_variant')` возвращает False и computed_field всегда возвращает fallback ('Unknown Product', None, None).\n\n**Задача**: исправить `OrderItemRead` в `backend/app/api/v1/orders/schemas.py`:\n\n1. Добавить Optional поле `product_variant: Optional[Any] = None` или создать вложенную Pydantic схему `ProductVariantBrief` / `ProductBrief` для сериализации relationship.\n\n2. Правильный подход — создать схемы для вложенных объектов:\n   - `class ProductImageBrief(BaseModel): url: str; is_cover: bool; model_config = ConfigDict(from_attributes=True)`\n   - `class ProductBrief(BaseModel): name: str; images: List[ProductImageBrief] = []; model_config = ConfigDict(from_attributes=True)`\n   - `class ProductVariantBrief(BaseModel): sku: Optional[str] = None; product: Optional[ProductBrief] = None; model_config = ConfigDict(from_attributes=True)`\n   - В `OrderItemRead` добавить поле `product_variant: Optional[ProductVariantBrief] = None`\n   - Тогда `@computed_field` сможет читать `self.product_variant`\n\n3. **Также диагностировать** `GET /api/v1/admin/orders/{id}` — почему конкретный заказ с `total_amount: 2872.00` возвращает `items: []`. Проверить в репозитории `OrderRepository.get_by_id()` — selectinload на `Order.items` присутствует. Вероятная причина: заказ мигрирован из OpenCart и `order_items` записи в таблице `order_items` отсутствуют (только поле `total_amount` заполнено напрямую). Это не баг backend — это корректное поведение для мигрированных заказов без позиций. Подтвердить диагноз и задокументировать в отчёте.\n\n4. Добавить в `GET /api/v1/admin/orders/{id}` response_model явно: `response_model=OrderRead`.\n\n5. Запустить `ruff check app/ --fix`, `mypy app/ --ignore-missing-imports`, `pytest tests/ -x -v` перед отчётом.\n\nФайлы для изменения:\n- `backend/app/api/v1/orders/schemas.py`\n- `backend/app/api/v1/admin/router.py` (добавить response_model если отсутствует)\n\nНаписать отчёт в `.claude/agents/reports/backend/p30_backend_order_items_schema_fix.md`.",
+  "depends_on": [],
+  "priority": "medium",
+  "contracts_required": [".claude/agents/contracts/api_contracts.md"],
+  "acceptance_criteria": [
+    "OrderItemRead.product_name возвращает реальное имя товара из product_variant.product.name при наличии связи",
+    "OrderItemRead.sku возвращает реальный SKU из product_variant.sku при наличии связи",
+    "OrderItemRead.image_url возвращает URL обложки при наличии связи",
+    "ruff check app/ — 0 ошибок",
+    "mypy app/ --ignore-missing-imports — 0 ошибок критических",
+    "Диагноз пустых items для мигрированных заказов задокументирован в отчёте"
+  ]
+}
