@@ -55,6 +55,8 @@ services:
     env_file: /srv/site-builder/.env.prod
     ports:
       - "3000:3000"
+    volumes:
+      - media_data:/app/.output/public/media:ro
     command: node .output/server/index.mjs
     user: appuser
     logging: *default-logging

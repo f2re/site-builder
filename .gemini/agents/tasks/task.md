@@ -1,0 +1,1 @@
+@orchestrator проверь таблицу в админке с пользщователями - она поплыла, поплыли строки, ничего не понятно. надо исправить.  делегируй задачу агентам run all commands non-interactively, use </dev/null for stdin

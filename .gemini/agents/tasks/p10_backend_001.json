@@ -1,0 +1,13 @@
+{
+  "task_id": "p10_backend_001",
+  "phase": 10,
+  "agent": "backend-agent",
+  "title": "Verify Cyrillic filename handling for media",
+  "description": "Ensure that the backend (FastAPI + StaticFiles) and Nginx can correctly serve files with Cyrillic filenames. 1. Create a dummy file with a Cyrillic name in 'backend/media/test_кир.png' 2. Try to fetch it using 'curl' to 'http://localhost:8000/media/test_кир.png' (encoded as needed) 3. Verify it returns 200. Also check if the 'StaticFiles' setup handles normalization if necessary.",
+  "depends_on": [],
+  "priority": "medium",
+  "acceptance_criteria": [
+    "Test with Cyrillic filename passes via FastAPI StaticFiles",
+    "No 404 for URL-encoded Cyrillic filenames"
+  ]
+}

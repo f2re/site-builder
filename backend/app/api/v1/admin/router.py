@@ -27,6 +27,7 @@ from app.api.v1.products.schemas import (
 from app.api.v1.blog.service import BlogService, get_blog_service
 from app.api.v1.blog.schemas import BlogPostCreate, BlogPostUpdate
 from app.integrations.local_storage import storage_client
+from app.core.utils import sanitize_filename
 from app.api.v1.orders.service import OrderService
 from app.api.v1.orders.repository import OrderRepository
 from app.api.v1.users.repository import UserRepository
@@ -332,7 +333,8 @@ async def upload_blog_cover(
 ) -> Any:
     """Upload blog post cover image."""
     content = await file.read()
-    object_name = f"blog/{post_id}/{_uuid_module.uuid4().hex[:8]}_{file.filename}"
+    safe_filename = sanitize_filename(file.filename or "cover.jpg")
+    object_name = f"blog/{post_id}/{_uuid_module.uuid4().hex[:8]}_{safe_filename}"
     await storage_client.save_file(
         object_name=object_name,
         data=content,

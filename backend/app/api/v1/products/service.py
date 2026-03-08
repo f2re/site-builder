@@ -23,7 +23,7 @@ from app.api.v1.products.schemas import (
 )
 from app.db.models.product import Product, ProductImage, ProductVariant, Category
 from app.tasks.search import index_product_task, remove_product_from_index_task
-from app.core.utils import generate_slug, extract_text_from_tiptap, tiptap_json_to_html
+from app.core.utils import generate_slug, extract_text_from_tiptap, tiptap_json_to_html, sanitize_filename
 from app.integrations.local_storage import storage_client
 
 # Allowed tags and attributes for sanitization
@@ -310,7 +310,8 @@ class ProductService:
             raise HTTPException(status_code=404, detail="Product not found")
 
         content = await file.read()
-        object_name = f"products/{product_id}/{uuid.uuid4().hex[:8]}_{file.filename}"
+        safe_filename = sanitize_filename(file.filename or "image.jpg")
+        object_name = f"products/{product_id}/{uuid.uuid4().hex[:8]}_{safe_filename}"
 
         await storage_client.save_file(
             object_name=object_name,

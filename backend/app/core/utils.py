@@ -3,6 +3,20 @@ import re
 from typing import Optional, Any
 from slugify import slugify
 import bleach
+import os
+
+def sanitize_filename(filename: str) -> str:
+    """
+    Sanitize filename by slugifying the name part while keeping the extension.
+    Example: 'Снимок экрана 2026.png' -> 'snimok-ekrana-2026.png'
+    """
+    name, ext = os.path.splitext(filename)
+    # slugify handles Cyrillic transliteration and removes special chars/spaces
+    safe_name = slugify(name)
+    # Ensure name is not empty if it only contained non-slugifiable chars
+    if not safe_name:
+        safe_name = "file"
+    return f"{safe_name}{ext.lower()}"
 
 def generate_slug(text: str, current_slug: Optional[str] = None) -> str:
     """

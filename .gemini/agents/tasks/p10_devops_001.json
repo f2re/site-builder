@@ -1,0 +1,13 @@
+{
+  "task_id": "p10_devops_001",
+  "phase": 10,
+  "agent": "devops-agent",
+  "title": "Mount media_data volume to frontend container",
+  "description": "The frontend container needs access to the media files for Nuxt Image IPX processing or for direct serving. Mount the 'media_data' volume to the 'frontend' service in 'deploy/docker-compose.prod.yml' at '/app/media:ro'. Also ensure the volume is defined in the 'volumes' section (already should be).",
+  "depends_on": [],
+  "priority": "high",
+  "acceptance_criteria": [
+    "deploy/docker-compose.prod.yml has 'media_data:/app/media:ro' in frontend.volumes",
+    "Running 'docker-compose config' in deploy/ shows the mount is correctly defined"
+  ]
+}

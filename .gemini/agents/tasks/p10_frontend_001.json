@@ -1,0 +1,14 @@
+{
+  "task_id": "p10_frontend_001",
+  "phase": 10,
+  "agent": "frontend-agent",
+  "title": "Configure Nuxt Image for media files",
+  "description": "Fix the 404 IPX_FILE_NOT_FOUND by telling Nuxt Image where to find images. 1. Add 'backend' and 'sb_api' to 'image.domains' in 'nuxt.config.ts' for Docker networking. 2. Update the '/media' alias to use the correct backend URL for IPX processing. If SSR, use internal Docker URL if available (e.g. 'http://backend:8000/media'). 3. Verify that images in '/media/products/...' are correctly picked up by Nuxt Image (/_ipx/...). Note: if the volume is mounted at '/app/media', you might also explore using Nitro's 'publicAssets' configuration to include it as a source.",
+  "depends_on": ["p10_devops_001"],
+  "priority": "high",
+  "acceptance_criteria": [
+    "nuxt.config.ts updated with correct domains and alias",
+    "Product images with relative paths resolve correctly in dev and prod",
+    "IPX (/_ipx/...) does not return 404 for media files"
+  ]
+}

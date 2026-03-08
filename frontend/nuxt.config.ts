@@ -14,12 +14,28 @@ export default defineNuxtConfig({
       'localhost:8000',
       'localhost:3000',
       '127.0.0.1:8000',
+      'backend',
+      'sb_api',
       'wifiobd.ru',
+      'm.wifiobd.ru',
       'media.wifiobd.ru'
     ],
     alias: {
-      // Allows using src="/media/..." which resolves correctly in all environments
-      '/media': (process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000').replace('/api/v1', '') + '/media'
+      // Allows using src="/media/..." which resolves correctly in all environments.
+      // We prioritize the environment variable if available, otherwise use a relative path
+      // that IPX can resolve locally if the volume is mounted.
+      '/media': (process.env.NUXT_PUBLIC_API_BASE || '').replace('/api/v1', '') + '/media'
+    },
+    // Fix for 404 IPX_FILE_NOT_FOUND:
+    // Ensure IPX knows how to fetch images from the backend if they are relative or on specific domains.
+    providers: {
+      backend: {
+        name: 'ipx',
+        provider: 'ipx',
+        options: {
+          baseURL: (process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000').replace('/api/v1', '') + '/media'
+        }
+      }
     }
   },
 
