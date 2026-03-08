@@ -60,10 +60,12 @@ async function updateStatus(orderId: string, status: string) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="order in orders?.items" :key="order.id">
+            <tr v-for="order in orders?.items" :key="order.id" data-testid="order-card">
               <td>
                 <div class="order-info">
-                  <span class="order-id font-mono truncate">#{{ order.id.slice(0, 8) }}</span>
+                  <NuxtLink :to="`/admin/orders/${order.id}`" data-testid="order-detail-link" class="order-id font-mono truncate">
+                    #{{ order.id.slice(0, 8) }}
+                  </NuxtLink>
                   <div class="order-meta mobile-only">
                     <span class="price">{{ order.total_rub }} ₽</span>
                     <span class="dot">•</span>
@@ -162,6 +164,12 @@ async function updateStatus(orderId: string, status: string) {
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--color-text);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.order-id:hover {
+  color: var(--color-accent);
 }
 
 .order-meta {

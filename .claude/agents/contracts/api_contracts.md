@@ -234,6 +234,19 @@ Request: `city_code: str`
 Response: `{ items: PVZ[] }`
 - кэш: Redis `cdek:pvz:{city_code}` TTL 6h
 
+### GET /api/v1/delivery/orders/{order_id}/c2c-shipment
+Auth: Bearer JWT (role=admin)
+Response 200: C2CShipmentResponse
+```
+{ provider: str, order_id: str, recipient_name: str, recipient_phone: str,
+  pvz_code: str, pvz_address: str, declared_value: Decimal, weight_kg: float,
+  comment: str, deeplink: str, instructions: list[str] }
+```
+Response 400: `{ detail: 'Provider is not C2C (ozon/wb)', code: 'INVALID_PROVIDER' }`
+Response 404: `{ detail: 'Order not found', code: 'ORDER_NOT_FOUND' }`
+- Работает только для `delivery_provider = 'ozon'` или `'wb'`
+- Генерирует deeplink в мобильное приложение и пошаговую инструкцию для оператора
+
 ---
 
 ## 8. Blog API
