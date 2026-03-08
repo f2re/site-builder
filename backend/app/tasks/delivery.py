@@ -1,7 +1,7 @@
 # Module: tasks/delivery.py | Agent: cdek-agent | Task: p11_cdek_order_tracking
 import asyncio
 from app.tasks.celery_app import celery_app
-from app.db.session import AsyncSessionLocal
+from app.db.celery_session import CelerySessionLocal
 from app.api.v1.orders.repository import OrderRepository
 from app.db.models.order import OrderStatus
 from app.db.models.order_tracking import OrderTrackingEvent
@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 async def _poll_delivery_statuses():
     """Poll delivery statuses for in-transit orders."""
-    async with AsyncSessionLocal() as session:
+    async with CelerySessionLocal() as session:
         order_repo = OrderRepository(session)
         orders = await order_repo.get_orders_in_transit()
 

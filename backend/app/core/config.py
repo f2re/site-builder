@@ -128,7 +128,14 @@ class Settings(BaseSettings):
         default="http://meilisearch:7700",
         validation_alias=AliasChoices("MEILI_URL", "MEILISEARCH_URL", "MEILISEARCH_HOST")
     )
-    MEILISEARCH_API_KEY: str = "masterKey"
+    MEILISEARCH_API_KEY: str = Field(
+        default="masterKey",
+        validation_alias=AliasChoices(
+            "MEILISEARCH_API_KEY",
+            "MEILI_MASTER_KEY",
+            "MEILI_API_KEY",
+        )
+    )
 
     # ── Dashfirm Compiler ────────────────────────────────────────────────────
     COMPILER_PATH: str = "./compiler/compiler"

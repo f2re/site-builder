@@ -13,14 +13,18 @@ class UserCreate(UserBase):
     password: str
 
 
-class UserResponse(UserBase):
+class UserResponse(BaseModel):
     id: UUID
+    email: EmailStr
+    full_name: str | None = None
+    phone: str | None = None
     is_active: bool
     is_superuser: bool
     role: str
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
 
 
 class Token(BaseModel):

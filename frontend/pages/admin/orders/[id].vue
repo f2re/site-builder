@@ -24,9 +24,9 @@ interface TrackingEvent {
 interface OrderRead {
   id: string
   user_id: string
-  user_full_name: string
-  user_email: string
-  user_phone: string
+  user_full_name: string | null
+  user_email: string | null
+  user_phone: string | null
   items: OrderItem[]
   tracking_events: TrackingEvent[]
   tracking_number?: string
@@ -294,15 +294,17 @@ const getStatusLabel = (status: string) => {
               </template>
               <div class="space-y-3">
                 <NuxtLink :to="`/admin/users/${order.user_id}`" class="block font-bold hover:text-accent transition-colors" data-testid="customer-link">
-                  {{ order.user_full_name }}
+                  {{ order.user_full_name || 'Анонимный пользователь' }}
                 </NuxtLink>
                 <div class="flex items-center gap-2 text-sm">
                   <UIcon name="i-heroicons-envelope" class="text-muted" />
-                  <a :href="`mailto:${order.user_email}`" class="hover:underline" data-testid="customer-email">{{ order.user_email }}</a>
+                  <a v-if="order.user_email" :href="`mailto:${order.user_email}`" class="hover:underline" data-testid="customer-email">{{ order.user_email }}</a>
+                  <span v-else class="text-muted italic">Email не указан</span>
                 </div>
                 <div class="flex items-center gap-2 text-sm">
                   <UIcon name="i-heroicons-phone" class="text-muted" />
-                  <a :href="`tel:${order.user_phone}`" class="hover:underline" data-testid="customer-phone">{{ order.user_phone }}</a>
+                  <a v-if="order.user_phone" :href="`tel:${order.user_phone}`" class="hover:underline" data-testid="customer-phone">{{ order.user_phone }}</a>
+                  <span v-else class="text-muted italic">Телефон не указан</span>
                 </div>
               </div>
             </UCard>

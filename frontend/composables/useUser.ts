@@ -70,6 +70,7 @@ export interface AdminUserFullResponse {
   phone: string | null
   role: string
   is_active: boolean
+  is_superuser: boolean
   created_at: string
   last_login_at: string | null
   last_login_ip: string | null

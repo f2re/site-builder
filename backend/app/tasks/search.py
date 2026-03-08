@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config import settings
 from app.core.logging import logger
 from app.db.models.product import Product
-from app.db.session import AsyncSessionLocal
+from app.db.celery_session import CelerySessionLocal
 from app.tasks.celery_app import celery_app
 
 
@@ -99,7 +99,7 @@ def sync_products_to_meilisearch_task() -> None:
     """
 
     async def _sync() -> None:
-        async with AsyncSessionLocal() as session:
+        async with CelerySessionLocal() as session:
             stmt = (
                 select(Product)
                 .where(Product.is_active == True)  # noqa: E712

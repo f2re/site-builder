@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
 import { useProducts, type ProductCreate } from '~/composables/useProducts'
 import { useToast } from '~/composables/useToast'
 import { useConfirm } from '~/composables/useConfirm'

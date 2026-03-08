@@ -1,8 +1,8 @@
 # Module: api/v1/admin/schemas.py | Agent: backend-agent | Task: BE-03_cart_orders_payments
 from datetime import datetime
 from uuid import UUID
-from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, ConfigDict, EmailStr
+from typing import List, Optional, Dict
+from pydantic import BaseModel, ConfigDict
 from app.db.models.migration import MigrationStatus, MigrationEntity
 from app.api.v1.auth.schemas import UserResponse
 from app.api.v1.orders.schemas import OrderRead

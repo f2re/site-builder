@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useRoute } from 'vue-router'
 import { useUser } from '~/composables/useUser'
 import UButton from '~/components/U/UButton.vue'
 import UCard from '~/components/U/UCard.vue'

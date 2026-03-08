@@ -2,7 +2,7 @@
 import asyncio
 from uuid import UUID
 from app.tasks.celery_app import celery_app
-from app.db.session import AsyncSessionLocal
+from app.db.celery_session import CelerySessionLocal
 from app.api.v1.admin.migration_service import MigrationService
 from app.api.v1.admin.migration_repository import MigrationRepository
 from app.core.logging import logger
@@ -14,13 +14,13 @@ def run_migration_task(self, job_id: str):
     Celery task to run a specific migration job.
     """
     async def _run():
-        from app.db.session import engine as pg_engine  # noqa: PLC0415
+        from app.db.celery_session import celery_engine  # noqa: PLC0415
         from app.db.opencart_session import oc_engine  # noqa: PLC0415
         from app.db.models.migration import MigrationStatus  # noqa: PLC0415
 
         session = None
         try:
-            session = AsyncSessionLocal()
+            session = CelerySessionLocal()
             repo = MigrationRepository(session)
             service = MigrationService(repo, session)
             await service.run_batch(UUID(job_id))
@@ -37,10 +37,10 @@ def run_migration_task(self, job_id: str):
             # Close session first
             if session:
                 await session.close()
-            # Dispose engines INSIDE the running event loop to prevent
-            # "RuntimeError: Event loop is closed" from asyncpg/aiomysql
-            # pool cleanup after asyncio.run() closes the loop.
-            await pg_engine.dispose()
+            # Dispose celery_engine (NullPool — безопасно) и oc_engine (aiomysql pool)
+            # INSIDE the running event loop — до того как asyncio.run() его закроет.
+            # Основной FastAPI pg_engine не трогаем — он живёт в другом процессе.
+            await celery_engine.dispose()
             await oc_engine.dispose()
 
     try:

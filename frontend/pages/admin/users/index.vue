@@ -240,7 +240,6 @@ const downloadExcel = async () => {
                 <td class="actions-cell">
                   <div class="actions-group">
                     <UButton
-                      component="NuxtLink"
                       :to="`/admin/users/${user.id}`"
                       variant="ghost"
                       size="sm"
