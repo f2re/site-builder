@@ -36,6 +36,7 @@ class ProductOptionValueUpdate(BaseModel):
 class ProductOptionGroupSchema(BaseModel):
     id: UUID
     name: str
+    type: str = "radio"
     is_required: bool
     sort_order: int
     values: List[ProductOptionValueSchema] = []
@@ -44,12 +45,14 @@ class ProductOptionGroupSchema(BaseModel):
 
 class ProductOptionGroupCreate(BaseModel):
     name: str
+    type: str = "radio"
     is_required: bool = True
     sort_order: int = 0
 
 
 class ProductOptionGroupUpdate(BaseModel):
     name: Optional[str] = None
+    type: Optional[str] = None
     is_required: Optional[bool] = None
     sort_order: Optional[int] = None
 
@@ -198,6 +201,7 @@ class ProductShortRead(BaseModel):
     stock: int = 0
     price_display: str = ""
     currency: str = "RUB"
+    has_price_modifiers: bool = False
     model_config = ConfigDict(from_attributes=True)
 
 class PaginatedResponse(BaseModel):

@@ -79,7 +79,7 @@ class ProductVariant(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False, server_default="")
     sku: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
-    price: Mapped[float] = mapped_column(Numeric(precision=10, scale=2), nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(precision=10, scale=2), nullable=False)
     stock_quantity: Mapped[int] = mapped_column(Integer, default=0)
     attributes: Mapped[dict] = mapped_column(JSON().with_variant(JSONB, "postgresql"), server_default="{}", default=dict)
 
@@ -130,6 +130,7 @@ class ProductOptionGroup(Base):
         ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    type: Mapped[str] = mapped_column(String(50), default="radio")
     is_required: Mapped[bool] = mapped_column(Boolean, default=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 

@@ -30,22 +30,57 @@ watch(product, (newVal) => {
 
 // Variant selection
 const selectedVariant = ref<ProductVariant | null>(null)
+// group_id -> value_id (string) OR value_ids (string[])
+const selectedOptionValues = ref<Record<string, string | string[]>>({})
 
 watch(product, (newVal) => {
   if (newVal?.variants?.length) {
     selectedVariant.value = newVal.variants[0]
   }
+  if (newVal?.option_groups?.length) {
+    // Set defaults
+    const defaults: Record<string, string | string[]> = {}
+    newVal.option_groups.forEach(group => {
+      if (group.type === 'checkbox') {
+        const defaultVals = group.values.filter(v => v.is_default).map(v => v.id)
+        defaults[group.id] = defaultVals
+      } else {
+        const defaultVal = group.values.find(v => v.is_default) || group.values[0]
+        if (defaultVal) {
+          defaults[group.id] = defaultVal.id
+        }
+      }
+    })
+    selectedOptionValues.value = defaults
+  }
 }, { immediate: true })
 
 const hasMultipleVariants = computed(() => (product.value?.variants?.length ?? 0) > 1)
 
-const currentStock = computed(() => selectedVariant.value?.stock_quantity ?? product.value?.stock ?? 0)
-const currentPrice = computed(() => {
-  if (selectedVariant.value) {
-    return formatPrice(selectedVariant.value.price)
-  }
-  return formatPrice(product.value?.price_display ?? 0)
+const optionsPriceModifier = computed(() => {
+  if (!product.value?.option_groups) return 0
+  let total = 0
+  product.value.option_groups.forEach(group => {
+    const selected = selectedOptionValues.value[group.id]
+    if (Array.isArray(selected)) {
+      selected.forEach(valId => {
+        const val = group.values.find(v => v.id === valId)
+        if (val) total += Number(val.price_modifier)
+      })
+    } else if (selected) {
+      const val = group.values.find(v => v.id === selected)
+      if (val) total += Number(val.price_modifier)
+    }
+  })
+  return total
 })
+
+const currentStock = computed(() => selectedVariant.value?.stock_quantity ?? product.value?.stock ?? 0)
+const currentPriceRaw = computed(() => {
+  const base = selectedVariant.value ? Number(selectedVariant.value.price) : Number(product.value?.price_display ?? 0)
+  return base + optionsPriceModifier.value
+})
+const currentPrice = computed(() => formatPrice(currentPriceRaw.value))
 
 const stockStatus = computed(() => {
   const qty = currentStock.value
@@ -71,6 +106,21 @@ const hasAttributes = computed(() => {
 
 const hasImages = computed(() => (product.value?.images?.length ?? 0) > 0)
 
+// Toggle checkbox option
+const toggleOption = (groupId: string, valueId: string) => {
+  const current = selectedOptionValues.value[groupId]
+  if (Array.isArray(current)) {
+    const index = current.indexOf(valueId)
+    if (index > -1) {
+      current.splice(index, 1)
+    } else {
+      current.push(valueId)
+    }
+  } else {
+    selectedOptionValues.value[groupId] = [valueId]
+  }
+}
+
 // Loading state for add to cart
 const isAddingToCart = ref(false)
 
@@ -79,14 +129,57 @@ const addToCart = async () => {
   if (currentStock.value <= 0) return
 
   isAddingToCart.value = true
-  await new Promise(resolve => setTimeout(resolve, 300))
+  
+  // Resolve options
+  const optionSnapshots = []
+  const optionValueIds: string[] = []
+  
+  if (product.value.option_groups) {
+    product.value.option_groups.forEach(group => {
+      const selected = selectedOptionValues.value[group.id]
+      if (Array.isArray(selected)) {
+        selected.forEach(valId => {
+          const val = group.values.find(v => v.id === valId)
+          if (val) {
+            optionSnapshots.push({
+              group_id: group.id,
+              group_name: group.name,
+              value_id: val.id,
+              value_name: val.name,
+              price_modifier: Number(val.price_modifier)
+            })
+            optionValueIds.push(val.id)
+          }
+        })
+      } else if (selected) {
+        const val = group.values.find(v => v.id === selected)
+        if (val) {
+          optionSnapshots.push({
+            group_id: group.id,
+            group_name: group.name,
+            value_id: val.id,
+            value_name: val.name,
+            price_modifier: Number(val.price_modifier)
+          })
+          optionValueIds.push(val.id)
+        }
+      }
+    })
+  }
+
+  const variantId = selectedVariant.value?.id || product.value.variants[0]?.id
+  const sortedIds = [...optionValueIds].sort()
+  const compositeId = `${variantId}:${sortedIds.join(':')}`
 
   const added = cartStore.addItem({
-    id: product.value.id as unknown as number,
+    id: compositeId,
+    variantId: variantId,
     name: product.value.name,
-    price: selectedVariant.value?.price ?? (product.value.price_rub ?? 0),
+    price: currentPriceRaw.value,
     image: product.value.images[0]?.url || '/placeholder-product.png',
-    maxStock: currentStock.value
+    maxStock: currentStock.value,
+    selectedOptions: optionSnapshots,
+    selectedOptionValueIds: optionValueIds
   })
 
   isAddingToCart.value = false
@@ -339,6 +432,59 @@ const handleQuickBuySubmitted = () => {
               </div>
             </div>
 
+            <!-- Options Selector -->
+            <div
+              v-if="product.option_groups && product.option_groups.length > 0"
+              class="product-options"
+              data-testid="product-options-selector"
+            >
+              <div
+                v-for="group in product.option_groups"
+                :key="group.id"
+                class="option-group"
+              >
+                <div class="option-group__label">
+                  {{ group.name }}
+                  <span v-if="group.is_required" class="required-star">*</span>
+                </div>
+                <div class="option-group__list">
+                  <template v-if="group.type === 'checkbox'">
+                    <button
+                      v-for="val in group.values"
+                      :key="val.id"
+                      class="option-btn option-btn--checkbox"
+                      :class="{ 'is-active': (selectedOptionValues[group.id] as string[]).includes(val.id) }"
+                      :aria-pressed="(selectedOptionValues[group.id] as string[]).includes(val.id)"
+                      @click="toggleOption(group.id, val.id)"
+                    >
+                      <div class="option-btn__check">
+                        <Icon v-if="(selectedOptionValues[group.id] as string[]).includes(val.id)" name="ph:check-bold" size="12" />
+                      </div>
+                      <span class="option-btn__name">{{ val.name }}</span>
+                      <span v-if="Number(val.price_modifier) !== 0" class="option-btn__modifier">
+                        {{ Number(val.price_modifier) > 0 ? '+' : '' }}{{ formatPrice(val.price_modifier) }}
+                      </span>
+                    </button>
+                  </template>
+                  <template v-else>
+                    <button
+                      v-for="val in group.values"
+                      :key="val.id"
+                      class="option-btn"
+                      :class="{ 'is-active': selectedOptionValues[group.id] === val.id }"
+                      :aria-pressed="selectedOptionValues[group.id] === val.id"
+                      @click="selectedOptionValues[group.id] = val.id"
+                    >
+                      <span class="option-btn__name">{{ val.name }}</span>
+                      <span v-if="Number(val.price_modifier) !== 0" class="option-btn__modifier">
+                        {{ Number(val.price_modifier) > 0 ? '+' : '' }}{{ formatPrice(val.price_modifier) }}
+                      </span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+            </div>
+
             <!-- Actions -->
             <div class="product-buy-panel__actions">
               <button
@@ -484,6 +630,11 @@ const handleQuickBuySubmitted = () => {
       :product-image="product?.images[0]?.url ?? ''"
       :variant-name="selectedVariant?.name ?? ''"
       :price="currentPrice"
+      :selected-options="Object.entries(selectedOptionValues).map(([groupId, valId]) => {
+        const group = product?.option_groups.find(g => g.id === groupId)
+        const val = group?.values.find(v => v.id === valId)
+        return { group_name: group?.name || '', value_name: val?.name || '' }
+      }).filter(o => o.group_name)"
       @close="isQuickBuyOpen = false"
       @submitted="handleQuickBuySubmitted"
     />
@@ -774,6 +925,95 @@ const handleQuickBuySubmitted = () => {
 }
 
 .variant-btn.is-active .variant-btn__price {
+  color: var(--color-accent);
+}
+
+/* ─── Options ───────────────────────────────────────── */
+.product-options {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 16px;
+}
+
+.option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option-group__label {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+  font-weight: 700;
+}
+
+.required-star {
+  color: var(--color-error);
+  margin-left: 2px;
+}
+
+.option-group__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.option-btn {
+  padding: 8px 14px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.option-btn:hover {
+  border-color: var(--color-accent);
+  background: var(--color-bg-subtle);
+}
+
+.option-btn.is-active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-glow);
+  color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.option-btn--checkbox .option-btn__check {
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface-2);
+  transition: all var(--transition-fast);
+}
+
+.option-btn--checkbox.is-active .option-btn__check {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.option-btn__modifier {
+  font-size: 10px;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+}
+
+.option-btn.is-active .option-btn__modifier {
   color: var(--color-accent);
 }
 

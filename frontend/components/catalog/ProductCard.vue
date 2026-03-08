@@ -18,6 +18,16 @@ const imageUrl = computed(() => {
   return (props.product as ProductShort).main_image_url || '/placeholder-product.png'
 })
 
+const hasPriceModifiers = computed(() => {
+  if ('has_price_modifiers' in props.product) {
+    return props.product.has_price_modifiers
+  }
+  if ('option_groups' in props.product) {
+    return props.product.option_groups.some(g => g.values.some(v => v.price_modifier > 0))
+  }
+  return false
+})
+
 const handleAddToCart = () => {
   if (props.product.stock <= 0) return
 
@@ -63,7 +73,10 @@ const handleAddToCart = () => {
 
       <div class="product-card__footer">
         <div class="product-card__price">
-          <span class="product-card__price-value" data-testid="product-price">{{ formatPrice(product.price_display) }}</span>
+          <span class="product-card__price-value" data-testid="product-price">
+            <template v-if="hasPriceModifiers">от </template>
+            {{ formatPrice(product.price_display) }}
+          </span>
         </div>
 
         <button

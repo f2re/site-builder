@@ -11,6 +11,7 @@ import UTextarea from '~/components/U/UTextarea.vue'
 import USkeleton from '~/components/U/USkeleton.vue'
 import TipTapEditor from '~/components/blog/TipTapEditor.vue'
 import ProductMediaManager from '~/components/Admin/ProductMediaManager.vue'
+import ProductOptionsManager from '~/components/Admin/ProductOptionsManager.vue'
 
 definePageMeta({
   layout: false,
@@ -234,6 +235,15 @@ const handleDelete = async () => {
               placeholder="SKU-123"
             />
           </div>
+        </UCard>
+
+        <UCard title="Опции товара">
+          <ProductOptionsManager 
+            v-if="product"
+            v-model="product.option_groups" 
+            :product-id="productId"
+            @refresh="() => adminGetProductById(productId)"
+          />
         </UCard>
       </div>
 

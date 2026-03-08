@@ -499,7 +499,16 @@ onMounted(() => {
 
             <ul class="summary-items">
               <li v-for="item in cartStore.items" :key="item.id" class="summary-item">
-                <span class="summary-item__name">{{ item.name }} × {{ item.quantity }}</span>
+                <div class="summary-item__main">
+                  <span class="summary-item__name">{{ item.name }} × {{ item.quantity }}</span>
+                  
+                  <!-- Selected Options -->
+                  <div v-if="item.selectedOptions && item.selectedOptions.length > 0" class="summary-item__options">
+                    <div v-for="opt in item.selectedOptions" :key="opt.value_id" class="summary-item__option">
+                      {{ opt.group_name }}: {{ opt.value_name }}
+                    </div>
+                  </div>
+                </div>
                 <span class="summary-item__price">{{ formatPrice(item.price * item.quantity) }}</span>
               </li>
             </ul>
@@ -969,15 +978,32 @@ onMounted(() => {
 .summary-item {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   font-size: var(--text-sm);
   gap: 8px;
 }
 
-.summary-item__name {
-  color: var(--color-text-2);
+.summary-item__main {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-item__options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.summary-item__option {
+  font-size: 10px;
+  color: var(--color-muted);
+}
+
+.summary-item__name {
+  color: var(--color-text-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

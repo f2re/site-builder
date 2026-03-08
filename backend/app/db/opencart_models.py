@@ -317,3 +317,89 @@ class OCAddress(OCBase):
 
     def __repr__(self) -> str:
         return f"<OCAddress {self.address_id} customer={self.customer_id}>"
+
+
+class OCOption(OCBase):
+    """OpenCart option table"""
+    __tablename__ = "oc_option"
+
+    option_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    type: Mapped[str] = mapped_column(String(32), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+    def __repr__(self) -> str:
+        return f"<OCOption {self.option_id}>"
+
+
+class OCOptionDescription(OCBase):
+    """OpenCart option description table"""
+    __tablename__ = "oc_option_description"
+
+    option_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    language_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<OCOptionDescription {self.option_id} lang={self.language_id}>"
+
+
+class OCOptionValue(OCBase):
+    """OpenCart option value table"""
+    __tablename__ = "oc_option_value"
+
+    option_value_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    option_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    image: Mapped[str] = mapped_column(String(255), nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+    def __repr__(self) -> str:
+        return f"<OCOptionValue {self.option_value_id} option={self.option_id}>"
+
+
+class OCOptionValueDescription(OCBase):
+    """OpenCart option value description table"""
+    __tablename__ = "oc_option_value_description"
+
+    option_value_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    language_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    option_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<OCOptionValueDescription {self.option_value_id} lang={self.language_id}>"
+
+
+class OCProductOption(OCBase):
+    """OpenCart product option table"""
+    __tablename__ = "oc_product_option"
+
+    product_option_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    product_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    option_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    value: Mapped[str] = mapped_column(Text, nullable=True)
+    required: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    def __repr__(self) -> str:
+        return f"<OCProductOption {self.product_option_id} prod={self.product_id} opt={self.option_id}>"
+
+
+class OCProductOptionValue(OCBase):
+    """OpenCart product option value table"""
+    __tablename__ = "oc_product_option_value"
+
+    product_option_value_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    product_option_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    product_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    option_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    option_value_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, default=0)
+    subtract: Mapped[bool] = mapped_column(Boolean, default=True)
+    price: Mapped[float] = mapped_column(Numeric(15, 4), default=0)
+    price_prefix: Mapped[str] = mapped_column(String(1), nullable=False)
+    points: Mapped[int] = mapped_column(Integer, default=0)
+    points_prefix: Mapped[str] = mapped_column(String(1), nullable=False)
+    weight: Mapped[float] = mapped_column(Numeric(15, 8), default=0)
+    weight_prefix: Mapped[str] = mapped_column(String(1), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<OCProductOptionValue {self.product_option_value_id} prod={self.product_id}>"

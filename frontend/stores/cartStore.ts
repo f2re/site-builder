@@ -2,12 +2,21 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 export interface StoreCartItem {
-  id: number | string
+  id: string  // now composite id (variant_id + options)
+  variantId: string
   name: string
   price: number
   quantity: number
   image?: string
   maxStock?: number
+  selectedOptions?: Array<{
+    group_id: string
+    group_name: string
+    value_id: string
+    value_name: string
+    price_modifier: number
+  }>
+  selectedOptionValueIds?: string[]
 }
 
 export const useCartStore = defineStore('cart', () => {
@@ -28,7 +37,7 @@ export const useCartStore = defineStore('cart', () => {
     const price = typeof product.price === 'string' ? parseFloat(product.price) : product.price
     const productWithNumPrice = { ...product, price }
 
-    const existing = items.value.find(i => String(i.id) === String(product.id))
+    const existing = items.value.find(i => i.id === product.id)
     if (existing) {
       if (existing.quantity >= (existing.maxStock ?? Infinity)) {
         return false
@@ -41,13 +50,13 @@ export const useCartStore = defineStore('cart', () => {
     return true
   }
 
-  const removeItem = (id: number | string) => {
-    items.value = items.value.filter(i => String(i.id) !== String(id))
+  const removeItem = (id: string) => {
+    items.value = items.value.filter(i => i.id !== id)
     persist()
   }
 
-  const updateQuantity = (id: number | string, quantity: number) => {
-    const item = items.value.find(i => String(i.id) === String(id))
+  const updateQuantity = (id: string, quantity: number) => {
+    const item = items.value.find(i => i.id === id)
     if (item) {
       if (quantity <= 0) {
         removeItem(id)

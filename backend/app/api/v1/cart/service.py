@@ -1,7 +1,7 @@
 # Module: api/v1/cart/service.py | Agent: backend-agent | Task: p31_backend_cart_options
 import json
 from uuid import UUID
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select

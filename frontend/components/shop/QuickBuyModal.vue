@@ -7,6 +7,7 @@ const props = defineProps<{
   productImage: string
   variantName: string
   price: string
+  selectedOptions?: Array<{ group_name: string, value_name: string }>
 }>()
 
 const emit = defineEmits<{
@@ -109,7 +110,8 @@ const handleSubmit = async () => {
         comment: comment.value.trim(),
         product_name: props.productName,
         variant_name: props.variantName,
-        price: props.price
+        price: props.price,
+        selected_options: props.selectedOptions
       }
     })
     emit('submitted')
@@ -223,6 +225,14 @@ onUnmounted(() => {
             <div class="quick-buy-modal__product-info">
               <div class="quick-buy-modal__product-name">{{ productName }}</div>
               <div class="quick-buy-modal__product-variant">{{ variantName }}</div>
+              
+              <!-- Selected Options -->
+              <div v-if="selectedOptions && selectedOptions.length > 0" class="quick-buy-modal__options">
+                <div v-for="opt in selectedOptions" :key="opt.group_name" class="quick-buy-modal__option">
+                  {{ opt.group_name }}: {{ opt.value_name }}
+                </div>
+              </div>
+
               <div class="quick-buy-modal__product-price">{{ price }}</div>
             </div>
           </div>
@@ -408,6 +418,19 @@ onUnmounted(() => {
   font-size: var(--text-xs);
   color: var(--color-muted);
   margin-top: 2px;
+}
+
+.quick-buy-modal__options {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.quick-buy-modal__option {
+  font-size: 11px;
+  color: var(--color-text-2);
+  line-height: 1.2;
 }
 
 .quick-buy-modal__product-price {

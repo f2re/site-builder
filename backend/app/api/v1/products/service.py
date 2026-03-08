@@ -30,8 +30,7 @@ from app.api.v1.products.schemas import (
     ProductPriceCalculationResponse
 )
 from app.db.models.product import (
-    Product, ProductImage, ProductVariant, Category,
-    ProductOptionGroup, ProductOptionValue
+    Product, ProductImage, ProductVariant, Category
 )
 from app.tasks.search import index_product_task, remove_product_from_index_task
 from app.core.utils import generate_slug, extract_text_from_tiptap, tiptap_json_to_html, sanitize_filename
@@ -420,7 +419,7 @@ class ProductService:
             raise HTTPException(status_code=404, detail="Product not found")
 
         # Get base price from first variant (or 0)
-        base_price = product.variants[0].price if product.variants else Decimal("0")
+        base_price: Decimal = product.variants[0].price if product.variants else Decimal("0")
         
         selected_values = []
         if data.selected_option_value_ids:
@@ -447,11 +446,12 @@ class ProductService:
                     detail=f"Option value {val.id} does not belong to product {product.id}"
                 )
             
-            total_modifier += val.price_modifier
+            modifier: Decimal = val.price_modifier
+            total_modifier += modifier
             breakdown.append({
                 "group_name": val.group.name,
                 "value_name": val.name,
-                "price_modifier": val.price_modifier
+                "price_modifier": float(modifier)
             })
 
         return ProductPriceCalculationResponse(

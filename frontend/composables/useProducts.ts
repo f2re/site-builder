@@ -36,6 +36,7 @@ export interface ProductOptionValue {
 export interface ProductOptionGroup {
   id: string
   name: string
+  type: string
   is_required: boolean
   sort_order: number
   values: ProductOptionValue[]
@@ -95,6 +96,7 @@ export interface ProductShort {
   price_display: string
   currency: string
   stock: number
+  has_price_modifiers: boolean
 }
 
 export interface ProductListResponse {

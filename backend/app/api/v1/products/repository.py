@@ -4,7 +4,7 @@ from typing import Optional, Tuple, List, Any
 from uuid import UUID
 from decimal import Decimal
 
-from sqlalchemy import select, func, update, delete
+from sqlalchemy import select, func, update, delete, exists
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
@@ -78,7 +78,6 @@ class ProductRepository:
         )
 
         # Improved cover image subquery using window function
-        # It picks is_cover=True first, then sorts by sort_order and id
         image_rank_sq = (
             select(
                 ProductImage.product_id,
@@ -101,6 +100,15 @@ class ProductRepository:
             .subquery()
         )
 
+        # Subquery to check for price modifiers > 0
+        has_modifiers_sq = (
+            select(ProductOptionGroup.product_id)
+            .join(ProductOptionValue, ProductOptionGroup.id == ProductOptionValue.group_id)
+            .where(ProductOptionValue.price_modifier > 0)
+            .group_by(ProductOptionGroup.product_id)
+            .subquery()
+        )
+
         stmt = (
             select(
                 Product.id,
@@ -115,6 +123,7 @@ class ProductRepository:
                 min_price_sq.c.min_price,
                 stock_sq.c.total_stock,
                 Category.name.label("category_name"),
+                exists().where(has_modifiers_sq.c.product_id == Product.id).label("has_price_modifiers")
             )
             .outerjoin(min_price_sq, Product.id == min_price_sq.c.product_id)
             .outerjoin(stock_sq, Product.id == stock_sq.c.product_id)
@@ -125,7 +134,6 @@ class ProductRepository:
         if active_only:
             stmt = stmt.where(Product.is_active)
 
-        # category_id takes priority over category_slug
         if category_id:
             stmt = stmt.where(Product.category_id == category_id)
         elif category_slug:
@@ -147,13 +155,11 @@ class ProductRepository:
                 cursor_created_at_str, cursor_id_str = cursor.split(',')
                 cursor_created_at = datetime.fromisoformat(cursor_created_at_str.replace('Z', '+00:00'))
                 cursor_id = UUID(cursor_id_str)
-                # Keyset pagination condition
                 stmt = stmt.where(
                     (Product.created_at > cursor_created_at) | 
                     ((Product.created_at == cursor_created_at) & (Product.id > cursor_id))
                 )
             except (ValueError, IndexError):
-                # Handle invalid cursor format gracefully
                 pass
 
         stmt = stmt.order_by(Product.created_at, Product.id).limit(per_page + 1)
@@ -185,12 +191,12 @@ class ProductRepository:
                 "stock": int(row.total_stock or 0),
                 "price_display": price_display,
                 "currency": "RUB",
+                "has_price_modifiers": bool(row.has_price_modifiers)
             })
             
         next_cursor = None
         if len(rows) > per_page:
             last_item = items[-1]
-            # Format the created_at to be URL-safe and consistent
             created_at_iso = last_item["created_at"].isoformat().replace('+00:00', 'Z')
             next_cursor = f"{created_at_iso},{last_item['id']}"
             
@@ -274,7 +280,6 @@ class ProductRepository:
         )
 
         # To build a tree with counts, we better fetch all categories and build it in memory
-        # Or at least fetch them all with their counts.
         stmt = (
             select(
                 Category,
@@ -340,10 +345,6 @@ class ProductRepository:
         return getattr(result, "rowcount", 0) > 0
 
     async def decrement_stock(self, variant_id: UUID, quantity: int, reason: str = "order") -> bool:
-        """
-        Atomic stock decrement in DB. 
-        Note: Real-time stock reservation should be done in Redis.
-        """
         stmt = (
             update(ProductVariant)
             .where(ProductVariant.id == variant_id)
@@ -386,10 +387,8 @@ class ProductRepository:
             return True
         return False
 
-    # Image Management
     async def add_image(self, product_id: UUID, url: str, alt: str = "", is_cover: bool = False) -> ProductImage:
         if is_cover:
-            # Unset other cover images
             await self.session.execute(
                 update(ProductImage)
                 .where(ProductImage.product_id == product_id)
@@ -416,7 +415,6 @@ class ProductRepository:
         return image
 
     async def set_cover_image(self, product_id: UUID, image_id: UUID) -> Optional[ProductImage]:
-        # Unset other cover images
         await self.session.execute(
             update(ProductImage)
             .where(ProductImage.product_id == product_id)
@@ -444,8 +442,6 @@ class ProductRepository:
         return result.scalar_one_or_none() is not None
 
     async def update_image(self, image_id: UUID, **kwargs) -> Optional[ProductImage]:
-        """Update an image record."""
-        # Clean up data for update — only allow base fields
         update_fields = {k: v for k, v in kwargs.items() if k in ["alt", "is_cover", "sort_order", "url"]}
         if not update_fields:
             return None
@@ -460,15 +456,12 @@ class ProductRepository:
         return res.scalar_one_or_none()
 
     async def create_variant(self, product_id: UUID, **kwargs) -> ProductVariant:
-        """Create a new variant for a product."""
         variant = ProductVariant(product_id=product_id, **kwargs)
         self.session.add(variant)
         await self.session.flush()
         return variant
 
     async def update_variant(self, variant_id: UUID, **kwargs) -> Optional[ProductVariant]:
-        """Update a variant record."""
-        # Clean up data for update
         update_fields = {k: v for k, v in kwargs.items() if k in ["name", "sku", "price", "stock_quantity", "attributes"]}
         if not update_fields:
             return None

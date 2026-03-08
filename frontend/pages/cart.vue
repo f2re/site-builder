@@ -12,7 +12,7 @@ const breadcrumbItems = [
   { name: 'Корзина', path: '/cart' }
 ]
 
-const updateQuantity = (id: number, delta: number) => {
+const updateQuantity = (id: string, delta: number) => {
   const item = cartStore.items.find(i => i.id === id)
   if (item) {
     if (delta > 0 && item.quantity >= (item.maxStock ?? Infinity)) {
@@ -23,7 +23,7 @@ const updateQuantity = (id: number, delta: number) => {
   }
 }
 
-const removeItem = (id: number, name: string) => {
+const removeItem = (id: string, name: string) => {
   cartStore.removeItem(id)
   toast.info('Товар удален', `${name} удален из корзины`)
 }
@@ -67,7 +67,19 @@ useHead({
 
             <div class="cart-item__content">
               <div class="cart-item__info">
-                <NuxtLink :to="`/products/${item.id}`" class="cart-item__name">{{ item.name }}</NuxtLink>
+                <NuxtLink :to="`/products/${item.variantId || item.id}`" class="cart-item__name">{{ item.name }}</NuxtLink>
+                
+                <!-- Selected Options -->
+                <div v-if="item.selectedOptions && item.selectedOptions.length > 0" class="cart-item__options">
+                  <div v-for="opt in item.selectedOptions" :key="opt.value_id" class="cart-item__option">
+                    <span class="opt-group">{{ opt.group_name }}:</span>
+                    <span class="opt-value">{{ opt.value_name }}</span>
+                    <span v-if="opt.price_modifier !== 0" class="opt-price">
+                      ({{ opt.price_modifier > 0 ? '+' : '' }}{{ formatPrice(opt.price_modifier) }})
+                    </span>
+                  </div>
+                </div>
+
                 <div class="cart-item__price">{{ formatPrice(item.price) }} / шт.</div>
               </div>
 
@@ -271,6 +283,35 @@ useHead({
 .cart-item__price {
   font-size: var(--text-sm);
   color: var(--color-muted);
+}
+
+.cart-item__options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.cart-item__option {
+  font-size: var(--text-xs);
+  color: var(--color-text-2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.opt-group {
+  color: var(--color-muted);
+}
+
+.opt-value {
+  font-weight: 600;
+}
+
+.opt-price {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
 }
 
 .cart-item__actions {

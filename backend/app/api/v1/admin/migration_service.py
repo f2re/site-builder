@@ -22,7 +22,7 @@ from app.core.security import encrypt_data, get_blind_index
 from app.db.models.blog import Author, BlogPost, BlogPostStatus, Tag
 from app.db.models.migration import MigrationEntity, MigrationJob, MigrationStatus
 from app.db.models.order import Order, OrderItem, OrderStatus
-from app.db.models.product import Category, Product, ProductImage, ProductVariant
+from app.db.models.product import Category, Product, ProductImage, ProductVariant, ProductOptionGroup, ProductOptionValue
 from app.db.models.user import User
 from app.db.opencart_models import (
     OCCategory,
@@ -36,6 +36,12 @@ from app.db.opencart_models import (
     OCProductDescription,
     OCProductImage,
     OCProductToCategory,
+    OCOption,
+    OCOptionDescription,
+    OCOptionValue,
+    OCOptionValueDescription,
+    OCProductOption,
+    OCProductOptionValue,
 )
 from app.db.opencart_session import OCAsyncSessionLocal
 
@@ -978,6 +984,59 @@ class MigrationService:
                                                 product=new_prod, url=add_path, is_cover=False, alt=name
                                             )
                                             self.session.add(extra_img)
+
+
+                                # --- 4f: Product Options ---
+                                option_stmt = (
+                                    select(OCProductOption, OCOption, OCOptionDescription)
+                                    .join(OCOption, OCOption.option_id == OCProductOption.option_id)
+                                    .join(OCOptionDescription, OCOptionDescription.option_id == OCOption.option_id)
+                                    .where(
+                                        OCProductOption.product_id == oc_prod.product_id,
+                                        OCOptionDescription.language_id == settings.OC_LANGUAGE_ID
+                                    )
+                                )
+                                option_res = await oc_session.execute(option_stmt)
+                                options = option_res.all()
+                                
+                                for oc_prod_opt, oc_opt, oc_opt_desc in options:
+                                    # map type
+                                    opt_type = oc_opt.type
+                                    if opt_type not in ('select', 'radio', 'checkbox'):
+                                        opt_type = 'radio'
+                                        
+                                    opt_group = ProductOptionGroup(
+                                        product=new_prod,
+                                        name=oc_opt_desc.name,
+                                        type=opt_type,
+                                        is_required=oc_prod_opt.required,
+                                        sort_order=oc_opt.sort_order
+                                    )
+                                    self.session.add(opt_group)
+                                    await self.session.flush()
+                                    
+                                    val_stmt = (
+                                        select(OCProductOptionValue, OCOptionValue, OCOptionValueDescription)
+                                        .join(OCOptionValue, OCOptionValue.option_value_id == OCProductOptionValue.option_value_id)
+                                        .join(OCOptionValueDescription, OCOptionValueDescription.option_value_id == OCOptionValue.option_value_id)
+                                        .where(
+                                            OCProductOptionValue.product_option_id == oc_prod_opt.product_option_id,
+                                            OCOptionValueDescription.language_id == settings.OC_LANGUAGE_ID
+                                        )
+                                        .order_by(OCOptionValue.sort_order)
+                                    )
+                                    val_res = await oc_session.execute(val_stmt)
+                                    
+                                    for oc_prod_opt_val, oc_opt_val, oc_opt_val_desc in val_res.all():
+                                        price_modifier = oc_prod_opt_val.price if oc_prod_opt_val.price_prefix == '+' else -oc_prod_opt_val.price if oc_prod_opt_val.price_prefix == '-' else oc_prod_opt_val.price
+                                        
+                                        opt_value = ProductOptionValue(
+                                            group_id=opt_group.id,
+                                            name=oc_opt_val_desc.name,
+                                            price_modifier=price_modifier,
+                                            sort_order=oc_opt_val.sort_order
+                                        )
+                                        self.session.add(opt_value)
 
                                 await self.session.flush()
                                 processed += 1
