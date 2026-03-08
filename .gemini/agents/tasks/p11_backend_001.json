@@ -1,0 +1,16 @@
+{
+  "task_id": "p11_backend_001",
+  "phase": 11,
+  "agent": "backend-agent",
+  "title": "Improve HTML to TipTap migration and handle inline images",
+  "description": "Update _html_to_tiptap in migration_service.py to correctly handle nested tags (like bold links), spans, divs, and download images from external URLs in descriptions.",
+  "depends_on": [],
+  "priority": "high",
+  "acceptance_criteria": [
+    "HTML like '<b><a href=\"...\">text</a></b>' results in TipTap JSON with both bold and link marks",
+    "Images in HTML are downloaded to local storage and src is updated to local path",
+    "Tags like span, div, font are correctly processed (preserving text and marks)",
+    "Script and iframe tags are safely handled (stripped)",
+    "Ruff and MyPy checks pass"
+  ]
+}

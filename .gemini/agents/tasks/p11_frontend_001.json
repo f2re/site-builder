@@ -1,0 +1,15 @@
+{
+  "task_id": "p11_frontend_001",
+  "phase": 11,
+  "agent": "frontend-agent",
+  "title": "Verify frontend product description rendering",
+  "description": "Ensure the product description (content_json from backend) is correctly rendered in Nuxt 3. Check compatibility with the updated TipTap JSON structure.",
+  "depends_on": ["p11_backend_001"],
+  "priority": "medium",
+  "acceptance_criteria": [
+    "Product page displays all TipTap elements (bold, links, lists, images) correctly",
+    "Nested bold and link marks work as expected",
+    "No Vue warnings/errors during TipTap rendering",
+    "TypeScript/linting checks pass"
+  ]
+}

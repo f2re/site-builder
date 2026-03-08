@@ -1,0 +1,15 @@
+{
+  "task_id": "p11_testing_001",
+  "phase": 11,
+  "agent": "testing-agent",
+  "title": "Add integration test for OpenCart HTML migration",
+  "description": "Create a test for MigrationService._html_to_tiptap to verify transformation of problematic HTML from the user's report (nested bold/links, external images).",
+  "depends_on": ["p11_backend_001"],
+  "priority": "medium",
+  "acceptance_criteria": [
+    "Integration test for _html_to_tiptap covers all reported cases",
+    "Verified that '<b><a href=...>' gets correctly parsed as nested marks",
+    "Verified that external image URLs in description are replaced with local ones",
+    "No regressions for existing migration logic"
+  ]
+}

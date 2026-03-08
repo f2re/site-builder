@@ -2,7 +2,9 @@
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
-import { onBeforeUnmount } from 'vue'
+import Link from '@tiptap/extension-link'
+import Youtube from '@tiptap/extension-youtube'
+import { onBeforeUnmount, watch } from 'vue'
 
 const props = defineProps<{
   content: unknown
@@ -16,8 +18,26 @@ const editor = useEditor({
     Image.configure({
       inline: false,
       allowBase64: true
-    })
+    }),
+    Link.configure({
+      openOnClick: true,
+      HTMLAttributes: {
+        class: 'text-accent underline underline-offset-4 hover:text-accent-hover transition-colors',
+      },
+    }),
+    Youtube.configure({
+      HTMLAttributes: {
+        class: 'aspect-video w-full rounded-lg my-8',
+      },
+    }),
   ]
+})
+
+// Support reactive content updates
+watch(() => props.content, (newContent) => {
+  if (newContent) {
+    editor.value?.commands.setContent(newContent as any, false)
+  }
 })
 
 onBeforeUnmount(() => {
@@ -34,6 +54,13 @@ onBeforeUnmount(() => {
   color: var(--color-text-2);
   line-height: 1.6;
   font-size: var(--text-base);
+}
+
+/* Ensure bold links are styled correctly */
+.tiptap-viewer :deep(a strong),
+.tiptap-viewer :deep(strong a) {
+  font-weight: 700;
+  color: inherit;
 }
 
 .tiptap-viewer :deep(p) {

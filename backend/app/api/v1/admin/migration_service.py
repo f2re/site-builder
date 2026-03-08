@@ -1,51 +1,97 @@
-# Module: api/v1/admin/migration_service.py | Agent: backend-agent | Task: p18_backend_migration_opencart_fixes
-import bleach
+# Module: api/v1/admin/migration_service.py | Agent: backend-agent | Task: p11_backend_002
 import hashlib
-import httpx
 import os
 import re
 import traceback
 import uuid
-from bs4 import BeautifulSoup
-from urllib.parse import urlparse
-from uuid import UUID, uuid4
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Type, TypeVar
+from typing import Any, Dict, List, Optional, Type, TypeVar
+from urllib.parse import urlparse
+from uuid import UUID, uuid4
 
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-
-from sqlalchemy import select, func, update, delete
+import bleach
+import httpx
+from bs4 import BeautifulSoup
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.core.config import settings
 from app.core.security import encrypt_data, get_blind_index
-from app.db.opencart_session import OCAsyncSessionLocal
-from app.db.opencart_models import (
-    OCCustomer, OCProduct, OCProductDescription,
-    OCCategory, OCCategoryDescription, OCOrder, OCOrderProduct,
-    OCProductToCategory, OCProductImage,
-    OCInformation, OCInformationDescription,
-)
-from app.db.models.user import User
-from app.db.models.product import Category, Product, ProductVariant, ProductImage
-from app.db.models.order import Order, OrderItem, OrderStatus
 from app.db.models.blog import Author, BlogPost, BlogPostStatus, Tag
-from app.db.models.migration import MigrationJob, MigrationStatus, MigrationEntity
+from app.db.models.migration import MigrationEntity, MigrationJob, MigrationStatus
+from app.db.models.order import Order, OrderItem, OrderStatus
+from app.db.models.product import Category, Product, ProductImage, ProductVariant
+from app.db.models.user import User
+from app.db.opencart_models import (
+    OCCategory,
+    OCCategoryDescription,
+    OCCustomer,
+    OCInformation,
+    OCInformationDescription,
+    OCOrder,
+    OCOrderProduct,
+    OCProduct,
+    OCProductDescription,
+    OCProductImage,
+    OCProductToCategory,
+)
+from app.db.opencart_session import OCAsyncSessionLocal
+
 from .migration_repository import MigrationRepository
 
 # Blog-category detection keywords (case-insensitive containment check)
-BLOG_CATEGORY_KEYWORDS: frozenset[str] = frozenset({
-    "новости", "статьи", "инструкции", "blog", "news", "articles", "статья", "новость", "инструкция", "manual",
-})
+BLOG_CATEGORY_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "новости",
+        "статьи",
+        "инструкции",
+        "blog",
+        "news",
+        "articles",
+        "статья",
+        "новость",
+        "инструкция",
+        "manual",
+    }
+)
 
 # Allowed HTML tags for bleach strip (empty = strip all tags to plain text)
 _BLEACH_ALLOWED_TAGS: list[str] = [
-    "p", "br", "b", "i", "strong", "em", "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6", 
-    "div", "span", "img", "a", "table", "thead", "tbody", "tr", "th", "td", "blockquote", "code", "pre"
+    "p",
+    "br",
+    "b",
+    "i",
+    "strong",
+    "em",
+    "ul",
+    "ol",
+    "li",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "div",
+    "span",
+    "img",
+    "a",
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "th",
+    "td",
+    "blockquote",
+    "code",
+    "pre",
+    "font",
 ]
 
 T = TypeVar("T")
+
 
 class MigrationService:
     def __init__(self, repo: MigrationRepository, session: AsyncSession):
@@ -53,72 +99,154 @@ class MigrationService:
         self.session = session
         self.batch_size = 50
 
-    def _html_to_tiptap(self, html: str) -> Dict[str, Any]:
-        """Convert HTML to TipTap JSON format (minimal implementation)."""
+    async def _html_to_tiptap(self, html: str, client: Optional[httpx.AsyncClient] = None) -> Dict[str, Any]:
+        """Convert HTML to TipTap JSON format with support for nested tags, images, and sanitization."""
         if not html or not html.strip():
             return {"type": "doc", "content": []}
 
         soup = BeautifulSoup(html, "lxml")
         content = []
 
-        def process_node(node) -> Optional[Dict[str, Any]]:
-            if node.name == "p":
-                return {"type": "paragraph", "content": process_children(node)}
-            elif node.name in ["h1", "h2", "h3", "h4", "h5", "h6"]:
-                level = int(node.name[1])
-                return {"type": "heading", "attrs": {"level": level}, "content": process_children(node)}
-            elif node.name == "ul":
-                return {"type": "bulletList", "content": process_children(node)}
-            elif node.name == "ol":
-                return {"type": "orderedList", "content": process_children(node)}
-            elif node.name == "li":
-                return {"type": "listItem", "content": [{"type": "paragraph", "content": process_children(node)}]}
-            elif node.name == "img":
-                return {"type": "image", "attrs": {"src": node.get("src", ""), "alt": node.get("alt", "")}}
-            elif node.name == "br":
-                return {"type": "hardBreak"}
-            return None
+        def add_mark(marks: List[Dict[str, Any]], new_mark: Dict[str, Any]) -> None:
+            for m in marks:
+                if m["type"] == new_mark["type"]:
+                    return
+            marks.append(new_mark)
 
-        def process_children(parent) -> List[Dict[str, Any]]:
+        async def process_children(parent: Any, active_marks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             result = []
             for child in parent.children:
                 if isinstance(child, str):
-                    text = str(child).strip()
+                    text = str(child)
                     if text:
-                        result.append({"type": "text", "text": text})
+                        node: Dict[str, Any] = {"type": "text", "text": text}
+                        if active_marks:
+                            node["marks"] = [dict(m) for m in active_marks]
+                        result.append(node)
                 elif child.name:
+                    if child.name in ["script", "iframe"]:
+                        continue
+
+                    new_marks = [dict(m) for m in active_marks]
+                    is_inline = False
+
                     if child.name in ["strong", "b"]:
-                        for sub in process_children(child):
-                            if sub.get("type") == "text":
-                                sub.setdefault("marks", []).append({"type": "bold"})
-                            result.append(sub)
+                        add_mark(new_marks, {"type": "bold"})
+                        is_inline = True
                     elif child.name in ["em", "i"]:
-                        for sub in process_children(child):
-                            if sub.get("type") == "text":
-                                sub.setdefault("marks", []).append({"type": "italic"})
-                            result.append(sub)
+                        add_mark(new_marks, {"type": "italic"})
+                        is_inline = True
+                    elif child.name == "u":
+                        add_mark(new_marks, {"type": "underline"})
+                        is_inline = True
                     elif child.name == "a":
                         href = child.get("href", "")
-                        for sub in process_children(child):
-                            if sub.get("type") == "text":
-                                sub.setdefault("marks", []).append({"type": "link", "attrs": {"href": href}})
-                            result.append(sub)
+                        add_mark(new_marks, {"type": "link", "attrs": {"href": href}})
+                        is_inline = True
+                    elif child.name in ["span", "font"]:
+                        is_inline = True
+
+                    if is_inline:
+                        result.extend(await process_children(child, new_marks))
+                    elif child.name == "br":
+                        result.append({"type": "hardBreak"})
+                    elif child.name == "img":
+                        src = child.get("src", "")
+                        if src and src.startswith("http") and client:
+                            new_src = await self._download_image(client, src, "content")
+                            if new_src:
+                                src = new_src
+                        result.append(
+                            {
+                                "type": "image",
+                                "attrs": {
+                                    "src": src,
+                                    "alt": child.get("alt", ""),
+                                    "title": child.get("title", ""),
+                                },
+                            }
+                        )
                     else:
-                        node_result = process_node(child)
+                        node_result = await process_node(child)
                         if node_result:
                             result.append(node_result)
             return result
 
+        async def process_node(node: Any) -> Optional[Dict[str, Any]]:
+            if node.name in ["script", "iframe"]:
+                return None
+
+            if node.name in ["p", "div", "blockquote"]:
+                type_name = "paragraph" if node.name != "blockquote" else "blockquote"
+                inner_content = await process_children(node, [])
+                if not inner_content:
+                    return None
+
+                # Special handling for blockquote: TipTap usually expects blocks inside
+                if type_name == "blockquote":
+                    return {"type": type_name, "content": [{"type": "paragraph", "content": inner_content}]}
+
+                return {"type": type_name, "content": inner_content}
+
+            elif node.name in ["h1", "h2", "h3", "h4", "h5", "h6"]:
+                level = int(node.name[1])
+                return {"type": "heading", "attrs": {"level": level}, "content": await process_children(node, [])}
+
+            elif node.name == "ul":
+                items = []
+                for child in node.children:
+                    if child.name == "li":
+                        item_content = await process_children(child, [])
+                        if item_content:
+                            items.append(
+                                {"type": "listItem", "content": [{"type": "paragraph", "content": item_content}]}
+                            )
+                if not items:
+                    return None
+                return {"type": "bulletList", "content": items}
+
+            elif node.name == "ol":
+                items = []
+                for child in node.children:
+                    if child.name == "li":
+                        item_content = await process_children(child, [])
+                        if item_content:
+                            items.append(
+                                {"type": "listItem", "content": [{"type": "paragraph", "content": item_content}]}
+                            )
+                if not items:
+                    return None
+                return {"type": "orderedList", "content": items}
+
+            elif node.name == "img":
+                src = node.get("src", "")
+                if src and src.startswith("http") and client:
+                    new_src = await self._download_image(client, src, "content")
+                    if new_src:
+                        src = new_src
+                return {
+                    "type": "image",
+                    "attrs": {"src": src, "alt": node.get("alt", ""), "title": node.get("title", "")},
+                }
+
+            return None
+
         body = soup.find("body")
         if body:
-            for child in body.children:  # type: ignore[attr-defined]
-                if child.name:
-                    node_result = process_node(child)
+            for child in body.children:
+                if isinstance(child, str):
+                    text = child.strip()
+                    if text:
+                        content.append({"type": "paragraph", "content": [{"type": "text", "text": text}]})
+                elif child.name:
+                    node_result = await process_node(child)
                     if node_result:
                         content.append(node_result)
 
         if not content:
-            content = [{"type": "paragraph", "content": [{"type": "text", "text": soup.get_text().strip()}]}]
+            text = soup.get_text().strip()
+            if text:
+                content = [{"type": "paragraph", "content": [{"type": "text", "text": text}]}]
 
         return {"type": "doc", "content": content}
 
@@ -129,12 +257,12 @@ class MigrationService:
         else:
             # All entities in recommended order
             entities = [
-                MigrationEntity.USERS, 
-                MigrationEntity.CATEGORIES, 
-                MigrationEntity.PRODUCTS, 
-                MigrationEntity.ORDERS
+                MigrationEntity.USERS,
+                MigrationEntity.CATEGORIES,
+                MigrationEntity.PRODUCTS,
+                MigrationEntity.ORDERS,
             ]
-        
+
         jobs = []
         for ent in entities:
             active_job = await self.repo.get_active_job_by_entity(ent)
@@ -155,8 +283,9 @@ class MigrationService:
 
     def _dispatch_task(self, job_id: UUID) -> None:
         """Trigger Celery task for the job."""
-        from app.tasks.migration_tasks import run_migration_task  # noqa: PLC0415
         from app.core.logging import logger  # noqa: PLC0415
+        from app.tasks.migration_tasks import run_migration_task  # noqa: PLC0415
+
         try:
             run_migration_task.delay(str(job_id))
             logger.info("migration_task_dispatched", job_id=str(job_id))
@@ -218,50 +347,32 @@ class MigrationService:
         migrated_order_ids_stmt = select(Order.id).where(Order.oc_order_id.is_not(None))
         migrated_order_ids = [row[0] for row in (await self.session.execute(migrated_order_ids_stmt)).all()]
         if migrated_order_ids:
-            await self.session.execute(
-                delete(OrderItem).where(OrderItem.order_id.in_(migrated_order_ids))
-            )
+            await self.session.execute(delete(OrderItem).where(OrderItem.order_id.in_(migrated_order_ids)))
 
         # 2. Delete migrated orders
-        await self.session.execute(
-            delete(Order).where(Order.oc_order_id.is_not(None))
-        )
+        await self.session.execute(delete(Order).where(Order.oc_order_id.is_not(None)))
 
         # 3-4. Delete migrated products (cascade removes variants + images via DB cascade)
-        await self.session.execute(
-            delete(Product).where(Product.oc_product_id.is_not(None))
-        )
+        await self.session.execute(delete(Product).where(Product.oc_product_id.is_not(None)))
 
         # 5. Delete migrated blog posts
-        await self.session.execute(
-            delete(BlogPost).where(BlogPost.oc_product_id.is_not(None))
-        )
+        await self.session.execute(delete(BlogPost).where(BlogPost.oc_product_id.is_not(None)))
 
         # 6. Delete migrated categories — nullify parent_id on children first to avoid FK error
         migrated_cat_ids_stmt = select(Category.id).where(Category.oc_category_id.is_not(None))
         migrated_cat_ids = [row[0] for row in (await self.session.execute(migrated_cat_ids_stmt)).all()]
         if migrated_cat_ids:
             await self.session.execute(
-                update(Category)
-                .where(Category.parent_id.in_(migrated_cat_ids))
-                .values(parent_id=None)
+                update(Category).where(Category.parent_id.in_(migrated_cat_ids)).values(parent_id=None)
             )
-            await self.session.execute(
-                delete(Category).where(Category.id.in_(migrated_cat_ids))
-            )
+            await self.session.execute(delete(Category).where(Category.id.in_(migrated_cat_ids)))
 
         # 7. Delete migrated (customer) users — preserve admins and superusers
-        count_users_stmt = select(func.count()).select_from(User).where(
-            User.role == "customer", User.is_superuser.is_(False)
+        count_users_stmt = (
+            select(func.count()).select_from(User).where(User.role == "customer", User.is_superuser.is_(False))
         )
-        deleted_users_count = int(
-            (await self.session.execute(count_users_stmt)).scalar() or 0
-        )
-        await self.session.execute(
-            delete(User)
-            .where(User.role == "customer")
-            .where(User.is_superuser.is_(False))
-        )
+        deleted_users_count = int((await self.session.execute(count_users_stmt)).scalar() or 0)
+        await self.session.execute(delete(User).where(User.role == "customer").where(User.is_superuser.is_(False)))
         logger.info("migration_reset_users_deleted", count=deleted_users_count)
 
         # 8. Delete all MigrationJob rows
@@ -278,24 +389,24 @@ class MigrationService:
         entity_jobs: Dict[MigrationEntity, MigrationJob] = {}
         for job in sorted(jobs, key=lambda x: x.updated_at or datetime.min.replace(tzinfo=timezone.utc)):
             entity_jobs[job.entity] = job
-        
+
         entities_data = {}
         total_items = 0
         processed_items = 0
-        
+
         required_entities = [
-            MigrationEntity.USERS, 
-            MigrationEntity.CATEGORIES, 
-            MigrationEntity.PRODUCTS, 
-            MigrationEntity.ORDERS
+            MigrationEntity.USERS,
+            MigrationEntity.CATEGORIES,
+            MigrationEntity.PRODUCTS,
+            MigrationEntity.ORDERS,
         ]
-        
+
         any_running = False
         any_paused = False
         any_failed = False
         all_completed = True
         any_started = False
-        
+
         for ent in required_entities:
             job_opt: Optional[MigrationJob] = entity_jobs.get(ent)
             if job_opt:
@@ -303,16 +414,16 @@ class MigrationService:
                 status_str = job_opt.status.value.upper()
                 if status_str == "DONE":
                     status_str = "COMPLETED"
-                
+
                 entities_data[ent.value] = {
                     "total": job_opt.total,
                     "processed": job_opt.processed,
                     "status": status_str,
-                    "error": job_opt.errors[-1] if job_opt.errors else None
+                    "error": job_opt.errors[-1] if job_opt.errors else None,
                 }
                 total_items += job_opt.total
                 processed_items += job_opt.processed
-                
+
                 if job_opt.status == MigrationStatus.RUNNING:
                     any_running = True
                 if job_opt.status == MigrationStatus.PAUSED:
@@ -322,12 +433,7 @@ class MigrationService:
                 if job_opt.status != MigrationStatus.DONE:
                     all_completed = False
             else:
-                entities_data[ent.value] = {
-                    "total": 0,
-                    "processed": 0,
-                    "status": "PENDING",
-                    "error": None
-                }
+                entities_data[ent.value] = {"total": 0, "processed": 0, "status": "PENDING", "error": None}
                 all_completed = False
 
         overall_status = "IDLE"
@@ -339,16 +445,12 @@ class MigrationService:
             overall_status = "FAILED"
         elif all_completed and any_started:
             overall_status = "COMPLETED"
-        
+
         progress = (processed_items / total_items * 100) if total_items > 0 else 0
         if all_completed and any_started:
             progress = 100.0
-        
-        return {
-            "overall_status": overall_status,
-            "overall_progress": progress,
-            "entities": entities_data
-        }
+
+        return {"overall_status": overall_status, "overall_progress": progress, "entities": entities_data}
 
     async def run_batch(self, job_id: UUID) -> None:
         """
@@ -361,11 +463,7 @@ class MigrationService:
 
         # Set job as running
         if job.status == MigrationStatus.PENDING:
-            await self.repo.update_job_status(
-                job_id, 
-                MigrationStatus.RUNNING, 
-                started_at=datetime.now(timezone.utc)
-            )
+            await self.repo.update_job_status(job_id, MigrationStatus.RUNNING, started_at=datetime.now(timezone.utc))
             await self.session.refresh(job)
 
         # Initialize total count if needed
@@ -409,8 +507,7 @@ class MigrationService:
                         # Information migration complete, switch to catalog
                         metadata["information_done"] = True
                         await self.repo.update_job_status(
-                            job.id, MigrationStatus.RUNNING,
-                            last_oc_id=0, extra_data=metadata
+                            job.id, MigrationStatus.RUNNING, last_oc_id=0, extra_data=metadata
                         )
                         await self.session.refresh(job)
                         should_retrigger = await self.migrate_catalog(job)
@@ -420,19 +517,17 @@ class MigrationService:
                 should_retrigger = await self.migrate_orders(job)
             else:
                 await self.repo.update_job_status(job_id, MigrationStatus.DONE)
-            
+
             # Re-trigger if more data and still running
             if should_retrigger:
                 await self.session.refresh(job)
                 if job.status == MigrationStatus.RUNNING:
                     self._dispatch_task(job.id)
-            
+
         except Exception as e:
             error_msg = f"{str(e)}\n{traceback.format_exc()}"
             await self.repo.update_job_status(
-                job_id, 
-                MigrationStatus.FAILED, 
-                errors=(job.errors or []) + [error_msg]
+                job_id, MigrationStatus.FAILED, errors=(job.errors or []) + [error_msg]
             )
             raise
 
@@ -485,7 +580,11 @@ class MigrationService:
                         hashed_password=oc_cust.password,  # Store OC hash as is
                         role="customer",
                         is_active=bool(oc_cust.status),
-                        created_at=oc_cust.date_added.replace(tzinfo=timezone.utc) if oc_cust.date_added else datetime.now(timezone.utc)
+                        created_at=(
+                            oc_cust.date_added.replace(tzinfo=timezone.utc)
+                            if oc_cust.date_added
+                            else datetime.now(timezone.utc)
+                        ),
                     )
                     self.session.add(new_user)
                     await self.session.flush()
@@ -516,9 +615,9 @@ class MigrationService:
     async def migrate_addresses(self) -> None:
         """Migrate customer addresses from OpenCart to delivery_addresses."""
         from app.core.logging import logger
-        from app.db.opencart_models import OCAddress, OCCustomer
-        from app.db.models.delivery_address import DeliveryAddress, AddressType, DeliveryProvider
         from app.core.security import encrypt_data, get_blind_index
+        from app.db.models.delivery_address import AddressType, DeliveryAddress, DeliveryProvider
+        from app.db.opencart_models import OCAddress, OCCustomer
 
         async with OCAsyncSessionLocal() as oc_session:
             stmt = select(OCAddress).order_by(OCAddress.address_id)
@@ -570,7 +669,7 @@ class MigrationService:
                         provider=DeliveryProvider.MANUAL,
                         pickup_point_code=None,
                         is_default=(oc_addr.address_id == oc_cust.address_id),
-                        oc_address_id=oc_addr.address_id
+                        oc_address_id=oc_addr.address_id,
                     )
                     self.session.add(new_address)
                     await self.session.flush()
@@ -664,9 +763,7 @@ class MigrationService:
 
                     if is_blog:
                         # Blog idempotency check
-                        blog_check_stmt = select(BlogPost).where(
-                            BlogPost.oc_product_id == oc_prod.product_id
-                        )
+                        blog_check_stmt = select(BlogPost).where(BlogPost.oc_product_id == oc_prod.product_id)
                         existing_blog = await self.session.execute(blog_check_stmt)
                         if existing_blog.scalar_one_or_none():
                             skipped += 1
@@ -689,7 +786,7 @@ class MigrationService:
                             # Preserve more HTML for blog posts
                             raw_html = oc_desc.description or "" if oc_desc else ""
                             cleaned_html = bleach.clean(raw_html, tags=_BLEACH_ALLOWED_TAGS, strip=False)
-                            content_json = self._html_to_tiptap(cleaned_html)
+                            content_json = await self._html_to_tiptap(cleaned_html, client)
 
                             new_post = BlogPost(
                                 title=title,
@@ -715,12 +812,12 @@ class MigrationService:
                                 t.strip() for t in re.split(r"[,\s]+", raw_keywords) if t.strip()
                             ]
                             tag_names.append("импорт")
-                            
+
                             # Add category name as tag
                             for oc_cid in oc_cat_ids:
                                 cat_desc_stmt2 = select(OCCategoryDescription).where(
                                     OCCategoryDescription.category_id == oc_cid,
-                                    OCCategoryDescription.language_id == settings.OC_LANGUAGE_ID
+                                    OCCategoryDescription.language_id == settings.OC_LANGUAGE_ID,
                                 )
                                 cat_desc_res2 = await oc_session.execute(cat_desc_stmt2)
                                 cd2 = cat_desc_res2.scalar_one_or_none()
@@ -755,9 +852,7 @@ class MigrationService:
                             # --- 4d: bleach for plain-text description ---
                             raw_description = oc_desc.description if oc_desc else ""
                             plain_description: Optional[str] = (
-                                bleach.clean(raw_description, tags=[], strip=True)
-                                if raw_description
-                                else ""
+                                bleach.clean(raw_description, tags=[], strip=True) if raw_description else ""
                             )
                             # And preserve HTML version with allowed tags
                             html_description = (
@@ -766,7 +861,7 @@ class MigrationService:
                                 else ""
                             )
                             # Convert HTML to TipTap JSON
-                            content_json = self._html_to_tiptap(html_description)
+                            content_json = await self._html_to_tiptap(html_description, client)
 
                             new_prod = Product(
                                 name=name,
@@ -809,10 +904,7 @@ class MigrationService:
                                 local_path = await self._download_image(client, image_url, "products")
                                 if local_path:
                                     img_obj = ProductImage(
-                                        product=new_prod,
-                                        url=local_path,
-                                        is_cover=True,
-                                        alt=name,
+                                        product=new_prod, url=local_path, is_cover=True, alt=name
                                     )
                                     self.session.add(img_obj)
 
@@ -829,10 +921,7 @@ class MigrationService:
                                     add_path = await self._download_image(client, add_url, "products")
                                     if add_path:
                                         extra_img = ProductImage(
-                                            product=new_prod,
-                                            url=add_path,
-                                            is_cover=False,
-                                            alt=name,
+                                            product=new_prod, url=add_path, is_cover=False, alt=name
                                         )
                                         self.session.add(extra_img)
 
@@ -849,8 +938,9 @@ class MigrationService:
 
             # --- 4e: Meilisearch sync ---
             try:
-                from app.tasks.search_index import sync_products_to_meilisearch  # noqa: PLC0415
-                sync_products_to_meilisearch.delay()
+                from app.tasks.search import sync_products_to_meilisearch_task  # noqa: PLC0415
+
+                sync_products_to_meilisearch_task.delay()
             except Exception:
                 pass  # Non-critical
 
@@ -901,68 +991,69 @@ class MigrationService:
             processed = 0
             skipped = 0
 
-            for oc_info in infos:
-                # Check if already migrated
-                check_stmt = select(BlogPost).where(BlogPost.oc_information_id == oc_info.information_id)
-                existing = await self.session.execute(check_stmt)
-                if existing.scalar_one_or_none():
-                    skipped += 1
-                    continue
+            async with httpx.AsyncClient() as client:
+                for oc_info in infos:
+                    # Check if already migrated
+                    check_stmt = select(BlogPost).where(BlogPost.oc_information_id == oc_info.information_id)
+                    existing = await self.session.execute(check_stmt)
+                    if existing.scalar_one_or_none():
+                        skipped += 1
+                        continue
 
-                # Get description
-                desc_stmt = select(OCInformationDescription).where(
-                    OCInformationDescription.information_id == oc_info.information_id,
-                    OCInformationDescription.language_id == settings.OC_LANGUAGE_ID,
-                )
-                desc_res = await oc_session.execute(desc_stmt)
-                oc_desc = desc_res.scalar_one_or_none()
+                    # Get description
+                    desc_stmt = select(OCInformationDescription).where(
+                        OCInformationDescription.information_id == oc_info.information_id,
+                        OCInformationDescription.language_id == settings.OC_LANGUAGE_ID,
+                    )
+                    desc_res = await oc_session.execute(desc_stmt)
+                    oc_desc = desc_res.scalar_one_or_none()
 
-                if not oc_desc:
-                    skipped += 1
-                    continue
+                    if not oc_desc:
+                        skipped += 1
+                        continue
 
-                title = oc_desc.title
-                slug = self._slugify(title)
-                slug = await self._ensure_unique_slug(BlogPost, slug)
+                    title = oc_desc.title
+                    slug = self._slugify(title)
+                    slug = await self._ensure_unique_slug(BlogPost, slug)
 
-                # Convert HTML to TipTap
-                raw_html = oc_desc.description or ""
-                cleaned_html = bleach.clean(raw_html, tags=_BLEACH_ALLOWED_TAGS, strip=False)
-                content_json = self._html_to_tiptap(cleaned_html)
+                    # Convert HTML to TipTap
+                    raw_html = oc_desc.description or ""
+                    cleaned_html = bleach.clean(raw_html, tags=_BLEACH_ALLOWED_TAGS, strip=False)
+                    content_json = await self._html_to_tiptap(cleaned_html, client)
 
-                new_post = BlogPost(
-                    title=title,
-                    slug=slug,
-                    content_html=cleaned_html,
-                    content_json=content_json,
-                    status=BlogPostStatus.PUBLISHED if oc_info.status else BlogPostStatus.DRAFT,
-                    published_at=(
-                        oc_info.date_added.replace(tzinfo=timezone.utc)
-                        if oc_info.date_added
-                        else datetime.now(timezone.utc)
-                    ),
-                    oc_information_id=oc_info.information_id,
-                    author_id=system_author.id,
-                )
+                    new_post = BlogPost(
+                        title=title,
+                        slug=slug,
+                        content_html=cleaned_html,
+                        content_json=content_json,
+                        status=BlogPostStatus.PUBLISHED if oc_info.status else BlogPostStatus.DRAFT,
+                        published_at=(
+                            oc_info.date_added.replace(tzinfo=timezone.utc)
+                            if oc_info.date_added
+                            else datetime.now(timezone.utc)
+                        ),
+                        oc_information_id=oc_info.information_id,
+                        author_id=system_author.id,
+                    )
 
-                # Create tags from meta_keyword
-                raw_keywords = oc_desc.meta_keyword or ""
-                tag_names = [t.strip() for t in re.split(r"[,\s]+", raw_keywords) if t.strip()]
-                tag_names.append("информация")
+                    # Create tags from meta_keyword
+                    raw_keywords = oc_desc.meta_keyword or ""
+                    tag_names = [t.strip() for t in re.split(r"[,\s]+", raw_keywords) if t.strip()]
+                    tag_names.append("информация")
 
-                for tag_name in set(tag_names):
-                    tag_slug = self._slugify(tag_name)
-                    tag_stmt = select(Tag).where(Tag.slug == tag_slug)
-                    tag_res = await self.session.execute(tag_stmt)
-                    tag_obj = tag_res.scalar_one_or_none()
-                    if not tag_obj:
-                        tag_obj = Tag(name=tag_name, slug=tag_slug)
-                        self.session.add(tag_obj)
-                        await self.session.flush()
-                    new_post.tags.append(tag_obj)
+                    for tag_name in set(tag_names):
+                        tag_slug = self._slugify(tag_name)
+                        tag_stmt = select(Tag).where(Tag.slug == tag_slug)
+                        tag_res = await self.session.execute(tag_stmt)
+                        tag_obj = tag_res.scalar_one_or_none()
+                        if not tag_obj:
+                            tag_obj = Tag(name=tag_name, slug=tag_slug)
+                            self.session.add(tag_obj)
+                            await self.session.flush()
+                        new_post.tags.append(tag_obj)
 
-                self.session.add(new_post)
-                processed += 1
+                    self.session.add(new_post)
+                    processed += 1
 
             await self.session.commit()
             last_id = infos[-1].information_id
@@ -997,7 +1088,7 @@ class MigrationService:
                 2: OrderStatus.PROCESSING,
                 5: OrderStatus.DELIVERED,
                 7: OrderStatus.CANCELLED,
-                14: OrderStatus.CANCELLED
+                14: OrderStatus.CANCELLED,
             }
 
             for oc_order in orders:
@@ -1012,7 +1103,7 @@ class MigrationService:
                     user_stmt = select(User).where(User.email_hash == email_hash)
                     user_res = await self.session.execute(user_stmt)
                     user = user_res.scalar_one_or_none()
-                    
+
                     new_order = Order(
                         user_id=user.id if user else None,
                         status=status_map.get(oc_order.order_status_id, OrderStatus.PENDING),
@@ -1020,46 +1111,53 @@ class MigrationService:
                         currency=oc_order.currency_code,
                         shipping_address=f"{oc_order.shipping_address_1}, {oc_order.shipping_city}, {oc_order.shipping_country}",
                         oc_order_id=oc_order.order_id,
-                        created_at=oc_order.date_added.replace(tzinfo=timezone.utc) if oc_order.date_added else datetime.now(timezone.utc)
+                        created_at=(
+                            oc_order.date_added.replace(tzinfo=timezone.utc)
+                            if oc_order.date_added
+                            else datetime.now(timezone.utc)
+                        ),
                     )
                     self.session.add(new_order)
-                    
+
                     # Migrate order items
                     item_stmt = select(OCOrderProduct).where(OCOrderProduct.order_id == oc_order.order_id)
                     item_res = await oc_session.execute(item_stmt)
                     oc_items = item_res.scalars().all()
-                    
+
                     for oc_item in oc_items:
                         # Find variant by oc_product_id
-                        var_stmt = select(ProductVariant).join(Product).where(Product.oc_product_id == oc_item.product_id)
+                        var_stmt = (
+                            select(ProductVariant)
+                            .join(Product)
+                            .where(Product.oc_product_id == oc_item.product_id)
+                        )
                         var_res = await self.session.execute(var_stmt)
                         variant = var_res.scalar_one_or_none()
-                        
+
                         if variant:
                             order_item = OrderItem(
                                 order=new_order,
                                 product_variant_id=variant.id,
                                 quantity=oc_item.quantity,
-                                price=oc_item.price
+                                price=oc_item.price,
                             )
                             self.session.add(order_item)
 
                     processed += 1
-                
+
                 last_id = oc_order.order_id
 
             # Update job stats
             job.processed += processed
             job.skipped += skipped
             job.last_oc_id = last_id
-            
+
             await self.session.commit()
-            
+
             if len(orders) < self.batch_size:
                 await self.repo.update_job_status(job.id, MigrationStatus.DONE)
                 return False
             return True
-
 
     async def _migrate_categories(self) -> None:
         """Migrate all categories recursively if they don't exist"""
@@ -1067,10 +1165,10 @@ class MigrationService:
             stmt = select(OCCategory).order_by(OCCategory.parent_id, OCCategory.sort_order)
             result = await oc_session.execute(stmt)
             oc_categories = result.scalars().all()
-            
+
             oc_id_map = {cat.category_id: cat for cat in oc_categories}
             migrated_map: Dict[int, UUID] = {}
-            
+
             existing_stmt = select(Category).where(Category.oc_category_id.is_not(None))
             existing_res = await self.session.execute(existing_stmt)
             for cat in existing_res.scalars().all():
@@ -1082,46 +1180,46 @@ class MigrationService:
                     return None
                 if oc_id in migrated_map:
                     return migrated_map[oc_id]
-                
+
                 oc_cat = oc_id_map.get(oc_id)
                 if not oc_cat:
                     return None
-                
+
                 parent_uuid = await get_or_create_category(oc_cat.parent_id)
-                
+
                 desc_stmt = select(OCCategoryDescription).where(
                     OCCategoryDescription.category_id == oc_id,
-                    OCCategoryDescription.language_id == settings.OC_LANGUAGE_ID
+                    OCCategoryDescription.language_id == settings.OC_LANGUAGE_ID,
                 )
                 desc_res = await oc_session.execute(desc_stmt)
                 oc_desc = desc_res.scalar_one_or_none()
-                
+
                 name = oc_desc.name if oc_desc else f"Category {oc_id}"
                 slug = self._slugify(name)
                 slug = await self._ensure_unique_slug(Category, slug)
-                
+
                 new_cat = Category(
                     name=name,
                     slug=slug,
                     oc_category_id=oc_id,
                     parent_id=parent_uuid,
-                    is_active=bool(oc_cat.status)
+                    is_active=bool(oc_cat.status),
                 )
                 self.session.add(new_cat)
                 await self.session.flush()
-                
+
                 migrated_map[oc_id] = new_cat.id
                 return new_cat.id
 
             for oc_id in oc_id_map:
                 await get_or_create_category(oc_id)
-            
+
             await self.session.commit()
 
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(min=1, max=10),
-        retry=retry_if_exception_type((httpx.RequestError, httpx.TimeoutException))
+        retry=retry_if_exception_type((httpx.RequestError, httpx.TimeoutException)),
     )
     async def _download_image(self, client: httpx.AsyncClient, url: str, folder: str) -> Optional[str]:
         from app.core.logging import logger  # noqa: PLC0415
@@ -1185,7 +1283,7 @@ class MigrationService:
                     "media_permission_error",
                     path=str(full_path.parent),
                     error=str(perm_err),
-                    solution="Check Docker volume permissions: ensure /app/media is writable by the container user"
+                    solution="Check Docker volume permissions: ensure /app/media is writable by the container user",
                 )
                 raise
 
@@ -1208,8 +1306,8 @@ class MigrationService:
 
     def _slugify(self, text: str) -> str:
         text = text.lower()
-        text = re.sub(r'[^\w\s-]', '', text)
-        return re.sub(r'[-\s]+', '-', text).strip('-')
+        text = re.sub(r"[^\w\s-]", "", text)
+        return re.sub(r"[-\s]+", "-", text).strip("-")
 
     async def _ensure_unique_slug(self, model: Type[T], slug: str) -> str:
         orig_slug = slug
