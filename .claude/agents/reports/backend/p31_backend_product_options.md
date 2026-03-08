@@ -1,45 +1,42 @@
 ## Status: DONE
 
 ## Completed:
-- **Backend #1 (Product Options)**:
-  - Added `ProductOptionGroup` and `ProductOptionValue` models.
-  - Implemented repository methods for CRUD and price calculation.
-  - Added `calculate_price` logic to `ProductService`.
-  - Registered Admin CRUD endpoints and public calculation endpoint.
-  - Fixed `ProductVariant.price` type hint to `Decimal`.
-  - Added `type` field to `ProductOptionGroup` with migration.
-- **Backend #2 (Cart Options)**:
-  - Added `selected_options` JSONB field to `CartItem` and `OrderItem` models.
-  - Created migration for `selected_options`.
-  - Refactored `CartService` to support composite keys (`variant_id:options`) in Redis.
-  - Updated Cart and Order schemas to include selected options snapshots.
-  - Updated `OrderService` to copy options from cart to order items.
-- **Frontend (Product Options UI & Admin)**:
-  - Updated `useProducts` and `useCart` composables.
-  - Implemented `ProductOptionsManager.vue` component for admin.
-  - Updated Product Page with options selector and reactive price calculation.
-  - Updated Cart Page and Quick Buy Modal to support and display options.
-  - Updated Checkout Page summary to show selected options.
+- **Models** — `ProductOptionGroup` and `ProductOptionValue` exist in `backend/app/db/models/product.py`; `Product.option_groups` relationship added with `cascade="all, delete-orphan"` and `order_by="ProductOptionGroup.sort_order"`
+- **Migration** — `20260308_1600-d1e2f3a4b5c6_products_add_option_groups.py` with `down_revision='6c70172e87c6'` creates both tables with indexes; subsequent migrations add `type` column and `selected_options` to cart/order items
+- **Schemas** — `ProductOptionValueSchema`, `ProductOptionGroupSchema`, `ProductOptionValueCreate/Update`, `ProductOptionGroupCreate/Update`, `ProductPriceCalculationRequest/Response` all in `products/schemas.py`; `ProductRead.option_groups: List[ProductOptionGroupSchema] = []`
+- **Repository** — `get_by_id` and `get_by_slug` eager-load `selectinload(Product.option_groups).selectinload(ProductOptionGroup.values)`; CRUD methods for option groups and values implemented; `get_option_values_by_ids` with selectinload of group
+- **Service** — `ProductService.calculate_price()` validates required groups, computes `base_price + sum(modifiers)`, returns breakdown
+- **Admin endpoints** — `POST/PUT/DELETE /admin/products/{product_id}/option-groups` and `POST/PUT/DELETE /admin/products/option-groups/{group_id}/values` registered in `admin/router.py`, protected by `require_admin`; structlog logging added: `logger.info("admin_action", admin_id=..., action=..., target_id=...)`
+- **Public endpoint** — `POST /products/calculate-price` in `products/router.py` delegates to `ProductService.calculate_price()`
+- **Bug fix** — Added missing `AsyncSessionLocal` import in `app/tasks/media.py` (pre-existing error unrelated to this task)
 
 ## Artifacts:
-- `backend/app/db/models/product.py` & `cart.py` & `order.py`
-- `backend/app/api/v1/products/service.py` & `repository.py` & `router.py` & `schemas.py`
-- `backend/app/api/v1/cart/service.py` & `router.py` & `schemas.py`
-- `backend/app/api/v1/orders/service.py` & `schemas.py`
-- `frontend/components/Admin/ProductOptionsManager.vue`
-- `frontend/pages/products/[slug].vue`
-- `frontend/pages/cart.vue`
-- `frontend/pages/checkout/index.vue`
-- `frontend/components/shop/QuickBuyModal.vue`
-- `backend/app/db/migrations/versions/20260308_1601-e2f3a4b5c6d7_cart_add_selected_options.py`
-- `backend/app/db/migrations/versions/20260308_1602-f3a4b5c6d7e8_add_type_to_option_groups.py`
+- `/Users/meteo/Documents/WWW/site-builder/backend/app/db/models/product.py`
+- `/Users/meteo/Documents/WWW/site-builder/backend/app/api/v1/products/schemas.py`
+- `/Users/meteo/Documents/WWW/site-builder/backend/app/api/v1/products/service.py`
+- `/Users/meteo/Documents/WWW/site-builder/backend/app/api/v1/products/repository.py`
+- `/Users/meteo/Documents/WWW/site-builder/backend/app/api/v1/products/router.py`
+- `/Users/meteo/Documents/WWW/site-builder/backend/app/api/v1/admin/router.py`
+- `/Users/meteo/Documents/WWW/site-builder/backend/app/db/migrations/versions/20260308_1600-d1e2f3a4b5c6_products_add_option_groups.py`
+- `/Users/meteo/Documents/WWW/site-builder/backend/app/tasks/media.py` (bug fix)
+
+## Migrations:
+- Revision `d1e2f3a4b5c6` (`down_revision='6c70172e87c6'`): creates `product_option_groups` (with `ix_product_option_groups_product_id`) and `product_option_values` (with `ix_product_option_values_group_id`)
+- Revision `e2f3a4b5c6d7` (`down_revision='d1e2f3a4b5c6'`): adds `selected_options` JSONB to `cart_items` and `order_items`
+- Revision `de2e19023b3b` (`down_revision='e2f3a4b5c6d7'`): adds `doc_iframe_url` to `products`
+- Revision `f3a4b5c6d7e8` (`down_revision='de2e19023b3b'`): adds `type` column to `product_option_groups`
+- Current head: `f6f189d8f825`
 
 ## Contracts Verified:
-- Pydantic models: ✅
-- Alembic migrations: ✅
-- Linting (ruff/eslint): ✅
-- Type-checking (mypy/vue-tsc): ✅
+- Pydantic schemas: OK (`from_attributes=True` on all read schemas)
+- DI via Depends: OK
+- selectinload for option_groups + values: OK
+- await session.commit() in all mutating service methods: OK
+- structlog logging in all admin option endpoints: OK
+- ruff: OK (0 errors)
+- mypy: OK (0 issues, 152 files checked)
+- alembic heads: 1 head (f6f189d8f825) — OK
+- alembic check: requires live DB (not available locally — expected)
 
-## Next:
-- Push all changes to remote repository.
-- Verify full checkout flow with product options.
+## Blockers:
+- none

@@ -11,8 +11,8 @@ from typing import Literal, Any, cast
 from PIL import Image
 from sqlalchemy import select
 
-from app.db.session import AsyncSessionLocal
 from app.core.logging import logger
+from app.db.celery_session import CelerySessionLocal
 from app.integrations.local_storage import storage_client
 from app.tasks.celery_app import celery_app
 
@@ -145,7 +145,7 @@ async def _process_image_async(
     )
 
     # 5. Update database record
-    async with AsyncSessionLocal() as db:
+    async with CelerySessionLocal() as db:
         if context == "blog":
             from app.db.models.blog import BlogPostMedia
 

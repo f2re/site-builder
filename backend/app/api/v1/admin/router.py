@@ -55,6 +55,8 @@ from .pages_router import router as pages_admin_router
 from .migration_service import MigrationService
 from .migration_repository import MigrationRepository
 
+from app.core.logging import logger
+
 router = APIRouter(prefix="/admin", tags=["Admin Panel"])
 
 # ─── Shared guard ────────────────────────────────────────────────────────────
@@ -343,7 +345,9 @@ async def create_product_option_group(
     _admin: User = AdminDep,
     service: ProductService = Depends()
 ) -> Any:
-    return await service.create_option_group(product_id, payload)
+    result = await service.create_option_group(product_id, payload)
+    logger.info("admin_action", admin_id=str(_admin.id), action="create_option_group", target_id=str(result.id))
+    return result
 
 @router.put("/products/option-groups/{group_id}", response_model=ProductOptionGroupSchema)
 async def update_product_option_group(
@@ -352,7 +356,9 @@ async def update_product_option_group(
     _admin: User = AdminDep,
     service: ProductService = Depends()
 ) -> Any:
-    return await service.update_option_group(group_id, payload)
+    result = await service.update_option_group(group_id, payload)
+    logger.info("admin_action", admin_id=str(_admin.id), action="update_option_group", target_id=str(group_id))
+    return result
 
 @router.delete("/products/option-groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_product_option_group(
@@ -361,6 +367,7 @@ async def delete_product_option_group(
     service: ProductService = Depends()
 ) -> None:
     await service.delete_option_group(group_id)
+    logger.info("admin_action", admin_id=str(_admin.id), action="delete_option_group", target_id=str(group_id))
 
 @router.post("/products/option-groups/{group_id}/values", response_model=ProductOptionValueSchema, status_code=status.HTTP_201_CREATED)
 async def create_product_option_value(
@@ -369,7 +376,9 @@ async def create_product_option_value(
     _admin: User = AdminDep,
     service: ProductService = Depends()
 ) -> Any:
-    return await service.create_option_value(group_id, payload)
+    result = await service.create_option_value(group_id, payload)
+    logger.info("admin_action", admin_id=str(_admin.id), action="create_option_value", target_id=str(result.id))
+    return result
 
 @router.put("/products/option-values/{value_id}", response_model=ProductOptionValueSchema)
 async def update_product_option_value(
@@ -378,7 +387,9 @@ async def update_product_option_value(
     _admin: User = AdminDep,
     service: ProductService = Depends()
 ) -> Any:
-    return await service.update_option_value(value_id, payload)
+    result = await service.update_option_value(value_id, payload)
+    logger.info("admin_action", admin_id=str(_admin.id), action="update_option_value", target_id=str(value_id))
+    return result
 
 @router.delete("/products/option-values/{value_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_product_option_value(
@@ -387,6 +398,7 @@ async def delete_product_option_value(
     service: ProductService = Depends()
 ) -> None:
     await service.delete_option_value(value_id)
+    logger.info("admin_action", admin_id=str(_admin.id), action="delete_option_value", target_id=str(value_id))
 
 # ─── Categories ─────────────────────────────────────────────────────────────
 @router.get("/categories", response_model=List[CategoryRead])
