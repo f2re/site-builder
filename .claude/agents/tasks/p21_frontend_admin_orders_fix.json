@@ -1,0 +1,23 @@
+{
+  "task_id": "p21_frontend_admin_orders_fix",
+  "agent": "frontend-agent",
+  "title": "Fix Admin Orders List: Display Total, Add Pagination and Date Navigation",
+  "description": "Fix admin orders list page issues:\n\n1. Order total amount not displayed in list\n   - Add total_amount column to orders table\n   - Format currency properly (RUB)\n\n2. Missing pagination\n   - Add cursor-based pagination (next_cursor, per_page)\n   - Default per_page=20\n   - Load more button or infinite scroll\n\n3. Missing date navigation\n   - Add date range filter (from/to)\n   - Add quick filters: Today, This Week, This Month, All Time\n   - Persist filter state in URL query params\n\nFiles to modify:\n- frontend/pages/admin/orders/index.vue\n- frontend/stores/adminOrdersStore.ts (if exists) or create\n- API calls to GET /api/v1/admin/orders with query params",
+  "priority": "high",
+  "status": "pending",
+  "depends_on": ["p20_backend_critical_bugs"],
+  "acceptance_criteria": [
+    "Order total displayed in list with currency formatting",
+    "Pagination works (20 items per page)",
+    "Date range filter functional",
+    "Quick date filters work (Today, Week, Month)",
+    "URL reflects current filters",
+    "npm run lint passes",
+    "npm run type-check passes"
+  ],
+  "zone": "frontend/pages/admin/orders/",
+  "contracts": [
+    "frontend/CLAUDE.md",
+    ".claude/agents/contracts/api_contracts.md"
+  ]
+}

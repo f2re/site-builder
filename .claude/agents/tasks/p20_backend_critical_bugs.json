@@ -1,0 +1,22 @@
+{
+  "task_id": "p20_backend_critical_bugs",
+  "agent": "backend-agent",
+  "title": "Fix Critical Backend Bugs: Orders API, Migration MetaData Error, Blog Migration Category",
+  "description": "Fix 3 critical bugs blocking production:\n\n1. GET /api/v1/admin/orders/{id} returns 404\n   - Endpoint missing or route not registered\n   - Check backend/app/api/v1/admin/router.py\n   - Verify orders router is included\n\n2. Migration crash: 'MetaData' object has no attribute 'get'\n   - File: backend/app/api/v1/admin/migration_service.py:403\n   - Line: if not metadata.get(\"information_done\"):\n   - Issue: job.metadata has wrong type (SQLAlchemy MetaData instead of dict)\n   - Fix: proper type annotation and handling\n\n3. Missing blog migration category in admin\n   - Add MigrationEntity.BLOG or reuse existing entity\n   - Ensure blog posts migration is tracked separately\n   - Update admin migration status endpoint",
+  "priority": "critical",
+  "status": "pending",
+  "depends_on": [],
+  "acceptance_criteria": [
+    "GET /api/v1/admin/orders/{id} returns 200 with order data",
+    "Migration runs without MetaData AttributeError",
+    "Categories and products import successfully",
+    "Blog migration tracked in admin panel",
+    "ruff check passes",
+    "mypy passes",
+    "alembic check passes"
+  ],
+  "zone": "backend/app/api/v1/admin/",
+  "contracts": [
+    "backend/CLAUDE.md"
+  ]
+}

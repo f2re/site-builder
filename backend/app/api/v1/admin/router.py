@@ -328,6 +328,18 @@ async def list_orders(
         "per_page": per_page,
     }
 
+@router.get("/orders/{order_id}")
+async def get_order(
+    order_id: UUID,
+    _admin: User = AdminDep,
+    repo: OrderRepository = Depends(get_order_repo),
+) -> Any:
+    from app.api.v1.orders.schemas import OrderRead
+    order = await repo.get_by_id(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return OrderRead.model_validate(order)
+
 @router.put("/orders/{order_id}/status")
 async def update_order_status(
     order_id: UUID,

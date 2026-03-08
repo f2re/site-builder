@@ -399,7 +399,7 @@ class MigrationService:
                 should_retrigger = await self.migrate_users(job)
             elif job.entity in [MigrationEntity.PRODUCTS, MigrationEntity.CATEGORIES]:
                 # First migrate information pages, then catalog
-                metadata: Dict[str, Any] = job.metadata or {}  # type: ignore[assignment]
+                metadata: Dict[str, Any] = job.extra_data or {}  # type: ignore[assignment]
                 if not metadata.get("information_done"):
                     should_retrigger = await self.migrate_information(job)
                     if not should_retrigger:
@@ -407,7 +407,7 @@ class MigrationService:
                         metadata["information_done"] = True
                         await self.repo.update_job_status(
                             job.id, MigrationStatus.RUNNING,
-                            last_oc_id=0, metadata=metadata
+                            last_oc_id=0, extra_data=metadata
                         )
                         await self.session.refresh(job)
                         should_retrigger = await self.migrate_catalog(job)

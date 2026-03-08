@@ -35,7 +35,8 @@ class MigrationJob(Base):
     
     last_oc_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     errors: Mapped[list | None] = mapped_column(JSON, nullable=True)
-    
+    extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), 
