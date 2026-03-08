@@ -47,22 +47,26 @@ class MigrationService:
             ]
         
         jobs = []
-        new_jobs = []
+        jobs_to_dispatch = []
         for ent in entities:
             active_job = await self.repo.get_active_job_by_entity(ent)
             if active_job:
                 jobs.append(active_job)
+                # Re-dispatch stale PENDING jobs that were never picked up by a worker
+                if active_job.status == MigrationStatus.PENDING:
+                    jobs_to_dispatch.append(active_job)
             else:
                 new_job = await self.repo.create_job(ent)
                 jobs.append(new_job)
-                new_jobs.append(new_job)
+                jobs_to_dispatch.append(new_job)
 
-        # Trigger Celery tasks for newly created jobs
+        # Trigger Celery tasks
         from app.tasks.migration_tasks import run_migration_task  # noqa: PLC0415
         from app.core.logging import logger  # noqa: PLC0415
-        for job in new_jobs:
+        for job in jobs_to_dispatch:
             try:
                 run_migration_task.delay(str(job.id))
+                logger.info("migration_task_dispatched", job_id=str(job.id), entity=job.entity.value)
             except Exception as exc:
                 logger.warning("migration_task_dispatch_failed", job_id=str(job.id), error=str(exc))
 
