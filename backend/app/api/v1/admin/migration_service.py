@@ -1,13 +1,18 @@
-# Module: api/v1/admin/migration_service.py | Agent: backend-agent | Task: p10_backend_migration_fixes
+# Module: api/v1/admin/migration_service.py | Agent: backend-agent | Task: p14_backend_migration_fix
 import bleach
+import hashlib
 import httpx
 import os
 import re
 import traceback
-from uuid import UUID
+import uuid
+from urllib.parse import urlparse
+from uuid import UUID, uuid4
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Type, TypeVar
+
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from sqlalchemy import select, func, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -174,7 +179,21 @@ class MigrationService:
                 delete(Category).where(Category.id.in_(migrated_cat_ids))
             )
 
-        # 7. Delete all MigrationJob rows
+        # 7. Delete migrated (customer) users — preserve admins and superusers
+        count_users_stmt = select(func.count()).select_from(User).where(
+            User.role == "customer", User.is_superuser.is_(False)
+        )
+        deleted_users_count = int(
+            (await self.session.execute(count_users_stmt)).scalar() or 0
+        )
+        await self.session.execute(
+            delete(User)
+            .where(User.role == "customer")
+            .where(User.is_superuser.is_(False))
+        )
+        logger.info("migration_reset_users_deleted", count=deleted_users_count)
+
+        # 8. Delete all MigrationJob rows
         await self.session.execute(delete(MigrationJob))
 
         await self.session.commit()
@@ -321,6 +340,8 @@ class MigrationService:
             raise
 
     async def migrate_users(self, job: MigrationJob) -> bool:
+        from app.core.logging import logger  # noqa: PLC0415
+
         async with OCAsyncSessionLocal() as oc_session:
             stmt = (
                 select(OCCustomer)
@@ -342,11 +363,19 @@ class MigrationService:
             for oc_cust in customers:
                 # Idempotency check: use get_blind_index(email)
                 email_hash = get_blind_index(oc_cust.email)
+
+                # If email_hash is empty or None (e.g. empty email), generate unique fallback
+                if not email_hash:
+                    email_hash = hashlib.sha256(str(uuid4()).encode()).hexdigest()
+
                 check_stmt = select(User).where(User.email_hash == email_hash)
                 existing = await self.session.execute(check_stmt)
                 if existing.scalar_one_or_none():
                     skipped += 1
-                else:
+                    last_id = oc_cust.customer_id
+                    continue
+
+                try:
                     new_user = User(
                         email_hash=email_hash,
                         email=encrypt_data(oc_cust.email),
@@ -359,17 +388,26 @@ class MigrationService:
                         created_at=oc_cust.date_added.replace(tzinfo=timezone.utc) if oc_cust.date_added else datetime.now(timezone.utc)
                     )
                     self.session.add(new_user)
+                    await self.session.flush()
                     processed += 1
-                
+                except Exception as exc:
+                    await self.session.rollback()
+                    skipped += 1
+                    logger.warning(
+                        "migrate_users_skip",
+                        oc_customer_id=oc_cust.customer_id,
+                        error=str(exc),
+                    )
+
                 last_id = oc_cust.customer_id
 
             # Update job stats
             job.processed += processed
             job.skipped += skipped
             job.last_oc_id = last_id
-            
+
             await self.session.commit()
-            
+
             if len(customers) < self.batch_size:
                 await self.repo.update_job_status(job.id, MigrationStatus.DONE)
                 return False
@@ -793,26 +831,80 @@ class MigrationService:
             
             await self.session.commit()
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(min=1, max=10),
+        retry=retry_if_exception_type((httpx.RequestError, httpx.TimeoutException))
+    )
     async def _download_image(self, client: httpx.AsyncClient, url: str, folder: str) -> Optional[str]:
+        from app.core.logging import logger  # noqa: PLC0415
+
+        if not url or not url.strip():
+            return None
+
         try:
-            filename = os.path.basename(url)
-            if not filename:
+            # Parse URL to remove query params
+            parsed = urlparse(url)
+            clean_path = parsed.path
+            basename = os.path.basename(clean_path)
+
+            if not basename:
+                logger.warning("image_download_failed", url=url, error="empty basename")
                 return None
-            filename = "".join(c for c in filename if c.isalnum() or c in "._-").rstrip()
-            
+
+            # Sanitize basename
+            basename = "".join(c for c in basename if c.isalnum() or c in "._-").rstrip()
+
+            # Download image
+            response = await client.get(url, timeout=10.0, follow_redirects=True)
+
+            if response.status_code != 200:
+                logger.warning("image_download_failed", url=url, error=f"HTTP {response.status_code}")
+                return None
+
+            # Validate Content-Type
+            content_type = response.headers.get("Content-Type", "")
+            if not content_type.startswith("image/"):
+                logger.warning("image_download_failed", url=url, error=f"invalid Content-Type: {content_type}")
+                return None
+
+            # Validate size
+            if len(response.content) == 0:
+                logger.warning("image_download_failed", url=url, error="empty content")
+                return None
+
+            # Extract extension from basename or Content-Type
+            ext = ""
+            if "." in basename:
+                ext = basename.rsplit(".", 1)[1]
+            elif "/" in content_type:
+                mime_ext = content_type.split("/")[1].split(";")[0]
+                ext = mime_ext if mime_ext in ["jpg", "jpeg", "png", "gif", "webp", "svg"] else "jpg"
+
+            # Generate unique filename
+            unique_id = uuid.uuid4().hex[:8]
+            if ext:
+                filename = f"{unique_id}_{basename}" if "." in basename else f"{unique_id}_{basename}.{ext}"
+            else:
+                filename = f"{unique_id}_{basename}"
+
             rel_path = f"{folder}/{filename}"
             full_path = Path(settings.MEDIA_ROOT) / rel_path
             full_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            if not full_path.exists():
-                response = await client.get(url, timeout=10.0)
-                if response.status_code == 200:
-                    with open(full_path, "wb") as f:
-                        f.write(response.content)
-                else:
-                    return None
-            return f"{settings.MEDIA_URL.rstrip('/')}/{rel_path}"
-        except Exception:
+
+            # Write file
+            with open(full_path, "wb") as f:
+                f.write(response.content)
+
+            result_url = f"{settings.MEDIA_URL.rstrip('/')}/{rel_path}"
+            logger.info("image_downloaded", url=url, path=rel_path, size=len(response.content))
+            return result_url
+
+        except (httpx.RequestError, httpx.TimeoutException) as e:
+            logger.warning("image_download_failed", url=url, error=str(e))
+            raise  # Let tenacity retry
+        except Exception as e:
+            logger.warning("image_download_failed", url=url, error=str(e))
             return None
 
     def _slugify(self, text: str) -> str:

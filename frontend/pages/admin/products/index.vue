@@ -5,6 +5,7 @@ import UBadge from '~/components/U/UBadge.vue'
 import USkeleton from '~/components/U/USkeleton.vue'
 import { useProducts } from '~/composables/useProducts'
 import { useToast } from '~/composables/useToast'
+import { useConfirm } from '~/composables/useConfirm'
 import { formatPrice } from '~/composables/useFormatters'
 
 definePageMeta({
@@ -15,9 +16,42 @@ definePageMeta({
 
 const router = useRouter()
 const { adminGetProducts, deleteProduct } = useProducts()
-const { data: products, pending, refresh } = await adminGetProducts()
-
 const toast = useToast()
+const { confirm } = useConfirm()
+
+// Pagination state
+const currentCursor = ref<string | undefined>(undefined)
+const cursorHistory = ref<Array<string | undefined>>([undefined])
+const currentPageIndex = ref(0)
+const PER_PAGE = 20
+
+const { data: products, pending, refresh } = await adminGetProducts(currentCursor.value, PER_PAGE)
+
+const nextCursor = computed(() => products.value?.next_cursor ?? null)
+const hasPrev = computed(() => currentPageIndex.value > 0)
+const hasNext = computed(() => nextCursor.value !== null)
+
+const goNext = async () => {
+  if (!nextCursor.value) return
+  cursorHistory.value.push(nextCursor.value)
+  currentPageIndex.value++
+  currentCursor.value = nextCursor.value
+  const result = await adminGetProducts(currentCursor.value, PER_PAGE)
+  if (result.data.value) {
+    products.value = result.data.value
+  }
+}
+
+const goPrev = async () => {
+  if (currentPageIndex.value <= 0) return
+  currentPageIndex.value--
+  cursorHistory.value.pop()
+  currentCursor.value = cursorHistory.value[currentPageIndex.value]
+  const result = await adminGetProducts(currentCursor.value, PER_PAGE)
+  if (result.data.value) {
+    products.value = result.data.value
+  }
+}
 
 const searchQuery = ref('')
 const filteredProducts = computed(() => {
@@ -30,7 +64,7 @@ const filteredProducts = computed(() => {
 })
 
 const handleDelete = async (id: string, name: string) => {
-  if (!confirm(`Удалить товар «${name}»? Это действие нельзя отменить.`)) return
+  if (!await confirm({ title: `Удалить товар «${name}»?`, message: 'Это действие нельзя отменить.', confirmLabel: 'Удалить', variant: 'danger' })) return
   try {
     await deleteProduct(id)
     toast.success('Удалено', `Товар «${name}» удалён`)
@@ -133,6 +167,35 @@ const handleDelete = async (id: string, name: string) => {
           </tbody>
         </table>
       </div>
+
+      <!-- Pagination -->
+      <div class="pagination" v-if="hasPrev || hasNext">
+        <UButton
+          variant="ghost"
+          size="sm"
+          :disabled="!hasPrev"
+          @click="goPrev"
+          data-testid="prev-page"
+          aria-label="Предыдущая страница"
+        >
+          <template #icon><Icon name="ph:caret-left-bold" /></template>
+          Назад
+        </UButton>
+        <span class="pagination-page" data-testid="current-page">
+          Страница {{ currentPageIndex + 1 }}
+        </span>
+        <UButton
+          variant="ghost"
+          size="sm"
+          :disabled="!hasNext"
+          @click="goNext"
+          data-testid="next-page"
+          aria-label="Следующая страница"
+        >
+          Вперёд
+          <template #icon><Icon name="ph:caret-right-bold" /></template>
+        </UButton>
+      </div>
     </UCard>
   </div>
   </NuxtLayout>
@@ -161,8 +224,37 @@ const handleDelete = async (id: string, name: string) => {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
 
+.products-index-page {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.admin-table-wrapper {
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
 .admin-table {
   table-layout: fixed;
+  width: 100%;
+  min-width: 600px;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.pagination-page {
+  font-size: var(--text-sm);
+  color: var(--color-text-2);
+  min-width: 80px;
+  text-align: center;
 }
 
 .admin-table th:nth-child(1),

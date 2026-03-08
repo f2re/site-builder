@@ -5,6 +5,7 @@ from app.db.models.user import User          # noqa: F401
 from app.db.models.order import Order, OrderItem        # noqa: F401
 from app.db.models.user_device import UserDevice  # noqa: F401
 from app.db.models.delivery_address import DeliveryAddress  # noqa: F401
+from app.db.models.order_tracking import OrderTrackingEvent  # noqa: F401
 from app.db.models.product import Category, Product, ProductVariant, ProductImage  # noqa: F401
 from app.db.models.blog import BlogCategory, Tag, BlogPost  # noqa: F401
 from app.db.models.redirect import Redirect  # noqa: F401

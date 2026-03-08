@@ -52,3 +52,8 @@ async def get_pickup_points(city_code: int) -> list[PickupPoint]:
     if city_name in ["москва", "moscow"]:
         return OZON_PICKUP_POINTS
     return []
+
+
+def get_tracking_url(tracking_number: str) -> str:
+    """Generate Ozon tracking URL."""
+    return f"https://www.ozon.ru/my/orderdetails?orderId={tracking_number}"

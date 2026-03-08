@@ -3,6 +3,7 @@ import UButton from '~/components/U/UButton.vue'
 import UCard from '~/components/U/UCard.vue'
 import UBadge from '~/components/U/UBadge.vue'
 import USkeleton from '~/components/U/USkeleton.vue'
+import { useConfirm } from '~/composables/useConfirm'
 
 definePageMeta({
   layout: false,
@@ -11,6 +12,7 @@ definePageMeta({
 })
 
 const router = useRouter()
+const { confirm } = useConfirm()
 
 const { data: posts, pending, refresh } = await useApi<any>('/blog/posts', { params: { limit: 100 } })
 const apiFetch = useApiFetch()
@@ -24,7 +26,7 @@ function formatDate(dateStr?: string | null, fallback?: string | null): string {
 }
 
 async function deletePost(slug: string) {
-  if (!confirm('Удалить статью?')) return
+  if (!await confirm({ title: 'Удалить статью?', message: 'Это действие нельзя отменить.', confirmLabel: 'Удалить', variant: 'danger' })) return
   try {
     await apiFetch(`/blog/posts/${slug}`, {
       method: 'DELETE',

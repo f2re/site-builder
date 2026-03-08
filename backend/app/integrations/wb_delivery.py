@@ -52,3 +52,8 @@ async def get_pickup_points(city_code: int) -> list[PickupPoint]:
     if city_name in ["москва", "moscow"]:
         return WB_PICKUP_POINTS
     return []
+
+
+def get_tracking_url(tracking_number: str) -> str:
+    """Generate Wildberries tracking URL."""
+    return f"https://www.wildberries.ru/lk/myorders/delivery?id={tracking_number}"

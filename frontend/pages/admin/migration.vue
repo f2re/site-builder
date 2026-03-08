@@ -17,6 +17,7 @@ type MigrationEntityKey = 'users' | 'categories' | 'products' | 'images' | 'orde
 interface MigrationEntityStatus {
   total: number
   processed: number
+  skipped?: number
   status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'PAUSED' | 'FAILED'
   error?: string | null
 }
@@ -34,8 +35,33 @@ const isActionPending = ref(false)
 const isResetPending = ref(false)
 const refreshInterval = ref<NodeJS.Timeout | null>(null)
 
+// Stale detection
+const lastProgressValue = ref<number | null>(null)
+const lastProgressAt = ref<number | null>(null)
+const isMigrationStale = ref(false)
+
 const { add: addToast } = useToast()
+const { confirm } = useConfirm()
 const apiFetch = useApiFetch()
+
+// Stale detection watchEffect
+watchEffect(() => {
+  if (status.value?.overall_status === 'RUNNING') {
+    const currentProgress = status.value.overall_progress
+    if (lastProgressValue.value !== currentProgress) {
+      lastProgressValue.value = currentProgress
+      lastProgressAt.value = Date.now()
+      isMigrationStale.value = false
+    } else if (lastProgressAt.value !== null) {
+      const elapsed = Date.now() - lastProgressAt.value
+      isMigrationStale.value = elapsed > 30_000
+    }
+  } else {
+    isMigrationStale.value = false
+    lastProgressValue.value = null
+    lastProgressAt.value = null
+  }
+})
 
 // API Methods
 const fetchStatus = async () => {
@@ -46,9 +72,9 @@ const fetchStatus = async () => {
       status.value = data.value
       // Adjust polling based on status
       if (status.value.overall_status === 'RUNNING') {
-        startPolling(3000)
+        startPolling(2000)
       } else {
-        startPolling(10000) // Slower polling when idle/paused
+        startPolling(15000) // Slower polling when idle/paused/completed
       }
     }
   } catch (err: any) {
@@ -94,19 +120,27 @@ const pauseMigration = async () => {
 
 const resumeMigration = async () => {
   isActionPending.value = true
+  // Immediately start fast polling so UI reflects changes quickly
+  startPolling(2000)
   try {
     await apiFetch('/admin/migration/resume', { method: 'POST' })
     addToast({ type: 'success', title: 'Миграция возобновлена' })
     await fetchStatus()
   } catch (err: any) {
     addToast({ type: 'error', title: 'Ошибка возобновления', message: err.message })
+    startPolling(15000)
   } finally {
     isActionPending.value = false
   }
 }
 
 const resetMigration = async () => {
-  if (!confirm('Вы уверены, что хотите очистить ВСЕ мигрированные данные? Это удалит товары, категории, заказы и записи в блоге, созданные в процессе миграции.')) {
+  if (!await confirm({
+    title: 'Очистить мигрированные данные?',
+    message: 'Это удалит товары, категории, заказы и записи в блоге, созданные в процессе миграции. Действие необратимо.',
+    confirmLabel: 'Очистить всё',
+    variant: 'danger',
+  })) {
     return
   }
 
@@ -115,6 +149,7 @@ const resetMigration = async () => {
     await apiFetch('/admin/migration/reset', { method: 'DELETE' })
     addToast({ type: 'success', title: 'Данные очищены' })
     status.value = null
+    startPolling(15000)
     await fetchStatus()
   } catch (err: any) {
     addToast({ type: 'error', title: 'Ошибка очистки', message: err.message })
@@ -273,6 +308,15 @@ const getEntityLabel = (key: string) => {
               <span>Миграция успешно завершена</span>
             </div>
           </div>
+
+          <div
+            v-if="isMigrationStale"
+            class="stale-warning"
+            data-testid="migration-stale-warning"
+          >
+            <Icon name="ph:warning-bold" />
+            <span>Миграция может быть зависшей. Попробуйте приостановить и возобновить.</span>
+          </div>
         </UCard>
 
         <!-- Entity Cards -->
@@ -298,6 +342,13 @@ const getEntityLabel = (key: string) => {
                 <span class="processed">{{ entity.processed }}</span>
                 <span class="divider">/</span>
                 <span class="total">{{ entity.total }}</span>
+              </div>
+              <div
+                v-if="entity.skipped && entity.skipped > 0"
+                class="entity-skipped"
+                data-testid="entity-skipped"
+              >
+                Пропущено: {{ entity.skipped }}
               </div>
             </div>
 
@@ -504,6 +555,26 @@ const getEntityLabel = (key: string) => {
   font-size: var(--text-xs);
   color: var(--color-error);
   margin-top: 0.5rem;
+}
+
+.entity-skipped {
+  font-size: var(--text-xs);
+  color: var(--color-warning);
+  margin-top: 0.25rem;
+  font-family: var(--font-mono);
+}
+
+.stale-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: color-mix(in srgb, var(--color-warning) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 40%, transparent);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--color-warning);
 }
 
 </style>

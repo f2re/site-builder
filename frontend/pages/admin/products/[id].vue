@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProducts, type ProductCreate } from '~/composables/useProducts'
 import { useToast } from '~/composables/useToast'
+import { useConfirm } from '~/composables/useConfirm'
 import UButton from '~/components/U/UButton.vue'
 import UInput from '~/components/U/UInput.vue'
 import UCard from '~/components/U/UCard.vue'
@@ -21,6 +22,7 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
+const { confirm } = useConfirm()
 const { adminGetCategories, adminGetProductById, updateProduct, deleteProduct } = useProducts()
 
 const productId = route.params.id as string
@@ -87,7 +89,7 @@ const handleUpdate = async () => {
 }
 
 const handleDelete = async () => {
-  if (!confirm('Вы уверены, что хотите удалить этот товар?')) return
+  if (!await confirm({ title: 'Удалить товар?', message: 'Это действие нельзя отменить. Товар будет удалён безвозвратно.', confirmLabel: 'Удалить', variant: 'danger' })) return
 
   try {
     await deleteProduct(productId)
@@ -173,12 +175,20 @@ const handleDelete = async () => {
               :options="categoryOptions"
               placeholder="Выберите категорию"
             />
-            <UTextarea 
-              v-model="form.description" 
-              label="Краткое описание" 
+            <UTextarea
+              v-model="form.description"
+              label="Краткое описание"
               placeholder="Краткое описание товара (для карточки)"
               :rows="2"
             />
+            <div class="description-html-section" v-if="product?.description_html">
+              <span class="description-html-label">Исходное HTML-описание (из OpenCart)</span>
+              <div
+                class="description-preview"
+                data-testid="description-preview"
+                v-html="product.description_html"
+              />
+            </div>
           </div>
         </UCard>
 
@@ -328,6 +338,74 @@ const handleDelete = async () => {
   padding: 64px 0;
   gap: 16px;
   color: var(--color-text-2);
+}
+
+.description-html-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.description-html-label {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  font-weight: 500;
+}
+
+.description-preview {
+  max-width: 100%;
+  overflow-x: hidden;
+  padding: 1rem;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.description-preview :deep(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+}
+
+.description-preview :deep(a) {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.description-preview :deep(p) {
+  margin-bottom: 0.75rem;
+}
+
+.description-preview :deep(ul),
+.description-preview :deep(ol) {
+  padding-left: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.description-preview :deep(h1),
+.description-preview :deep(h2),
+.description-preview :deep(h3) {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--color-text);
+}
+
+.description-preview :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.75rem;
+  overflow-x: auto;
+  display: block;
+}
+
+.description-preview :deep(td),
+.description-preview :deep(th) {
+  border: 1px solid var(--color-border);
+  padding: 0.5rem;
+  font-size: var(--text-xs);
 }
 
 .mobile-only { display: none; }

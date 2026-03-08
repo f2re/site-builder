@@ -12,6 +12,9 @@ from app.db.session import get_db
 from app.db.redis import get_redis
 from app.core.config import settings
 
+# Import all models to ensure they are registered with SQLAlchemy
+from app.db.models import user, product, order, blog, delivery_address, order_tracking  # noqa: F401
+
 # Test database URL - using a separate database for testing
 # In a real environment, this should be provided via environment variables
 TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
@@ -77,9 +80,9 @@ async def admin_token(db_session: AsyncSession) -> str:
     from app.db.models.user import User
     from app.core.security import create_access_token, get_password_hash, get_blind_index
     import uuid
-    
+
     admin_id = uuid.uuid4()
-    email = "admin-test@example.com"
+    email = f"admin-test-{admin_id}@example.com"
     admin = User(
         id=admin_id,
         email=email,
@@ -90,5 +93,5 @@ async def admin_token(db_session: AsyncSession) -> str:
     )
     db_session.add(admin)
     await db_session.commit()
-    
+
     return create_access_token(subject=str(admin_id), role="admin")

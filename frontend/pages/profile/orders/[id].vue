@@ -5,6 +5,7 @@ import { useOrders, type Order } from '~/composables/useOrders'
 import { useProducts } from '~/composables/useProducts'
 import { useCartStore } from '~/stores/cartStore'
 import OrderStatus from '~/components/shop/OrderStatus.vue'
+import { useConfirm } from '~/composables/useConfirm'
 
 const route = useRoute()
 const router = useRouter()
@@ -12,6 +13,7 @@ const orderId = route.params.id as string
 const { getOrder, cancelOrder } = useOrders()
 const { getProductBySlug } = useProducts()
 const cartStore = useCartStore()
+const { confirm } = useConfirm()
 
 const { data: order, refresh, error, pending } = await getOrder(orderId)
 
@@ -39,7 +41,7 @@ const breadcrumbs = computed(() => [
 ])
 
 const handleCancel = async () => {
-  if (!confirm('Вы уверены, что хотите отменить заказ?')) return
+  if (!await confirm({ title: 'Отменить заказ?', message: 'Вы уверены, что хотите отменить этот заказ?', confirmLabel: 'Да, отменить', variant: 'danger' })) return
   
   isCancelling.value = true
   try {

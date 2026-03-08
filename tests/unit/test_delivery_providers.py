@@ -1,10 +1,9 @@
 # Module: tests/unit/test_delivery_providers | Agent: backend-agent | Task: p10_backend_delivery_providers
 import pytest
-from decimal import Decimal
-from app.api.v1.delivery.provider import PackageDimensions, DeliveryOption
+from app.api.v1.delivery.provider import PackageDimensions
 from app.integrations.pochta import pochta_client
-from app.integrations.ozon_delivery import ozon_client
-from app.integrations.wb_delivery import wb_client
+from app.integrations import ozon_delivery
+from app.integrations import wb_delivery
 
 
 @pytest.mark.asyncio
@@ -15,21 +14,25 @@ async def test_pochta_empty_credentials():
 
 
 @pytest.mark.asyncio
-async def test_ozon_empty_credentials():
-    """Ozon client returns empty list when credentials not configured."""
-    result = await ozon_client.calculate_rate(44, 137, PackageDimensions(weight_grams=500))
-    assert isinstance(result, list)
+async def test_ozon_pickup_points():
+    """Ozon returns static pickup points for Moscow."""
+    # 44 is Moscow in CITY_MAPPING
+    result = await ozon_delivery.get_pickup_points(44)
+    assert len(result) > 0
+    assert result[0].provider == "ozon"
 
 
 @pytest.mark.asyncio
-async def test_wb_static_tariff():
-    """WB client returns static tariff based on weight when credentials configured."""
-    result = await wb_client.calculate_rate(44, 137, PackageDimensions(weight_grams=500))
-    assert isinstance(result, list)
+async def test_wb_pickup_points():
+    """WB returns static pickup points for Moscow."""
+    # 44 is Moscow in CITY_MAPPING
+    result = await wb_delivery.get_pickup_points(44)
+    assert len(result) > 0
+    assert result[0].provider == "wb"
 
 
-@pytest.mark.asyncio
-async def test_wb_pickup_points_empty_credentials():
-    """WB pickup points returns empty list when credentials not configured."""
-    result = await wb_client.get_pickup_points(44)
-    assert isinstance(result, list)
+def test_tracking_urls():
+    """Test tracking URL generation for all providers."""
+    assert "orderId=123" in ozon_delivery.get_tracking_url("123")
+    assert "id=123" in wb_delivery.get_tracking_url("123")
+    assert "tracking#123" in pochta_client.get_tracking_url("123")

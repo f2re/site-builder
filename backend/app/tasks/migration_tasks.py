@@ -1,4 +1,4 @@
-# Module: tasks/migration_tasks.py | Agent: backend-agent | Task: opencart_migration
+# Module: tasks/migration_tasks.py | Agent: backend-agent | Task: p14_backend_migration_fix
 import asyncio
 from uuid import UUID
 from app.tasks.celery_app import celery_app
@@ -7,14 +7,28 @@ from app.api.v1.admin.migration_service import MigrationService
 from app.api.v1.admin.migration_repository import MigrationRepository
 from app.core.logging import logger
 
-@celery_app.task(name="tasks.run_migration_task", bind=True, max_retries=1)
+
+async def _mark_job_failed(job_id: str) -> None:
+    """Mark job as FAILED via a fresh DB session (used when main session is broken)."""
+    from app.db.models.migration import MigrationStatus  # noqa: PLC0415
+
+    try:
+        async with AsyncSessionLocal() as session:
+            repo = MigrationRepository(session)
+            await repo.update_job_status(UUID(job_id), MigrationStatus.FAILED)
+    except Exception as mark_exc:
+        logger.error("migration_mark_failed_error", job_id=job_id, error=str(mark_exc))
+
+
+@celery_app.task(name="tasks.run_migration_task", bind=True, max_retries=3)
 def run_migration_task(self, job_id: str):
     """
     Celery task to run a specific migration job.
     """
     async def _run():
-        from app.db.session import engine as pg_engine
-        from app.db.opencart_session import oc_engine
+        from app.db.session import engine as pg_engine  # noqa: PLC0415
+        from app.db.opencart_session import oc_engine  # noqa: PLC0415
+
         try:
             async with AsyncSessionLocal() as session:
                 repo = MigrationRepository(session)
@@ -31,4 +45,7 @@ def run_migration_task(self, job_id: str):
         return asyncio.run(_run())
     except Exception as exc:
         logger.error("migration_task_failed", job_id=job_id, error=str(exc))
+        # Mark job as FAILED via a fresh session before retrying,
+        # so the job doesn't stay stuck in RUNNING state forever.
+        asyncio.run(_mark_job_failed(job_id))
         raise self.retry(exc=exc, countdown=60)

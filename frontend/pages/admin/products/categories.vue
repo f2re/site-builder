@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { useProducts, type ProductCategory } from '~/composables/useProducts'
 import { useToast } from '~/composables/useToast'
+import { useConfirm } from '~/composables/useConfirm'
 import UButton from '~/components/U/UButton.vue'
 import UInput from '~/components/U/UInput.vue'
 import UCard from '~/components/U/UCard.vue'
@@ -14,6 +15,7 @@ definePageMeta({
 })
 
 const toast = useToast()
+const { confirm } = useConfirm()
 const { adminGetCategories, adminCreateCategory, adminUpdateCategory, adminDeleteCategory } = useProducts()
 
 const { data, pending, error, refresh } = await adminGetCategories()
@@ -89,7 +91,7 @@ const handleSubmit = async () => {
 }
 
 const handleDelete = async (id: string) => {
-  if (!confirm('Вы уверены, что хотите удалить эту категорию? Все товары останутся без категории.')) return
+  if (!await confirm({ title: 'Удалить категорию?', message: 'Все товары этой категории останутся без категории.', confirmLabel: 'Удалить', variant: 'danger' })) return
 
   try {
     await adminDeleteCategory(id)

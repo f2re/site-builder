@@ -245,4 +245,9 @@ class CDEKClient:
             response.raise_for_status()
             return response.json()
 
+    def get_tracking_url(self, tracking_number: str) -> str:
+        """Generate CDEK tracking URL."""
+        return f"https://www.cdek.ru/ru/tracking?order_id={tracking_number}"
+
+
 cdek_client = CDEKClient()

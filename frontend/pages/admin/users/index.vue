@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, toRaw } from 'vue'
-import { useUser, type UserCreate, type UserProfile } from '~/composables/useUser'
+import { useUser, type UserCreate, type UserProfile, type UserAdminUpdate } from '~/composables/useUser'
 import { useToast } from '~/composables/useToast'
 import UButton from '~/components/U/UButton.vue'
 import UInput from '~/components/U/UInput.vue'
 import UCard from '~/components/U/UCard.vue'
 import UModal from '~/components/U/UModal.vue'
 import USelect from '~/components/U/USelect.vue'
+import UserAddressesList from '~/components/admin/UserAddressesList.vue'
 
 definePageMeta({
   layout: false,
@@ -15,7 +16,7 @@ definePageMeta({
 })
 
 const toast = useToast()
-const { adminGetUsers, adminCreateUser, adminSetUserBlockStatus, adminExportUsers } = useUser()
+const { adminGetUsers, adminCreateUser, adminSetUserBlockStatus, adminExportUsers, adminUpdateUser } = useUser()
 
 const searchQuery = ref('')
 const selectedRole = ref('')
@@ -79,6 +80,47 @@ const handleCreateUser = async () => {
     toast.error(err.data?.message || 'Не удалось создать пользователя')
   } finally {
     isSubmitting.value = false
+  }
+}
+
+// Edit user
+const isEditModalOpen = ref(false)
+const editingUser = ref<UserProfile | null>(null)
+const isEditSubmitting = ref(false)
+
+const editForm = ref<UserAdminUpdate>({
+  full_name: '',
+  email: '',
+  phone: '',
+  role: 'customer',
+  is_active: true,
+})
+
+const openEditModal = (user: UserProfile) => {
+  editingUser.value = user
+  editForm.value = {
+    full_name: user.full_name || '',
+    email: user.email || '',
+    phone: user.phone || '',
+    role: user.role,
+    is_active: user.is_active,
+  }
+  isEditModalOpen.value = true
+}
+
+const handleUpdateUser = async () => {
+  if (!editingUser.value) return
+  isEditSubmitting.value = true
+  try {
+    await adminUpdateUser(editingUser.value.id, editForm.value)
+    toast.success('Пользователь обновлён')
+    isEditModalOpen.value = false
+    refresh()
+  } catch (err: unknown) {
+    const apiErr = err as { data?: { message?: string; detail?: string } }
+    toast.error(apiErr.data?.message || apiErr.data?.detail || 'Не удалось обновить пользователя')
+  } finally {
+    isEditSubmitting.value = false
   }
 }
 
@@ -196,18 +238,32 @@ const downloadExcel = async () => {
                   {{ user.created_at ? new Date(user.created_at).toLocaleDateString('ru-RU') : '—' }}
                 </td>
                 <td class="actions-cell">
-                  <UButton 
-                    :variant="user.is_active ? 'ghost' : 'primary'" 
-                    size="sm" 
-                    @click="handleBlockStatus(user)"
-                    :aria-label="user.is_active ? 'Заблокировать' : 'Разблокировать'"
-                    data-testid="block-unblock-btn"
-                  >
-                    <template #icon>
-                      <Icon :name="user.is_active ? 'ph:user-minus-bold' : 'ph:user-plus-bold'" size="20" />
-                    </template>
-                    <span class="desktop-only ml-2">{{ user.is_active ? 'Блок' : 'Разблок' }}</span>
-                  </UButton>
+                  <div class="actions-group">
+                    <UButton
+                      variant="ghost"
+                      size="sm"
+                      aria-label="Редактировать"
+                      data-testid="edit-user-btn"
+                      @click="openEditModal(user)"
+                    >
+                      <template #icon>
+                        <Icon name="ph:pencil-simple-bold" size="20" />
+                      </template>
+                      <span class="desktop-only ml-2">Изменить</span>
+                    </UButton>
+                    <UButton
+                      :variant="user.is_active ? 'ghost' : 'primary'"
+                      size="sm"
+                      @click="handleBlockStatus(user)"
+                      :aria-label="user.is_active ? 'Заблокировать' : 'Разблокировать'"
+                      data-testid="block-unblock-btn"
+                    >
+                      <template #icon>
+                        <Icon :name="user.is_active ? 'ph:user-minus-bold' : 'ph:user-plus-bold'" size="20" />
+                      </template>
+                      <span class="desktop-only ml-2">{{ user.is_active ? 'Блок' : 'Разблок' }}</span>
+                    </UButton>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -236,10 +292,43 @@ const downloadExcel = async () => {
           <UInput v-model="userForm.full_name" label="Имя" placeholder="Иван Иванов" data-testid="name-input" />
           <UInput v-model="userForm.password" type="password" label="Пароль" placeholder="********" required data-testid="password-input" />
           <USelect v-model="userForm.role" label="Роль" :options="roleOptions" data-testid="role-select" />
-          
+
           <div class="flex flex-col gap-3 mt-6 sm:flex-row sm:justify-end">
             <UButton variant="ghost" @click="isModalOpen = false" class="sm:order-1" data-testid="modal-cancel-btn">Отмена</UButton>
             <UButton variant="primary" :loading="isSubmitting" @click="handleCreateUser" class="sm:order-2" data-testid="modal-submit-btn">Создать</UButton>
+          </div>
+        </div>
+      </UModal>
+
+      <!-- Modal for editing user -->
+      <UModal v-model="isEditModalOpen" title="Редактировать пользователя" data-testid="edit-user-modal">
+        <div v-if="editingUser" class="space-y-4 pt-4">
+          <div class="user-edit-id">
+            <span class="text-muted">ID: {{ editingUser.id }}</span>
+          </div>
+          <UInput v-model="editForm.full_name" label="Имя" placeholder="Иван Иванов" data-testid="edit-name-input" />
+          <UInput v-model="editForm.email" label="Email" placeholder="user@example.com" data-testid="edit-email-input" />
+          <UInput v-model="editForm.phone" label="Телефон" placeholder="+7 999 000 00 00" data-testid="edit-phone-input" />
+          <USelect v-model="editForm.role" label="Роль" :options="roleOptions" data-testid="edit-role-select" />
+          <div class="toggle-row">
+            <label class="toggle-label" for="edit-active-toggle">Активен</label>
+            <input
+              id="edit-active-toggle"
+              v-model="editForm.is_active"
+              type="checkbox"
+              class="toggle-checkbox"
+              data-testid="edit-active-toggle"
+            />
+          </div>
+
+          <div class="addresses-section">
+            <h4>Адреса доставки</h4>
+            <UserAddressesList :user-id="editingUser.id" />
+          </div>
+
+          <div class="flex flex-col gap-3 mt-6 sm:flex-row sm:justify-end">
+            <UButton variant="ghost" data-testid="edit-cancel-btn" @click="isEditModalOpen = false">Отмена</UButton>
+            <UButton variant="primary" :loading="isEditSubmitting" data-testid="edit-submit-btn" @click="handleUpdateUser">Сохранить</UButton>
           </div>
         </div>
       </UModal>
@@ -318,13 +407,20 @@ const downloadExcel = async () => {
 
 .actions-col, .actions-cell {
   text-align: right;
-  width: 80px;
+  width: 56px;
 }
 
 @media (min-width: 768px) {
   .actions-col, .actions-cell {
-    width: 160px;
+    width: 220px;
   }
+}
+
+.actions-group {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
 }
 
 .user-info {
@@ -397,8 +493,61 @@ const downloadExcel = async () => {
 /* Utilities not in main.css */
 .ml-2 { margin-left: 8px; }
 .pt-4 { padding-top: 16px; }
+.mt-6 { margin-top: 24px; }
+.gap-3 { gap: 12px; }
 @media (min-width: 640px) {
   .sm\:order-1 { order: 1; }
   .sm\:order-2 { order: 2; }
+  .sm\:flex-row { flex-direction: row; }
+  .sm\:justify-end { justify-content: flex-end; }
+}
+
+/* Edit modal styles */
+.space-y-4 > * + * { margin-top: 16px; }
+
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+
+.user-edit-id {
+  margin-bottom: 4px;
+}
+
+.text-muted {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+
+.toggle-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-2);
+}
+
+.toggle-checkbox {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.addresses-section {
+  border-top: 1px solid var(--color-border);
+  padding-top: 16px;
+  margin-top: 16px;
+}
+
+.addresses-section h4 {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--color-text);
 }
 </style>

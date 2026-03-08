@@ -2,8 +2,8 @@
 
 Обновлено: 2026-03-08
 
-## Текущая фаза: 10 (Delivery Providers + Migration Fixes)
-## Выполнено задач: 3 / 18 ✅
+## Текущая фаза: 14 (Critical Bug Fixes — Migration + Admin Users)
+## Выполнено задач: 8 / 22 ✅
 
 ---
 
@@ -29,6 +29,11 @@
 | **p10_frontend_delivery_selector** | frontend-agent | UI выбора провайдера доставки | ✅ DONE | high |
 | **p10_backend_migration_fixes** | backend-agent | Reset endpoint, blog-categories, additional images, bleach | ⏳ PENDING | high |
 | **p10_frontend_migration_ux** | frontend-agent | Fix empty page, polling, reset button + dialog | BLOCKED (p10_backend_migration_fixes) | high |
+| **p11_backend_user_addresses** | backend-agent | User Delivery Addresses Management | ✅ DONE | high |
+| **p11_cdek_order_tracking** | cdek-agent | Order Tracking and Auto-fulfillment | ✅ DONE | high |
+| **p11_frontend_address_management** | frontend-agent | Address Management UI and Order Tracking | ✅ DONE | high |
+| **p11_testing_addresses_tracking** | testing-agent | Tests for Address Management and Order Tracking | ✅ DONE | medium |
+| **p12_backend_migration_images_fix** | backend-agent | Fix Image Download in OpenCart Migration | ✅ DONE | medium |
 
 ---
 
@@ -87,36 +92,80 @@ E2E подграф (параллельно с p8):
 
 После деплоя: пересобрать backend+celery контейнеры; перезапустить Nuxt dev-сервер.
 
+## Задача p13_frontend_alerts_fix — DONE (2026-03-08)
+
+Заменены все нативные диалоги браузера на UI-компоненты дизайн-системы:
+- 7 × `alert()` → `useToast()` с типами warning/error
+- 8 × `confirm()` → `useConfirm()` с Promise API и вариантами danger/warning/default
+- 4 × `prompt()` / `window.prompt()` → `usePrompt()` с Promise API
+
+Созданы: `useConfirm.ts`, `usePrompt.ts`, `UConfirmDialog.vue`, `UPromptDialog.vue`, `UToast.vue`.
+Подключены глобально в `app.vue`.
+Затронуто 13 файлов в frontend/.
+
+Отчёт: `.claude/agents/reports/frontend/p13_frontend_alerts_fix.md`
+
+---
+
+## Фаза 14 — Critical Bug Fixes (2026-03-08)
+
+| task_id | Агент | Титул | Статус | Приоритет |
+|---|---|---|---|---|
+| **p14_backend_migration_fix** | backend-agent | UniqueViolationError в миграции + очистка пользователей | ⏳ PENDING | high |
+| **p14_backend_user_edit** | backend-agent | PATCH /admin/users/{id} + адреса пользователя | ⏳ PENDING | high |
+| **p14_frontend_migration_reactivity** | frontend-agent | Реактивность миграции + пагинация товаров + описание | ⏳ PENDING | high |
+| **p14_frontend_user_edit** | frontend-agent | Редактирование пользователя в админке | ⏳ PENDING (depends: p14_backend_user_edit) | high |
+
+### Порядок запуска:
+```
+# Шаг 1 — параллельно:
+/agents:run backend-agent p14_backend_migration_fix
+/agents:run backend-agent p14_backend_user_edit
+/agents:run frontend-agent p14_frontend_migration_reactivity
+
+# Шаг 2 — после завершения p14_backend_user_edit:
+/agents:run frontend-agent p14_frontend_user_edit
+```
+
+---
+
 ## Последнее действие
 
-> **2026-03-08: ✅ Завершена интеграция трёх новых провайдеров доставки**
+> **2026-03-08: ✅ Завершена система управления адресами доставки и отслеживания заказов**
 >
 > Выполнены задачи:
-> - ✅ p10_devops_delivery_secrets — добавлены env vars для Почты России, Ozon, Wildberries
-> - ✅ p10_backend_delivery_providers — реализованы 3 провайдера + Protocol + агрегатор с параллельными запросами
-> - ✅ p10_frontend_delivery_selector — UI выбора провайдера с карточками, skeleton loader, мобильным bottom sheet
+> - ✅ p11_backend_user_addresses — API управления адресами с PII-шифрованием
+> - ✅ p11_cdek_order_tracking — трекинг заказов, webhook, auto-fulfillment для всех провайдеров
+> - ✅ p11_frontend_address_management — UI адресов, выбор при checkout, real-time статусы
+> - ✅ p11_testing_addresses_tracking — 27 тестов (unit + integration), все проходят
+> - ✅ p12_backend_migration_images_fix — исправлена загрузка изображений при миграции (UUID, retry, валидация)
 >
 > **Новые API endpoints:**
-> - POST /api/v1/delivery/calculate-all — агрегатор тарифов от всех провайдеров
-> - GET /api/v1/delivery/pickup-points-all — ПВЗ от всех провайдеров с фильтром
+> - GET/POST/PATCH/DELETE /api/v1/users/me/addresses — CRUD адресов доставки
+> - POST /api/v1/users/me/addresses/{id}/set-default — установить адрес по умолчанию
+> - POST /api/v1/webhooks/delivery/{provider} — webhook для обновления статусов
 >
-> **Провайдеры:**
-> - СДЭК (существующий, обёрнут адаптером)
-> - Почта России (API v2, кэш 10 мин)
-> - Ozon (Seller API, кэш 10 мин)
-> - Wildberries (статичный тариф, ПВЗ через API, кэш 1 час)
+> **Функциональность:**
+> - Пользователь может сохранять несколько адресов доставки с метками ("Другу", "На работу")
+> - Выбор сохранённого адреса при оформлении заказа
+> - Автоматическое создание отправлений через API провайдеров (CDEK, Почта)
+> - Генерация tracking URLs для всех провайдеров (CDEK, Почта, Ozon, WB)
+> - Real-time обновление статусов заказов (webhook + polling каждые 6 часов)
+> - Уведомления при изменении статуса (shipped, delivered)
+>
+> **Ozon и WB переделаны:**
+> - Убраны API для селлеров
+> - Реализована C2C доставка через статические ПВЗ
+> - Токены не требуются
 >
 > **Верификация:**
-> - Backend: ruff ✅, mypy ✅, pytest ✅
+> - Backend: ruff ✅, mypy ✅, alembic heads ✅
 > - Frontend: lint ✅, type-check ✅
-> - Инварианты: cdek.py не изменён ✅, существующие endpoints работают ✅
+> - Tests: 27/27 passed ✅
 >
 > **Отчёты:**
-> - [devops/p10_devops_delivery_secrets.md](.claude/agents/reports/devops/p10_devops_delivery_secrets.md)
-> - [backend/p10_backend_delivery_providers.md](.claude/agents/reports/backend/p10_backend_delivery_providers.md)
-> - [frontend/p10_frontend_delivery_selector.md](.claude/agents/reports/frontend/p10_frontend_delivery_selector.md)
->
-> **Следующие шаги:**
-> 1. Получить реальные API credentials для провайдеров
-> 2. Добавить в .env.prod на сервере
-> 3. Протестировать на production с реальными данными
+> - [backend/p11_backend_user_addresses.md](.claude/agents/reports/backend/p11_backend_user_addresses.md)
+> - [cdek/p11_cdek_order_tracking.md](.claude/agents/reports/cdek/p11_cdek_order_tracking.md)
+> - [frontend/p11_frontend_address_management.md](.claude/agents/reports/frontend/p11_frontend_address_management.md)
+> - [testing/p11_testing_addresses_tracking.md](.claude/agents/reports/testing/p11_testing_addresses_tracking.md)
+> - [backend/p12_backend_migration_images_fix.md](.claude/agents/reports/backend/p12_backend_migration_images_fix.md)

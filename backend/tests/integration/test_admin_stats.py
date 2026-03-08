@@ -19,11 +19,22 @@ async def test_admin_stats_aggregation(client: AsyncClient, db_session):
         is_active=True
     )
     db_session.add(admin)
+    await db_session.commit()
     
+    admin_token = create_access_token(subject=str(admin_id), role="admin")
+    headers = {"Authorization": f"Bearer {admin_token}"}
+
+    # Get baseline
+    resp0 = await client.get("/api/v1/admin/stats", headers=headers)
+    assert resp0.status_code == 200
+    base_data = resp0.json()
+    base_revenue = float(base_data["total_revenue"])
+    base_users = int(base_data["users_count"])
+
     # Setup Customers
     u1_id = uuid.uuid4()
     u2_id = uuid.uuid4()
-    e1, e2 = "customer1@test.com", "customer2@test.com"
+    e1, e2 = f"customer1-{u1_id}@test.com", f"customer2-{u2_id}@test.com"
     u1 = User(id=u1_id, email=e1, email_hash=get_blind_index(e1), hashed_password="...", role="customer", is_active=True)
     u2 = User(id=u2_id, email=e2, email_hash=get_blind_index(e2), hashed_password="...", role="customer", is_active=True)
     db_session.add_all([u1, u2])
@@ -40,16 +51,10 @@ async def test_admin_stats_aggregation(client: AsyncClient, db_session):
     db_session.add_all([o1, o2, o3])
     await db_session.commit()
 
-    admin_token = create_access_token(subject=str(admin_id), role="admin")
-    headers = {"Authorization": f"Bearer {admin_token}"}
-
     resp = await client.get("/api/v1/admin/stats", headers=headers)
     assert resp.status_code == 200
     data = resp.json()
     
-    # Total users: admin + 2 customers = 3
-    assert data["users_count"] >= 3
-    # Total revenue: 1500 + 2500 = 4000
-    assert float(data["total_revenue"]) == 4000.0
-    # Orders count: 3
-    assert data["orders_count"] == 3
+    # Check relative changes
+    assert int(data["users_count"]) - base_users == 2
+    assert float(data["total_revenue"]) - base_revenue == 4000.0

@@ -3,11 +3,14 @@ import enum
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import List
+from typing import List, TYPE_CHECKING
 
 from sqlalchemy import String, DateTime, Numeric, ForeignKey, Enum as SAEnum, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.db.models.order_tracking import OrderTrackingEvent
 
 
 class OrderStatus(str, enum.Enum):
@@ -44,6 +47,10 @@ class Order(Base):
     # Shipping info (denormalised snapshot at time of order)
     shipping_address: Mapped[str | None] = mapped_column(String(500), nullable=True)
     cdek_order_uuid: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    tracking_number: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    tracking_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    delivery_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    delivery_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
     # Payment
     payment_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     payment_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
@@ -62,6 +69,9 @@ class Order(Base):
     user = relationship("User", back_populates="orders", lazy="selectin")
     items: Mapped[List["OrderItem"]] = relationship(
         "OrderItem", back_populates="order", cascade="all, delete-orphan", lazy="selectin"
+    )
+    tracking_events: Mapped[List["OrderTrackingEvent"]] = relationship(
+        "OrderTrackingEvent", back_populates="order", cascade="all, delete-orphan", lazy="selectin"
     )
 
 

@@ -20,6 +20,11 @@ onMounted(async () => {
   <NuxtLayout>
     <NuxtPage />
   </NuxtLayout>
+
+  <!-- Global UI singletons — управляются через useToast/useConfirm/usePrompt -->
+  <UToast />
+  <UConfirmDialog />
+  <UPromptDialog />
 </template>
 
 <style>

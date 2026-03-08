@@ -4,12 +4,17 @@ import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
 import Typography from '@tiptap/extension-typography'
+import { useToast } from '~/composables/useToast'
+import { usePrompt } from '~/composables/usePrompt'
 
 const props = defineProps<{
   modelValue: string
 }>()
 
 const emit = defineEmits(['update:modelValue'])
+
+const toast = useToast()
+const { prompt: showPrompt } = usePrompt()
 
 const editor = useEditor({
   content: props.modelValue,
@@ -56,13 +61,13 @@ async function handleImageUpload(event: Event) {
 
   // Validate image
   if (!file.type.startsWith('image/')) {
-    alert('Пожалуйста, выберите изображение')
+    toast.warning('Неверный тип файла', 'Пожалуйста, выберите изображение')
     return
   }
 
   // Max 5MB
   if (file.size > 5 * 1024 * 1024) {
-    alert('Размер изображения не должен превышать 5 МБ')
+    toast.warning('Файл слишком большой', 'Размер изображения не должен превышать 5 МБ')
     return
   }
 
@@ -70,15 +75,20 @@ async function handleImageUpload(event: Event) {
 
   try {
     // Get alt text from user (for SEO)
-    const alt = prompt('Введите alt-текст для изображения (описание):') || ''
+    const alt = await showPrompt({
+      title: 'Alt-текст для изображения',
+      label: 'Описание (для SEO и доступности)',
+      placeholder: 'Описание изображения...',
+    }) || ''
 
     // Upload to MinIO
     const publicUrl = await uploadImage(file, alt, 'blog')
 
     // Insert into editor
     editor.value.chain().focus().setImage({ src: publicUrl, alt }).run()
-  } catch (error: any) {
-    alert(error.message || 'Ошибка загрузки изображения')
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Ошибка загрузки изображения'
+    toast.error('Ошибка загрузки', msg)
   } finally {
     isUploading.value = false
     // Reset input

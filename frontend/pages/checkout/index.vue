@@ -43,6 +43,16 @@ const customer = ref({
 })
 const phoneError = ref('')
 
+// --- Saved addresses ---
+const selectedAddress = ref<any>(null)
+const handleAddressSelect = (addr: any) => {
+  selectedAddress.value = addr
+  if (addr) {
+    cityQuery.value = addr.city
+    deliveryStore.setCity({ code: 0, city: addr.city })
+  }
+}
+
 const handlePhoneInput = (e: Event) => {
   const input = e.target as HTMLInputElement
   let value = input.value.replace(/\D/g, '')
@@ -282,6 +292,12 @@ onMounted(() => {
                 <span v-if="phoneError" class="form-error">{{ phoneError }}</span>
               </div>
             </div>
+          </section>
+
+          <!-- Saved Addresses -->
+          <section v-if="userStore.isAuthenticated" class="checkout-section mb-6">
+            <h2 class="section-title">Сохранённые адреса</h2>
+            <AddressSelector @select="handleAddressSelect" />
           </section>
 
           <!-- Delivery section -->

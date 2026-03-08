@@ -26,6 +26,26 @@ export interface UserCreate {
   role: string
 }
 
+export interface UserAdminUpdate {
+  full_name: string
+  email: string
+  phone: string
+  role: string
+  is_active: boolean
+}
+
+export interface UserAddress {
+  id: string
+  city?: string
+  street?: string
+  house?: string
+  apartment?: string
+  postal_code?: string
+  country?: string
+  full_address?: string
+  is_default?: boolean
+}
+
 export const useUser = () => {
   const config = useRuntimeConfig()
   const { accessToken } = useAuth()
@@ -108,6 +128,32 @@ export const useUser = () => {
     return response as Blob
   }
 
+  const adminUpdateUser = async (userId: string, data: Partial<UserAdminUpdate>) => {
+    return await apiFetch<UserProfile>(`/admin/users/${userId}`, {
+      method: 'PATCH',
+      body: data
+    })
+  }
+
+  const adminGetUserAddresses = (userId: string) => {
+    return useApi<UserAddress[]>(`/admin/users/${userId}/addresses`, {
+      key: `admin-user-addresses-${userId}`
+    })
+  }
+
+  const adminDeleteUserAddress = async (userId: string, addrId: string) => {
+    return await apiFetch(`/admin/users/${userId}/addresses/${addrId}`, {
+      method: 'DELETE'
+    })
+  }
+
+  const adminUpdateUserAddress = async (userId: string, addrId: string, data: Partial<UserAddress>) => {
+    return await apiFetch<UserAddress>(`/admin/users/${userId}/addresses/${addrId}`, {
+      method: 'PUT',
+      body: data
+    })
+  }
+
   return {
     user,
     pending,
@@ -117,6 +163,10 @@ export const useUser = () => {
     adminGetUsers,
     adminCreateUser,
     adminSetUserBlockStatus,
-    adminExportUsers
+    adminExportUsers,
+    adminUpdateUser,
+    adminGetUserAddresses,
+    adminDeleteUserAddress,
+    adminUpdateUserAddress
   }
 }

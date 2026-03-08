@@ -106,4 +106,28 @@ class PochtaClient:
         )
 
 
+    def get_tracking_url(self, tracking_number: str) -> str:
+        """Generate Pochta Russia tracking URL."""
+        return f"https://www.pochta.ru/tracking#{tracking_number}"
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type(httpx.HTTPError),
+        reraise=True
+    )
+    async def get_shipment_status(self, tracking_number: str) -> dict:
+        """Get shipment status by tracking number."""
+        if not settings.POCHTA_API_TOKEN:
+            raise ValueError("POCHTA_API_TOKEN not configured")
+
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout) as client:
+            response = await client.get(
+                f"/tracking/{tracking_number}",
+                headers=self._get_headers()
+            )
+            response.raise_for_status()
+            return response.json()
+
+
 pochta_client = PochtaClient()

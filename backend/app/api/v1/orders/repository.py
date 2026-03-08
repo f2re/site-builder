@@ -69,3 +69,23 @@ class OrderRepository:
     async def update(self, order: Order) -> Order:
         await self.session.flush()
         return order
+
+    async def get_by_cdek_uuid(self, cdek_uuid: str) -> Optional[Order]:
+        stmt = select(Order).where(Order.cdek_order_uuid == cdek_uuid)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_by_tracking_number(self, tracking_number: str) -> Optional[Order]:
+        stmt = select(Order).where(Order.tracking_number == tracking_number)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_orders_in_transit(self) -> Sequence[Order]:
+        from app.db.models.order import OrderStatus
+        stmt = (
+            select(Order)
+            .where(Order.status.in_([OrderStatus.SHIPPED, OrderStatus.PROCESSING]))
+            .where(Order.tracking_number.isnot(None))
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().all()

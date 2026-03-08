@@ -8,9 +8,10 @@ definePageMeta({
 const { getPages, deletePage } = usePages()
 const { data: pages, pending, refresh } = await getPages()
 const toast = useToast()
+const { confirm } = useConfirm()
 
 const handleDelete = async (id: string) => {
-  if (!confirm('Вы уверены, что хотите удалить эту страницу?')) return
+  if (!await confirm({ title: 'Удалить страницу?', message: 'Это действие нельзя отменить.', confirmLabel: 'Удалить', variant: 'danger' })) return
 
   try {
     await deletePage(id)

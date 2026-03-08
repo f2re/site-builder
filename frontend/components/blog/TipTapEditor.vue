@@ -8,6 +8,8 @@ import Placeholder from '@tiptap/extension-placeholder'
 import CharacterCount from '@tiptap/extension-character-count'
 import { common, createLowlight } from 'lowlight'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
+import { useToast } from '~/composables/useToast'
+import { usePrompt } from '~/composables/usePrompt'
 
 const props = defineProps<{
   modelValue: any
@@ -19,6 +21,8 @@ const emit = defineEmits<{
 }>()
 
 const lowlight = createLowlight(common)
+const toast = useToast()
+const { prompt: showPrompt } = usePrompt()
 
 const editor = useEditor({
   content: props.modelValue,
@@ -62,9 +66,16 @@ watch(() => props.modelValue, (val) => {
   editor.value?.commands.setContent(val, false)
 })
 
-const setLink = () => {
-  const previousUrl = editor.value?.getAttributes('link').href
-  const url = window.prompt('URL', previousUrl)
+const setLink = async () => {
+  const previousUrl = editor.value?.getAttributes('link').href as string | undefined
+  const url = await showPrompt({
+    title: 'Вставить ссылку',
+    label: 'URL',
+    placeholder: 'https://example.com',
+    defaultValue: previousUrl ?? '',
+    inputType: 'url',
+    confirmLabel: 'Вставить',
+  })
 
   if (url === null) return
   if (url === '') {
@@ -89,7 +100,7 @@ const handleImageUpload = async (event: Event) => {
 
   if (!file.type.startsWith('image/')) return
   if (file.size > 5 * 1024 * 1024) {
-    alert('Размер изображения не должен превышать 5 МБ')
+    toast.warning('Файл слишком большой', 'Размер изображения не должен превышать 5 МБ')
     return
   }
 
@@ -105,8 +116,14 @@ const handleImageUpload = async (event: Event) => {
   }
 }
 
-const addYoutube = () => {
-  const url = window.prompt('URL YouTube видео')
+const addYoutube = async () => {
+  const url = await showPrompt({
+    title: 'Вставить YouTube видео',
+    label: 'URL видео',
+    placeholder: 'https://youtube.com/watch?v=...',
+    inputType: 'url',
+    confirmLabel: 'Вставить',
+  })
   if (url) {
     editor.value?.chain().focus().setYoutubeVideo({ src: url }).run()
   }

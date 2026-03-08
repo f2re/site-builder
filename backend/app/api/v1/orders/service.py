@@ -16,6 +16,8 @@ from app.db.models.order import Order, OrderItem, OrderStatus
 from app.db.models.user import User
 from app.integrations.yoomoney import yoomoney_client
 from app.integrations.redis_inventory import inventory
+from app.integrations.cdek import cdek_client
+from app.integrations.pochta import pochta_client
 from app.tasks.notifications.dispatcher import send_email_task
 from app.core.config import settings
 from app.core.logging import logger
@@ -260,3 +262,61 @@ class OrderService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to generate payment link"
             )
+
+    async def create_shipment(self, order_id: UUID, provider: str) -> Order:
+        """Auto-fulfillment: create shipment via provider API."""
+        order = await self.order_repo.get_by_id(order_id)
+        if not order or order.status != OrderStatus.PAID:
+            raise HTTPException(status_code=400, detail="Order not eligible for shipment")
+
+        try:
+            if provider == "cdek":
+                shipment_data = await cdek_client.create_order({
+                    "type": 1,
+                    "number": str(order.id),
+                    "tariff_code": 136,
+                    "recipient": {"name": order.user.full_name if order.user else "Customer"},
+                    "to_location": {"address": order.shipping_address},
+                    "packages": [{"number": "1", "weight": 500}]
+                })
+                order.cdek_order_uuid = shipment_data.get("entity", {}).get("uuid")
+                order.tracking_number = shipment_data.get("entity", {}).get("cdek_number")
+                order.tracking_url = cdek_client.get_tracking_url(order.tracking_number or "")
+                order.delivery_provider = "cdek"
+
+            elif provider == "pochta":
+                from app.api.v1.delivery.provider import DeliveryOption
+                from decimal import Decimal
+                option = DeliveryOption(
+                    provider="pochta", provider_label="Почта России",
+                    service_type="courier", service_name="Посылка онлайн",
+                    cost_rub=Decimal("0"), days_min=3, days_max=7,
+                    tariff_code="ONLINE_PARCEL", logo_url="/img/delivery/pochta.svg"
+                )
+                result = await pochta_client.create_shipment(str(order.id), option)
+                order.tracking_number = result.tracking_number
+                order.tracking_url = pochta_client.get_tracking_url(result.tracking_number)
+                order.delivery_provider = "pochta"
+
+            order.status = OrderStatus.SHIPPED
+            order.delivery_status = "created"
+            await self.order_repo.update(order)
+            await self.session.commit()
+            await self.session.refresh(order)
+
+            if order.user:
+                send_email_task.delay(
+                    recipient=order.user.email,
+                    subject=f"Заказ #{order.id} отправлен",
+                    template_name="order_shipped.html",
+                    context={
+                        "full_name": order.user.full_name or order.user.email,
+                        "order_id": str(order.id),
+                        "tracking_url": order.tracking_url
+                    }
+                )
+
+            return order
+        except Exception as e:
+            logger.error("shipment_creation_failed", order_id=str(order.id), error=str(e))
+            raise HTTPException(status_code=500, detail=f"Failed to create shipment: {str(e)}")

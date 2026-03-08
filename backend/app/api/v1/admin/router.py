@@ -6,7 +6,7 @@ from uuid import UUID
 from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, status, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,7 +30,7 @@ from app.integrations.local_storage import storage_client
 from app.core.utils import sanitize_filename
 from app.api.v1.orders.service import OrderService
 from app.api.v1.orders.repository import OrderRepository
-from app.api.v1.users.repository import UserRepository
+from app.api.v1.users.repository import UserRepository, DeliveryAddressRepository
 from app.api.v1.iot.repository import IoTRepository
 from app.api.v1.cart.service import CartService
 from app.api.v1.firmware.service import FirmwareService, get_firmware_service
@@ -74,6 +74,9 @@ async def get_admin_order_service(
     """Dependency factory for admin order management."""
     return OrderService(order_repo, cart_service, product_repo, session)
 
+def get_address_repo(session: AsyncSession = Depends(get_db)) -> DeliveryAddressRepository:
+    return DeliveryAddressRepository(session)
+
 def get_migration_repo(session: AsyncSession = Depends(get_db)) -> MigrationRepository:
     return MigrationRepository(session)
 
@@ -101,6 +104,44 @@ class AdminUserCreate(BaseModel):
     full_name: Optional[str] = None
     password: str
     role: str = "customer"
+
+
+class AdminUserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class DeliveryAddressResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    user_id: UUID
+    name: str
+    recipient_name: str
+    recipient_phone: str
+    full_address: str
+    address_type: str
+    city: str
+    postal_code: Optional[str] = None
+    provider: str
+    pickup_point_code: Optional[str] = None
+    is_default: bool
+
+
+class DeliveryAddressUpdate(BaseModel):
+    name: Optional[str] = None
+    recipient_name: Optional[str] = None
+    recipient_phone: Optional[str] = None
+    full_address: Optional[str] = None
+    address_type: Optional[str] = None
+    city: Optional[str] = None
+    postal_code: Optional[str] = None
+    provider: Optional[str] = None
+    pickup_point_code: Optional[str] = None
+    is_default: Optional[bool] = None
 
 # ─── Dashboard / Analytics ───────────────────────────────────────────────────
 @router.get("/dashboard", response_model=SalesAnalytics)
@@ -437,6 +478,134 @@ async def block_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return {"user_id": str(user_id), "is_active": user.is_active}
+
+
+@router.get("/users/{user_id}", response_model=UserResponse)
+async def get_user(
+    user_id: UUID,
+    _admin: User = AdminDep,
+    repo: UserRepository = Depends(get_user_repo)
+) -> Any:
+    """Get user by ID with decrypted PII fields."""
+    user = await repo.get_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return UserResponse.model_validate(user)
+
+
+@router.patch("/users/{user_id}", response_model=UserResponse)
+async def update_user(
+    user_id: UUID,
+    payload: AdminUserUpdate,
+    _admin: User = AdminDep,
+    repo: UserRepository = Depends(get_user_repo),
+    session: AsyncSession = Depends(get_db)
+) -> Any:
+    """Update user fields. PII fields are encrypted before save. Superadmin demotion protection."""
+    target = await repo.get_by_id(user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Superadmin demotion protection: prevent removing admin from last superadmin/admin user
+    if payload.role is not None and payload.role != target.role:
+        if target.is_superuser or target.role == "admin":
+            # Count remaining admins
+            admin_count_stmt = select(func.count(User.id)).where(
+                User.role == "admin", User.is_active.is_(True)
+            )
+            admin_count = (await session.execute(admin_count_stmt)).scalar() or 0
+            superadmin_count_stmt = select(func.count(User.id)).where(
+                User.is_superuser.is_(True), User.is_active.is_(True)
+            )
+            superadmin_count = (await session.execute(superadmin_count_stmt)).scalar() or 0
+            if target.is_superuser and superadmin_count <= 1:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot change role of the last superadmin"
+                )
+            if target.role == "admin" and not target.is_superuser and admin_count <= 1:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot change role of the last admin"
+                )
+
+    update_kwargs: dict = {}
+    if payload.full_name is not None:
+        update_kwargs["full_name"] = payload.full_name
+    if payload.email is not None:
+        update_kwargs["email"] = str(payload.email)
+    if payload.phone is not None:
+        update_kwargs["phone"] = payload.phone
+    if payload.role is not None:
+        update_kwargs["role"] = payload.role
+    if payload.is_active is not None:
+        update_kwargs["is_active"] = payload.is_active
+
+    if not update_kwargs:
+        return UserResponse.model_validate(target)
+
+    updated = await repo.update(user_id, **update_kwargs)
+    if not updated:
+        raise HTTPException(status_code=404, detail="User not found")
+    return UserResponse.model_validate(updated)
+
+
+@router.get("/users/{user_id}/addresses")
+async def get_user_addresses(
+    user_id: UUID,
+    _admin: User = AdminDep,
+    repo: UserRepository = Depends(get_user_repo),
+    addr_repo: DeliveryAddressRepository = Depends(get_address_repo)
+) -> Any:
+    """Get all delivery addresses for a user."""
+    user = await repo.get_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    addresses = await addr_repo.list_by_user(user_id)
+    return {"items": [DeliveryAddressResponse.model_validate(a) for a in addresses]}
+
+
+@router.put("/users/{user_id}/addresses/{addr_id}", response_model=DeliveryAddressResponse)
+async def update_user_address(
+    user_id: UUID,
+    addr_id: UUID,
+    payload: DeliveryAddressUpdate,
+    _admin: User = AdminDep,
+    repo: UserRepository = Depends(get_user_repo),
+    addr_repo: DeliveryAddressRepository = Depends(get_address_repo)
+) -> Any:
+    """Update a delivery address for a user."""
+    user = await repo.get_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    addr = await addr_repo.get_by_id(addr_id)
+    if not addr or addr.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Address not found")
+
+    update_kwargs = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if not update_kwargs:
+        return DeliveryAddressResponse.model_validate(addr)
+
+    updated = await addr_repo.update(addr_id, **update_kwargs)
+    return DeliveryAddressResponse.model_validate(updated)
+
+
+@router.delete("/users/{user_id}/addresses/{addr_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user_address(
+    user_id: UUID,
+    addr_id: UUID,
+    _admin: User = AdminDep,
+    repo: UserRepository = Depends(get_user_repo),
+    addr_repo: DeliveryAddressRepository = Depends(get_address_repo)
+) -> None:
+    """Delete a delivery address for a user."""
+    user = await repo.get_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    addr = await addr_repo.get_by_id(addr_id)
+    if not addr or addr.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Address not found")
+    await addr_repo.delete(addr_id)
 
 # ─── IoT monitoring ──────────────────────────────────────────────────────────
 @router.get("/iot/devices")

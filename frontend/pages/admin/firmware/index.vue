@@ -19,6 +19,7 @@ const {
 
 const { globalDevices, allComplectations } = storeToRefs(useFirmwareStore())
 const toast = useToast()
+const { confirm } = useConfirm()
 
 const isLoading = ref(true)
 const isImporting = ref(false)
@@ -98,7 +99,7 @@ const onSaveComplectation = async () => {
 }
 
 const onDeleteComplectation = async (id: string) => {
-  if (!confirm('Вы уверены, что хотите удалить эту комплектацию?')) return
+  if (!await confirm({ title: 'Удалить комплектацию?', message: 'Это действие нельзя отменить.', confirmLabel: 'Удалить', variant: 'danger' })) return
   
   try {
     await deleteComplectation(id)
