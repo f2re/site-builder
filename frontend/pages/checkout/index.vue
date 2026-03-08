@@ -458,9 +458,10 @@ onMounted(() => {
             </div>
           </template>
         </section>
+      </div>
 
-        <!-- RIGHT: Order summary -->
-        <aside class="order-summary">
+      <!-- RIGHT: Order summary -->
+      <aside class="order-summary">
           <div class="summary-card">
             <h3 class="summary-card__title">Ваш заказ</h3>
 

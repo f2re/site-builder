@@ -205,10 +205,10 @@ useSeo({ title: 'Управление прошивками (Admin)' })
               </div>
               <div class="comp-actions">
                 <UButton variant="ghost" size="sm" @click="openComplectationModal(comp)">
-                  <Icon name="ph:pencil-simple-bold" />
+                  <template #icon><Icon name="ph:pencil-simple-bold" /></template>
                 </UButton>
                 <UButton variant="ghost" size="sm" class="delete-btn" @click="onDeleteComplectation(comp.id)">
-                  <Icon name="ph:trash-bold" />
+                  <template #icon><Icon name="ph:trash-bold" /></template>
                 </UButton>
               </div>
             </div>
@@ -224,14 +224,14 @@ useSeo({ title: 'Управление прошивками (Admin)' })
         <UCard>
           <template #header><h3 class="section-title">Все устройства в системе</h3></template>
           
-          <div class="table-container">
+          <div class="admin-table-wrapper">
             <table class="admin-table">
               <thead>
                 <tr>
                   <th>Серийный номер</th>
                   <th>Тип</th>
                   <th>Владелец (Email)</th>
-                  <th>Дата добавления</th>
+                  <th class="desktop-only">Дата добавления</th>
                 </tr>
               </thead>
               <tbody>
@@ -242,8 +242,8 @@ useSeo({ title: 'Управление прошивками (Admin)' })
                       {{ device.type }}
                     </UBadge>
                   </td>
-                  <td>{{ device.owner_email }}</td>
-                  <td>{{ new Date(device.created_at).toLocaleDateString() }}</td>
+                  <td class="truncate">{{ device.owner_email }}</td>
+                  <td class="desktop-only">{{ new Date(device.created_at).toLocaleDateString() }}</td>
                   </tr>
                 <tr v-if="globalDevices.length === 0">
                   <td colspan="4" class="text-center">Устройства не найдены</td>
@@ -394,27 +394,28 @@ useSeo({ title: 'Управление прошивками (Admin)' })
   color: var(--color-muted);
 }
 
-.table-container {
-  overflow-x: auto;
+.table-card :deep(.card__body) {
+  padding: 0;
 }
 
 .admin-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
+  table-layout: fixed;
 }
 
-.admin-table th {
-  padding: 12px;
-  border-bottom: 2px solid var(--color-border);
-  font-size: var(--text-sm);
-  color: var(--color-text-2);
+.admin-table th:nth-child(1),
+.admin-table td:nth-child(1) {
+  width: 25%;
 }
 
-.admin-table td {
-  padding: 12px;
-  border-bottom: 1px solid var(--color-border);
-  font-size: var(--text-sm);
+.admin-table th:nth-child(2),
+.admin-table td:nth-child(2) {
+  width: 15%;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .admin-table code {
@@ -422,6 +423,7 @@ useSeo({ title: 'Управление прошивками (Admin)' })
   background: var(--color-surface-2);
   padding: 2px 6px;
   border-radius: 4px;
+  font-size: var(--text-xs);
 }
 
 .modal-form {

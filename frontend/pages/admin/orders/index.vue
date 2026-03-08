@@ -63,7 +63,7 @@ async function updateStatus(orderId: string, status: string) {
             <tr v-for="order in orders?.items" :key="order.id">
               <td>
                 <div class="order-info">
-                  <span class="order-id font-mono">#{{ order.id.slice(0, 8) }}</span>
+                  <span class="order-id font-mono truncate">#{{ order.id.slice(0, 8) }}</span>
                   <div class="order-meta mobile-only">
                     <span class="price">{{ order.total_rub }} ₽</span>
                     <span class="dot">•</span>
@@ -118,40 +118,44 @@ async function updateStatus(orderId: string, status: string) {
 }
 
 .table-card {
-  padding: 0;
   overflow: hidden;
 }
 
-.admin-table-wrapper {
-  overflow-x: auto;
+.table-card :deep(.card__body) {
+  padding: 0;
 }
 
 .admin-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
+  table-layout: fixed;
 }
 
-.admin-table th {
-  padding: 12px 16px;
-  background: var(--color-surface-2);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  color: var(--color-text-2);
-  border-bottom: 1px solid var(--color-border);
-  font-weight: 700;
+.admin-table th:nth-child(1),
+.admin-table td:nth-child(1) {
+  width: auto;
 }
 
-.admin-table td {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--color-border);
-  vertical-align: middle;
+@media (min-width: 768px) {
+  .admin-table th:nth-child(1),
+  .admin-table td:nth-child(1) {
+    width: 30%;
+  }
+  .admin-table th.desktop-only,
+  .admin-table td.desktop-only {
+    width: 20%;
+  }
 }
 
 .order-info {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .order-id {
@@ -195,26 +199,6 @@ async function updateStatus(orderId: string, status: string) {
   padding: 48px;
   text-align: center;
   color: var(--color-text-2);
-}
-
-.desktop-only {
-  display: none;
-}
-
-@media (min-width: 768px) {
-  .desktop-only {
-    display: table-cell;
-  }
-}
-
-.mobile-only {
-  display: flex;
-}
-
-@media (min-width: 768px) {
-  .mobile-only {
-    display: none;
-  }
 }
 
 .font-mono { font-family: var(--font-mono); }

@@ -40,7 +40,8 @@ async function deletePost(slug: string) {
   <NuxtLayout name="admin">
     <template #header-title>Блог</template>
     <template #header-actions>
-      <UButton to="/admin/blog/create" icon="ph:plus-bold" data-testid="admin-blog-create-btn">
+      <UButton to="/admin/blog/create" data-testid="admin-blog-create-btn">
+        <template #icon><Icon name="ph:plus-bold" /></template>
         <span class="desktop-only">Новый пост</span>
       </UButton>
     </template>
@@ -71,7 +72,7 @@ async function deletePost(slug: string) {
                 <div class="post-info">
                   <NuxtLink
                     :to="`/admin/blog/${post.slug}`"
-                    class="post-title post-title--link"
+                    class="post-title post-title--link truncate"
                     @click.stop
                   >{{ post.title }}</NuxtLink>
                   <div class="post-meta mobile-only">
@@ -91,10 +92,10 @@ async function deletePost(slug: string) {
               <td class="actions-cell" @click.stop>
                 <div class="actions">
                   <UButton variant="ghost" size="sm" :to="`/admin/blog/${post.slug}`" data-testid="admin-blog-edit-btn">
-                    <Icon name="ph:pencil-simple-bold" size="20" />
+                    <template #icon><Icon name="ph:pencil-simple-bold" size="20" /></template>
                   </UButton>
-                  <UButton variant="ghost" size="sm" color="danger" @click="deletePost(post.slug)" data-testid="admin-blog-delete-btn">
-                    <Icon name="ph:trash-bold" size="20" />
+                  <UButton variant="danger" size="sm" @click="deletePost(post.slug)" data-testid="admin-blog-delete-btn">
+                    <template #icon><Icon name="ph:trash-bold" size="20" /></template>
                   </UButton>
                 </div>
               </td>
@@ -119,49 +120,50 @@ async function deletePost(slug: string) {
 }
 
 .table-card {
-  padding: 0;
   overflow: hidden;
 }
 
-.admin-table-wrapper {
-  overflow-x: auto;
+.table-card :deep(.card__body) {
+  padding: 0;
 }
 
 .admin-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
+  table-layout: fixed;
 }
 
-.admin-table th {
-  padding: 12px 16px;
-  background: var(--color-surface-2);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  color: var(--color-text-2);
-  border-bottom: 1px solid var(--color-border);
-  font-weight: 700;
+.admin-table th:nth-child(1),
+.admin-table td:nth-child(1) {
+  width: auto;
 }
 
-.admin-table td {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--color-border);
-  vertical-align: middle;
+@media (min-width: 768px) {
+  .admin-table th:nth-child(1),
+  .admin-table td:nth-child(1) {
+    width: 50%;
+  }
 }
 
 .title-cell {
-  min-width: 200px;
+  min-width: 0;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .post-info {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .post-title {
   font-weight: 600;
   color: var(--color-text);
+  font-size: var(--text-sm);
 }
 
 .post-title--link {
@@ -176,11 +178,6 @@ async function deletePost(slug: string) {
 
 .post-row {
   cursor: pointer;
-  transition: background-color var(--transition-fast);
-}
-
-.post-row:hover {
-  background: var(--color-surface-2);
 }
 
 .post-meta {
@@ -193,7 +190,7 @@ async function deletePost(slug: string) {
 
 .actions-col, .actions-cell {
   text-align: right;
-  width: 100px;
+  width: 120px;
 }
 
 .actions {
@@ -206,30 +203,6 @@ async function deletePost(slug: string) {
   padding: 48px;
   text-align: center;
   color: var(--color-text-2);
-}
-
-.desktop-only {
-  display: none;
-}
-
-@media (min-width: 768px) {
-  .desktop-only {
-    display: table-cell;
-  }
-  
-  span.desktop-only {
-    display: inline;
-  }
-}
-
-.mobile-only {
-  display: flex;
-}
-
-@media (min-width: 768px) {
-  .mobile-only {
-    display: none;
-  }
 }
 
 .p-4 { padding: 16px; }

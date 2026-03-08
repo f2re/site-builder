@@ -105,14 +105,16 @@ const handleDelete = async (id: string) => {
   <NuxtLayout name="admin">
     <template #header-title>Категории товаров</template>
     <template #header-actions>
-      <UButton variant="primary" @click="openCreateModal" icon="ph:plus-bold" size="sm">
+      <UButton variant="primary" @click="openCreateModal" size="sm">
+        <template #icon><Icon name="ph:plus-bold" /></template>
         Добавить
       </UButton>
     </template>
 
   <div class="admin-categories-page">
     <div class="page-header">
-      <UButton variant="ghost" to="/admin/products" icon="ph:arrow-left-bold" size="sm">
+      <UButton variant="ghost" to="/admin/products" size="sm">
+        <template #icon><Icon name="ph:arrow-left-bold" /></template>
         ← Товары
       </UButton>
     </div>
@@ -121,7 +123,7 @@ const handleDelete = async (id: string) => {
       <div v-if="pending" class="loading-state">Загрузка...</div>
       <div v-else-if="error" class="error-state">Ошибка при загрузке данных</div>
       <div v-else-if="categories.length === 0" class="empty-state">Категории не найдены</div>
-      <div v-else class="table-responsive">
+      <div v-else class="admin-table-wrapper">
         <table class="admin-table">
           <thead>
             <tr>
@@ -135,26 +137,27 @@ const handleDelete = async (id: string) => {
           <tbody>
             <tr v-for="category in categories" :key="category.id">
               <td class="id-cell desktop-only" :title="category.id">{{ category.id.substring(0, 8) }}...</td>
-              <td class="name-cell">{{ category.name }}</td>
-              <td class="slug-cell desktop-only">{{ category.slug }}</td>
+              <td class="name-cell truncate">{{ category.name }}</td>
+              <td class="slug-cell desktop-only truncate">{{ category.slug }}</td>
               <td>{{ category.product_count || 0 }}</td>
               <td class="actions-cell">
                 <div class="flex gap-2 justify-end">
                   <UButton 
                     variant="ghost" 
                     size="sm" 
-                    icon="ph:pencil-simple-bold"
                     @click="openEditModal(category)"
                     aria-label="Редактировать"
-                  />
+                  >
+                    <template #icon><Icon name="ph:pencil-simple-bold" /></template>
+                  </UButton>
                   <UButton 
-                    variant="ghost" 
+                    variant="danger" 
                     size="sm" 
-                    icon="ph:trash-bold"
-                    color="danger"
                     @click="handleDelete(category.id)"
                     aria-label="Удалить"
-                  />
+                  >
+                    <template #icon><Icon name="ph:trash-bold" /></template>
+                  </UButton>
                 </div>
               </td>
             </tr>
@@ -210,77 +213,36 @@ const handleDelete = async (id: string) => {
   align-items: center;
 }
 
-.page-title {
-  font-size: var(--text-2xl);
-  font-weight: 800;
-  margin: 0;
-}
-
 .table-card {
-  padding: 0;
   overflow: hidden;
 }
 
-.table-responsive {
-  overflow-x: auto;
+.table-card :deep(.card__body) {
+  padding: 0;
 }
 
 .admin-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
+  table-layout: fixed;
 }
 
-.admin-table th,
-.admin-table td {
-  padding: 12px 16px;
-  vertical-align: middle;
-  border-bottom: 1px solid var(--color-border);
+.admin-table th:nth-child(1),
+.admin-table td:nth-child(1) {
+  width: 100px;
 }
 
-.admin-table th {
-  background-color: var(--color-surface-2);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  font-weight: 700;
-  color: var(--color-text-2);
+.admin-table th:nth-child(2),
+.admin-table td:nth-child(2) {
+  width: auto;
 }
 
-.admin-table td {
-  font-size: var(--text-sm);
+.admin-table th:nth-child(4),
+.admin-table td:nth-child(4) {
+  width: 100px;
 }
 
-/* Responsive Visibility for Table Elements */
-.desktop-only {
-  display: none !important;
-}
-
-@media (min-width: 768px) {
-  .desktop-only {
-    display: block !important;
-  }
-  
-  th.desktop-only,
-  td.desktop-only {
-    display: table-cell !important;
-  }
-}
-
-.mobile-only {
-  display: block !important;
-}
-
-th.mobile-only,
-td.mobile-only {
-  display: table-cell !important;
-}
-
-@media (min-width: 768px) {
-  .mobile-only,
-  th.mobile-only,
-  td.mobile-only {
-    display: none !important;
-  }
+.actions-col, .actions-cell {
+  width: 120px;
+  text-align: right;
 }
 
 .id-cell {
@@ -297,8 +259,10 @@ td.mobile-only {
   font-family: var(--font-mono);
 }
 
-.actions-col {
-  text-align: right;
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .loading-state, .error-state, .empty-state {
@@ -308,10 +272,8 @@ td.mobile-only {
 }
 
 .flex { display: flex; }
-.items-center { align-items: center; }
 .gap-2 { gap: 0.5rem; }
 .gap-3 { gap: 0.75rem; }
-.gap-4 { gap: 1rem; }
 .justify-end { justify-content: flex-end; }
 .space-y-4 > * + * { margin-top: 1rem; }
 .pt-4 { padding-top: 1rem; }

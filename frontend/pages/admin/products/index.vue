@@ -47,12 +47,12 @@ const handleDelete = async (id: string, name: string) => {
     <template #header-actions>
       <UButton 
         to="/admin/products/create" 
-        icon="ph:plus-bold" 
         size="sm"
         data-testid="admin-save-btn"
       >
-        <span class="hidden sm:inline">Добавить</span>
-        <span class="sm:hidden">Создать</span>
+        <template #icon><Icon name="ph:plus-bold" /></template>
+        <span class="desktop-only">Добавить</span>
+        <span class="mobile-only">Создать</span>
       </UButton>
     </template>
 
@@ -75,9 +75,9 @@ const handleDelete = async (id: string, name: string) => {
           <thead>
             <tr>
               <th>Товар</th>
-              <th class="hidden md:table-cell">Категория</th>
-              <th class="hidden sm:table-cell">Цена</th>
-              <th class="hidden sm:table-cell">Склад</th>
+              <th class="desktop-only">Категория</th>
+              <th class="desktop-only">Цена</th>
+              <th class="desktop-only">Склад</th>
               <th>Действия</th>
             </tr>
           </thead>
@@ -98,23 +98,23 @@ const handleDelete = async (id: string, name: string) => {
                   <div class="product-info">
                     <NuxtLink
                       :to="`/admin/products/${product.id}`"
-                      class="product-name product-name--link"
+                      class="product-name product-name--link truncate"
                       data-testid="product-title"
                       @click.stop
                     >{{ product.name }}</NuxtLink>
-                    <div class="sm:hidden product-meta">
+                    <div class="mobile-only product-meta">
                       <span>{{ formatPrice(product.price_display) }}</span>
                       <span class="dot">·</span>
                       <span :class="product.stock > 0 ? 'text-success' : 'text-error'">
-                        {{ product.stock > 0 ? `В наличии: ${product.stock}` : 'Нет на складе' }}
+                        {{ product.stock > 0 ? `В наличии: ${product.stock}` : 'Нет' }}
                       </span>
                     </div>
                   </div>
                 </div>
               </td>
-              <td class="hidden md:table-cell">{{ product.category_name || '—' }}</td>
-              <td class="hidden sm:table-cell" data-testid="product-price">{{ formatPrice(product.price_display) }}</td>
-              <td class="hidden sm:table-cell" data-testid="product-stock">
+              <td class="desktop-only">{{ product.category_name || '—' }}</td>
+              <td class="desktop-only" data-testid="product-price">{{ formatPrice(product.price_display) }}</td>
+              <td class="desktop-only" data-testid="product-stock">
                 <UBadge :variant="product.stock > 0 ? 'success' : 'danger'">
                   {{ product.stock }}
                 </UBadge>
@@ -122,10 +122,10 @@ const handleDelete = async (id: string, name: string) => {
               <td>
                 <div class="actions" @click.stop>
                   <UButton variant="ghost" size="sm" :to="`/admin/products/${product.id}`" aria-label="Редактировать">
-                    <Icon name="ph:pencil-simple-bold" size="18" />
+                    <template #icon><Icon name="ph:pencil-simple-bold" size="18" /></template>
                   </UButton>
-                  <UButton variant="ghost" size="sm" color="danger" aria-label="Удалить" data-testid="admin-delete-btn" @click="handleDelete(product.id, product.name)">
-                    <Icon name="ph:trash-bold" size="18" />
+                  <UButton variant="danger" size="sm" aria-label="Удалить" data-testid="admin-delete-btn" @click="handleDelete(product.id, product.name)">
+                    <template #icon><Icon name="ph:trash-bold" size="18" /></template>
                   </UButton>
                 </div>
               </td>
@@ -161,11 +161,39 @@ const handleDelete = async (id: string, name: string) => {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
 
+.admin-table {
+  table-layout: fixed;
+}
+
+.admin-table th:nth-child(1),
+.admin-table td:nth-child(1) {
+  width: auto;
+}
+
+@media (min-width: 768px) {
+  .admin-table th:nth-child(1),
+  .admin-table td:nth-child(1) {
+    width: 40%;
+  }
+}
+
+.admin-table th:nth-child(5),
+.admin-table td:nth-child(5) {
+  width: 100px;
+  text-align: right;
+}
+
 .product-cell {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-width: 140px;
+  min-width: 0;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .product-cell img, .image-placeholder {
@@ -187,10 +215,11 @@ const handleDelete = async (id: string, name: string) => {
 .product-info {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .product-name {
-  font-weight: 500;
+  font-weight: 600;
   color: var(--color-text);
   font-size: var(--text-sm);
 }
@@ -207,11 +236,6 @@ const handleDelete = async (id: string, name: string) => {
 
 .product-row {
   cursor: pointer;
-  transition: background-color var(--transition-fast);
-}
-
-.product-row:hover {
-  background: var(--color-surface-2);
 }
 
 .product-meta {
@@ -229,18 +253,9 @@ const handleDelete = async (id: string, name: string) => {
 .actions {
   display: flex;
   gap: 4px;
-}
-
-.hidden { display: none; }
-@media (min-width: 640px) {
-  .sm\:inline { display: inline; }
-  .sm\:hidden { display: none; }
-  .sm\:table-cell { display: table-cell; }
-  .product-name { font-size: var(--text-base); }
-}
-@media (min-width: 768px) {
-  .md\:table-cell { display: table-cell; }
+  justify-content: flex-end;
 }
 
 .space-y-4 > * + * { margin-top: 16px; }
+.p-4 { padding: 16px; }
 </style>
