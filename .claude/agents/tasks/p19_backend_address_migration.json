@@ -1,0 +1,26 @@
+{
+  "task_id": "p19_backend_address_migration",
+  "agent": "backend-agent",
+  "title": "Import Customer Addresses from OpenCart",
+  "description": "Add import of customer delivery addresses from oc_address table to DeliveryAddress model during migration.\n\nCurrently migrate_users() only imports customer data (email, name, phone) but does NOT import their saved addresses from oc_address table.\n\nRequired:\n1. Add OCAddress and OCAddressDescription models to opencart_models.py\n2. Create migrate_addresses() method in migration_service.py\n3. Call migrate_addresses() after migrate_users() completes\n4. Map oc_address fields to DeliveryAddress:\n   - customer_id → link to User via email_hash lookup\n   - firstname + lastname → recipient_name (encrypted)\n   - address_1 + address_2 → street_address (encrypted)\n   - city → city (encrypted)\n   - postcode → postal_code (encrypted)\n   - phone from oc_customer → phone (encrypted)\n5. Handle idempotency: check if address already exists for user\n6. Batch processing (batch_size=50)\n7. Update MigrationEntity enum if needed or reuse USERS entity\n\nReference: oc_db/oc_address.sql for table structure",
+  "priority": "high",
+  "status": "pending",
+  "depends_on": ["p18_backend_migration_opencart_fixes"],
+  "acceptance_criteria": [
+    "OCAddress model exists in opencart_models.py",
+    "migrate_addresses() method implemented in migration_service.py",
+    "Addresses imported with PII encryption (recipient_name, street_address, city, postal_code, phone)",
+    "Addresses linked to correct User via customer_id → email lookup",
+    "Idempotency: skip if address already exists for user",
+    "Batch processing with proper error handling",
+    "ruff check passes",
+    "mypy passes",
+    "alembic check passes"
+  ],
+  "zone": "backend/app/api/v1/admin/",
+  "contracts": [
+    "backend/CLAUDE.md — PII encryption rules",
+    "backend/CLAUDE.md — Repository pattern",
+    ".claude/agents/contracts/api_contracts.md"
+  ]
+}

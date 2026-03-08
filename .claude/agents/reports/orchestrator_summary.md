@@ -2,8 +2,8 @@
 
 Обновлено: 2026-03-08
 
-## Текущая фаза: 17 (C2C Shipment Logic)
-## Выполнено задач: 12 / 24 ✅
+## Текущая фаза: 19 (OpenCart Address Migration)
+## Выполнено задач: 15 / 25 ✅
 
 ---
 
@@ -229,6 +229,14 @@ E2E подграф (параллельно с p8):
 
 ### Отчёт:
 - [backend/p17_backend_celery_migration_fix.md](.claude/agents/reports/backend/p17_backend_celery_migration_fix.md)
+
+---
+
+## Фаза 19 — OpenCart Address Migration (2026-03-08)
+
+| task_id | Агент | Титул | Статус | Приоритет |
+|---|---|---|---|------|
+| **p19_backend_address_migration** | backend-agent | Import Customer Addresses from OpenCart | ⏳ PENDING | high |
 
 ---
 
