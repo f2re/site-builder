@@ -3,6 +3,7 @@ import UCard from '~/components/U/UCard.vue'
 import UBadge from '~/components/U/UBadge.vue'
 import USkeleton from '~/components/U/USkeleton.vue'
 import USelect from '~/components/U/USelect.vue'
+import UButton from '~/components/U/UButton.vue'
 
 definePageMeta({
   layout: false,
@@ -10,8 +11,38 @@ definePageMeta({
   middleware: 'auth',
 })
 
-const { data: orders, pending, refresh } = await useApi<any>('/admin/orders')
+const route = useRoute()
+const router = useRouter()
+
+// Reactive filters from URL
+const page = ref(Number(route.query.page) || 1)
+const perPage = ref(20)
+const statusFilter = ref<string | undefined>(route.query.status as string)
+const dateFilter = ref<string>(route.query.date as string || 'all')
+
+// Computed query params
+const queryParams = computed(() => ({
+  page: page.value,
+  per_page: perPage.value,
+  ...(statusFilter.value && { status: statusFilter.value }),
+}))
+
+const { data: orders, pending, refresh } = await useApi<any>('/admin/orders', {
+  query: queryParams,
+})
+
 const apiFetch = useApiFetch()
+
+// Update URL when filters change
+watch([page, statusFilter, dateFilter], () => {
+  router.push({
+    query: {
+      ...(page.value > 1 && { page: page.value }),
+      ...(statusFilter.value && { status: statusFilter.value }),
+      ...(dateFilter.value !== 'all' && { date: dateFilter.value }),
+    },
+  })
+})
 
 const statusMap = {
   pending: { label: 'Новый', variant: 'warning' },
@@ -21,10 +52,20 @@ const statusMap = {
   delivered: { label: 'Доставлен', variant: 'success' },
 }
 
-const statusOptions = Object.keys(statusMap).map(s => ({ 
-  value: s, 
-  label: statusMap[s as keyof typeof statusMap].label 
-}))
+const statusOptions = [
+  { value: '', label: 'Все статусы' },
+  ...Object.keys(statusMap).map(s => ({
+    value: s,
+    label: statusMap[s as keyof typeof statusMap].label
+  }))
+]
+
+const dateFilterOptions = [
+  { value: 'all', label: 'Все время' },
+  { value: 'today', label: 'Сегодня' },
+  { value: 'week', label: 'Эта неделя' },
+  { value: 'month', label: 'Этот месяц' },
+]
 
 async function updateStatus(orderId: string, status: string) {
   try {
@@ -37,6 +78,18 @@ async function updateStatus(orderId: string, status: string) {
     console.error(e)
   }
 }
+
+function nextPage() {
+  if (orders.value?.items?.length === perPage.value) {
+    page.value++
+  }
+}
+
+function prevPage() {
+  if (page.value > 1) {
+    page.value--
+  }
+}
 </script>
 
 <template>
@@ -44,6 +97,22 @@ async function updateStatus(orderId: string, status: string) {
     <template #header-title>Заказы</template>
 
     <div class="admin-orders-page">
+      <UCard class="filters-card">
+        <div class="filters">
+          <USelect
+            v-model="statusFilter"
+            :options="statusOptions"
+            placeholder="Статус"
+            data-testid="order-status-filter"
+          />
+          <USelect
+            v-model="dateFilter"
+            :options="dateFilterOptions"
+            data-testid="order-date-filter"
+          />
+        </div>
+      </UCard>
+
       <UCard class="table-card">
       <div v-if="pending" class="p-4 space-y-4">
         <USkeleton v-for="i in 5" :key="i" height="64px" />
@@ -67,7 +136,7 @@ async function updateStatus(orderId: string, status: string) {
                     #{{ order.id.slice(0, 8) }}
                   </NuxtLink>
                   <div class="order-meta mobile-only">
-                    <span class="price">{{ order.total_rub }} ₽</span>
+                    <span class="price">{{ order.total_amount || order.total_rub }} ₽</span>
                     <span class="dot">•</span>
                     <UBadge :variant="statusMap[order.status as keyof typeof statusMap]?.variant || 'default'" size="sm">
                       {{ statusMap[order.status as keyof typeof statusMap]?.label || order.status }}
@@ -78,7 +147,7 @@ async function updateStatus(orderId: string, status: string) {
                 </div>
               </td>
               <td class="desktop-only">
-                <span class="price-desktop">{{ order.total_rub }} ₽</span>
+                <span class="price-desktop">{{ order.total_amount || order.total_rub }} ₽</span>
               </td>
               <td class="desktop-only">
                 <UBadge :variant="statusMap[order.status as keyof typeof statusMap]?.variant || 'default'">
@@ -93,7 +162,7 @@ async function updateStatus(orderId: string, status: string) {
                   <USelect
                     :modelValue="order.status"
                     @update:modelValue="updateStatus(order.id, $event)"
-                    :options="statusOptions"
+                    :options="statusOptions.slice(1)"
                     size="sm"
                     class="status-select"
                   />
@@ -102,12 +171,32 @@ async function updateStatus(orderId: string, status: string) {
             </tr>
           </tbody>
         </table>
-        
+
         <div v-if="!orders?.items?.length" class="empty-state">
           Заказы не найдены
         </div>
       </div>
     </UCard>
+
+    <div v-if="orders?.items?.length" class="pagination">
+      <UButton
+        variant="secondary"
+        :disabled="page === 1"
+        @click="prevPage"
+        data-testid="orders-prev-page"
+      >
+        Назад
+      </UButton>
+      <span class="page-info">Страница {{ page }}</span>
+      <UButton
+        variant="secondary"
+        :disabled="orders?.items?.length < perPage"
+        @click="nextPage"
+        data-testid="orders-next-page"
+      >
+        Вперёд
+      </UButton>
+    </div>
   </div>
   </NuxtLayout>
 </template>
@@ -117,6 +206,21 @@ async function updateStatus(orderId: string, status: string) {
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
+
+.filters-card {
+  padding: 16px;
+}
+
+.filters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filters > * {
+  flex: 1;
+  min-width: 200px;
 }
 
 .table-card {
@@ -206,6 +310,18 @@ async function updateStatus(orderId: string, status: string) {
 .empty-state {
   padding: 48px;
   text-align: center;
+  color: var(--color-text-2);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.page-info {
+  font-size: var(--text-sm);
   color: var(--color-text-2);
 }
 

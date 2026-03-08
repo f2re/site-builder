@@ -1,0 +1,23 @@
+{
+  "task_id": "p24_backend_address_import",
+  "agent": "backend-agent",
+  "title": "Import Customer Addresses from OpenCart",
+  "description": "Адреса пользователей не импортируются из OpenCart.\n\nOpenCart хранит адреса в таблице oc_address с полями:\n- address_id (PK)\n- customer_id (FK to oc_customer)\n- firstname, lastname\n- company\n- address_1, address_2\n- city, postcode\n- country_id, zone_id\n- custom_field\n\nНужно:\n1. Создать модель OCAddress для чтения из OpenCart\n2. Добавить метод migrate_addresses() в MigrationService\n3. Импортировать адреса в delivery_addresses таблицу\n4. Связать адреса с пользователями через user_id\n5. Использовать address_id из OpenCart для идемпотентности\n\nMapping:\n- oc_address.customer_id → найти User по email_hash из oc_customer\n- firstname + lastname → recipient_name (encrypted)\n- address_1 + address_2 + city → full_address (encrypted)\n- postcode → postal_code\n- address_type = 'courier' (по умолчанию)\n- provider = 'manual'\n- is_default = (address_id == oc_customer.address_id)\n\nImplementation:\n- app/db/models/opencart.py: добавить OCAddress модель\n- app/api/v1/admin/migration_service.py: добавить migrate_addresses()\n- Вызывать migrate_addresses() после migrate_users() в orchestrate()",
+  "priority": "medium",
+  "status": "pending",
+  "depends_on": ["p23_backend_user_search_fix"],
+  "acceptance_criteria": [
+    "OCAddress модель создана в db/models/opencart.py",
+    "MigrationService.migrate_addresses() реализован",
+    "Адреса импортируются в delivery_addresses",
+    "recipient_name и full_address зашифрованы",
+    "is_default устанавливается корректно",
+    "Идемпотентность через проверку существующих адресов",
+    "ruff check passes",
+    "mypy passes"
+  ],
+  "zone": "backend/app/api/v1/admin/, backend/app/db/models/",
+  "contracts": [
+    "backend/CLAUDE.md"
+  ]
+}

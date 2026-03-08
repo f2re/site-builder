@@ -1,4 +1,5 @@
-# Module: api/v1/orders/repository.py | Agent: backend-agent | Task: p13_backend_blog_refinement
+# Module: api/v1/orders/repository.py | Agent: backend-agent | Task: p22_backend_orders_date_filter
+from datetime import date, datetime, timedelta
 from typing import Optional, Sequence
 from uuid import UUID
 
@@ -48,6 +49,8 @@ class OrderRepository:
         status: Optional[str] = None,
         offset: int = 0,
         limit: int = 20,
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None,
     ) -> tuple[Sequence[Order], int]:
         from sqlalchemy import func
         stmt = (
@@ -57,10 +60,17 @@ class OrderRepository:
         )
         count_stmt = select(func.count()).select_from(Order)
         if status:
-            # FIX: Convert status to lowercase to match the database enum values
             status_lower = status.lower()
             stmt = stmt.where(Order.status == status_lower)
             count_stmt = count_stmt.where(Order.status == status_lower)
+        if date_from:
+            dt_from = datetime.combine(date_from, datetime.min.time())
+            stmt = stmt.where(Order.created_at >= dt_from)
+            count_stmt = count_stmt.where(Order.created_at >= dt_from)
+        if date_to:
+            dt_to = datetime.combine(date_to + timedelta(days=1), datetime.min.time())
+            stmt = stmt.where(Order.created_at < dt_to)
+            count_stmt = count_stmt.where(Order.created_at < dt_to)
         total = (await self.session.execute(count_stmt)).scalar() or 0
         stmt = stmt.offset(offset).limit(limit)
         result = await self.session.execute(stmt)

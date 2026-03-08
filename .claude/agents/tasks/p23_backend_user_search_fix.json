@@ -1,0 +1,24 @@
+{
+  "task_id": "p23_backend_user_search_fix",
+  "agent": "backend-agent",
+  "title": "Fix Admin User Search - Add Name Search Support",
+  "description": "Admin user search не работает - возвращает пустой результат при поиске по имени.\n\nТекущая проблема:\n1. Frontend отправляет параметр q=Alexand, backend ожидает search\n2. Поиск работает только по точному email через blind index (repository.py:161-165)\n3. Поиск по имени невозможен, т.к. full_name зашифровано\n\nРешение:\n1. Добавить Query параметр q как алиас для search в GET /admin/users\n2. Добавить поле full_name_normalized в модель User (незашифрованное, lowercase)\n3. Обновить миграцию для добавления колонки full_name_normalized\n4. Обновить UserRepository.list_users() для поиска по ILIKE full_name_normalized\n5. Обновить UserRepository.create() и update() для заполнения full_name_normalized\n6. Обновить миграцию пользователей для заполнения full_name_normalized\n\nImplementation:\n- db/models/user.py: добавить full_name_normalized: Mapped[str | None]\n- migrations/: alembic revision для добавления колонки\n- api/v1/users/repository.py: обновить list_users() с ILIKE поиском\n- api/v1/admin/router.py: добавить q: Optional[str] = Query(None, alias='search')\n- api/v1/admin/migration_service.py: заполнять full_name_normalized при миграции",
+  "priority": "high",
+  "status": "pending",
+  "depends_on": [],
+  "acceptance_criteria": [
+    "GET /admin/users принимает параметр q (алиас для search)",
+    "User модель имеет поле full_name_normalized",
+    "Alembic миграция добавляет колонку full_name_normalized",
+    "UserRepository.list_users() ищет по ILIKE %search% в full_name_normalized",
+    "UserRepository.create/update заполняют full_name_normalized",
+    "Миграция пользователей заполняет full_name_normalized",
+    "Поиск q=Alexand возвращает пользователей с именем Alexander",
+    "ruff check passes",
+    "mypy passes"
+  ],
+  "zone": "backend/app/api/v1/admin/, backend/app/db/models/, backend/app/api/v1/users/",
+  "contracts": [
+    "backend/CLAUDE.md"
+  ]
+}

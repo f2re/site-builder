@@ -1,0 +1,22 @@
+{
+  "task_id": "p22_backend_orders_date_filter",
+  "agent": "backend-agent",
+  "title": "Add Date Range Filters to Admin Orders API",
+  "description": "Add date_from and date_to query parameters to GET /api/v1/admin/orders endpoint for filtering orders by creation date.\n\nCurrently frontend has date filter UI (Today, This Week, This Month, All Time) but backend doesn't accept date parameters.\n\nRequired:\n1. Add date_from and date_to optional query parameters to GET /admin/orders endpoint\n2. Update OrderRepository.list_all() to filter by created_at date range\n3. Frontend already sends date filter, need to implement backend logic\n\nImplementation:\n- Parameters: date_from: Optional[date], date_to: Optional[date]\n- Filter: WHERE created_at >= date_from AND created_at < date_to + 1 day\n- If only date_from: filter >= date_from\n- If only date_to: filter <= date_to end of day\n- Both parameters optional",
+  "priority": "medium",
+  "status": "pending",
+  "depends_on": ["p21_frontend_admin_orders_fix"],
+  "acceptance_criteria": [
+    "GET /admin/orders accepts date_from and date_to query params",
+    "OrderRepository filters by created_at date range",
+    "Empty date params return all orders",
+    "Single date param works correctly",
+    "Both date params work together",
+    "ruff check passes",
+    "mypy passes"
+  ],
+  "zone": "backend/app/api/v1/admin/",
+  "contracts": [
+    "backend/CLAUDE.md"
+  ]
+}

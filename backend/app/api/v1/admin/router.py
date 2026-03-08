@@ -1,7 +1,8 @@
-# Module: api/v1/admin/router.py | Agent: backend-agent | Task: Fix unused var
+# Module: api/v1/admin/router.py | Agent: backend-agent | Task: p22_backend_orders_date_filter
 import io
 import uuid as _uuid_module
 import openpyxl
+from datetime import date
 from uuid import UUID
 from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, status, HTTPException, Query, UploadFile, File
@@ -315,11 +316,15 @@ async def list_orders(
     status: Optional[str] = Query(None, description="Filter by order status"),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
+    date_from: Optional[date] = Query(None, description="Filter orders from date (inclusive)"),
+    date_to: Optional[date] = Query(None, description="Filter orders to date (inclusive)"),
     _admin: User = AdminDep,
     repo: OrderRepository = Depends(get_order_repo),
 ) -> Any:
     offset = (page - 1) * per_page
-    items, total = await repo.list_all(status=status, offset=offset, limit=per_page)
+    items, total = await repo.list_all(
+        status=status, offset=offset, limit=per_page, date_from=date_from, date_to=date_to
+    )
     from app.api.v1.orders.schemas import OrderRead
     return {
         "items": [OrderRead.model_validate(o) for o in items],
