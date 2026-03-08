@@ -2,8 +2,8 @@
 
 Обновлено: 2026-03-08
 
-## Текущая фаза: 15 (OpenCart SEO Redirects)
-## Выполнено задач: 8 / 22 ✅
+## Текущая фаза: 17 (C2C Shipment Logic)
+## Выполнено задач: 12 / 24 ✅
 
 ---
 
@@ -144,10 +144,11 @@ E2E подграф (параллельно с p8):
 
 ### Созданные задачи
 
-| task_id | Агент | Описание | Приоритет |
-|---|---|---|---|
-| p15_backend_redirect_fix | backend-agent | Исправить redirect_router (Query param вместо path:path), создать scripts/seed_redirects.py | high |
-| p15_frontend_opencart_redirect | frontend-agent | Создать frontend/middleware/opencart-redirect.global.ts | high |
+| task_id | Агент | Описание | Приоритет | Статус |
+|---|---|---|---|---|
+| p15_backend_redirect_fix | backend-agent | Исправить redirect_router (Query param вместо path:path), создать scripts/seed_redirects.py | high | ✅ DONE |
+| p15_frontend_opencart_redirect | frontend-agent | Создать frontend/middleware/opencart-redirect.global.ts | high | ✅ DONE |
+
 
 ### Порядок запуска:
 ```
@@ -168,8 +169,8 @@ E2E подграф (параллельно с p8):
 
 | task_id | Агент | Описание | Статус | Приоритет |
 |---|---|---|---|---|
-| **p16_backend_c2c_shipment** | backend-agent | C2CShipmentPayload dataclass, generate_c2c_payload() для Ozon и WB, endpoint GET /api/v1/delivery/orders/{id}/c2c-shipment | ⏳ PENDING | high |
-| **p16_frontend_c2c_card** | frontend-agent | Страница /admin/orders/[id].vue + блок карточки C2C с инструкцией, deeplink и копированием | BLOCKED (p16_backend_c2c_shipment) | high |
+| **p16_backend_c2c_shipment** | backend-agent | C2CShipmentPayload dataclass, generate_c2c_payload() для Ozon и WB, endpoint GET /api/v1/delivery/orders/{id}/c2c-shipment | ✅ DONE | high |
+| **p16_frontend_c2c_card** | frontend-agent | Страница /admin/orders/[id].vue + блок карточки C2C с инструкцией, deeplink и копированием | ✅ DONE | high |
 
 ### Порядок запуска:
 ```
@@ -187,27 +188,21 @@ E2E подграф (параллельно с p8):
 
 ## Последнее действие
 
-> **2026-03-08: ✅ Завершена система управления адресами доставки и отслеживания заказов**
+> **2026-03-08: ✅ Реализована система C2C отправлений для Ozon и WB**
 >
 > Выполнены задачи:
-> - ✅ p11_backend_user_addresses — API управления адресами с PII-шифрованием
-> - ✅ p11_cdek_order_tracking — трекинг заказов, webhook, auto-fulfillment для всех провайдеров
-> - ✅ p11_frontend_address_management — UI адресов, выбор при checkout, real-time статусы
-> - ✅ p11_testing_addresses_tracking — 27 тестов (unit + integration), все проходят
-> - ✅ p12_backend_migration_images_fix — исправлена загрузка изображений при миграции (UUID, retry, валидация)
+> - ✅ p15_backend_redirect_fix — редиректы OpenCart с query string, seed скрипт
+> - ✅ p15_frontend_opencart_redirect — глобальный interceptor для `index.php`
+> - ✅ p16_backend_c2c_shipment — API для карточки отправки Ozon/WB
+> - ✅ p16_frontend_c2c_card — страница заказа в админке с инструкцией и deeplink
 >
 > **Новые API endpoints:**
-> - GET/POST/PATCH/DELETE /api/v1/users/me/addresses — CRUD адресов доставки
-> - POST /api/v1/users/me/addresses/{id}/set-default — установить адрес по умолчанию
-> - POST /api/v1/webhooks/delivery/{provider} — webhook для обновления статусов
+> - GET /api/v1/delivery/orders/{order_id}/c2c-shipment — карточка C2C отправки
 >
 > **Функциональность:**
-> - Пользователь может сохранять несколько адресов доставки с метками ("Другу", "На работу")
-> - Выбор сохранённого адреса при оформлении заказа
-> - Автоматическое создание отправлений через API провайдеров (CDEK, Почта)
-> - Генерация tracking URLs для всех провайдеров (CDEK, Почта, Ozon, WB)
-> - Real-time обновление статусов заказов (webhook + polling каждые 6 часов)
-> - Уведомления при изменении статуса (shipped, delivered)
+> - Автоматический редирект со старых URL OpenCart на новые страницы блога/товаров
+> - Генерация карточки отправки для Ozon C2C и Wildberries с deeplink в моб. приложения
+> - Инструкции для оператора по приему C2C отправлений
 >
 > **Ozon и WB переделаны:**
 > - Убраны API для селлеров
