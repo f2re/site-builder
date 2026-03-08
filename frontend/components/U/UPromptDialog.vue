@@ -159,7 +159,7 @@ onUnmounted(() => {
 .prompt-overlay {
   position: fixed;
   inset: 0;
-  z-index: var(--z-modal);
+  z-index: var(--z-dialog);
   background: var(--color-overlay);
   backdrop-filter: blur(4px);
   display: flex;

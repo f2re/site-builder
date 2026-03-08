@@ -263,28 +263,38 @@ E2E подграф (параллельно с p8):
 
 | task_id | Агент | Титул | Статус | Приоритет |
 |---|---|---|---|------|
-| **p23_backend_user_search_fix** | backend-agent | Fix Admin User Search - Add Name Search Support | ⏳ PENDING | high |
-| **p24_backend_address_import** | backend-agent | Import Customer Addresses from OpenCart | ⏳ PENDING (depends: p23) | medium |
+| **p23_backend_user_search_fix** | backend-agent | Fix Admin User Search - Multi-Field Search Support | ✅ DONE | high |
+| **p24_backend_address_import** | backend-agent | Import Customer Addresses from OpenCart | ✅ DONE | medium |
+| **p25_frontend_modal_zindex_fix** | frontend-agent | Fix Modal Z-Index - Dialogs Under Edit Windows | ⏳ PENDING | high |
+| **p26_frontend_migration_page_init** | frontend-agent | Fix Migration Page Direct Load - Empty Page Issue | ⏳ PENDING | high |
 
-### Проблемы:
-1. **Поиск не работает**: Frontend отправляет `q=Alexand`, backend ожидает `search`
-2. **Поиск только по email**: Текущая реализация ищет только по точному email через blind index
-3. **Имена зашифрованы**: full_name зашифровано, поиск по имени невозможен
-4. **Адреса не импортируются**: Нет логики импорта адресов из oc_address
+### Реализовано (p23 + p24):
+- ✅ Добавлены normalized поля: `email_normalized`, `full_name_normalized`, `phone_normalized`
+- ✅ Миграция 4254e8446d9d с индексами для быстрого поиска
+- ✅ UserRepository.list_users() ищет по всем полям через ILIKE + blind index
+- ✅ UserRepository.create() и update() заполняют normalized поля
+- ✅ Admin router принимает параметр `q` (алиас для `search`)
+- ✅ OCAddress модель добавлена в opencart_models.py
+- ✅ DeliveryAddress расширена: AddressType.COURIER, DeliveryProvider.MANUAL, oc_address_id
+- ✅ MigrationService.migrate_addresses() импортирует адреса после пользователей
+- ✅ Миграция пользователей заполняет все normalized поля
 
-### Решение:
-- Добавить параметр `q` как алиас для `search`
-- Добавить поле `full_name_normalized` (незашифрованное, lowercase)
-- Реализовать ILIKE поиск по `full_name_normalized`
-- Импортировать адреса из OpenCart после исправления поиска
+### Верификация:
+- ruff: ✅ | mypy: ✅ (144 files) | alembic heads: ✅
 
-### Порядок запуска:
+### Отчёты:
+- [backend/p23_backend_user_search_fix.md](.claude/agents/reports/backend/p23_backend_user_search_fix.md)
+- [backend/p24_backend_address_import.md](.claude/agents/reports/backend/p24_backend_address_import.md)
+
+### Новые проблемы (Frontend):
+1. **Z-index модалов**: Confirm/prompt диалоги отображаются ПОД окном редактирования пользователя
+2. **Страница миграций**: При прямом открытии /admin/migration страница пустая, данные не загружаются
+
+### Порядок запуска (Frontend):
 ```
-# Шаг 1:
-/agents:run backend-agent p23_backend_user_search_fix
-
-# Шаг 2 — после завершения p23:
-/agents:run backend-agent p24_backend_address_import
+# Параллельно:
+/agents:run frontend-agent p25_frontend_modal_zindex_fix
+/agents:run frontend-agent p26_frontend_migration_page_init
 ```
 
 ---

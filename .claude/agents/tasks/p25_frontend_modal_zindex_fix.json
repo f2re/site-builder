@@ -1,0 +1,23 @@
+{
+  "task_id": "p25_frontend_modal_zindex_fix",
+  "agent": "frontend-agent",
+  "title": "Fix Modal Z-Index - Dialogs Under Edit Windows",
+  "description": "Всплывающие окна подтверждения (confirm dialogs) находятся ПОД окном редактирования пользователя.\n\nПроблема:\n- Когда администратор редактирует пользователя и пытается удалить адрес или выполнить другое действие\n- Всплывающие окна подтверждения (UConfirmDialog, UPromptDialog) отображаются ПОД модальным окном редактирования\n- Пользователь не может взаимодействовать с подтверждением\n\nТребуется:\n1. Проверить z-index всех модальных компонентов:\n   - UConfirmDialog\n   - UPromptDialog\n   - Модальные окна редактирования (user edit, address edit)\n2. Установить правильную иерархию z-index:\n   - Base modals: z-index: 1000\n   - Confirm/Prompt dialogs: z-index: 2000 (должны быть поверх всех модалов)\n   - Toasts: z-index: 3000\n3. Проверить все страницы админки, где используются вложенные модалы\n4. Убедиться, что backdrop (overlay) также имеет правильный z-index\n\nФайлы для проверки:\n- components/U/UConfirmDialog.vue\n- components/U/UPromptDialog.vue\n- pages/admin/users/[id].vue (если есть модал редактирования)\n- assets/css/tokens.css (z-index переменные)\n\nImplementation:\n- Добавить CSS переменные для z-index в tokens.css\n- Обновить стили модальных компонентов\n- Тестировать вложенные модалы",
+  "priority": "high",
+  "status": "pending",
+  "depends_on": [],
+  "acceptance_criteria": [
+    "UConfirmDialog имеет z-index выше всех модальных окон",
+    "UPromptDialog имеет z-index выше всех модальных окон",
+    "Backdrop (overlay) confirm/prompt имеет правильный z-index",
+    "При редактировании пользователя confirm dialog виден поверх",
+    "При удалении адреса confirm dialog виден поверх",
+    "Все вложенные модалы работают корректно",
+    "npm run lint passes",
+    "npm run type-check passes"
+  ],
+  "zone": "frontend/components/U/, frontend/assets/css/",
+  "contracts": [
+    "frontend/CLAUDE.md"
+  ]
+}

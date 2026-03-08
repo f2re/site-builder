@@ -29,8 +29,6 @@ interface MigrationStatus {
 }
 
 // State
-const status = ref<MigrationStatus | null>(null)
-const isLoading = ref(true)
 const isActionPending = ref(false)
 const isResetPending = ref(false)
 const refreshInterval = ref<NodeJS.Timeout | null>(null)
@@ -43,6 +41,9 @@ const isMigrationStale = ref(false)
 const { add: addToast } = useToast()
 const { confirm } = useConfirm()
 const apiFetch = useApiFetch()
+
+// SSR-compatible initial data load
+const { data: status, pending: isLoading, refresh: refreshStatus } = await useApi<MigrationStatus>('/admin/migration/status')
 
 // Stale detection watchEffect
 watchEffect(() => {
@@ -66,16 +67,12 @@ watchEffect(() => {
 // API Methods
 const fetchStatus = async () => {
   try {
-    const { data, error } = await useApi<MigrationStatus>('/admin/migration/status')
-    if (error.value) throw error.value
-    if (data.value) {
-      status.value = data.value
-      // Adjust polling based on status
-      if (status.value.overall_status === 'RUNNING') {
-        startPolling(2000)
-      } else {
-        startPolling(15000) // Slower polling when idle/paused/completed
-      }
+    await refreshStatus()
+    // Adjust polling based on status
+    if (status.value?.overall_status === 'RUNNING') {
+      startPolling(2000)
+    } else {
+      startPolling(15000) // Slower polling when idle/paused/completed
     }
   } catch (err: any) {
     console.error('Migration status fetch error:', err)
@@ -87,8 +84,6 @@ const fetchStatus = async () => {
         message: err.message || 'Не удалось загрузить данные миграции'
       })
     }
-  } finally {
-    isLoading.value = false
   }
 }
 
@@ -148,7 +143,6 @@ const resetMigration = async () => {
   try {
     await apiFetch('/admin/migration/reset', { method: 'DELETE' })
     addToast({ type: 'success', title: 'Данные очищены' })
-    status.value = null
     startPolling(15000)
     await fetchStatus()
   } catch (err: any) {

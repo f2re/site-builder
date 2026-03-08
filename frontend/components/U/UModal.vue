@@ -128,7 +128,7 @@ onUnmounted(() => {
 .u-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 12000;
+  z-index: var(--z-modal);
   background: var(--color-overlay);
   backdrop-filter: blur(4px);
   display: flex;

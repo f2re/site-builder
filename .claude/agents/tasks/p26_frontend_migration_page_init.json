@@ -1,0 +1,22 @@
+{
+  "task_id": "p26_frontend_migration_page_init",
+  "agent": "frontend-agent",
+  "title": "Fix Migration Page Direct Load - Empty Page Issue",
+  "description": "Страница миграций не загружается при прямом открытии URL.\n\nПроблема:\n- Если открыть https://m.wifiobd.ru/admin/migration напрямую (прямая ссылка, обновление страницы)\n- Страница отображается пустой, миграции не загружаются\n- Если сначала открыть другую страницу админки, а потом перейти на миграции через кнопку - всё работает\n\nВозможные причины:\n1. SSR/CSR mismatch - данные не загружаются на сервере\n2. Проблема с middleware auth - блокирует загрузку\n3. Проблема с инициализацией stores (themeStore, authStore)\n4. API вызов fetchStatus() не выполняется при SSR\n5. Проблема с pageTransition: false\n\nТребуется:\n1. Проверить frontend/pages/admin/migration.vue:\n   - onMounted() hook\n   - fetchStatus() вызов\n   - middleware: 'auth'\n2. Проверить SSR поведение:\n   - Добавить console.log для отладки\n   - Проверить, вызывается ли onMounted при прямом открытии\n3. Проверить middleware/auth.ts:\n   - Не блокирует ли загрузку данных\n4. Возможное решение:\n   - Использовать useAsyncData для SSR-совместимой загрузки\n   - Или добавить client-only wrapper\n   - Или исправить инициализацию в onMounted\n\nФайлы для проверки:\n- frontend/pages/admin/migration.vue\n- frontend/middleware/auth.ts\n- frontend/composables/useApi.ts\n\nImplementation:\n- Исследовать проблему с SSR\n- Исправить загрузку данных при прямом открытии\n- Тестировать прямое открытие URL",
+  "priority": "high",
+  "status": "pending",
+  "depends_on": [],
+  "acceptance_criteria": [
+    "Прямое открытие /admin/migration загружает данные",
+    "Обновление страницы (F5) работает корректно",
+    "Данные миграций отображаются при первой загрузке",
+    "Polling работает после загрузки",
+    "SSR не вызывает ошибок",
+    "npm run lint passes",
+    "npm run type-check passes"
+  ],
+  "zone": "frontend/pages/admin/, frontend/middleware/",
+  "contracts": [
+    "frontend/CLAUDE.md"
+  ]
+}

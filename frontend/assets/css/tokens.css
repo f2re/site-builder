@@ -64,6 +64,7 @@
   --z-raised:  10;
   --z-overlay: 100;
   --z-modal:   200;
+  --z-dialog:  250;
   --z-toast:   300;
   --z-tooltip: 400;
 }
