@@ -1,5 +1,6 @@
 import os
 import time
+import uuid
 import requests
 import pytest
 from playwright.sync_api import Browser, BrowserContext, Page, Locator, expect
@@ -188,6 +189,29 @@ def customer_page(browser: Browser, customer_token: str):
     yield pg
     pg.close()
     ctx.close()
+
+
+@pytest.fixture(scope="session")
+def test_product(admin_token: str):
+    """Create a test product via API before shop/cart tests, delete after session."""
+    slug = f"e2e-test-product-{uuid.uuid4().hex[:8]}"
+    payload = {
+        "name": "E2E Test OBD2 Adapter",
+        "slug": slug,
+        "description": "Тестовый товар для E2E тестов",
+        "is_active": True,
+        "variants": [{"name": "По умолчанию", "sku": f"E2E-{slug}", "price": 1500.0, "stock_quantity": 10}]
+    }
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    create_resp = requests.post(f"{API_URL}/api/v1/admin/products", json=payload, headers=headers, timeout=15)
+    if create_resp.status_code not in (200, 201):
+        pytest.skip(f"Cannot create test product: {create_resp.status_code} {create_resp.text}")
+    product = create_resp.json()
+    yield product
+    # Cleanup
+    product_id = product.get("id")
+    if product_id:
+        requests.delete(f"{API_URL}/api/v1/admin/products/{product_id}", headers=headers, timeout=10)
 
 
 @pytest.fixture

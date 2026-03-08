@@ -34,11 +34,10 @@ def test_admin_create_product(admin_page: Page):
     fill_element(admin_page, "10", "admin-product-stock")
     
     # Сохраняем
-    with admin_page.expect_navigation(timeout=15000):
-        click_element(admin_page, "admin-save-btn")
-    
-    # Редирект идет на /admin/products/{id} (страницу редактирования)
-    expect(admin_page).to_have_url(re.compile(r".*/admin/products/[0-9a-f-]+"))
+    click_element(admin_page, "admin-save-btn")
+
+    # Wait for redirect to edit page
+    admin_page.wait_for_url(re.compile(r".*/admin/products/[0-9a-f-]+"), timeout=20000)
     admin_page.screenshot(path="tests/e2e/screenshots/03_admin_product_created.png")
 
 def test_admin_delete_product(admin_page: Page):

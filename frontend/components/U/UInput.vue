@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, useId } from 'vue'
 
 interface Props {
   modelValue: string | number | null | undefined
@@ -30,7 +30,8 @@ const onInput = (e: Event) => {
   emit('update:modelValue', target.value)
 }
 
-const inputId = computed(() => props.id || props.name || `input-${Math.random().toString(36).slice(2, 9)}`)
+const _autoId = useId()
+const inputId = computed(() => props.id || props.name || _autoId)
 
 // Safe value for the input element
 const displayValue = computed(() => props.modelValue ?? '')

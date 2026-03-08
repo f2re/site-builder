@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed, useId } from 'vue'
+
 interface Props {
   modelValue: string
   label?: string
@@ -6,6 +8,7 @@ interface Props {
   disabled?: boolean
   error?: string
   name?: string
+  id?: string
   rows?: number
 }
 
@@ -24,14 +27,17 @@ const emit = defineEmits<{
 const onInput = (e: Event) => {
   emit('update:modelValue', (e.target as HTMLTextAreaElement).value)
 }
+
+const _autoId = useId()
+const inputId = computed(() => props.id || props.name || _autoId)
 </script>
 
 <template>
   <div class="input-wrapper" :class="{ 'input-wrapper--error': error, 'input-wrapper--disabled': disabled }">
-    <label v-if="label" :for="name" class="input-label">{{ label }}</label>
+    <label v-if="label" :for="inputId" class="input-label">{{ label }}</label>
     <div class="input-container">
       <textarea
-        :id="name"
+        :id="inputId"
         :name="name"
         :value="modelValue"
         :placeholder="placeholder"

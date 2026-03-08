@@ -1,0 +1,19 @@
+{
+  "task_id": "bugfix_frontend_hydration_ids",
+  "phase": "bugfix",
+  "agent": "frontend-agent",
+  "title": "Fix SSR hydration mismatch: stable IDs for UInput in admin forms",
+  "description": "Fix Vue SSR hydration mismatch warnings caused by UInput generating random IDs (like 'input-i2qtifm') that differ between SSR and client renders.\n\nThe error: '[Vue warn]: Hydration attribute mismatch on JSHandle@node: rendered on server: id=\"input-i2qtifm\", expected on client: id=\"input-a738lt2\"'\n\nRoot cause: UInput (in components/U/UInput.vue) generates random IDs internally using Math.random() or similar. When SSR renders with one ID and client hydrates with another, Vue warns.\n\nFix: In components/U/UInput.vue, use Vue 3's `useId()` composable (available in Vue 3.5+) to generate stable, deterministic IDs that are consistent between SSR and client. Replace the current random ID generation with `const inputId = useId()`.\n\nIf useId() is not available (Vue < 3.5), use a prop fallback: accept an optional `id` prop and use it when provided, falling back to a computed stable ID based on component label.\n\nAlso check components/U/UTextarea.vue for the same issue (UTextarea also shows this warning) and apply the same fix.\n\nDo NOT change any page files or store files — only touch the U/UInput.vue and U/UTextarea.vue components.\n\nVerify with: cd frontend && npm run type-check",
+  "depends_on": [],
+  "priority": "medium",
+  "files_to_modify": [
+    "frontend/components/U/UInput.vue",
+    "frontend/components/U/UTextarea.vue"
+  ],
+  "acceptance_criteria": [
+    "UInput.vue uses useId() or stable ID generation",
+    "UTextarea.vue uses useId() or stable ID generation",
+    "npm run type-check passes",
+    "No 'Hydration attribute mismatch' warnings for input IDs"
+  ]
+}

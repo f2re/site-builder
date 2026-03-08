@@ -2,7 +2,7 @@
 from playwright.sync_api import Page, expect
 from conftest import BASE_URL, fill_element, click_element
 
-def test_shop_page_loads(page: Page):
+def test_shop_page_loads(page: Page, test_product):
     """Страница каталога загружается и отображает товары."""
     page.goto(f"{BASE_URL}/products")
     page.wait_for_load_state("networkidle")
@@ -30,7 +30,7 @@ def test_search_products(page: Page):
         assert count >= 1, "Поиск по 'OBD2' не дал результатов"
     page.screenshot(path="tests/e2e/screenshots/04_search.png")
 
-def test_product_detail_page(page: Page):
+def test_product_detail_page(page: Page, test_product):
     """Переход на детальную страницу товара."""
     page.goto(f"{BASE_URL}/products")
     page.wait_for_load_state("networkidle")

@@ -1,0 +1,20 @@
+{
+  "task_id": "bugfix_e2e_fixtures_and_tests",
+  "phase": "bugfix",
+  "agent": "testing-agent",
+  "title": "Fix E2E: add test_product fixture and repair brittle test patterns",
+  "description": "Fix two root causes of E2E test failures:\n\n**Problem 1: No test data in dev DB**\nTests in test_04_shop.py and test_05_cart.py expect [data-testid='product-card'] but local dev DB has no products. Fix: add a session-scoped `test_product` fixture in tests/e2e/conftest.py that:\n- Creates a product via POST http://localhost:8000/api/v1/admin/products (JSON, with admin token)\n- Yields the product dict (id, slug, name)\n- Deletes the product after session via DELETE /api/v1/admin/products/{id}\nThe fixture must use `admin_token` (already exists in conftest).\nMake it a pytest.fixture(scope='session') available to all tests.\n\n**Problem 2: Brittle expect_navigation in test_admin_create_product**\nIn tests/e2e/test_03_admin_products.py, line 37:\n  `with admin_page.expect_navigation(timeout=15000):`\nThis is too fragile. Replace with:\n1. Click the save button\n2. Wait for URL to match the expected pattern using `admin_page.wait_for_url(re.compile(r'.*/admin/products/[0-9a-f-]+'), timeout=20000)`\nThis is more robust — it doesn't require navigation to start immediately.\n\n**Problem 3: test_04_shop.py — make it use fixture**\nAdd the `test_product` fixture as a parameter to `test_shop_page_loads`, `test_product_detail_page`.\nThe fixture creates a product, so these tests will find at least 1 card.\n\nDo NOT change conftest fixtures for admin_token/customer_token.\nDo NOT use wait_for_timeout() as a fix.\nCreate tests/e2e/screenshots/ directory if it doesn't exist.",
+  "depends_on": [],
+  "priority": "high",
+  "files_to_modify": [
+    "tests/e2e/conftest.py",
+    "tests/e2e/test_03_admin_products.py",
+    "tests/e2e/test_04_shop.py"
+  ],
+  "acceptance_criteria": [
+    "conftest.py has test_product fixture (session scope) that creates and deletes via API",
+    "test_admin_create_product uses wait_for_url instead of expect_navigation",
+    "test_shop_page_loads accepts test_product fixture parameter",
+    "tests/e2e/screenshots/ directory exists"
+  ]
+}
