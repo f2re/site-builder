@@ -1,0 +1,18 @@
+{
+  "task_id": "p27_backend_migration_products_fix",
+  "phase": 27,
+  "agent": "backend-agent",
+  "title": "Исправить ROLLBACK при миграции продуктов и Decimal в Meilisearch",
+  "description": "Два независимых дефекта в одном домене.\n\n### Дефект 1 — ROLLBACK при миграции продуктов\n\nФайл: backend/app/api/v1/admin/migration_service.py, метод migrate_catalog()\n\nПроблема: в цикле обработки продуктов (строки 745-930) нет индивидуального try/except вокруг каждого продукта. Если один продукт вызывает IntegrityError (например, дублирующийся slug или sku), весь батч откатывается (ROLLBACK). Ни один продукт из батча не сохраняется.\n\nВ методе migrate_users() (строки 570-599) такой try/except есть — нужно применить тот же паттерн в migrate_catalog().\n\nИсправление:\n- Обернуть обработку каждого oc_prod в try/except Exception\n- В except: await self.session.rollback(), skipped += 1, logger.warning с oc_product_id и error\n- После rollback — продолжить цикл (continue)\n- Важно: flush делать после каждого продукта внутри try-блока (await self.session.flush())\n\n### Дефект 2 — Decimal not JSON serializable в Meilisearch\n\nФайл: backend/app/tasks/search.py, строка 113\n\nПроблема: ProductVariant.price объявлен как Numeric(precision=10, scale=2) в SQLAlchemy — при чтении из БД возвращается Python Decimal, а не float. Meilisearch SDK не умеет сериализовать Decimal в JSON.\n\nОшибка: TypeError: Object of type Decimal is not JSON serializable\nМесто: await index.add_documents(documents) на строке 121\n\nИсправление в sync_products_to_meilisearch_task (строки 104-116):\n- Строка 113: `\"price\": float(min([v.price for v in p.variants])) if p.variants else 0.0`\n- Проверить все остальные поля документа на наличие Decimal и привести к float\n- Также исправить в index_product_task (строка 17): если product_data передаётся как dict и содержит Decimal — добавить конвертацию через вспомогательную функцию:\n```python\ndef _sanitize_for_json(data: dict) -> dict:\n    from decimal import Decimal\n    return {k: float(v) if isinstance(v, Decimal) else v for k, v in data.items()}\n```\n\nФайлы для изменения:\n1. backend/app/api/v1/admin/migration_service.py — метод migrate_catalog(), добавить try/except\n2. backend/app/tasks/search.py — функции sync_products_to_meilisearch_task и index_product_task",
+  "depends_on": [],
+  "priority": "high",
+  "contracts_required": [".claude/agents/contracts/api_contracts.md"],
+  "acceptance_criteria": [
+    "В migrate_catalog() каждый продукт обёрнут в try/except с rollback и logger.warning",
+    "После ошибки одного продукта цикл продолжается для следующих продуктов батча",
+    "В sync_products_to_meilisearch_task поле price приводится к float() перед передачей в add_documents",
+    "В index_product_task добавлена защита от Decimal в dict через _sanitize_for_json или аналог",
+    "ruff check app/ — без ошибок",
+    "mypy app/ --ignore-missing-imports — без новых ошибок"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "task_id": "p12_frontend_admin_dashboard",
+  "phase": 7,
+  "agent": "frontend-agent",
+  "title": "Implement Admin Dashboard Analytics and Widgets",
+  "description": "Replace placeholders in the admin dashboard with functional sales charts, 'Requires Attention' section, and a 'Last Orders' widget with period selector.",
+  "depends_on": ["p12_backend_admin_stats"],
+  "priority": "high",
+  "contracts_required": [],
+  "acceptance_criteria": [
+    "Functional Sales Chart for last 30 days is visible on the dashboard.",
+    "'Requires Attention' cards show counts for NEW, UNPAID, SHIPPED, PROBLEM orders.",
+    "Last Orders widget displays list of orders for selected period.",
+    "Period selector works for 10, 30, and 90 days.",
+    "Layout is responsive and follows mobile-first design.",
+    "The code passes npm run lint."
+  ]
+}

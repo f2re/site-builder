@@ -1,4 +1,4 @@
-# Module: api/v1/blog/schemas.py | Agent: backend-agent | Task: p13_backend_blog_refinement
+# Module: api/v1/blog/schemas.py | Agent: backend-agent | Task: p28_backend_blog_categories
 from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field, EmailStr
 from uuid import UUID
@@ -21,7 +21,20 @@ class BlogCategoryRead(BaseModel):
     name: str
     slug: str
     description: Optional[str] = None
+    posts_count: int = 0
     model_config = ConfigDict(from_attributes=True)
+
+
+class BlogCategoryCreate(BaseModel):
+    name: str
+    slug: str
+    description: Optional[str] = None
+
+
+class BlogCategoryUpdate(BaseModel):
+    name: Optional[str] = None
+    slug: Optional[str] = None
+    description: Optional[str] = None
 
 class TagRead(BaseModel):
     id: UUID

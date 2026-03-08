@@ -1,5 +1,6 @@
 # Module: tasks/search.py | Agent: backend-agent | Task: p11_backend_002
 import asyncio
+from decimal import Decimal
 from typing import Any, Dict
 
 from meilisearch_python_sdk import AsyncClient
@@ -13,16 +14,22 @@ from app.db.session import AsyncSessionLocal
 from app.tasks.celery_app import celery_app
 
 
+def _sanitize_for_json(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert Decimal values to float so Meilisearch can serialize the document."""
+    return {k: float(v) if isinstance(v, Decimal) else v for k, v in data.items()}
+
+
 @celery_app.task(name="tasks.index_product")
 def index_product_task(product_data: Dict[str, Any]) -> None:
     """
     Index a single product in Meilisearch.
     """
+    safe_data = _sanitize_for_json(product_data)
 
     async def _index() -> None:
         async with AsyncClient(settings.MEILISEARCH_HOST, settings.MEILISEARCH_API_KEY) as client:
             index = client.index("products")
-            await index.add_documents([product_data])
+            await index.add_documents([safe_data])
 
     try:
         asyncio.run(_index())
@@ -110,7 +117,7 @@ def sync_products_to_meilisearch_task() -> None:
                     "slug": p.slug,
                     "description": p.description,
                     "category": p.category.name if p.category else None,
-                    "price": min([v.price for v in p.variants]) if p.variants else 0,
+                    "price": float(min([v.price for v in p.variants])) if p.variants else 0,
                     "in_stock": any(v.stock_quantity > 0 for v in p.variants),
                 }
                 documents.append(doc)

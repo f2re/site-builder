@@ -1,0 +1,18 @@
+{
+  "task_id": "p27_backend_migration_users_addresses",
+  "phase": 27,
+  "agent": "backend-agent",
+  "title": "Исправить миграцию адресов пользователей из OpenCart",
+  "description": "В методе migrate_addresses() в файле backend/app/api/v1/admin/migration_service.py есть две проблемы:\n\n1. ОТСУТСТВИЕ ПАГИНАЦИИ: метод загружает ВСЕ адреса одним запросом без LIMIT (строка 623: select(OCAddress).order_by(OCAddress.address_id)). При большой базе это вызывает OOM или timeout. Нужно добавить cursor-based пагинацию аналогично migrate_users: читать по self.batch_size записей, хранить last_oc_id, возвращать bool для retrigger.\n\n2. ОТСУТСТВИЕ ИНДИВИДУАЛЬНОГО try/except: если один адрес вызывает ошибку — вся сессия откатывается без логирования в job.errors. Нужно обернуть каждый адрес в try/except с rollback и продолжить цикл (аналогично migrate_users строки 570-599).\n\nФайлы для изменения:\n- backend/app/api/v1/admin/migration_service.py — метод migrate_addresses()\n- Подпись migrate_addresses должна принимать job: MigrationJob и возвращать bool (нужно ли retrigger)\n- Вызов migrate_addresses в run_batch (строка 500) должен быть обновлён: передавать job, обрабатывать retrigger\n\nАрхитектура исправления:\n- migrate_addresses(self, job: MigrationJob) -> bool\n- Читать: select(OCAddress).where(OCAddress.address_id > job.last_oc_id).order_by(OCAddress.address_id).limit(self.batch_size)\n- Cursor: job.last_oc_id = last_addr_id после каждого батча\n- Возвращать True если len(addresses) == self.batch_size\n- В run_batch: если not should_retrigger после migrate_users — запустить migrate_addresses как sub-phase через extra_data['addresses_done']\n\nMUST NOT: не трогать модели, не создавать миграции (DeliveryAddress модель уже существует в backend/app/db/models/delivery_address.py с полем oc_address_id).",
+  "depends_on": [],
+  "priority": "high",
+  "contracts_required": [".claude/agents/contracts/api_contracts.md"],
+  "acceptance_criteria": [
+    "migrate_addresses принимает job: MigrationJob и возвращает bool",
+    "Пагинация по self.batch_size записей через OCAddress.address_id > job.last_oc_id",
+    "Каждый адрес обёрнут в try/except с await self.session.rollback() и logger.warning",
+    "run_batch корректно orchestrates: users -> addresses (через extra_data['addresses_done']) -> DONE",
+    "ruff check app/ — без ошибок",
+    "mypy app/ --ignore-missing-imports — без новых ошибок"
+  ]
+}

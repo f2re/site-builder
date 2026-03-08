@@ -2,8 +2,8 @@
 
 Обновлено: 2026-03-08
 
-## Текущая фаза: 19 (OpenCart Address Migration)
-## Выполнено задач: 15 / 25 ✅
+## Текущая фаза: 27 (Migration Bug Fixes — users/addresses + products/Meilisearch)
+## Выполнено задач: 15 / 27 ✅
 
 ---
 
@@ -75,6 +75,30 @@ E2E подграф (параллельно с p8):
 
 Контракт data-testid: `.claude/agents/contracts/e2e_testid_contract.md`
 Отчёт testing-agent: `.claude/agents/reports/testing/p8_e2e_testing_001.md`
+
+---
+
+## Фаза 27 — Migration Bug Fixes (2026-03-08)
+
+| task_id | Агент | Титул | Статус | Приоритет |
+|---|---|---|---|---|
+| **p27_backend_migration_users_addresses** | backend-agent | Пагинация и try/except в migrate_addresses() | PENDING | high |
+| **p27_backend_migration_products_fix** | backend-agent | try/except в migrate_catalog() + Decimal в Meilisearch | PENDING | high |
+
+### Диагностика проблем
+
+**Проблема 1 (адреса):** `migrate_addresses()` загружает все адреса без LIMIT — OOM/timeout при большой базе. Нет индивидуального try/except — один плохой адрес откатывает весь набор без записи ошибки.
+
+**Проблема 2 (продукты ROLLBACK):** в `migrate_catalog()` нет try/except вокруг каждого продукта. Один IntegrityError (slug/sku дубликат) откатывает весь батч из 50 продуктов. В `migrate_users()` такой паттерн есть — нужен аналог.
+
+**Проблема 3 (Decimal/Meilisearch):** `ProductVariant.price` — тип `Numeric` → SQLAlchemy возвращает `Decimal`. В `sync_products_to_meilisearch_task` строка 113 `min([v.price for v in p.variants])` возвращает Decimal, не float. `add_documents()` падает с `TypeError: Object of type Decimal is not JSON serializable`.
+
+### Порядок запуска:
+```
+# Оба независимы — можно параллельно:
+/agents:run backend-agent p27_backend_migration_users_addresses
+/agents:run backend-agent p27_backend_migration_products_fix
+```
 
 ---
 

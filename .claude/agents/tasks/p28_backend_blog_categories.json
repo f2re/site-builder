@@ -1,0 +1,18 @@
+{
+  "task_id": "p28_backend_blog_categories",
+  "phase": 28,
+  "agent": "backend-agent",
+  "title": "Fix blog pagination cursor bug and expose blog categories via API",
+  "description": "Two backend issues to fix:\n\n## Issue 1 — Infinite pagination in blog\n\nFile: /Users/meteo/Documents/WWW/site-builder/backend/app/api/v1/blog/repository.py\n\nThe cursor-based pagination uses UUID comparison: `WHERE BlogPost.id > cursor ORDER BY BlogPost.id`. UUIDs are not sequentially ordered by insertion time (UUID v4 is random), so the `id > cursor` comparison does NOT correctly paginate. Posts may appear in wrong order or `next_cursor` may never exhaust all posts, causing infinite load.\n\nFix: change pagination to use `published_at` + `id` as composite cursor for stable ordering:\n- ORDER BY published_at DESC, id DESC\n- Cursor encodes (published_at, id) pair — encode as base64 JSON string\n- WHERE clause: (published_at, id) < (cursor_published_at, cursor_id)\n- next_cursor = base64-encode({published_at: items[-1].published_at.isoformat(), id: str(items[-1].id)}) if len(posts) > per_page else None\n\nAlso check /Users/meteo/Documents/WWW/site-builder/backend/app/api/v1/blog/service.py and /Users/meteo/Documents/WWW/site-builder/backend/app/api/v1/blog/router.py — verify the `next_cursor` is properly passed through to response.\n\nAlso check /Users/meteo/Documents/WWW/site-builder/backend/app/api/v1/blog/schemas.py — verify BlogListResponse has `next_cursor: str | None` and `total: int`.\n\n## Issue 2 — Blog categories API endpoint missing or not exposed\n\nModel BlogCategory exists in /Users/meteo/Documents/WWW/site-builder/backend/app/db/models/blog.py (table: blog_categories). The repository has `get_categories()` method. Need to verify:\n1. Does GET /api/v1/blog/categories endpoint exist in router.py?\n2. If not — add it. Response: list of {id, name, slug, description, post_count}\n3. The frontend admin needs to manage blog categories separately from product categories (table: categories). Blog categories are in blog_categories table.\n\nAdd endpoint GET /api/v1/admin/blog/categories if not present — admin endpoint to list/create/update/delete blog categories.\n\nFiles to check and modify:\n- /Users/meteo/Documents/WWW/site-builder/backend/app/api/v1/blog/repository.py\n- /Users/meteo/Documents/WWW/site-builder/backend/app/api/v1/blog/service.py\n- /Users/meteo/Documents/WWW/site-builder/backend/app/api/v1/blog/router.py\n- /Users/meteo/Documents/WWW/site-builder/backend/app/api/v1/blog/schemas.py",
+  "depends_on": [],
+  "priority": "high",
+  "contracts_required": [".claude/agents/contracts/api_contracts.md"],
+  "acceptance_criteria": [
+    "Blog list pagination stops when there are no more posts (next_cursor is null when all posts fetched)",
+    "Pagination order is stable and chronological (by published_at DESC)",
+    "GET /api/v1/blog/categories returns list of blog categories (not product categories)",
+    "GET /api/v1/admin/blog/categories endpoint exists for admin CRUD",
+    "ruff check passes",
+    "mypy passes"
+  ]
+}

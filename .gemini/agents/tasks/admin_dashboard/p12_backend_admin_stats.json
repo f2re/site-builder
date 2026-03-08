@@ -1,0 +1,17 @@
+{
+  "task_id": "p12_backend_admin_stats",
+  "phase": 4,
+  "agent": "backend-agent",
+  "title": "Enhance Admin Dashboard Analytics",
+  "description": "Update SalesAnalytics schema and get_dashboard endpoint to include daily stats for the last 30 days and attention_needed counts for specific order statuses.",
+  "depends_on": [],
+  "priority": "high",
+  "contracts_required": [],
+  "acceptance_criteria": [
+    "SalesAnalytics schema includes daily_stats: List[dict] with date, revenue, orders.",
+    "SalesAnalytics schema includes attention_needed: dict with counts for NEW, UNPAID, SHIPPED, PROBLEM.",
+    "get_dashboard (and /admin/stats) returns correct daily statistics for the last 30 days.",
+    "attention_needed counts reflect the actual number of orders in those statuses.",
+    "The code passes ruff and mypy checks."
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "task_id": "p28_devops_nginx_api_proxy",
+  "phase": 28,
+  "agent": "devops-agent",
+  "title": "Fix NUXT_PUBLIC_API_BASE env variable and nginx proxy for migration status",
+  "description": "Problem: GET https://m.wifiobd.ru/api/v1/admin/migration/status returns DNS error in browser. Root cause analysis:\n\n1. In .env.example: NUXT_PUBLIC_API_BASE=http://localhost:8000 (NO /api/v1 suffix)\n2. In nuxt.config.ts: the fallback value is 'http://localhost:8000/api/v1' WITH /api/v1 suffix\n3. In frontend/composables/useApi.ts (or similar): apiBase from runtimeConfig is used as prefix for all API calls\n4. The deploy/docker-compose.prod.yml uses env_file: /srv/site-builder/.env.prod for the frontend service — so NUXT_PUBLIC_API_BASE is read from .env.prod on the server, NOT hardcoded in compose\n5. If the admin set NUXT_PUBLIC_API_BASE=https://m.wifiobd.ru in .env.prod (without /api/v1), all requests go to https://m.wifiobd.ru/blog/posts which nginx cannot proxy to backend (nginx only proxies /api/ prefix)\n\nActions required:\n1. Fix .env.example line 105: change NUXT_PUBLIC_API_BASE=http://localhost:8000 to NUXT_PUBLIC_API_BASE=http://localhost:8000/api/v1 (add /api/v1 suffix to match the nuxt.config.ts fallback pattern)\n2. Add a comment above NUXT_PUBLIC_API_BASE in .env.example: '# REQUIRED: must include /api/v1 suffix. Production example: https://m.wifiobd.ru/api/v1'\n3. Verify nginx.conf location /api/ block — currently looks correct (proxies to backend:8000), no changes needed\n4. DO NOT modify docker-compose.prod.yml — frontend reads NUXT_PUBLIC_API_BASE from env_file /srv/site-builder/.env.prod on the server\n\nNote for user (add to report): The .env.prod on the production server must have NUXT_PUBLIC_API_BASE=https://m.wifiobd.ru/api/v1\n\nFiles to check and modify:\n- /Users/meteo/Documents/WWW/site-builder/.env.example (fix NUXT_PUBLIC_API_BASE value + add comment)\n- /Users/meteo/Documents/WWW/site-builder/deploy/nginx/nginx.conf (verify only, no changes expected)",
+  "depends_on": [],
+  "priority": "high",
+  "contracts_required": [],
+  "acceptance_criteria": [
+    ".env.example NUXT_PUBLIC_API_BASE includes /api/v1 suffix",
+    "deploy/docker-compose.prod.yml sets NUXT_PUBLIC_API_BASE=https://m.wifiobd.ru/api/v1 for frontend service",
+    "nginx.conf /api/ location block verified to proxy to backend:8000",
+    "docker compose config passes validation"
+  ]
+}

@@ -29,7 +29,6 @@ class OrderItemRead(OrderItemBase):
     price: Decimal
     
     @computed_field
-    @property
     def product_name(self) -> str:
         if hasattr(self, "product_variant") and self.product_variant:
             if hasattr(self.product_variant, "product") and self.product_variant.product:
@@ -38,14 +37,12 @@ class OrderItemRead(OrderItemBase):
         return "Unknown Product"
 
     @computed_field
-    @property
     def sku(self) -> Optional[str]:
         if hasattr(self, "product_variant") and self.product_variant:
             return self.product_variant.sku
         return None
 
     @computed_field
-    @property
     def image_url(self) -> Optional[str]:
         if hasattr(self, "product_variant") and self.product_variant:
             product = getattr(self.product_variant, "product", None)
@@ -82,21 +79,18 @@ class OrderRead(BaseModel):
     tracking_events: List[OrderTrackingEventRead] = []
 
     @computed_field
-    @property
     def user_full_name(self) -> Optional[str]:
         if hasattr(self, "user") and self.user:
             return self.user.full_name
         return None
 
     @computed_field
-    @property
     def user_email(self) -> Optional[str]:
         if hasattr(self, "user") and self.user:
             return self.user.email
         return None
 
     @computed_field
-    @property
     def user_phone(self) -> Optional[str]:
         if hasattr(self, "user") and self.user:
             return self.user.phone

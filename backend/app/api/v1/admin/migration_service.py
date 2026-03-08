@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 
 import bleach
 import httpx
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag as BSTag
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
@@ -123,7 +123,7 @@ class MigrationService:
                         if active_marks:
                             node["marks"] = [dict(m) for m in active_marks]
                         result.append(node)
-                elif child.name:
+                elif isinstance(child, BSTag) and child.name:
                     if child.name in ["script", "iframe"]:
                         continue
 
@@ -151,8 +151,9 @@ class MigrationService:
                     elif child.name == "br":
                         result.append({"type": "hardBreak"})
                     elif child.name == "img":
-                        src = child.get("src", "")
-                        if src and src.startswith("http") and client:
+                        src_val = child.get("src", "")
+                        src = src_val[0] if isinstance(src_val, list) else (src_val or "")
+                        if src and isinstance(src, str) and src.startswith("http") and client:
                             new_src = await self._download_image(client, src, "content")
                             if new_src:
                                 src = new_src
@@ -219,8 +220,9 @@ class MigrationService:
                 return {"type": "orderedList", "content": items}
 
             elif node.name == "img":
-                src = node.get("src", "")
-                if src and src.startswith("http") and client:
+                src_val = node.get("src", "")
+                src = src_val[0] if isinstance(src_val, list) else (src_val or "")
+                if src and isinstance(src, str) and src.startswith("http") and client:
                     new_src = await self._download_image(client, src, "content")
                     if new_src:
                         src = new_src
@@ -232,13 +234,13 @@ class MigrationService:
             return None
 
         body = soup.find("body")
-        if body:
+        if body and isinstance(body, BSTag):
             for child in body.children:
                 if isinstance(child, str):
                     text = child.strip()
                     if text:
                         content.append({"type": "paragraph", "content": [{"type": "text", "text": text}]})
-                elif child.name:
+                elif isinstance(child, BSTag) and child.name:
                     node_result = await process_node(child)
                     if node_result:
                         content.append(node_result)
@@ -496,8 +498,18 @@ class MigrationService:
             if job.entity == MigrationEntity.USERS:
                 should_retrigger = await self.migrate_users(job)
                 if not should_retrigger:
-                    # Users migration complete, now migrate addresses
-                    await self.migrate_addresses()
+                    # Users migration complete, now migrate addresses in batches
+                    metadata_u: Dict[str, Any] = job.extra_data or {}  # type: ignore[assignment]
+                    if not metadata_u.get("addresses_done"):
+                        addresses_retrigger = await self.migrate_addresses(job)
+                        if addresses_retrigger:
+                            should_retrigger = True
+                        else:
+                            metadata_u["addresses_done"] = True
+                            await self.repo.update_job_status(
+                                job.id, MigrationStatus.DONE, extra_data=metadata_u
+                            )
+                            await self.session.refresh(job)
             elif job.entity in [MigrationEntity.PRODUCTS, MigrationEntity.CATEGORIES]:
                 # First migrate information pages, then catalog
                 metadata: Dict[str, Any] = job.extra_data or {}  # type: ignore[assignment]
@@ -612,30 +624,51 @@ class MigrationService:
                 return False
             return True
 
-    async def migrate_addresses(self) -> None:
-        """Migrate customer addresses from OpenCart to delivery_addresses."""
-        from app.core.logging import logger
-        from app.core.security import encrypt_data, get_blind_index
-        from app.db.models.delivery_address import AddressType, DeliveryAddress, DeliveryProvider
-        from app.db.opencart_models import OCAddress, OCCustomer
+    async def migrate_addresses(self, job: MigrationJob) -> bool:
+        """Migrate customer addresses from OpenCart to delivery_addresses.
+
+        Uses cursor-based pagination via extra_data['addresses_last_id'].
+        Returns True if more batches remain, False when complete.
+        """
+        from app.core.logging import logger  # noqa: PLC0415
+        from app.core.security import encrypt_data, get_blind_index  # noqa: PLC0415
+        from app.db.models.delivery_address import AddressType, DeliveryAddress, DeliveryProvider  # noqa: PLC0415
+        from app.db.opencart_models import OCAddress, OCCustomer  # noqa: PLC0415
+
+        metadata: Dict[str, Any] = job.extra_data or {}  # type: ignore[assignment]
+        last_addr_id: int = int(metadata.get("addresses_last_id") or 0)
 
         async with OCAsyncSessionLocal() as oc_session:
-            stmt = select(OCAddress).order_by(OCAddress.address_id)
+            stmt = (
+                select(OCAddress)
+                .where(OCAddress.address_id > last_addr_id)
+                .order_by(OCAddress.address_id)
+                .limit(self.batch_size)
+            )
             result = await oc_session.execute(stmt)
             addresses = result.scalars().all()
 
+            if not addresses:
+                logger.info("migrate_addresses_complete", processed=0, skipped=0)
+                return False
+
             processed = 0
             skipped = 0
+            current_last_id = last_addr_id
 
             for oc_addr in addresses:
+                current_last_id = oc_addr.address_id
+
                 # Check idempotency
-                check_stmt = select(DeliveryAddress).where(DeliveryAddress.oc_address_id == oc_addr.address_id)
+                check_stmt = select(DeliveryAddress).where(
+                    DeliveryAddress.oc_address_id == oc_addr.address_id
+                )
                 existing = await self.session.execute(check_stmt)
                 if existing.scalar_one_or_none():
                     skipped += 1
                     continue
 
-                # Find user by customer_id
+                # Find customer in OpenCart
                 cust_stmt = select(OCCustomer).where(OCCustomer.customer_id == oc_addr.customer_id)
                 cust_result = await oc_session.execute(cust_stmt)
                 oc_cust = cust_result.scalar_one_or_none()
@@ -677,10 +710,29 @@ class MigrationService:
                 except Exception as exc:
                     await self.session.rollback()
                     skipped += 1
-                    logger.warning("migrate_addresses_skip", oc_address_id=oc_addr.address_id, error=str(exc))
+                    logger.warning(
+                        "migrate_addresses_skip",
+                        oc_address_id=oc_addr.address_id,
+                        error=str(exc),
+                    )
+
+            job.skipped += skipped
+            job.processed += processed
+
+            # Persist cursor into extra_data
+            metadata["addresses_last_id"] = current_last_id
+            job.extra_data = metadata
 
             await self.session.commit()
-            logger.info("migrate_addresses_complete", processed=processed, skipped=skipped)
+            logger.info(
+                "migrate_addresses_batch",
+                processed=processed,
+                skipped=skipped,
+                last_addr_id=current_last_id,
+            )
+
+            # Retrigger if full batch fetched
+            return len(addresses) == self.batch_size
 
     async def migrate_catalog(self, job: MigrationJob) -> bool:
         from app.core.logging import logger  # noqa: PLC0415
@@ -743,189 +795,201 @@ class MigrationService:
 
             async with httpx.AsyncClient() as client:
                 for oc_prod in products:
-                    # Get description
-                    desc_stmt = select(OCProductDescription).where(
-                        OCProductDescription.product_id == oc_prod.product_id,
-                        OCProductDescription.language_id == settings.OC_LANGUAGE_ID,
-                    )
-                    desc_res = await oc_session.execute(desc_stmt)
-                    oc_desc = desc_res.scalar_one_or_none()
+                    try:
+                        # Get description
+                        desc_stmt = select(OCProductDescription).where(
+                            OCProductDescription.product_id == oc_prod.product_id,
+                            OCProductDescription.language_id == settings.OC_LANGUAGE_ID,
+                        )
+                        desc_res = await oc_session.execute(desc_stmt)
+                        oc_desc = desc_res.scalar_one_or_none()
 
-                    # Get all category links for this product
-                    link_stmt = select(OCProductToCategory.category_id).where(
-                        OCProductToCategory.product_id == oc_prod.product_id
-                    )
-                    link_res = await oc_session.execute(link_stmt)
-                    oc_cat_ids: list[int] = [row[0] for row in link_res.all()]
+                        # Get all category links for this product
+                        link_stmt = select(OCProductToCategory.category_id).where(
+                            OCProductToCategory.product_id == oc_prod.product_id
+                        )
+                        link_res = await oc_session.execute(link_stmt)
+                        oc_cat_ids: list[int] = [row[0] for row in link_res.all()]
 
-                    # --- 4b: Route to BlogPost or Product ---
-                    is_blog = any(cid in blog_category_oc_ids for cid in oc_cat_ids)
+                        # --- 4b: Route to BlogPost or Product ---
+                        is_blog = any(cid in blog_category_oc_ids for cid in oc_cat_ids)
 
-                    if is_blog:
-                        # Blog idempotency check
-                        blog_check_stmt = select(BlogPost).where(BlogPost.oc_product_id == oc_prod.product_id)
-                        existing_blog = await self.session.execute(blog_check_stmt)
-                        if existing_blog.scalar_one_or_none():
-                            skipped += 1
-                        elif system_author is None:
-                            logger.warning(
-                                "migrate_catalog_skip_blog_no_author",
-                                oc_product_id=oc_prod.product_id,
-                            )
-                            skipped += 1
-                        else:
-                            title = oc_desc.name if oc_desc else f"Post {oc_prod.product_id}"
-                            slug = self._slugify(title)
-                            slug = await self._ensure_unique_slug(BlogPost, slug)
-
-                            cover_image: Optional[str] = None
-                            if oc_prod.image:
-                                image_url = f"{settings.OC_SITE_URL.rstrip('/')}/image/{oc_prod.image}"
-                                cover_image = await self._download_image(client, image_url, "blog")
-
-                            # Preserve more HTML for blog posts
-                            raw_html = oc_desc.description or "" if oc_desc else ""
-                            cleaned_html = bleach.clean(raw_html, tags=_BLEACH_ALLOWED_TAGS, strip=False)
-                            content_json = await self._html_to_tiptap(cleaned_html, client)
-
-                            new_post = BlogPost(
-                                title=title,
-                                slug=slug,
-                                content_html=cleaned_html,
-                                content_json=content_json,
-                                status=(
-                                    BlogPostStatus.PUBLISHED if oc_prod.status else BlogPostStatus.DRAFT
-                                ),
-                                published_at=(
-                                    oc_prod.date_added.replace(tzinfo=timezone.utc)
-                                    if oc_prod.date_added
-                                    else datetime.now(timezone.utc)
-                                ),
-                                oc_product_id=oc_prod.product_id,
-                                author_id=system_author.id,
-                                cover_image=cover_image,
-                            )
-
-                            # Parse tags from meta_keyword
-                            raw_keywords = (oc_desc.meta_keyword or "") if oc_desc else ""
-                            tag_names: list[str] = [
-                                t.strip() for t in re.split(r"[,\s]+", raw_keywords) if t.strip()
-                            ]
-                            tag_names.append("импорт")
-
-                            # Add category name as tag
-                            for oc_cid in oc_cat_ids:
-                                cat_desc_stmt2 = select(OCCategoryDescription).where(
-                                    OCCategoryDescription.category_id == oc_cid,
-                                    OCCategoryDescription.language_id == settings.OC_LANGUAGE_ID,
+                        if is_blog:
+                            # Blog idempotency check
+                            blog_check_stmt = select(BlogPost).where(BlogPost.oc_product_id == oc_prod.product_id)
+                            existing_blog = await self.session.execute(blog_check_stmt)
+                            if existing_blog.scalar_one_or_none():
+                                skipped += 1
+                            elif system_author is None:
+                                logger.warning(
+                                    "migrate_catalog_skip_blog_no_author",
+                                    oc_product_id=oc_prod.product_id,
                                 )
-                                cat_desc_res2 = await oc_session.execute(cat_desc_stmt2)
-                                cd2 = cat_desc_res2.scalar_one_or_none()
-                                if cd2:
-                                    tag_names.append(cd2.name)
+                                skipped += 1
+                            else:
+                                title = oc_desc.name if oc_desc else f"Post {oc_prod.product_id}"
+                                slug = self._slugify(title)
+                                slug = await self._ensure_unique_slug(BlogPost, slug)
 
-                            for tag_name in set(tag_names):
-                                tag_slug = self._slugify(tag_name)
-                                tag_stmt = select(Tag).where(Tag.slug == tag_slug)
-                                tag_res = await self.session.execute(tag_stmt)
-                                tag_obj = tag_res.scalar_one_or_none()
-                                if tag_obj is None:
-                                    tag_obj = Tag(name=tag_name, slug=tag_slug)
-                                    self.session.add(tag_obj)
-                                    await self.session.flush()
-                                new_post.tags.append(tag_obj)
+                                cover_image: Optional[str] = None
+                                if oc_prod.image:
+                                    image_url = f"{settings.OC_SITE_URL.rstrip('/')}/image/{oc_prod.image}"
+                                    cover_image = await self._download_image(client, image_url, "blog")
 
-                            self.session.add(new_post)
-                            processed += 1
+                                # Preserve more HTML for blog posts
+                                raw_html = oc_desc.description or "" if oc_desc else ""
+                                cleaned_html = bleach.clean(raw_html, tags=_BLEACH_ALLOWED_TAGS, strip=False)
+                                content_json = await self._html_to_tiptap(cleaned_html, client)
 
-                    else:
-                        # Idempotency check: use oc_product_id
-                        prod_check_stmt = select(Product).where(Product.oc_product_id == oc_prod.product_id)
-                        existing = await self.session.execute(prod_check_stmt)
-                        if existing.scalar_one_or_none():
-                            skipped += 1
-                        else:
-                            name = oc_desc.name if oc_desc else f"Product {oc_prod.product_id}"
-                            slug = self._slugify(name)
-                            slug = await self._ensure_unique_slug(Product, slug)
+                                new_post = BlogPost(
+                                    title=title,
+                                    slug=slug,
+                                    content_html=cleaned_html,
+                                    content_json=content_json,
+                                    status=(
+                                        BlogPostStatus.PUBLISHED if oc_prod.status else BlogPostStatus.DRAFT
+                                    ),
+                                    published_at=(
+                                        oc_prod.date_added.replace(tzinfo=timezone.utc)
+                                        if oc_prod.date_added
+                                        else datetime.now(timezone.utc)
+                                    ),
+                                    oc_product_id=oc_prod.product_id,
+                                    author_id=system_author.id,
+                                    cover_image=cover_image,
+                                )
 
-                            # --- 4d: bleach for plain-text description ---
-                            raw_description = oc_desc.description if oc_desc else ""
-                            plain_description: Optional[str] = (
-                                bleach.clean(raw_description, tags=[], strip=True) if raw_description else ""
-                            )
-                            # And preserve HTML version with allowed tags
-                            html_description = (
-                                bleach.clean(raw_description, tags=_BLEACH_ALLOWED_TAGS, strip=False)
-                                if raw_description
-                                else ""
-                            )
-                            # Convert HTML to TipTap JSON
-                            content_json = await self._html_to_tiptap(html_description, client)
+                                # Parse tags from meta_keyword
+                                raw_keywords = (oc_desc.meta_keyword or "") if oc_desc else ""
+                                tag_names: list[str] = [
+                                    t.strip() for t in re.split(r"[,\s]+", raw_keywords) if t.strip()
+                                ]
+                                tag_names.append("импорт")
 
-                            new_prod = Product(
-                                name=name,
-                                slug=slug,
-                                description=plain_description,
-                                description_html=html_description,
-                                content_json=content_json,
-                                meta_title=oc_desc.meta_title if oc_desc else None,
-                                meta_description=oc_desc.meta_description if oc_desc else None,
-                                oc_product_id=oc_prod.product_id,
-                                is_active=bool(oc_prod.status),
-                                created_at=(
-                                    oc_prod.date_added.replace(tzinfo=timezone.utc)
-                                    if oc_prod.date_added
-                                    else datetime.now(timezone.utc)
-                                ),
-                            )
-
-                            # Set category from first linked oc category
-                            for oc_cat_id in oc_cat_ids:
-                                if oc_cat_id in cat_map:
-                                    new_prod.category_id = cat_map[oc_cat_id]
-                                    break
-
-                            self.session.add(new_prod)
-
-                            # Add default variant
-                            variant = ProductVariant(
-                                product=new_prod,
-                                sku=oc_prod.sku or f"OC-{oc_prod.product_id}",
-                                price=oc_prod.price,
-                                stock_quantity=oc_prod.quantity,
-                                name="Default",
-                            )
-                            self.session.add(variant)
-
-                            # Download cover image
-                            if oc_prod.image:
-                                image_url = f"{settings.OC_SITE_URL.rstrip('/')}/image/{oc_prod.image}"
-                                local_path = await self._download_image(client, image_url, "products")
-                                if local_path:
-                                    img_obj = ProductImage(
-                                        product=new_prod, url=local_path, is_cover=True, alt=name
+                                # Add category name as tag
+                                for oc_cid in oc_cat_ids:
+                                    cat_desc_stmt2 = select(OCCategoryDescription).where(
+                                        OCCategoryDescription.category_id == oc_cid,
+                                        OCCategoryDescription.language_id == settings.OC_LANGUAGE_ID,
                                     )
-                                    self.session.add(img_obj)
+                                    cat_desc_res2 = await oc_session.execute(cat_desc_stmt2)
+                                    cd2 = cat_desc_res2.scalar_one_or_none()
+                                    if cd2:
+                                        tag_names.append(cd2.name)
 
-                            # --- 4c: Additional images from oc_product_image ---
-                            add_imgs_stmt = (
-                                select(OCProductImage)
-                                .where(OCProductImage.product_id == oc_prod.product_id)
-                                .order_by(OCProductImage.sort_order)
-                            )
-                            add_imgs_res = await oc_session.execute(add_imgs_stmt)
-                            for oc_img in add_imgs_res.scalars().all():
-                                if oc_img.image:
-                                    add_url = f"{settings.OC_SITE_URL.rstrip('/')}/image/{oc_img.image}"
-                                    add_path = await self._download_image(client, add_url, "products")
-                                    if add_path:
-                                        extra_img = ProductImage(
-                                            product=new_prod, url=add_path, is_cover=False, alt=name
+                                for tag_name in set(tag_names):
+                                    tag_slug = self._slugify(tag_name)
+                                    tag_stmt = select(Tag).where(Tag.slug == tag_slug)
+                                    tag_res = await self.session.execute(tag_stmt)
+                                    tag_obj = tag_res.scalar_one_or_none()
+                                    if tag_obj is None:
+                                        tag_obj = Tag(name=tag_name, slug=tag_slug)
+                                        self.session.add(tag_obj)
+                                        await self.session.flush()
+                                    new_post.tags.append(tag_obj)
+
+                                self.session.add(new_post)
+                                await self.session.flush()
+                                processed += 1
+
+                        else:
+                            # Idempotency check: use oc_product_id
+                            prod_check_stmt = select(Product).where(Product.oc_product_id == oc_prod.product_id)
+                            existing = await self.session.execute(prod_check_stmt)
+                            if existing.scalar_one_or_none():
+                                skipped += 1
+                            else:
+                                name = oc_desc.name if oc_desc else f"Product {oc_prod.product_id}"
+                                slug = self._slugify(name)
+                                slug = await self._ensure_unique_slug(Product, slug)
+
+                                # --- 4d: bleach for plain-text description ---
+                                raw_description = oc_desc.description if oc_desc else ""
+                                plain_description: Optional[str] = (
+                                    bleach.clean(raw_description, tags=[], strip=True) if raw_description else ""
+                                )
+                                # And preserve HTML version with allowed tags
+                                html_description = (
+                                    bleach.clean(raw_description, tags=_BLEACH_ALLOWED_TAGS, strip=False)
+                                    if raw_description
+                                    else ""
+                                )
+                                # Convert HTML to TipTap JSON
+                                content_json = await self._html_to_tiptap(html_description, client)
+
+                                new_prod = Product(
+                                    name=name,
+                                    slug=slug,
+                                    description=plain_description,
+                                    description_html=html_description,
+                                    content_json=content_json,
+                                    meta_title=oc_desc.meta_title if oc_desc else None,
+                                    meta_description=oc_desc.meta_description if oc_desc else None,
+                                    oc_product_id=oc_prod.product_id,
+                                    is_active=bool(oc_prod.status),
+                                    created_at=(
+                                        oc_prod.date_added.replace(tzinfo=timezone.utc)
+                                        if oc_prod.date_added
+                                        else datetime.now(timezone.utc)
+                                    ),
+                                )
+
+                                # Set category from first linked oc category
+                                for oc_cat_id in oc_cat_ids:
+                                    if oc_cat_id in cat_map:
+                                        new_prod.category_id = cat_map[oc_cat_id]
+                                        break
+
+                                self.session.add(new_prod)
+
+                                # Add default variant
+                                variant = ProductVariant(
+                                    product=new_prod,
+                                    sku=oc_prod.sku or f"OC-{oc_prod.product_id}",
+                                    price=oc_prod.price,
+                                    stock_quantity=oc_prod.quantity,
+                                    name="Default",
+                                )
+                                self.session.add(variant)
+
+                                # Download cover image
+                                if oc_prod.image:
+                                    image_url = f"{settings.OC_SITE_URL.rstrip('/')}/image/{oc_prod.image}"
+                                    local_path = await self._download_image(client, image_url, "products")
+                                    if local_path:
+                                        img_obj = ProductImage(
+                                            product=new_prod, url=local_path, is_cover=True, alt=name
                                         )
-                                        self.session.add(extra_img)
+                                        self.session.add(img_obj)
 
-                            processed += 1
+                                # --- 4c: Additional images from oc_product_image ---
+                                add_imgs_stmt = (
+                                    select(OCProductImage)
+                                    .where(OCProductImage.product_id == oc_prod.product_id)
+                                    .order_by(OCProductImage.sort_order)
+                                )
+                                add_imgs_res = await oc_session.execute(add_imgs_stmt)
+                                for oc_img in add_imgs_res.scalars().all():
+                                    if oc_img.image:
+                                        add_url = f"{settings.OC_SITE_URL.rstrip('/')}/image/{oc_img.image}"
+                                        add_path = await self._download_image(client, add_url, "products")
+                                        if add_path:
+                                            extra_img = ProductImage(
+                                                product=new_prod, url=add_path, is_cover=False, alt=name
+                                            )
+                                            self.session.add(extra_img)
+
+                                await self.session.flush()
+                                processed += 1
+
+                    except Exception as exc:
+                        await self.session.rollback()
+                        skipped += 1
+                        logger.warning(
+                            "migrate_catalog_skip",
+                            oc_product_id=oc_prod.product_id,
+                            error=str(exc),
+                        )
 
                     last_id = oc_prod.product_id
 

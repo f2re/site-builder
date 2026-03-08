@@ -1,0 +1,22 @@
+{
+  "task_id": "p28_frontend_blog_admin",
+  "phase": 28,
+  "agent": "frontend-agent",
+  "title": "Fix admin blog table display, add blog categories page, fix infinite pagination",
+  "description": "Four frontend issues across blog admin and public blog.\n\n## Issue 1 — Admin blog table not displaying posts\n\nFile: /Users/meteo/Documents/WWW/site-builder/frontend/pages/admin/blog/index.vue\n\nThe page EXISTS and has a table. The call is:\n`useApi<any>('/blog/posts', { params: { limit: 100 } })`\n\nProblem: this endpoint returns paginated data with `{ items, next_cursor, total }` but the component uses `posts?.items`. Verify the actual API response shape matches. The endpoint `/blog/posts` uses cursor pagination, not `limit` param — the backend uses `per_page` not `limit`. Fix the param name.\n\nAlso add `status: 'all'` or admin token awareness — without auth token, `/blog/posts` only returns published posts, so drafts are hidden. The admin page should show ALL posts including drafts.\n\nFix: change params to `{ per_page: 100, status: 'all' }` or use the admin endpoint `/admin/blog/posts` if it exists.\n\nAfter the fix from p28_devops (API base URL fix), the request should start working. But also check if `useApi` sends auth header — it should if user is logged in as admin.\n\n## Issue 2 — Add Blog Categories admin page\n\nCreate: /Users/meteo/Documents/WWW/site-builder/frontend/pages/admin/blog/categories.vue\n\nThis page is similar to /Users/meteo/Documents/WWW/site-builder/frontend/pages/admin/products/categories.vue but uses blog categories (GET /api/v1/blog/categories or /api/v1/admin/blog/categories).\n\nThe page should:\n- List all blog categories with name, slug, post count\n- Allow create/edit/delete blog categories via modal\n- Use the same UCard + table pattern as products/categories.vue\n- Add data-testid attributes per frontend/CLAUDE.md contract\n- Use only var(--color-*) tokens\n\nNote: Product categories are in `categories` table, blog categories are in `blog_categories` table — these are DIFFERENT and must be shown separately. Currently admin navigation only shows product categories. Add a link to blog categories in the admin blog section.\n\n## Issue 3 — Admin blog navigation link to categories\n\nCheck /Users/meteo/Documents/WWW/site-builder/frontend/layouts/admin.vue or the admin sidebar component — add 'Категории блога' link pointing to /admin/blog/categories.\n\nFind the admin layout/sidebar file and add the navigation item.\n\n## Issue 4 — Public blog pagination stops correctly\n\nFile: /Users/meteo/Documents/WWW/site-builder/frontend/pages/blog/index.vue\n\nThe pagination logic looks correct in frontend (hasMore = !!next_cursor). After backend fix (p28_backend_blog_categories task), verify that:\n- The 'Загрузить ещё' button disappears when hasMore becomes false\n- The cursor is correctly passed as `page_cursor` param to useBlog.getPosts()\n- No auto-trigger of loadMore (it's a button click, not infinite scroll) — verify there's no IntersectionObserver accidentally triggering auto-load\n\nIf there IS an IntersectionObserver for auto-load, ensure it has a proper check: `if (!hasMore.value || loadingMore.value) return`.\n\nFiles to modify:\n- /Users/meteo/Documents/WWW/site-builder/frontend/pages/admin/blog/index.vue (fix API params, show all posts)\n- /Users/meteo/Documents/WWW/site-builder/frontend/pages/admin/blog/categories.vue (CREATE NEW)\n- Admin layout/sidebar (add blog categories link)\n- /Users/meteo/Documents/WWW/site-builder/frontend/pages/blog/index.vue (verify pagination guard)\n- /Users/meteo/Documents/WWW/site-builder/frontend/composables/useBlog.ts (add getCategories if needed)\n\nIMPORTANT: Run `npm run lint` and `npm run type-check` before writing report.",
+  "depends_on": ["p28_devops_nginx_api_proxy", "p28_backend_blog_categories"],
+  "priority": "high",
+  "contracts_required": [".claude/agents/contracts/api_contracts.md"],
+  "acceptance_criteria": [
+    "Admin blog page /admin/blog shows ALL posts including drafts",
+    "Admin blog page table renders rows correctly (not empty)",
+    "Page /admin/blog/categories exists and lists blog categories separately from product categories",
+    "Admin sidebar/nav has link to /admin/blog/categories",
+    "Public blog /blog pagination button disappears after last page loaded",
+    "No infinite auto-load of blog posts",
+    "All new elements have data-testid attributes",
+    "Only var(--color-*) CSS tokens used",
+    "npm run lint passes",
+    "npm run type-check passes"
+  ]
+}

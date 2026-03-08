@@ -1,4 +1,4 @@
-# Module: api/v1/blog/service.py | Agent: backend-agent | Task: p13_backend_blog_refinement
+# Module: api/v1/blog/service.py | Agent: backend-agent | Task: p28_backend_blog_categories
 import bleach
 from typing import List, Optional, Any, Union
 from uuid import UUID
@@ -8,6 +8,9 @@ import structlog
 
 from app.api.v1.blog.repository import BlogRepository, get_blog_repo
 from app.api.v1.blog.schemas import (
+    BlogCategoryCreate,
+    BlogCategoryRead,
+    BlogCategoryUpdate,
     BlogPostCreate,
     BlogPostUpdate,
     BlogPagination,
@@ -16,9 +19,9 @@ from app.api.v1.blog.schemas import (
     CommentRead,
     CommentAdminRead,
     TagRead,
-    BlogPostShortRead
+    BlogPostShortRead,
 )
-from app.db.models.blog import BlogPost, BlogPostStatus, Comment, CommentStatus, Author, Tag
+from app.db.models.blog import BlogCategory, BlogPost, BlogPostStatus, Comment, CommentStatus, Author, Tag
 from app.tasks.search import index_blog_post_task, remove_blog_post_from_index_task
 from app.core.security import encrypt_data, decrypt_data
 from app.core.utils import generate_slug
@@ -143,7 +146,7 @@ class BlogService:
         tag_slug: Optional[str] = None,
         status: Optional[BlogPostStatus] = BlogPostStatus.PUBLISHED,
         is_featured: Optional[bool] = None,
-        cursor: Optional[UUID] = None,
+        cursor: Optional[str] = None,
         per_page: int = 20,
     ) -> BlogPagination:
         items, next_cursor, total = await self.repo.list_posts(
@@ -385,8 +388,53 @@ class BlogService:
                 logger.warning("search_index_removal_failed", post_id=str(post_id), error=str(exc))
         return success
 
-    async def list_categories(self):
-        return await self.repo.get_categories()
+    async def list_categories(self) -> List[BlogCategoryRead]:
+        rows = await self.repo.get_categories_with_count()
+        result = []
+        for category, posts_count in rows:
+            cat_read = BlogCategoryRead.model_validate(category)
+            cat_read.posts_count = posts_count
+            result.append(cat_read)
+        return result
+
+    async def create_category(self, data: BlogCategoryCreate) -> BlogCategoryRead:
+        from app.core.utils import generate_slug
+        slug = generate_slug(data.name, data.slug) if data.slug else generate_slug(data.name)
+        category = BlogCategory(
+            name=data.name,
+            slug=slug,
+            description=data.description,
+        )
+        created = await self.repo.create_category(category)
+        await self.repo.session.commit()
+        cat_read = BlogCategoryRead.model_validate(created)
+        cat_read.posts_count = 0
+        return cat_read
+
+    async def update_category(self, category_id: UUID, data: BlogCategoryUpdate) -> BlogCategoryRead:
+        update_data = data.model_dump(exclude_unset=True)
+        if not update_data:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No fields to update")
+        updated = await self.repo.update_category(category_id, **update_data)
+        if not updated:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+        await self.repo.session.commit()
+        # Reload with count
+        rows = await self.repo.get_categories_with_count()
+        for category, posts_count in rows:
+            if category.id == category_id:
+                cat_read = BlogCategoryRead.model_validate(category)
+                cat_read.posts_count = posts_count
+                return cat_read
+        cat_read = BlogCategoryRead.model_validate(updated)
+        cat_read.posts_count = 0
+        return cat_read
+
+    async def delete_category(self, category_id: UUID) -> bool:
+        success = await self.repo.delete_category(category_id)
+        if success:
+            await self.repo.session.commit()
+        return success
 
     async def get_tags(self) -> List[TagRead]:
         tags = await self.repo.get_all_tags()
