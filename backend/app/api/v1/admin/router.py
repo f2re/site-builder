@@ -1,8 +1,8 @@
-# Module: api/v1/admin/router.py | Agent: backend-agent | Task: p22_backend_orders_date_filter
+# Module: api/v1/admin/router.py | Agent: backend-agent | Task: p12_backend_admin_stats
 import io
 import uuid as _uuid_module
 import openpyxl
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, status, HTTPException, Query, UploadFile, File
@@ -88,6 +88,17 @@ def get_migration_service(
     return MigrationService(repo, session)
 
 # ─── Schemas ─────────────────────────────────────────────────────────────────
+class DailyStat(BaseModel):
+    date: str
+    revenue: float
+    orders: int
+
+class AttentionStats(BaseModel):
+    new_orders: int
+    unpaid_orders: int
+    to_ship_orders: int
+    problem_orders: int
+
 class SalesAnalytics(BaseModel):
     total_revenue: float
     revenue_rub: float          # alias for frontend compatibility
@@ -96,6 +107,8 @@ class SalesAnalytics(BaseModel):
     users_count: int
     products_count: int
     top_products: List[dict]
+    daily_stats: List[DailyStat]
+    attention_stats: AttentionStats
 
 class UserBlockRequest(BaseModel):
     is_active: bool
@@ -150,7 +163,7 @@ class DeliveryAddressUpdate(BaseModel):
 async def get_dashboard(
     _admin: User = AdminDep,
     session: AsyncSession = Depends(get_db)
-) -> Any:
+) -> SalesAnalytics:
     """Return real sales analytics summary from DB."""
     # Paid statuses for aggregation — use .value to ensure lowercase strings
     # match the PostgreSQL orderstatus enum values
@@ -180,6 +193,45 @@ async def get_dashboard(
     products_count_stmt = select(func.count(Product.id)).where(Product.is_active.is_(True))
     products_count_val = (await session.execute(products_count_stmt)).scalar() or 0
 
+    # Daily stats (last 30 days)
+    now_utc = datetime.now(timezone.utc)
+    # Start of day 30 days ago
+    start_date = (now_utc - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    daily_stmt = (
+        select(
+            func.date(Order.created_at).label("d"),
+            func.sum(Order.total_amount).label("rev"),
+            func.count(Order.id).label("cnt")
+        )
+        .where(Order.created_at >= start_date)
+        .where(Order.status.in_(paid_statuses))
+        .group_by(func.date(Order.created_at))
+        .order_by(func.date(Order.created_at))
+    )
+    daily_res = await session.execute(daily_stmt)
+    # Normalize between date objects (Postgres) and strings (SQLite)
+    daily_map = {str(row.d): {"revenue": float(row.rev or 0), "orders": row.cnt} for row in daily_res.all()}
+    
+    daily_stats = []
+    for i in range(31):
+        d = (now_utc - timedelta(days=30-i)).date()
+        d_str = d.isoformat()
+        stats = daily_map.get(d_str, {"revenue": 0.0, "orders": 0})
+        daily_stats.append(DailyStat(date=d_str, revenue=stats["revenue"], orders=stats["orders"]))
+
+    # Attention stats
+    attention_stmt = select(Order.status, func.count(Order.id)).group_by(Order.status)
+    attention_res = await session.execute(attention_stmt)
+    status_counts = {row[0]: row[1] for row in attention_res.all()}
+    
+    attention_stats = AttentionStats(
+        new_orders=status_counts.get(OrderStatus.PENDING.value, 0),
+        unpaid_orders=status_counts.get(OrderStatus.PENDING_PAYMENT.value, 0),
+        to_ship_orders=status_counts.get(OrderStatus.PAID.value, 0) + status_counts.get(OrderStatus.PROCESSING.value, 0),
+        problem_orders=status_counts.get(OrderStatus.CANCELLED.value, 0) + status_counts.get(OrderStatus.REFUNDED.value, 0)
+    )
+
     # Top products aggregation
     top_products_stmt = (
         select(
@@ -204,7 +256,9 @@ async def get_dashboard(
         paid_orders_count=paid_orders,
         users_count=total_users,
         products_count=products_count_val,
-        top_products=top_products
+        top_products=top_products,
+        daily_stats=daily_stats,
+        attention_stats=attention_stats
     )
 
 # ─── Products ────────────────────────────────────────────────────────────────

@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import AdminAttentionStats from '~/components/admin/AdminAttentionStats.vue'
+import AdminSalesChart from '~/components/admin/AdminSalesChart.vue'
+import AdminRecentOrders from '~/components/admin/AdminRecentOrders.vue'
+import UCard from '~/components/U/UCard.vue'
+import USkeleton from '~/components/U/USkeleton.vue'
+
 definePageMeta({
   layout: false,
   pageTransition: false,
@@ -12,19 +18,22 @@ const statCards = computed(() => [
     label: 'Выручка', 
     value: stats.value?.revenue_rub ? `${stats.value.revenue_rub.toLocaleString()} ₽` : '0 ₽',
     icon: 'ph:currency-rub-bold',
-    color: 'var(--color-success)'
+    color: 'var(--color-success)',
+    dataTestId: 'stat-revenue'
   },
   { 
     label: 'Заказы', 
     value: stats.value?.orders_count || 0,
     icon: 'ph:shopping-cart-bold',
-    color: 'var(--color-info)'
+    color: 'var(--color-info)',
+    dataTestId: 'stat-orders'
   },
   { 
     label: 'Пользователи', 
     value: stats.value?.users_count || 0,
     icon: 'ph:users-bold',
-    color: 'var(--color-accent)'
+    color: 'var(--color-accent)',
+    dataTestId: 'stat-users'
   },
 ])
 </script>
@@ -36,13 +45,20 @@ const statCards = computed(() => [
     </template>
 
     <div class="admin-dashboard">
+      <!-- Requires Attention Section -->
+      <div class="dashboard-section">
+        <h2 class="section-title">Требуют внимания</h2>
+        <AdminAttentionStats :stats="stats?.attention_stats" :pending="pending" />
+      </div>
+
+      <!-- Main Metrics -->
       <div class="dashboard-section">
         <div v-if="pending" class="stats-grid">
           <USkeleton v-for="i in 3" :key="i" height="110px" />
         </div>
         
         <div v-else class="stats-grid">
-          <UCard v-for="stat in statCards" :key="stat.label" class="stat-card">
+          <UCard v-for="stat in statCards" :key="stat.label" class="stat-card" :data-testid="stat.dataTestId">
             <div class="stat-icon" :style="{ color: stat.color, background: `${stat.color}15` }">
               <Icon :name="stat.icon" size="24" />
             </div>
@@ -55,29 +71,17 @@ const statCards = computed(() => [
       </div>
 
       <div class="dashboard-grid">
-        <!-- Chart Widget (Placeholder) -->
+        <!-- Chart Widget -->
         <div class="dashboard-section">
           <h2 class="section-title">Аналитика продаж</h2>
           <UCard class="chart-card">
-            <div class="chart-placeholder">
-              <Icon name="ph:chart-bar-bold" size="48" class="placeholder-icon" />
-              <p>График продаж будет доступен после накопления данных</p>
-            </div>
+            <AdminSalesChart :stats="stats?.daily_stats || []" :pending="pending" />
           </UCard>
         </div>
 
         <!-- Recent Orders Widget -->
         <div class="dashboard-section">
-          <h2 class="section-title">Последние заказы</h2>
-          <UCard>
-            <div class="empty-state">
-              <Icon name="ph:shopping-bag-open-bold" size="32" />
-              <p>Здесь появится список последних заказов</p>
-              <UButton to="/admin/orders" variant="ghost" size="sm" class="mt-4">
-                Перейти к заказам
-              </UButton>
-            </div>
-          </UCard>
+          <AdminRecentOrders />
         </div>
       </div>
     </div>
@@ -168,26 +172,7 @@ const statCards = computed(() => [
 .chart-card {
   min-height: 300px;
   display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.chart-placeholder, .empty-state {
-  display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
-  text-align: center;
-  padding: 40px 20px;
-  color: var(--color-muted);
-  gap: 12px;
-}
-
-.placeholder-icon {
-  opacity: 0.2;
-}
-
-.mt-4 {
-  margin-top: 16px;
 }
 </style>

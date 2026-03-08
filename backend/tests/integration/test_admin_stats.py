@@ -1,5 +1,6 @@
 import pytest
 import uuid
+from datetime import datetime, timezone, timedelta
 from httpx import AsyncClient
 from app.db.models.order import Order, OrderStatus
 from app.db.models.user import User
@@ -41,14 +42,17 @@ async def test_admin_stats_aggregation(client: AsyncClient, db_session):
     await db_session.flush()
     
     # Create Orders
+    now = datetime.now(timezone.utc)
     # PAID (counts as revenue)
-    o1 = Order(user_id=u1_id, total_amount=1500.0, status=OrderStatus.PAID)
+    o1 = Order(user_id=u1_id, total_amount=1500.0, status=OrderStatus.PAID, created_at=now)
     # DELIVERED (counts as revenue)
-    o2 = Order(user_id=u2_id, total_amount=2500.0, status=OrderStatus.DELIVERED)
-    # PENDING (does NOT count)
-    o3 = Order(user_id=u1_id, total_amount=5000.0, status=OrderStatus.PENDING_PAYMENT)
+    o2 = Order(user_id=u2_id, total_amount=2500.0, status=OrderStatus.DELIVERED, created_at=now)
+    # PENDING_PAYMENT (does NOT count for revenue, but counts for attention_stats)
+    o3 = Order(user_id=u1_id, total_amount=5000.0, status=OrderStatus.PENDING_PAYMENT, created_at=now)
+    # PENDING (counts for attention_stats)
+    o4 = Order(user_id=u1_id, total_amount=1000.0, status=OrderStatus.PENDING, created_at=now)
     
-    db_session.add_all([o1, o2, o3])
+    db_session.add_all([o1, o2, o3, o4])
     await db_session.commit()
 
     resp = await client.get("/api/v1/admin/stats", headers=headers)
@@ -58,3 +62,20 @@ async def test_admin_stats_aggregation(client: AsyncClient, db_session):
     # Check relative changes
     assert int(data["users_count"]) - base_users == 2
     assert float(data["total_revenue"]) - base_revenue == 4000.0
+    
+    # Check attention_stats
+    attn = data["attention_stats"]
+    assert attn["new_orders"] >= 1
+    assert attn["unpaid_orders"] >= 1
+    assert attn["to_ship_orders"] >= 1  # PAID counts as to_ship
+    
+    # Check daily_stats
+    daily = data["daily_stats"]
+    assert len(daily) == 31  # last 30 days + today
+    
+    # Find today's stat
+    today_str = now.date().isoformat()
+    today_stat = next((s for s in daily if s["date"] == today_str), None)
+    assert today_stat is not None
+    assert today_stat["orders"] >= 2 # o1, o2 are paid/delivered
+    assert today_stat["revenue"] >= 4000.0
