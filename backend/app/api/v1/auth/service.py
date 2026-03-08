@@ -2,7 +2,7 @@
 import hmac
 import hashlib
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from uuid import UUID
 import httpx
@@ -27,7 +27,15 @@ class AuthService:
     def __init__(self, repo: UserRepository):
         self.repo = repo
 
-    async def authenticate(self, login_data: LoginRequest) -> Token:
+    async def _update_last_login(self, user_id: UUID, ip_address: Optional[str], user_agent: Optional[str]) -> None:
+        await self.repo.update(
+            user_id,
+            last_login_at=datetime.now(timezone.utc),
+            last_login_ip=ip_address,
+            last_login_device=user_agent
+        )
+
+    async def authenticate(self, login_data: LoginRequest, ip_address: Optional[str] = None, user_agent: Optional[str] = None) -> Token:
         user = await self.repo.get_by_email(login_data.email)
         if not user:
             raise HTTPException(
@@ -44,6 +52,9 @@ class AuthService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Inactive user",
             )
+        
+        await self._update_last_login(user.id, ip_address, user_agent)
+        
         return Token(
             access_token=create_access_token(user.id, role=user.role),
             refresh_token=create_refresh_token(user.id),
@@ -130,7 +141,7 @@ class AuthService:
         )
         return await self.repo.create(user_db)
 
-    async def handle_google_callback(self, code: str, redirect_uri: str) -> Token:
+    async def handle_google_callback(self, code: str, redirect_uri: str, ip_address: Optional[str] = None, user_agent: Optional[str] = None) -> Token:
         async with httpx.AsyncClient() as client:
             # Exchange code for token
             token_res = await client.post(
@@ -166,13 +177,15 @@ class AuthService:
                 raise HTTPException(status_code=400, detail="Google did not return enough info")
             
             user = await self.get_or_create_oauth_user("google", provider_id, email, full_name)
+            await self._update_last_login(user.id, ip_address, user_agent)
+            
             return Token(
                 access_token=create_access_token(user.id, role=user.role),
                 refresh_token=create_refresh_token(user.id),
                 user=UserResponse.model_validate(user)
             )
 
-    async def handle_yandex_callback(self, code: str) -> Token:
+    async def handle_yandex_callback(self, code: str, ip_address: Optional[str] = None, user_agent: Optional[str] = None) -> Token:
         async with httpx.AsyncClient() as client:
             # Exchange code for token
             token_res = await client.post(
@@ -219,13 +232,15 @@ class AuthService:
                 raise HTTPException(status_code=400, detail="Yandex did not return enough info")
             
             user = await self.get_or_create_oauth_user("yandex", provider_id, email, full_name)
+            await self._update_last_login(user.id, ip_address, user_agent)
+            
             return Token(
                 access_token=create_access_token(user.id, role=user.role),
                 refresh_token=create_refresh_token(user.id),
                 user=UserResponse.model_validate(user)
             )
 
-    async def handle_telegram_auth(self, tg_data: Dict[str, Any]) -> Token:
+    async def handle_telegram_auth(self, tg_data: Dict[str, Any], ip_address: Optional[str] = None, user_agent: Optional[str] = None) -> Token:
         # Verify hash
         # 1. Sort all params except 'hash'
         auth_hash = tg_data.pop("hash", None)
@@ -263,6 +278,8 @@ class AuthService:
             full_name += f" {tg_data['last_name']}"
             
         user = await self.get_or_create_oauth_user("telegram", provider_id, email, full_name)
+        await self._update_last_login(user.id, ip_address, user_agent)
+        
         return Token(
             access_token=create_access_token(user.id, role=user.role),
             refresh_token=create_refresh_token(user.id),

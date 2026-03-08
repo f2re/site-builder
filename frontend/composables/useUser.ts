@@ -1,6 +1,7 @@
 import { ref, unref, isRef } from 'vue'
 import { useRuntimeConfig } from '#app'
 import { useAuth } from './useAuth'
+import type { Order } from './useOrders'
 
 export interface UserProfile {
   id: string
@@ -44,6 +45,38 @@ export interface UserAddress {
   country?: string
   full_address?: string
   is_default?: boolean
+}
+
+export interface AdminDeliveryAddressRead {
+  id: string
+  city: string
+  address: string
+  is_default: boolean
+  created_at: string
+}
+
+export interface AdminUserDeviceRead {
+  id: string
+  device_id: string
+  name: string | null
+  last_activity: string | null
+  is_online: boolean
+}
+
+export interface AdminUserFullResponse {
+  id: string
+  email: string
+  full_name: string | null
+  phone: string | null
+  role: string
+  is_active: boolean
+  created_at: string
+  last_login_at: string | null
+  last_login_ip: string | null
+  last_login_device: string | null
+  addresses: AdminDeliveryAddressRead[]
+  orders: Order[]
+  devices: AdminUserDeviceRead[]
 }
 
 export const useUser = () => {
@@ -154,6 +187,12 @@ export const useUser = () => {
     })
   }
 
+  const adminGetUserFull = (userId: string) => {
+    return useApi<AdminUserFullResponse>(`/admin/users/${userId}/full`, {
+      key: `admin-user-full-${userId}`
+    })
+  }
+
   return {
     user,
     pending,
@@ -167,6 +206,7 @@ export const useUser = () => {
     adminUpdateUser,
     adminGetUserAddresses,
     adminDeleteUserAddress,
-    adminUpdateUserAddress
+    adminUpdateUserAddress,
+    adminGetUserFull
   }
 }

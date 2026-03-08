@@ -120,7 +120,7 @@ const handleUpdateUser = async () => {
     const apiErr = err as { data?: { message?: string; detail?: string } }
     toast.error(apiErr.data?.message || apiErr.data?.detail || 'Не удалось обновить пользователя')
   } finally {
-    isEditSubmitting.value = false
+    isSubmitting.value = false
   }
 }
 
@@ -240,6 +240,18 @@ const downloadExcel = async () => {
                 <td class="actions-cell">
                   <div class="actions-group">
                     <UButton
+                      component="NuxtLink"
+                      :to="`/admin/users/${user.id}`"
+                      variant="ghost"
+                      size="sm"
+                      aria-label="Подробнее"
+                      data-testid="view-user-btn"
+                    >
+                      <template #icon>
+                        <Icon name="ph:eye-bold" size="20" />
+                      </template>
+                    </UButton>
+                    <UButton
                       variant="ghost"
                       size="sm"
                       aria-label="Редактировать"
@@ -249,7 +261,6 @@ const downloadExcel = async () => {
                       <template #icon>
                         <Icon name="ph:pencil-simple-bold" size="20" />
                       </template>
-                      <span class="desktop-only ml-2">Изменить</span>
                     </UButton>
                     <UButton
                       :variant="user.is_active ? 'ghost' : 'primary'"
@@ -261,7 +272,6 @@ const downloadExcel = async () => {
                       <template #icon>
                         <Icon :name="user.is_active ? 'ph:user-minus-bold' : 'ph:user-plus-bold'" size="20" />
                       </template>
-                      <span class="desktop-only ml-2">{{ user.is_active ? 'Блок' : 'Разблок' }}</span>
                     </UButton>
                   </div>
                 </td>
@@ -412,7 +422,7 @@ const downloadExcel = async () => {
 
 @media (min-width: 768px) {
   .actions-col, .actions-cell {
-    width: 220px;
+    width: 150px;
   }
 }
 

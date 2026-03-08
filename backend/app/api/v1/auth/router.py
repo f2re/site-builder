@@ -1,6 +1,6 @@
 # Module: api/v1/auth/router.py | Agent: backend-agent | Task: BE-01_products_catalog
 from typing import cast, Dict, Any
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, status, Query, Request
 from fastapi.responses import RedirectResponse
 from app.api.v1.auth.schemas import (
     LoginRequest, 
@@ -19,10 +19,13 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login", response_model=Token)
 async def login(
+    request: Request,
     login_data: LoginRequest,
     auth_service: AuthService = Depends(get_auth_service)
 ) -> Token:
-    return await auth_service.authenticate(login_data)
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+    return await auth_service.authenticate(login_data, ip_address, user_agent)
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
@@ -59,24 +62,31 @@ async def provider_login(provider: str, redirect_uri: str = Query(...)):
 
 @router.get("/{provider}/callback", response_model=Token)
 async def provider_callback(
+    request: Request,
     provider: str,
     code: str = Query(...),
     redirect_uri: str = Query(...),
     auth_service: AuthService = Depends(get_auth_service)
 ) -> Token:
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+    
     if provider == "google":
-        return await auth_service.handle_google_callback(code, redirect_uri)
+        return await auth_service.handle_google_callback(code, redirect_uri, ip_address, user_agent)
     elif provider == "yandex":
-        return await auth_service.handle_yandex_callback(code)
+        return await auth_service.handle_yandex_callback(code, ip_address, user_agent)
     else:
         raise ValueError("Unsupported provider")
 
 @router.post("/telegram", response_model=Token)
 async def telegram_auth(
+    request: Request,
     tg_data: Dict[str, Any],
     auth_service: AuthService = Depends(get_auth_service)
 ) -> Token:
-    return await auth_service.handle_telegram_auth(tg_data)
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+    return await auth_service.handle_telegram_auth(tg_data, ip_address, user_agent)
 
 @router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
 async def forgot_password(

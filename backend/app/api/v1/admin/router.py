@@ -15,7 +15,9 @@ from app.core.dependencies import require_admin, get_product_repo, get_db, get_c
 from app.db.models.order import Order, OrderStatus, OrderItem
 from app.db.models.product import ProductVariant, Product
 from app.db.models.user import User
+from app.db.models.user_device import UserDevice
 from app.api.v1.auth.schemas import UserResponse
+from app.api.v1.admin.schemas import AdminUserFullResponse, MigrationJobResponse, MigrationStartRequest, MigrationStatusResponse
 from app.core.security import get_password_hash
 
 # Services & Repositories
@@ -49,7 +51,6 @@ from .pages_router import router as pages_admin_router
 # Migration
 from .migration_service import MigrationService
 from .migration_repository import MigrationRepository
-from .schemas import MigrationJobResponse, MigrationStartRequest, MigrationStatusResponse
 
 router = APIRouter(prefix="/admin", tags=["Admin Panel"])
 
@@ -564,6 +565,51 @@ async def get_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return UserResponse.model_validate(user)
+
+
+@router.get("/users/{user_id}/full", response_model=AdminUserFullResponse)
+async def get_user_full_details(
+    user_id: UUID,
+    _admin: User = AdminDep,
+    user_repo: UserRepository = Depends(get_user_repo),
+    addr_repo: DeliveryAddressRepository = Depends(get_address_repo),
+    order_repo: OrderRepository = Depends(get_order_repo),
+    iot_repo: IoTRepository = Depends(get_iot_repo),
+) -> Any:
+    """Get comprehensive user details: basic info, addresses, orders, and IoT devices."""
+    # 1. Fetch user
+    user = await user_repo.get_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # 2. Fetch addresses
+    addresses = await addr_repo.list_by_user(user_id)
+
+    # 3. Fetch orders
+    orders = await order_repo.get_user_orders(user_id)
+
+    # 4. Fetch IoT devices
+    devices_result = await iot_repo.session.execute(
+        select(UserDevice).where(UserDevice.user_id == user_id)
+    )
+    devices = devices_result.scalars().all()
+
+    # Construct the full response
+    return {
+        "id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "is_active": user.is_active,
+        "is_superuser": user.is_superuser,
+        "role": user.role,
+        "created_at": user.created_at,
+        "last_login_at": user.last_login_at,
+        "last_login_ip": user.last_login_ip,
+        "last_login_device": user.last_login_device,
+        "addresses": addresses,
+        "orders": orders,
+        "devices": devices
+    }
 
 
 @router.patch("/users/{user_id}", response_model=UserResponse)
