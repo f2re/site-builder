@@ -1,0 +1,37 @@
+{
+  "task_id": "p11_testing_addresses_tracking",
+  "phase": 11,
+  "agent": "testing-agent",
+  "priority": "medium",
+  "status": "pending",
+  "title": "Tests for Address Management and Order Tracking",
+  "description": "Write unit and integration tests for addresses and tracking",
+  "requirements": [
+    "Unit tests: DeliveryAddressRepository CRUD operations",
+    "Unit tests: DeliveryAddressService (default address logic, validation)",
+    "Integration tests: /users/me/addresses endpoints (create, list, update, delete, set-default)",
+    "Integration tests: /webhooks/delivery/{provider} (status update)",
+    "Unit tests: tracking URL generation for all providers",
+    "Unit tests: Celery task poll_delivery_statuses (mock provider APIs)",
+    "E2E test: user creates address, selects it at checkout, order is created with address",
+    "E2E test: order status updates, tracking button appears"
+  ],
+  "acceptance_criteria": [
+    "All API endpoints covered with integration tests",
+    "Webhook logic tested with mock payloads",
+    "Tracking URL generation tested for all 4 providers",
+    "E2E tests pass in Playwright",
+    "Coverage >80% for new code"
+  ],
+  "dependencies": ["p11_backend_user_addresses", "p11_cdek_order_tracking", "p11_frontend_address_management"],
+  "estimated_effort": "2h",
+  "files_to_create": [
+    "tests/unit/test_delivery_address_repository.py",
+    "tests/unit/test_delivery_address_service.py",
+    "tests/integration/test_user_addresses_api.py",
+    "tests/integration/test_delivery_webhooks.py",
+    "tests/unit/test_tracking_urls.py",
+    "tests/e2e/test_address_management.spec.ts",
+    "tests/e2e/test_order_tracking.spec.ts"
+  ]
+}

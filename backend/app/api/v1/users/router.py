@@ -24,10 +24,12 @@ from jose import jwt, JWTError
 from app.core.config import settings
 from app.core.dependencies import require_customer, get_user_repository, get_order_repository, get_iot_repository, get_redis
 from app.db.models.user import User
-from app.api.v1.users.repository import UserRepository
+from app.api.v1.users.repository import UserRepository, DeliveryAddressRepository
+from app.api.v1.users.service import DeliveryAddressService
 from app.api.v1.orders.repository import OrderRepository
 from app.api.v1.iot.repository import IoTRepository
 from app.api.v1.orders.schemas import OrderRead
+from app.api.v1.users.schemas import DeliveryAddressCreate, DeliveryAddressUpdate, DeliveryAddressResponse
 from redis.asyncio import Redis
 
 router = APIRouter(prefix="/users", tags=["User Cabinet"])
@@ -235,3 +237,84 @@ async def device_websocket(
     except Exception as e:
         await websocket.send_json({"event": "error", "message": str(e)})
         await websocket.close()
+
+
+# ─── Delivery Addresses ──────────────────────────────────────────────────────
+
+def get_address_repo(user_repo: UserRepository = Depends(get_user_repository)):
+    return DeliveryAddressRepository(user_repo.session)
+
+
+@router.get("/me/addresses", response_model=List[DeliveryAddressResponse])
+async def list_addresses(
+    current_user: User = UserDep,
+    repo: DeliveryAddressRepository = Depends(get_address_repo)
+):
+    """List all delivery addresses for current user."""
+    return await repo.list_by_user(current_user.id)
+
+
+@router.post("/me/addresses", response_model=DeliveryAddressResponse, status_code=status.HTTP_201_CREATED)
+async def create_address(
+    body: DeliveryAddressCreate,
+    current_user: User = UserDep,
+    repo: DeliveryAddressRepository = Depends(get_address_repo)
+):
+    """Create new delivery address."""
+    service = DeliveryAddressService(repo)
+    return await service.create_address(
+        user_id=current_user.id,
+        name=body.name,
+        recipient_name=body.recipient_name,
+        recipient_phone=body.recipient_phone,
+        address_type=body.address_type,
+        full_address=body.full_address,
+        city=body.city,
+        postal_code=body.postal_code,
+        provider=body.provider,
+        pickup_point_code=body.pickup_point_code,
+        is_default=body.is_default
+    )
+
+
+@router.patch("/me/addresses/{address_id}", response_model=DeliveryAddressResponse)
+async def update_address(
+    address_id: UUID,
+    body: DeliveryAddressUpdate,
+    current_user: User = UserDep,
+    repo: DeliveryAddressRepository = Depends(get_address_repo)
+):
+    """Update delivery address."""
+    addr = await repo.get_by_id(address_id)
+    if not addr or addr.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Address not found")
+
+    service = DeliveryAddressService(repo)
+    update_data = body.model_dump(exclude_unset=True)
+    return await service.update_address(address_id, **update_data)
+
+
+@router.delete("/me/addresses/{address_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_address(
+    address_id: UUID,
+    current_user: User = UserDep,
+    repo: DeliveryAddressRepository = Depends(get_address_repo)
+):
+    """Delete delivery address."""
+    addr = await repo.get_by_id(address_id)
+    if not addr or addr.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Address not found")
+    await repo.delete(address_id)
+
+
+@router.post("/me/addresses/{address_id}/set-default", response_model=DeliveryAddressResponse)
+async def set_default_address(
+    address_id: UUID,
+    current_user: User = UserDep,
+    repo: DeliveryAddressRepository = Depends(get_address_repo)
+):
+    """Set address as default."""
+    addr = await repo.get_by_id(address_id)
+    if not addr or addr.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Address not found")
+    return await repo.set_default(current_user.id, address_id)

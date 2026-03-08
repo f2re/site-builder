@@ -1,0 +1,38 @@
+{
+  "task_id": "p11_backend_user_addresses",
+  "phase": 11,
+  "agent": "backend-agent",
+  "priority": "high",
+  "status": "pending",
+  "title": "User Delivery Addresses Management",
+  "description": "Implement user profile delivery addresses with CRUD API",
+  "requirements": [
+    "Create DeliveryAddress model: user_id, name (label like 'Другу'), recipient_name, recipient_phone, address_type (home/pickup), full_address, city, postal_code, provider (cdek/pochta/ozon/wb), pickup_point_code, is_default, created_at, updated_at",
+    "Extend UserProfile model: default_phone, default_recipient_name (fallback if no address)",
+    "API endpoints: GET /users/me/addresses, POST /users/me/addresses, PATCH /users/me/addresses/{id}, DELETE /users/me/addresses/{id}, POST /users/me/addresses/{id}/set-default",
+    "Validation: phone format, required fields per address_type",
+    "Migration: add delivery_addresses table, extend users table",
+    "Repository pattern: DeliveryAddressRepository with async methods",
+    "Service layer: DeliveryAddressService with business logic (default address selection)",
+    "Schemas: DeliveryAddressCreate, DeliveryAddressUpdate, DeliveryAddressResponse"
+  ],
+  "acceptance_criteria": [
+    "User can create multiple delivery addresses with custom labels",
+    "One address can be marked as default",
+    "API returns addresses sorted by is_default DESC, created_at DESC",
+    "Validation prevents duplicate default addresses per user",
+    "Migration runs without errors"
+  ],
+  "dependencies": [],
+  "estimated_effort": "2h",
+  "files_to_modify": [
+    "backend/app/db/models/user.py",
+    "backend/app/api/v1/users/router.py",
+    "backend/app/api/v1/users/service.py",
+    "backend/app/api/v1/users/repository.py",
+    "backend/app/api/v1/users/schemas.py"
+  ],
+  "files_to_create": [
+    "backend/migrations/versions/XXX_add_delivery_addresses.py"
+  ]
+}

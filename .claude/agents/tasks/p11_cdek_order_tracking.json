@@ -1,0 +1,42 @@
+{
+  "task_id": "p11_cdek_order_tracking",
+  "phase": 11,
+  "agent": "cdek-agent",
+  "priority": "high",
+  "status": "pending",
+  "title": "Order Tracking and Auto-fulfillment",
+  "description": "Implement order tracking URLs, status webhooks, and auto-fulfillment",
+  "requirements": [
+    "Generate tracking URLs for each provider: CDEK, Pochta, Ozon, WB (based on tracking_number)",
+    "Webhook endpoint: POST /webhooks/delivery/{provider} to receive status updates",
+    "Celery task: poll_delivery_statuses (every 6h) — fetch status from provider APIs",
+    "Update Order.delivery_status: pending → processing → shipped → in_transit → delivered → failed",
+    "Store tracking events in OrderTrackingEvent model: order_id, provider, status, message, timestamp",
+    "Auto-fulfillment: when order is paid, call provider API to create shipment (if provider supports)",
+    "Notification: send email/push when status changes to shipped/delivered",
+    "Add tracking_url field to Order model"
+  ],
+  "acceptance_criteria": [
+    "Tracking URL generated for all 4 providers",
+    "Webhook updates order status in real-time",
+    "Celery task polls statuses every 6h for orders in transit",
+    "User receives notification on status change",
+    "Auto-fulfillment creates shipment via provider API (CDEK, Pochta)"
+  ],
+  "dependencies": ["p11_backend_user_addresses"],
+  "estimated_effort": "3h",
+  "files_to_modify": [
+    "backend/app/db/models/order.py",
+    "backend/app/api/v1/orders/service.py",
+    "backend/app/integrations/cdek.py",
+    "backend/app/integrations/pochta.py",
+    "backend/app/integrations/ozon_delivery.py",
+    "backend/app/integrations/wb_delivery.py",
+    "backend/app/tasks/delivery.py"
+  ],
+  "files_to_create": [
+    "backend/app/api/v1/webhooks/delivery.py",
+    "backend/app/db/models/order_tracking.py",
+    "backend/migrations/versions/XXX_add_order_tracking.py"
+  ]
+}

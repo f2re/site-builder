@@ -216,3 +216,98 @@ class UserRepository:
         )
         users = result.scalars().all()
         return [self._decrypt_user(u) for u in users]
+
+
+class DeliveryAddressRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    def _decrypt_address(self, addr):
+        """Decrypt PII fields."""
+        if addr.recipient_name:
+            set_committed_value(addr, "recipient_name", decrypt_data(addr.recipient_name))
+        if addr.recipient_phone:
+            set_committed_value(addr, "recipient_phone", decrypt_data(addr.recipient_phone))
+        if addr.full_address:
+            set_committed_value(addr, "full_address", decrypt_data(addr.full_address))
+        return addr
+
+    async def create(self, user_id: UUID, name: str, recipient_name: str, recipient_phone: str,
+                     address_type: str, full_address: str, city: str, postal_code: str | None,
+                     provider: str, pickup_point_code: str | None, is_default: bool):
+        """Create new delivery address with PII encryption."""
+        from app.db.models.delivery_address import DeliveryAddress
+
+        addr = DeliveryAddress(
+            user_id=user_id,
+            name=name,
+            recipient_name=encrypt_data(recipient_name),
+            recipient_phone=encrypt_data(recipient_phone),
+            recipient_phone_hash=get_blind_index(recipient_phone),
+            full_address=encrypt_data(full_address),
+            address_type=address_type,
+            city=city,
+            postal_code=postal_code,
+            provider=provider,
+            pickup_point_code=pickup_point_code,
+            is_default=is_default
+        )
+        self.session.add(addr)
+        await self.session.commit()
+        await self.session.refresh(addr)
+        return self._decrypt_address(addr)
+
+    async def get_by_id(self, address_id: UUID) -> Any:
+        """Get address by ID and decrypt."""
+        from app.db.models.delivery_address import DeliveryAddress
+        result = await self.session.execute(select(DeliveryAddress).where(DeliveryAddress.id == address_id))
+        addr = result.scalars().first()
+        return self._decrypt_address(addr) if addr else None
+
+    async def list_by_user(self, user_id: UUID) -> List[Any]:
+        """List all addresses for user, sorted by is_default DESC, created_at DESC."""
+        from app.db.models.delivery_address import DeliveryAddress
+        result = await self.session.execute(
+            select(DeliveryAddress)
+            .where(DeliveryAddress.user_id == user_id)
+            .order_by(DeliveryAddress.is_default.desc(), DeliveryAddress.created_at.desc())
+        )
+        addresses = result.scalars().all()
+        return [self._decrypt_address(a) for a in addresses]
+
+    async def update(self, address_id: UUID, **kwargs: Any):
+        """Update address with PII encryption."""
+        from app.db.models.delivery_address import DeliveryAddress
+
+        if "recipient_name" in kwargs and kwargs["recipient_name"]:
+            kwargs["recipient_name"] = encrypt_data(kwargs["recipient_name"])
+        if "recipient_phone" in kwargs and kwargs["recipient_phone"]:
+            kwargs["recipient_phone_hash"] = get_blind_index(kwargs["recipient_phone"])
+            kwargs["recipient_phone"] = encrypt_data(kwargs["recipient_phone"])
+        if "full_address" in kwargs and kwargs["full_address"]:
+            kwargs["full_address"] = encrypt_data(kwargs["full_address"])
+
+        await self.session.execute(update(DeliveryAddress).where(DeliveryAddress.id == address_id).values(**kwargs))
+        await self.session.commit()
+        return await self.get_by_id(address_id)
+
+    async def delete(self, address_id: UUID):
+        """Delete address."""
+        from app.db.models.delivery_address import DeliveryAddress
+        await self.session.execute(select(DeliveryAddress).where(DeliveryAddress.id == address_id))
+        addr = await self.get_by_id(address_id)
+        if addr:
+            await self.session.delete(addr)
+            await self.session.commit()
+
+    async def set_default(self, user_id: UUID, address_id: UUID):
+        """Set address as default, unset others."""
+        from app.db.models.delivery_address import DeliveryAddress
+        await self.session.execute(
+            update(DeliveryAddress).where(DeliveryAddress.user_id == user_id).values(is_default=False)
+        )
+        await self.session.execute(
+            update(DeliveryAddress).where(DeliveryAddress.id == address_id).values(is_default=True)
+        )
+        await self.session.commit()
+        return await self.get_by_id(address_id)

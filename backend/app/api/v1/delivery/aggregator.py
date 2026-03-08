@@ -1,10 +1,9 @@
-# Module: delivery/aggregator | Agent: backend-agent | Task: p10_backend_delivery_providers
+# Module: delivery/aggregator | Agent: backend-agent | Task: p11_backend_user_addresses
 import asyncio
-from app.api.v1.delivery.provider import DeliveryOption, PickupPoint, PackageDimensions, ShipmentResult
+from app.api.v1.delivery.provider import DeliveryOption, PickupPoint, PackageDimensions
 from app.integrations.cdek import cdek_client
 from app.integrations.pochta import pochta_client
-from app.integrations.ozon_delivery import ozon_client
-from app.integrations.wb_delivery import wb_client
+from app.integrations import ozon_delivery, wb_delivery
 from app.core.logging import logger
 
 
@@ -68,18 +67,19 @@ class CdekAdapter:
             logger.warning("cdek_adapter_pvz_error", error=str(e))
             return []
 
-    async def create_shipment(self, order_id: str, option: DeliveryOption) -> ShipmentResult:
-        raise NotImplementedError("Use cdek_client.create_order directly")
-
 
 class DeliveryAggregator:
     def __init__(self):
         self.cdek = CdekAdapter()
-        self.providers = {
+        self.providers_with_rate = {
             "cdek": self.cdek,
             "pochta": pochta_client,
-            "ozon": ozon_client,
-            "wildberries": wb_client,
+        }
+        self.providers_pvz = {
+            "cdek": self.cdek,
+            "pochta": pochta_client,
+            "ozon": ozon_delivery,
+            "wb": wb_delivery,
         }
 
     async def calculate_all(
@@ -90,7 +90,7 @@ class DeliveryAggregator:
     ) -> list[DeliveryOption]:
         tasks = [
             self._safe_calculate(provider, from_city_code, to_city_code, dimensions, name)
-            for name, provider in self.providers.items()
+            for name, provider in self.providers_with_rate.items()
         ]
         results = await asyncio.gather(*tasks, return_exceptions=False)
         options = []
@@ -104,14 +104,14 @@ class DeliveryAggregator:
         provider_filter: str | None = None,
     ) -> list[PickupPoint]:
         if provider_filter:
-            if provider_filter not in self.providers:
+            if provider_filter not in self.providers_pvz:
                 return []
-            provider = self.providers[provider_filter]
+            provider = self.providers_pvz[provider_filter]
             return await self._safe_get_pvz(provider, city_code, provider_filter)
 
         tasks = [
             self._safe_get_pvz(provider, city_code, name)
-            for name, provider in self.providers.items()
+            for name, provider in self.providers_pvz.items()
         ]
         results = await asyncio.gather(*tasks, return_exceptions=False)
         points = []

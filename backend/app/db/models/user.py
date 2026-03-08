@@ -48,7 +48,8 @@ class User(Base):
     # Relationships
     orders = relationship("Order", back_populates="user", lazy="selectin")
     devices = relationship("UserDevice", back_populates="user", lazy="selectin")
-    
+    delivery_addresses = relationship("DeliveryAddress", back_populates="user", lazy="selectin")
+
     # Blog relationships
     blog_author = relationship("Author", back_populates="user", uselist=False, lazy="selectin")
 

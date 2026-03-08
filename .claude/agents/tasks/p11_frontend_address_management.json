@@ -1,0 +1,46 @@
+{
+  "task_id": "p11_frontend_address_management",
+  "phase": 11,
+  "agent": "frontend-agent",
+  "priority": "high",
+  "status": "pending",
+  "title": "User Address Management UI and Order Tracking",
+  "description": "Implement UI for managing delivery addresses and tracking orders",
+  "requirements": [
+    "Profile page: /profile/addresses — list all addresses, add/edit/delete, set default",
+    "AddressCard component: display address with label, recipient, phone, address, default badge, edit/delete buttons",
+    "AddressForm component: form for creating/editing address (name, recipient, phone, address type, full address, provider, pickup point)",
+    "Checkout page: dropdown to select saved address or 'Add new address'",
+    "Pre-fill checkout form with default address data",
+    "Order detail page: display tracking URL as button 'Отследить на Почте РФ/СДЭК/Ozon/WB'",
+    "Order status badge: color-coded (pending=gray, shipped=blue, delivered=green, failed=red)",
+    "Real-time status updates: poll /orders/{id} every 30s on order detail page",
+    "Notification toast when status changes",
+    "Mobile-optimized: bottom sheet for address selection on mobile"
+  ],
+  "acceptance_criteria": [
+    "User can CRUD addresses in profile",
+    "Checkout pre-fills with default address",
+    "Tracking button opens provider tracking page in new tab",
+    "Status badge updates in real-time",
+    "Mobile UX: smooth bottom sheet for address selection",
+    "Accessibility: ARIA labels, keyboard navigation"
+  ],
+  "dependencies": ["p11_backend_user_addresses", "p11_cdek_order_tracking"],
+  "estimated_effort": "3h",
+  "files_to_modify": [
+    "frontend/pages/profile/index.vue",
+    "frontend/pages/checkout/index.vue",
+    "frontend/pages/orders/[id].vue",
+    "frontend/stores/userStore.ts",
+    "frontend/stores/orderStore.ts"
+  ],
+  "files_to_create": [
+    "frontend/pages/profile/addresses.vue",
+    "frontend/components/profile/AddressCard.vue",
+    "frontend/components/profile/AddressForm.vue",
+    "frontend/components/shop/AddressSelector.vue",
+    "frontend/components/orders/TrackingButton.vue",
+    "frontend/components/orders/StatusBadge.vue"
+  ]
+}

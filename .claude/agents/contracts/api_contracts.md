@@ -82,6 +82,36 @@ Response: `{ ok: true }`
 - email → `deleted_{id}@deleted.local`, name → `Deleted User`, phone → null
 - отмена активных заказов, свобождение Redis резерваций корзины
 
+### GET /api/v1/users/me/addresses
+Auth: Bearer
+Response: `{ items: DeliveryAddress[] }`
+- DeliveryAddress: `{ id: UUID, name: str, recipient_name: str, recipient_phone: str, address_type: "home"|"pickup", full_address: str, city: str, postal_code: str|null, provider: "cdek"|"pochta"|"ozon"|"wb", pickup_point_code: str|null, is_default: bool, created_at: datetime, updated_at: datetime }`
+- Sorted by is_default DESC, created_at DESC
+
+### POST /api/v1/users/me/addresses
+Auth: Bearer
+Request: `{ name: str, recipient_name: str, recipient_phone: str, address_type: str, full_address: str, city: str, postal_code?: str, provider: str, pickup_point_code?: str, is_default: bool }`
+Response: DeliveryAddress
+- recipient_phone: E.164 format validation
+- PII fields encrypted at rest
+
+### PATCH /api/v1/users/me/addresses/{id}
+Auth: Bearer
+Request: partial DeliveryAddress fields
+Response: DeliveryAddress
+- 404 if address not found or not owned by user
+
+### DELETE /api/v1/users/me/addresses/{id}
+Auth: Bearer
+Response: 204 No Content
+- 404 if address not found or not owned by user
+
+### POST /api/v1/users/me/addresses/{id}/set-default
+Auth: Bearer
+Response: DeliveryAddress
+- Unsets is_default on all other user addresses
+- 404 if address not found or not owned by user
+
 ---
 
 ## 3. Products API

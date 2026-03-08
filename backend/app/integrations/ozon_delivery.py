@@ -1,110 +1,54 @@
-# Module: integrations/ozon_delivery | Agent: backend-agent | Task: p10_backend_delivery_providers
-import httpx
-import json
-from decimal import Decimal
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from app.core.config import settings
-from app.db.redis import redis_client
-from app.core.logging import logger
-from app.api.v1.delivery.provider import DeliveryOption, PickupPoint, PackageDimensions, ShipmentResult
+# Module: integrations/ozon_delivery | Agent: backend-agent | Task: p11_backend_user_addresses
+"""Ozon C2C delivery via pickup points (no API, static data)."""
+from app.api.v1.delivery.provider import PickupPoint
 from app.api.v1.delivery.city_mapping import CITY_MAPPING
 
 
-class OzonDeliveryClient:
-    def __init__(self):
-        self.base_url = "https://api-seller.ozon.ru"
-        self.timeout = 30.0
+# Static Ozon pickup points (Moscow examples)
+OZON_PICKUP_POINTS = [
+    PickupPoint(
+        provider="ozon",
+        code="OZ001",
+        name="Ozon ПВЗ Тверская",
+        address="г. Москва, ул. Тверская, д. 12",
+        latitude=55.764167,
+        longitude=37.605278,
+        work_time="Пн-Вс 10:00-22:00",
+        phone="+7 (495) 123-45-67",
+        note="Вход со двора"
+    ),
+    PickupPoint(
+        provider="ozon",
+        code="OZ002",
+        name="Ozon ПВЗ Арбат",
+        address="г. Москва, ул. Арбат, д. 25",
+        latitude=55.751244,
+        longitude=37.593522,
+        work_time="Пн-Вс 09:00-21:00",
+        phone="+7 (495) 234-56-78",
+        note=None
+    ),
+    PickupPoint(
+        provider="ozon",
+        code="OZ003",
+        name="Ozon ПВЗ Сокольники",
+        address="г. Москва, ул. Русаковская, д. 13",
+        latitude=55.789722,
+        longitude=37.679167,
+        work_time="Пн-Вс 10:00-20:00",
+        phone="+7 (495) 345-67-89",
+        note="Рядом с метро"
+    ),
+]
 
-    def _get_headers(self) -> dict[str, str]:
-        return {
-            "Client-Id": settings.OZON_CLIENT_ID,
-            "Api-Key": settings.OZON_API_KEY,
-            "Content-Type": "application/json",
-        }
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=10),
-        retry=retry_if_exception_type(httpx.HTTPError),
-        reraise=True
-    )
-    async def calculate_rate(
-        self,
-        from_city_code: int,
-        to_city_code: int,
-        dimensions: PackageDimensions,
-    ) -> list[DeliveryOption]:
-        if not settings.OZON_CLIENT_ID:
-            return []
-
-        cache_key = f"ozon:rate:{to_city_code}:{dimensions.weight_grams}"
-        cached = await redis_client.get(cache_key)
-        if cached:
-            data = json.loads(cached)
-            return [DeliveryOption(**opt) for opt in data]
-
-        to_city = CITY_MAPPING.get(to_city_code)
-        if not to_city:
-            logger.warning("ozon_city_not_mapped", to_code=to_city_code)
-            return []
-
-        payload = {
-            "to_location": {"city_name": to_city["name"]},
-            "weight": dimensions.weight_grams,
-            "dimensions": {
-                "length": dimensions.length_cm,
-                "width": dimensions.width_cm,
-                "height": dimensions.height_cm,
-            }
-        }
-
-        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout) as client:
-            response = await client.post("/v2/posting/fbs/delivery-price", json=payload, headers=self._get_headers())
-            response.raise_for_status()
-            data = response.json()
-
-        options = [
-            DeliveryOption(
-                provider="ozon",
-                provider_label="Ozon",
-                service_type="pickup",
-                service_name="Ozon доставка",
-                cost_rub=Decimal(str(data.get("price", 0))),
-                days_min=data.get("min_days", 2),
-                days_max=data.get("max_days", 5),
-                tariff_code="FBS",
-                logo_url="/img/delivery/ozon.svg",
-            )
-        ]
-
-        await redis_client.set(cache_key, json.dumps([opt.__dict__ for opt in options]), ex=600)
-        return options
-
-    async def get_pickup_points(self, city_code: int) -> list[PickupPoint]:
+async def get_pickup_points(city_code: int) -> list[PickupPoint]:
+    """Get Ozon pickup points for city (static data)."""
+    city = CITY_MAPPING.get(city_code)
+    if not city:
         return []
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=10),
-        retry=retry_if_exception_type(httpx.HTTPError),
-        reraise=True
-    )
-    async def create_shipment(self, order_id: str, option: DeliveryOption) -> ShipmentResult:
-        if not settings.OZON_CLIENT_ID:
-            raise ValueError("OZON_CLIENT_ID not configured")
-
-        payload = {"posting_number": order_id}
-        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout) as client:
-            response = await client.post("/v2/posting/fbs/ship", json=payload, headers=self._get_headers())
-            response.raise_for_status()
-            data = response.json()
-
-        return ShipmentResult(
-            provider="ozon",
-            tracking_number=data.get("result", {}).get("posting_number", ""),
-            status="created",
-            raw=data,
-        )
-
-
-ozon_client = OzonDeliveryClient()
+    city_name = city["name"].lower()
+    if city_name in ["москва", "moscow"]:
+        return OZON_PICKUP_POINTS
+    return []
