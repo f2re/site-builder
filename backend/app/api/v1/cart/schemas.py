@@ -12,7 +12,7 @@ class CartItemBase(BaseModel):
 
 
 class CartItemCreate(CartItemBase):
-    pass
+    selected_option_value_ids: List[UUID] = []
 
 
 class CartItemUpdate(BaseModel):
@@ -20,12 +20,14 @@ class CartItemUpdate(BaseModel):
 
 
 class CartItemResponse(BaseModel):
+    item_id: str  # composite key for variant + options
     product_id: UUID
     slug: str
     name: str
     quantity: int
     price_rub: Decimal
     stock_available: int
+    selected_options: List[dict] = []
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 

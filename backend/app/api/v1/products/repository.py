@@ -9,7 +9,10 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
-from app.db.models.product import Product, Category, ProductVariant, ProductImage, StockMovement
+from app.db.models.product import (
+    Product, Category, ProductVariant, ProductImage, StockMovement,
+    ProductOptionGroup, ProductOptionValue
+)
 from app.db.session import get_db
 
 class ProductRepository:
@@ -23,7 +26,8 @@ class ProductRepository:
             .options(
                 selectinload(Product.category),
                 selectinload(Product.images),
-                selectinload(Product.variants)
+                selectinload(Product.variants),
+                selectinload(Product.option_groups).selectinload(ProductOptionGroup.values)
             )
         )
         result = await self.session.execute(stmt)
@@ -36,7 +40,8 @@ class ProductRepository:
             .options(
                 selectinload(Product.category),
                 selectinload(Product.images),
-                selectinload(Product.variants)
+                selectinload(Product.variants),
+                selectinload(Product.option_groups).selectinload(ProductOptionGroup.values)
             )
         )
         result = await self.session.execute(stmt)
@@ -476,6 +481,55 @@ class ProductRepository:
         )
         res = await self.session.execute(stmt)
         return res.scalar_one_or_none()
+
+    # ─── Option Groups ───
+    async def create_option_group(self, product_id: UUID, **kwargs) -> ProductOptionGroup:
+        group = ProductOptionGroup(product_id=product_id, **kwargs)
+        self.session.add(group)
+        await self.session.flush()
+        return group
+
+    async def get_option_group(self, group_id: UUID) -> Optional[ProductOptionGroup]:
+        stmt = select(ProductOptionGroup).where(ProductOptionGroup.id == group_id).options(selectinload(ProductOptionGroup.values))
+        res = await self.session.execute(stmt)
+        return res.scalar_one_or_none()
+
+    async def update_option_group(self, group_id: UUID, **kwargs) -> Optional[ProductOptionGroup]:
+        stmt = update(ProductOptionGroup).where(ProductOptionGroup.id == group_id).values(**kwargs).returning(ProductOptionGroup)
+        res = await self.session.execute(stmt)
+        return res.scalar_one_or_none()
+
+    async def delete_option_group(self, group_id: UUID) -> bool:
+        stmt = delete(ProductOptionGroup).where(ProductOptionGroup.id == group_id)
+        res = await self.session.execute(stmt)
+        return getattr(res, "rowcount", 0) > 0
+
+    # ─── Option Values ───
+    async def create_option_value(self, group_id: UUID, **kwargs) -> ProductOptionValue:
+        value = ProductOptionValue(group_id=group_id, **kwargs)
+        self.session.add(value)
+        await self.session.flush()
+        return value
+
+    async def get_option_value(self, value_id: UUID) -> Optional[ProductOptionValue]:
+        stmt = select(ProductOptionValue).where(ProductOptionValue.id == value_id)
+        res = await self.session.execute(stmt)
+        return res.scalar_one_or_none()
+
+    async def update_option_value(self, value_id: UUID, **kwargs) -> Optional[ProductOptionValue]:
+        stmt = update(ProductOptionValue).where(ProductOptionValue.id == value_id).values(**kwargs).returning(ProductOptionValue)
+        res = await self.session.execute(stmt)
+        return res.scalar_one_or_none()
+
+    async def delete_option_value(self, value_id: UUID) -> bool:
+        stmt = delete(ProductOptionValue).where(ProductOptionValue.id == value_id)
+        res = await self.session.execute(stmt)
+        return getattr(res, "rowcount", 0) > 0
+
+    async def get_option_values_by_ids(self, value_ids: List[UUID]) -> List[ProductOptionValue]:
+        stmt = select(ProductOptionValue).where(ProductOptionValue.id.in_(value_ids)).options(selectinload(ProductOptionValue.group))
+        res = await self.session.execute(stmt)
+        return list(res.scalars().all())
 
 async def get_product_repo(session: AsyncSession = Depends(get_db)) -> ProductRepository:
     return ProductRepository(session)

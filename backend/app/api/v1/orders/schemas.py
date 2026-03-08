@@ -49,6 +49,7 @@ class OrderItemRead(OrderItemBase):
     id: UUID
     price: Decimal
     product_variant: Optional[ProductVariantBrief] = None
+    selected_options: List[dict] = []
 
     @computed_field
     def product_name(self) -> str:

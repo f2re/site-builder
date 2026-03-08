@@ -8,6 +8,7 @@ import { formatPrice } from '~/composables/useFormatters'
 import AppBreadcrumbs from '~/components/AppBreadcrumbs.vue'
 import TipTapViewer from '~/components/blog/TipTapViewer.vue'
 import QuickBuyModal from '~/components/shop/QuickBuyModal.vue'
+import ProductDocIframe from '~/components/shop/ProductDocIframe.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 
 const route = useRoute()
@@ -295,12 +296,20 @@ const handleQuickBuySubmitted = () => {
 
             <!-- Stock badge -->
             <div
+              v-if="currentStock > 0"
               class="product-buy-panel__stock"
               :class="{
                 'product-buy-panel__stock--in': stockStatus === 'in',
                 'product-buy-panel__stock--low': stockStatus === 'low',
-                'product-buy-panel__stock--out': stockStatus === 'out'
               }"
+              data-testid="product-stock"
+            >
+              <span class="stock-dot" aria-hidden="true"></span>
+              <span>{{ stockLabel }}</span>
+            </div>
+            <div
+              v-else
+              class="product-buy-panel__stock product-buy-panel__stock--out"
               data-testid="product-stock"
             >
               <span class="stock-dot" aria-hidden="true"></span>
@@ -396,6 +405,16 @@ const handleQuickBuySubmitted = () => {
               {{ product.description }}
             </p>
           </div>
+        </section>
+
+        <!-- Documentation section -->
+        <section
+          v-if="product.doc_iframe_url"
+          class="product-documentation"
+          data-testid="product-documentation"
+        >
+          <h2 class="product-section-title">Документация</h2>
+          <ProductDocIframe :url="product.doc_iframe_url" data-testid="doc-iframe" />
         </section>
 
         <!-- Attributes section -->
@@ -892,7 +911,8 @@ const handleQuickBuySubmitted = () => {
 }
 
 /* ─── Description ───────────────────────────────────── */
-.product-description {
+.product-description,
+.product-documentation {
   max-width: 800px;
   margin-inline: auto;
   width: 100%;

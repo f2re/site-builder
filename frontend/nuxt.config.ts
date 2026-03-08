@@ -86,6 +86,11 @@ export default defineNuxtConfig({
     '/shop': { redirect: '/products' },
     '/shop/**': { redirect: '/products/**' },
     '/admin/products/new': { redirect: '/admin/products/create' },
+    '/products/**': {
+      headers: {
+        'Content-Security-Policy': "frame-src 'self' https://mad-auto.ru https://*.mad-auto.ru"
+      }
+    },
   },
 
   nitro: {

@@ -24,6 +24,31 @@ export interface ProductImage {
   sort_order: number
 }
 
+export interface ProductOptionValue {
+  id: string
+  name: string
+  price_modifier: number
+  is_default: boolean
+  sort_order: number
+  sku_suffix?: string | null
+}
+
+export interface ProductOptionGroup {
+  id: string
+  name: string
+  is_required: boolean
+  sort_order: number
+  values: ProductOptionValue[]
+}
+
+export interface ProductPriceCalculationResponse {
+  product_id: string
+  base_price: number
+  total_modifier: number
+  final_price: number
+  breakdown: Array<{ group_name: string, value_name: string, price_modifier: number }>
+}
+
 export interface Product {
   id: string
   slug: string
@@ -31,6 +56,7 @@ export interface Product {
   description?: string
   description_html?: string
   content_json?: any // TipTap JSON content
+  doc_iframe_url?: string | null
   meta_title?: string
   meta_description?: string
   og_image_url?: string
@@ -40,6 +66,7 @@ export interface Product {
   category?: ProductCategory
   images: ProductImage[]
   variants: ProductVariant[]
+  option_groups: ProductOptionGroup[]
   attributes: Record<string, any>
   created_at: string
   updated_at: string
@@ -83,6 +110,7 @@ export interface ProductCreate {
   description?: string
   description_html?: string
   content_json?: any // TipTap JSON content
+  doc_iframe_url?: string | null
   meta_title?: string
   meta_description?: string
   is_active?: boolean
@@ -220,6 +248,55 @@ export const useProducts = () => {
     })
   }
 
+  // Option Groups CRUD
+  const adminCreateOptionGroup = async (productId: string, data: any) => {
+    return await apiFetch<ProductOptionGroup>(`/admin/products/${productId}/option-groups`, {
+      method: 'POST',
+      body: data
+    })
+  }
+
+  const adminUpdateOptionGroup = async (groupId: string, data: any) => {
+    return await apiFetch<ProductOptionGroup>(`/admin/products/option-groups/${groupId}`, {
+      method: 'PUT',
+      body: data
+    })
+  }
+
+  const adminDeleteOptionGroup = async (groupId: string) => {
+    return await apiFetch(`/admin/products/option-groups/${groupId}`, {
+      method: 'DELETE'
+    })
+  }
+
+  const adminCreateOptionValue = async (groupId: string, data: any) => {
+    return await apiFetch<ProductOptionValue>(`/admin/products/option-groups/${groupId}/values`, {
+      method: 'POST',
+      body: data
+    })
+  }
+
+  const adminUpdateOptionValue = async (valueId: string, data: any) => {
+    return await apiFetch<ProductOptionValue>(`/admin/products/option-values/${valueId}`, {
+      method: 'PUT',
+      body: data
+    })
+  }
+
+  const adminDeleteOptionValue = async (valueId: string) => {
+    return await apiFetch(`/admin/products/option-values/${valueId}`, {
+      method: 'DELETE'
+    })
+  }
+
+  // Price Calculation
+  const calculatePrice = async (productId: string, selectedOptionValueIds: string[]) => {
+    return await apiFetch<ProductPriceCalculationResponse>('/products/calculate-price', {
+      method: 'POST',
+      body: { product_id: productId, selected_option_value_ids: selectedOptionValueIds }
+    })
+  }
+
   return {
     getProducts,
     getProductBySlug,
@@ -235,6 +312,13 @@ export const useProducts = () => {
     adminGetCategories,
     adminCreateCategory,
     adminUpdateCategory,
-    adminDeleteCategory
+    adminDeleteCategory,
+    adminCreateOptionGroup,
+    adminUpdateOptionGroup,
+    adminDeleteOptionGroup,
+    adminCreateOptionValue,
+    adminUpdateOptionValue,
+    adminDeleteOptionValue,
+    calculatePrice
   }
 }

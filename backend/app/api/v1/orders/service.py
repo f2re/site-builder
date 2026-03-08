@@ -52,7 +52,7 @@ class OrderService:
         try:
             for item in cart["items"]:
                 success = await inventory.reserve_stock(
-                    variant_id=item["variant_id"], 
+                    variant_id=item["product_id"], 
                     quantity=item["quantity"]
                 )
                 if not success:
@@ -63,7 +63,7 @@ class OrderService:
                 reserved_items.append(item)
 
             # 3. Create Order
-            total_amount = Decimal(str(cart["total_price"]))
+            total_amount = Decimal(str(cart["total_price"])) if "total_price" in cart else Decimal(str(cart["subtotal_rub"]))
             order = Order(
                 id=uuid.uuid4(),
                 user_id=user.id if user else None,
@@ -75,9 +75,10 @@ class OrderService:
 
             for item in cart["items"]:
                 order_item = OrderItem(
-                    product_variant_id=item["variant_id"],
+                    product_variant_id=item["product_id"],
                     quantity=item["quantity"],
-                    price=Decimal(str(item["price"]))
+                    price=Decimal(str(item["price_rub"])),
+                    selected_options=item.get("selected_options", [])
                 )
                 order.items.append(order_item)
 

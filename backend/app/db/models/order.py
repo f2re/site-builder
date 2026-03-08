@@ -5,8 +5,9 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import List, TYPE_CHECKING
 
-from sqlalchemy import String, DateTime, Numeric, ForeignKey, Enum as SAEnum, Integer
+from sqlalchemy import String, DateTime, Numeric, ForeignKey, Enum as SAEnum, Integer, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import JSONB
 from app.db.base import Base
 
 if TYPE_CHECKING:
@@ -87,6 +88,12 @@ class OrderItem(Base):
     )
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    selected_options: Mapped[list] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        server_default="[]",
+        default=list
+    )
 
     # Relationships
     order: Mapped["Order"] = relationship("Order", back_populates="items")

@@ -32,9 +32,9 @@ async def add_to_cart(
     return await cart_service.add_item(cart_id, item)
 
 
-@router.patch("/{variant_id}", response_model=CartResponse)
+@router.patch("/{item_id}", response_model=CartResponse)
 async def update_cart_item(
-    variant_id: UUID,
+    item_id: str,
     item: CartItemUpdate,
     cart_id: str = Depends(get_cart_id),
     cart_service: CartService = Depends(get_cart_service),
@@ -42,19 +42,19 @@ async def update_cart_item(
     """
     Update a cart item's quantity.
     """
-    return await cart_service.update_item(cart_id, variant_id, item)
+    return await cart_service.update_item(cart_id, item_id, item)
 
 
-@router.delete("/{variant_id}", response_model=CartResponse)
+@router.delete("/{item_id}", response_model=CartResponse)
 async def remove_from_cart(
-    variant_id: UUID,
+    item_id: str,
     cart_id: str = Depends(get_cart_id),
     cart_service: CartService = Depends(get_cart_service),
 ):
     """
-    Remove a product variant from the cart.
+    Remove an item from the cart.
     """
-    return await cart_service.remove_item(cart_id, variant_id)
+    return await cart_service.remove_item(cart_id, item_id)
 
 
 @router.delete("", status_code=204)

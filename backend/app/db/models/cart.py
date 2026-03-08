@@ -3,8 +3,9 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from sqlalchemy import String, DateTime, ForeignKey, Integer, CheckConstraint
+from sqlalchemy import String, DateTime, ForeignKey, Integer, CheckConstraint, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import JSONB
 from app.db.base import Base
 
 
@@ -41,6 +42,12 @@ class CartItem(Base):
         ForeignKey("product_variants.id", ondelete="CASCADE"), nullable=False
     )
     quantity: Mapped[int] = mapped_column(Integer, CheckConstraint("quantity > 0"), nullable=False)
+    selected_options: Mapped[list] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        server_default="[]",
+        default=list
+    )
     reserved_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     cart: Mapped["Cart"] = relationship("Cart", back_populates="items")

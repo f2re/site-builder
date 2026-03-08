@@ -7,11 +7,23 @@ from app.api.v1.products.schemas import (
     CategoryListResponse,
     ProductPagination,
     ProductRead,
+    ProductPriceCalculationRequest,
+    ProductPriceCalculationResponse
 )
 from app.api.v1.products.service import ProductService
 from app.integrations.meilisearch import meilisearch_provider
 
 router = APIRouter(prefix="/products", tags=["Catalog"])
+
+@router.post("/calculate-price", response_model=ProductPriceCalculationResponse)
+async def calculate_product_price(
+    data: ProductPriceCalculationRequest,
+    service: ProductService = Depends()
+):
+    """
+    Calculate final product price based on selected options.
+    """
+    return await service.calculate_price(data)
 
 @router.get("/search", response_model=Dict[str, Any])
 async def search_products(

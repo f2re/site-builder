@@ -6,6 +6,69 @@ from datetime import datetime
 from typing import List, Optional, Any
 from decimal import Decimal
 
+
+class ProductOptionValueSchema(BaseModel):
+    id: UUID
+    name: str
+    price_modifier: Decimal
+    is_default: bool
+    sort_order: int
+    sku_suffix: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProductOptionValueCreate(BaseModel):
+    name: str
+    price_modifier: Decimal = Decimal("0")
+    is_default: bool = False
+    sort_order: int = 0
+    sku_suffix: Optional[str] = None
+
+
+class ProductOptionValueUpdate(BaseModel):
+    name: Optional[str] = None
+    price_modifier: Optional[Decimal] = None
+    is_default: Optional[bool] = None
+    sort_order: Optional[int] = None
+    sku_suffix: Optional[str] = None
+
+
+class ProductOptionGroupSchema(BaseModel):
+    id: UUID
+    name: str
+    is_required: bool
+    sort_order: int
+    values: List[ProductOptionValueSchema] = []
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProductOptionGroupCreate(BaseModel):
+    name: str
+    is_required: bool = True
+    sort_order: int = 0
+
+
+class ProductOptionGroupUpdate(BaseModel):
+    name: Optional[str] = None
+    is_required: Optional[bool] = None
+    sort_order: Optional[int] = None
+
+
+class ProductPriceCalculationRequest(BaseModel):
+    product_id: UUID
+    selected_option_value_ids: List[UUID] = []
+
+
+class ProductPriceCalculationResponse(BaseModel):
+    product_id: UUID
+    base_price: Decimal
+    total_modifier: Decimal
+    final_price: Decimal
+    breakdown: List[dict] = Field(
+        default_factory=list,
+        description="List of {group_name, value_name, price_modifier}",
+    )
+
 class CategoryBase(BaseModel):
     name: str
     slug: Optional[str] = None
@@ -76,6 +139,7 @@ class ProductBase(BaseModel):
     meta_title: Optional[str] = Field(None, max_length=255)
     meta_description: Optional[str] = Field(None, max_length=500)
     og_image_url: Optional[str] = None
+    doc_iframe_url: Optional[str] = None
     attributes: dict[str, Any] = Field(default_factory=lambda: {})
     is_active: bool = True
     is_featured: bool = False
@@ -88,8 +152,10 @@ class ProductRead(ProductBase):
     category: Optional[CategoryRead] = None
     images: List[ProductImageRead] = []
     variants: List[ProductVariantRead] = []
+    option_groups: List[ProductOptionGroupSchema] = []
     stock: int = 0
     model_config = ConfigDict(from_attributes=True)
+
 
     @model_validator(mode="after")
     def compute_stock(self) -> "ProductRead":
@@ -110,6 +176,7 @@ class ProductUpdate(BaseModel):
     meta_title: Optional[str] = Field(None, max_length=255)
     meta_description: Optional[str] = Field(None, max_length=500)
     og_image_url: Optional[str] = None
+    doc_iframe_url: Optional[str] = None
     attributes: Optional[dict[str, Any]] = None
     is_active: Optional[bool] = None
     is_featured: Optional[bool] = None

@@ -25,7 +25,9 @@ from app.api.v1.products.service import ProductService
 from app.api.v1.products.repository import ProductRepository
 from app.api.v1.products.schemas import (
     ProductCreate, ProductUpdate, ProductRead, ProductPagination,
-    CategoryRead, CategoryCreate, CategoryUpdate, ProductImageRead
+    CategoryRead, CategoryCreate, CategoryUpdate, ProductImageRead,
+    ProductOptionGroupSchema, ProductOptionGroupCreate, ProductOptionGroupUpdate,
+    ProductOptionValueSchema, ProductOptionValueCreate, ProductOptionValueUpdate
 )
 from app.api.v1.blog.service import BlogService, get_blog_service
 from app.api.v1.blog.schemas import BlogPostCreate, BlogPostUpdate
@@ -332,6 +334,59 @@ async def set_product_cover_image(
     service: ProductService = Depends()
 ) -> Any:
     return await service.set_cover_image(product_id, image_id)
+
+# ─── Product Option Groups ──────────────────────────────────────────────────
+@router.post("/products/{product_id}/option-groups", response_model=ProductOptionGroupSchema, status_code=status.HTTP_201_CREATED)
+async def create_product_option_group(
+    product_id: UUID,
+    payload: ProductOptionGroupCreate,
+    _admin: User = AdminDep,
+    service: ProductService = Depends()
+) -> Any:
+    return await service.create_option_group(product_id, payload)
+
+@router.put("/products/option-groups/{group_id}", response_model=ProductOptionGroupSchema)
+async def update_product_option_group(
+    group_id: UUID,
+    payload: ProductOptionGroupUpdate,
+    _admin: User = AdminDep,
+    service: ProductService = Depends()
+) -> Any:
+    return await service.update_option_group(group_id, payload)
+
+@router.delete("/products/option-groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_product_option_group(
+    group_id: UUID,
+    _admin: User = AdminDep,
+    service: ProductService = Depends()
+) -> None:
+    await service.delete_option_group(group_id)
+
+@router.post("/products/option-groups/{group_id}/values", response_model=ProductOptionValueSchema, status_code=status.HTTP_201_CREATED)
+async def create_product_option_value(
+    group_id: UUID,
+    payload: ProductOptionValueCreate,
+    _admin: User = AdminDep,
+    service: ProductService = Depends()
+) -> Any:
+    return await service.create_option_value(group_id, payload)
+
+@router.put("/products/option-values/{value_id}", response_model=ProductOptionValueSchema)
+async def update_product_option_value(
+    value_id: UUID,
+    payload: ProductOptionValueUpdate,
+    _admin: User = AdminDep,
+    service: ProductService = Depends()
+) -> Any:
+    return await service.update_option_value(value_id, payload)
+
+@router.delete("/products/option-values/{value_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_product_option_value(
+    value_id: UUID,
+    _admin: User = AdminDep,
+    service: ProductService = Depends()
+) -> None:
+    await service.delete_option_value(value_id)
 
 # ─── Categories ─────────────────────────────────────────────────────────────
 @router.get("/categories", response_model=List[CategoryRead])

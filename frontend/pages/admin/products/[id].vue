@@ -45,6 +45,7 @@ watch(product, (newVal) => {
       category_id: newVal.category_id || null,
       description: newVal.description,
       content_json: newVal.content_json,
+      doc_iframe_url: newVal.doc_iframe_url,
       is_active: newVal.is_active,
       is_featured: newVal.is_featured,
       meta_title: newVal.meta_title,
@@ -162,18 +163,28 @@ const handleDelete = async () => {
               required
               data-testid="admin-product-name"
             />
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <UInput 
+                v-model="form.slug" 
+                label="Slug (URL)" 
+                placeholder="nazvanie-tovara"
+                required
+              />
+              <USelect 
+                v-model="form.category_id" 
+                label="Категория" 
+                :options="categoryOptions"
+                placeholder="Выберите категорию"
+              />
+            </div>
+            
             <UInput 
-              v-model="form.slug" 
-              label="Slug (URL)" 
-              placeholder="nazvanie-tovara"
-              required
+              v-model="form.doc_iframe_url" 
+              label="URL документации (Iframe)" 
+              placeholder="https://mad-auto.ru/docs/..."
+              data-testid="admin-product-doc-url"
             />
-            <USelect 
-              v-model="form.category_id" 
-              label="Категория" 
-              :options="categoryOptions"
-              placeholder="Выберите категорию"
-            />
+
             <UTextarea
               v-model="form.description"
               label="Краткое описание"

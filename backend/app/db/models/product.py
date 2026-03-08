@@ -1,6 +1,7 @@
 # Module: db/models/product.py | Agent: backend-agent | Task: BE-01
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import List, Optional, Any
 
 from sqlalchemy import String, ForeignKey, Integer, Numeric, Boolean, DateTime, func, Text, JSON
@@ -44,6 +45,7 @@ class Product(Base):
     meta_title: Mapped[Optional[str]] = mapped_column(String(255))
     meta_description: Mapped[Optional[str]] = mapped_column(String(500))
     og_image_url: Mapped[Optional[str]] = mapped_column(String(1000))
+    doc_iframe_url: Mapped[Optional[str]] = mapped_column(String(2000), nullable=True)
     attributes: Mapped[dict] = mapped_column(JSON().with_variant(JSONB, "postgresql"), server_default="{}", default=dict)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_featured: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -61,6 +63,10 @@ class Product(Base):
     )
     images: Mapped[List["ProductImage"]] = relationship(
         "ProductImage", back_populates="product", cascade="all, delete-orphan"
+    )
+    option_groups: Mapped[List["ProductOptionGroup"]] = relationship(
+        "ProductOptionGroup", back_populates="product",
+        cascade="all, delete-orphan", order_by="ProductOptionGroup.sort_order"
     )
 
 
@@ -114,3 +120,37 @@ class StockMovement(Base):
     )
 
     variant: Mapped["ProductVariant"] = relationship("ProductVariant", back_populates="stock_movements")
+
+
+class ProductOptionGroup(Base):
+    __tablename__ = "product_option_groups"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_required: Mapped[bool] = mapped_column(Boolean, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+    product: Mapped["Product"] = relationship("Product", back_populates="option_groups")
+    values: Mapped[List["ProductOptionValue"]] = relationship(
+        "ProductOptionValue", back_populates="group",
+        cascade="all, delete-orphan", order_by="ProductOptionValue.sort_order"
+    )
+
+
+class ProductOptionValue(Base):
+    __tablename__ = "product_option_values"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    group_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("product_option_groups.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    price_modifier: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, server_default="0")
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    sku_suffix: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+
+    group: Mapped["ProductOptionGroup"] = relationship("ProductOptionGroup", back_populates="values")

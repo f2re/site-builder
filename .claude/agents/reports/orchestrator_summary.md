@@ -2,8 +2,8 @@
 
 Обновлено: 2026-03-08
 
-## Текущая фаза: 29 (Admin User Details)
-## Выполнено задач: 21 / 29 ✅
+## Текущая фаза: 31 (Product Option Groups)
+## Выполнено задач: 21 / 32 ✅
 
 ---
 
@@ -46,9 +46,25 @@
 
 ---
 
+---
+
+## Фаза 31 — Product Option Groups (2026-03-08)
+
+| task_id | Агент | Описание | Приоритет | Статус |
+|---|---|---|---|---|
+| p31_backend_product_options | backend-agent | Модели, миграция, схемы, сервис, admin CRUD, публичный эндпоинт | high | ⏳ PENDING |
+| p31_backend_cart_options | backend-agent | CartItem.selected_options JSONB, миграция, обновить AddToCart | high | ⏳ PENDING |
+| p31_frontend_product_options | frontend-agent | UI выбора опций, расчёт цены, admin CRUD (зависит от backend) | high | ⏳ PENDING |
+
+### Граф зависимостей:
+- `p31_backend_product_options` и `p31_backend_cart_options` — параллельно (не пересекаются по файлам)
+- `p31_frontend_product_options` — после обоих backend задач
+
+---
+
 ## Последнее действие
 
-> **2026-03-08: ✅ Реализована админка категорий блога и стабильная пагинация**
+> **2026-03-08: Созданы задачи фазы 31 — Product Option Groups**
 >
 > Выполнены задачи:
 > - ✅ p28_backend_blog_categories — API категорий, фикс пагинации

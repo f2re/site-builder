@@ -19,9 +19,20 @@ from app.api.v1.products.schemas import (
     ProductCreate,
     ProductUpdate,
     ProductShortRead,
-    ProductImageRead
+    ProductImageRead,
+    ProductOptionGroupSchema,
+    ProductOptionGroupCreate,
+    ProductOptionGroupUpdate,
+    ProductOptionValueSchema,
+    ProductOptionValueCreate,
+    ProductOptionValueUpdate,
+    ProductPriceCalculationRequest,
+    ProductPriceCalculationResponse
 )
-from app.db.models.product import Product, ProductImage, ProductVariant, Category
+from app.db.models.product import (
+    Product, ProductImage, ProductVariant, Category,
+    ProductOptionGroup, ProductOptionValue
+)
 from app.tasks.search import index_product_task, remove_product_from_index_task
 from app.core.utils import generate_slug, extract_text_from_tiptap, tiptap_json_to_html, sanitize_filename
 from app.integrations.local_storage import storage_client
@@ -361,3 +372,92 @@ class ProductService:
             
         await self.repo.session.commit()
         return ProductImageRead.model_validate(image)
+
+    # ─── Option Groups ───
+    async def create_option_group(self, product_id: UUID, data: ProductOptionGroupCreate) -> ProductOptionGroupSchema:
+        group = await self.repo.create_option_group(product_id, **data.model_dump())
+        await self.repo.session.commit()
+        return ProductOptionGroupSchema.model_validate(group)
+
+    async def update_option_group(self, group_id: UUID, data: ProductOptionGroupUpdate) -> ProductOptionGroupSchema:
+        group = await self.repo.update_option_group(group_id, **data.model_dump(exclude_unset=True))
+        if not group:
+            raise HTTPException(status_code=404, detail="Option group not found")
+        await self.repo.session.commit()
+        # Reload to get values
+        full_group = await self.repo.get_option_group(group_id)
+        return ProductOptionGroupSchema.model_validate(full_group)
+
+    async def delete_option_group(self, group_id: UUID) -> None:
+        success = await self.repo.delete_option_group(group_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Option group not found")
+        await self.repo.session.commit()
+
+    # ─── Option Values ───
+    async def create_option_value(self, group_id: UUID, data: ProductOptionValueCreate) -> ProductOptionValueSchema:
+        value = await self.repo.create_option_value(group_id, **data.model_dump())
+        await self.repo.session.commit()
+        return ProductOptionValueSchema.model_validate(value)
+
+    async def update_option_value(self, value_id: UUID, data: ProductOptionValueUpdate) -> ProductOptionValueSchema:
+        value = await self.repo.update_option_value(value_id, **data.model_dump(exclude_unset=True))
+        if not value:
+            raise HTTPException(status_code=404, detail="Option value not found")
+        await self.repo.session.commit()
+        return ProductOptionValueSchema.model_validate(value)
+
+    async def delete_option_value(self, value_id: UUID) -> None:
+        success = await self.repo.delete_option_value(value_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Option value not found")
+        await self.repo.session.commit()
+
+    # ─── Price Calculation ───
+    async def calculate_price(self, data: ProductPriceCalculationRequest) -> ProductPriceCalculationResponse:
+        product = await self.repo.get_by_id(data.product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+
+        # Get base price from first variant (or 0)
+        base_price = product.variants[0].price if product.variants else Decimal("0")
+        
+        selected_values = []
+        if data.selected_option_value_ids:
+            selected_values = await self.repo.get_option_values_by_ids(data.selected_option_value_ids)
+            
+        # Validate that all selected values belong to this product
+        total_modifier = Decimal("0")
+        breakdown = []
+        
+        # Check required groups
+        selected_group_ids = {v.group_id for v in selected_values}
+        for group in product.option_groups:
+            if group.is_required and group.id not in selected_group_ids:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Option group '{group.name}' is required"
+                )
+        
+        for val in selected_values:
+            # Verify value belongs to one of product's groups
+            if not any(g.id == val.group_id for g in product.option_groups):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Option value {val.id} does not belong to product {product.id}"
+                )
+            
+            total_modifier += val.price_modifier
+            breakdown.append({
+                "group_name": val.group.name,
+                "value_name": val.name,
+                "price_modifier": val.price_modifier
+            })
+
+        return ProductPriceCalculationResponse(
+            product_id=product.id,
+            base_price=base_price,
+            total_modifier=total_modifier,
+            final_price=base_price + total_modifier,
+            breakdown=breakdown
+        )
