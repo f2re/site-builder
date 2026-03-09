@@ -18,14 +18,13 @@ def run_migration_task(self, job_id: str):
         from app.db.celery_session import celery_engine  # noqa: PLC0415
         from app.db.opencart_session import oc_engine  # noqa: PLC0415
         from app.db.models.migration import MigrationStatus  # noqa: PLC0415
-        from app.db.redis import get_redis  # noqa: PLC0415
+        from app.db.redis import redis_client  # noqa: PLC0415
 
         lock_key = f"migration_lock:{job_id}"
         lock_ttl = 300  # 5 minutes — enough for one batch
 
-        redis = await get_redis()
         # SET NX EX — atomic acquire
-        acquired = await redis.set(lock_key, "1", nx=True, ex=lock_ttl)
+        acquired = await redis_client.set(lock_key, "1", nx=True, ex=lock_ttl)
         if not acquired:
             logger.warning("migration_task_skipped_locked", job_id=job_id)
             return
@@ -45,7 +44,7 @@ def run_migration_task(self, job_id: str):
                     logger.error("migration_mark_failed_error", job_id=job_id, error=str(mark_exc))
             raise
         finally:
-            await redis.delete(lock_key)
+            await redis_client.delete(lock_key)
             if session:
                 await session.close()
             await celery_engine.dispose()
