@@ -461,10 +461,11 @@ class MigrationService:
 
         return {"overall_status": overall_status, "overall_progress": progress, "entities": entities_data}
 
-    async def run_batch(self, job_id: UUID) -> None:
+    async def run_batch(self, job_id: UUID) -> bool:
         """
         Main logic for running a migration batch.
-        This is called by Celery tasks.
+        Returns True if the job should be re-triggered (more data remains).
+        Caller is responsible for dispatching the next task AFTER releasing any locks.
         """
         job = await self.repo.get_job_by_id(job_id)
         if not job or job.status not in [MigrationStatus.PENDING, MigrationStatus.RUNNING]:
@@ -547,11 +548,13 @@ class MigrationService:
             else:
                 await self.repo.update_job_status(job_id, MigrationStatus.DONE)
 
-            # Re-trigger if more data and still running
+            # Check retrigger — caller will dispatch AFTER releasing lock
             if should_retrigger:
                 await self.session.refresh(job)
-                if job.status == MigrationStatus.RUNNING:
-                    self._dispatch_task(job.id)
+                if job.status != MigrationStatus.RUNNING:
+                    should_retrigger = False
+
+            return should_retrigger
 
         except Exception as e:
             error_msg = f"{str(e)}\n{traceback.format_exc()}"
