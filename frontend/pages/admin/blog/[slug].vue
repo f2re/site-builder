@@ -58,7 +58,8 @@ watchEffect(() => {
     form.title = post.value.title
     form.slug = post.value.slug
     form.summary = post.value.summary || post.value.excerpt || ''
-    form.content_json = post.value.content_json || null
+    const hasJson = post.value.content_json && Object.keys(post.value.content_json).length > 0
+    form.content_json = hasJson ? post.value.content_json : (post.value.content_html || null)
     form.tags = post.value.tags?.map((t) =>
       typeof t === 'string' ? t : t.name
     ) || []

@@ -4,6 +4,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
 import Typography from '@tiptap/extension-typography'
+import { Markdown } from 'tiptap-markdown'
 import { useToast } from '~/composables/useToast'
 import { usePrompt } from '~/composables/usePrompt'
 
@@ -27,6 +28,7 @@ const editor = useEditor({
       },
     }),
     Typography,
+    Markdown,
   ],
   onUpdate: ({ editor }) => {
     emit('update:modelValue', editor.getHTML())
@@ -117,6 +119,39 @@ function setLink() {
 
   showLinkDialog.value = false
   linkUrl.value = ''
+}
+
+// Markdown import/export
+const showImportMd = ref(false)
+const showExportMd = ref(false)
+const markdownInput = ref('')
+const markdownOutput = ref('')
+
+function openImportMd() {
+  markdownInput.value = ''
+  showImportMd.value = true
+}
+
+function applyMarkdown() {
+  if (!editor.value || !markdownInput.value.trim()) return
+  editor.value.commands.setContent(markdownInput.value)
+  showImportMd.value = false
+  markdownInput.value = ''
+}
+
+function openExportMd() {
+  if (!editor.value) return
+  markdownOutput.value = (editor.value.storage.markdown as { getMarkdown: () => string }).getMarkdown()
+  showExportMd.value = true
+}
+
+async function copyMarkdown() {
+  try {
+    await navigator.clipboard.writeText(markdownOutput.value)
+    toast.success('Скопировано', 'Markdown скопирован в буфер обмена')
+  } catch {
+    toast.error('Ошибка', 'Не удалось скопировать текст')
+  }
 }
 </script>
 
@@ -215,15 +250,36 @@ function setLink() {
       >
         <Icon name="ph:arrow-u-up-right-bold" />
       </button>
+      <div class="divider" />
+      <button
+        type="button"
+        class="md-btn"
+        @click="openImportMd"
+        title="Вставить Markdown"
+        data-testid="richeditor-import-md-btn"
+        aria-label="Вставить Markdown"
+      >
+        MD↑
+      </button>
+      <button
+        type="button"
+        class="md-btn"
+        @click="openExportMd"
+        title="Экспортировать в Markdown"
+        data-testid="richeditor-export-md-btn"
+        aria-label="Экспортировать в Markdown"
+      >
+        MD↓
+      </button>
     </div>
-    
+
     <div class="editor-body" @click="editor?.chain().focus().run()">
-      <EditorContent 
-        :editor="editor" 
-        class="editor-content" 
+      <EditorContent
+        :editor="editor"
+        class="editor-content"
       />
     </div>
-    
+
     <!-- Hidden file input for image upload -->
     <input
       ref="imageInputRef"
@@ -232,7 +288,7 @@ function setLink() {
       style="display: none"
       @change="handleImageUpload"
     />
-    
+
     <!-- Link dialog -->
     <div v-if="showLinkDialog" class="link-dialog-overlay" @click="showLinkDialog = false">
       <div class="link-dialog" @click.stop>
@@ -247,6 +303,97 @@ function setLink() {
         <div class="link-dialog-actions">
           <button type="button" @click="showLinkDialog = false">Отмена</button>
           <button type="button" @click="setLink" class="primary">Вставить</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Import Markdown modal -->
+    <div
+      v-if="showImportMd"
+      class="md-modal-overlay"
+      @mousedown.self="showImportMd = false"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Вставить Markdown"
+    >
+      <div class="md-modal" data-testid="richeditor-import-md-modal">
+        <div class="md-modal-header">
+          <h3 class="md-modal-title">Вставить Markdown</h3>
+          <button
+            type="button"
+            class="md-modal-close"
+            aria-label="Закрыть"
+            @click="showImportMd = false"
+          >
+            <Icon name="ph:x-bold" size="16" />
+          </button>
+        </div>
+        <textarea
+          v-model="markdownInput"
+          class="md-textarea"
+          placeholder="# Заголовок&#10;&#10;Введите Markdown текст..."
+          rows="12"
+          autofocus
+          data-testid="richeditor-md-input"
+        />
+        <div class="md-modal-footer">
+          <button type="button" class="md-action-btn" @click="showImportMd = false">
+            Отмена
+          </button>
+          <button
+            type="button"
+            class="md-action-btn md-action-btn--primary"
+            :disabled="!markdownInput.trim()"
+            @click="applyMarkdown"
+            data-testid="richeditor-apply-md-btn"
+          >
+            Применить
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export Markdown modal -->
+    <div
+      v-if="showExportMd"
+      class="md-modal-overlay"
+      @mousedown.self="showExportMd = false"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Экспортировать Markdown"
+    >
+      <div class="md-modal" data-testid="richeditor-export-md-modal">
+        <div class="md-modal-header">
+          <h3 class="md-modal-title">Экспорт Markdown</h3>
+          <button
+            type="button"
+            class="md-modal-close"
+            aria-label="Закрыть"
+            @click="showExportMd = false"
+          >
+            <Icon name="ph:x-bold" size="16" />
+          </button>
+        </div>
+        <textarea
+          :value="markdownOutput"
+          class="md-textarea md-textarea--readonly"
+          rows="12"
+          readonly
+          data-testid="richeditor-md-output"
+        />
+        <div class="md-modal-footer">
+          <button type="button" class="md-action-btn" @click="showExportMd = false">
+            Закрыть
+          </button>
+          <button
+            type="button"
+            class="md-action-btn md-action-btn--primary"
+            @click="copyMarkdown"
+            data-testid="richeditor-copy-md-btn"
+          >
+            <Icon name="ph:copy-bold" size="14" />
+            Копировать
+          </button>
         </div>
       </div>
     </div>
@@ -372,6 +519,21 @@ function setLink() {
   text-decoration: underline;
 }
 
+.md-btn {
+  width: auto;
+  padding: 0 6px;
+  min-width: 32px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--color-neon);
+}
+
+.md-btn:hover:not(:disabled) {
+  background: var(--color-neon-glow);
+  color: var(--color-neon);
+}
+
 .spin {
   animation: spin 1s linear infinite;
 }
@@ -379,6 +541,150 @@ function setLink() {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* Markdown modals */
+.md-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  background: var(--color-overlay);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.md-modal {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: md-modal-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes md-modal-in {
+  from { transform: translateY(16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.md-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.md-modal-title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.md-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-2);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.md-modal-close:hover {
+  background: var(--color-surface-2);
+  color: var(--color-accent);
+}
+
+.md-textarea {
+  width: 100%;
+  padding: 1rem;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.md-textarea:focus {
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+.md-textarea--readonly {
+  cursor: text;
+  color: var(--color-text-2);
+}
+
+.md-modal-footer {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  padding: 0.875rem 1.25rem;
+  background: var(--color-surface-2);
+}
+
+.md-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.md-action-btn:hover:not(:disabled) {
+  background: var(--color-surface-3);
+}
+
+.md-action-btn--primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.md-action-btn--primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.md-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .md-modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .md-modal {
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    max-height: 85vh;
+  }
 }
 
 /* Link dialog */

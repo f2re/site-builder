@@ -34,11 +34,15 @@ const editor = useEditor({
 })
 
 // Support reactive content updates
+// Handles both HTML strings (from OpenCart migration) and TipTap JSON objects
 watch(() => props.content, (newContent) => {
   if (newContent) {
     editor.value?.commands.setContent(newContent as any, false)
   }
 })
+
+// Also handle the initial content if it arrives after mount (SSR hydration)
+// TipTap's setContent natively accepts both HTML strings and ProseMirror JSON
 
 onBeforeUnmount(() => {
   editor.value?.destroy()

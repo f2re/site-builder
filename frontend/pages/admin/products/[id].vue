@@ -11,7 +11,7 @@ import UTextarea from '~/components/U/UTextarea.vue'
 import USkeleton from '~/components/U/USkeleton.vue'
 import TipTapEditor from '~/components/blog/TipTapEditor.vue'
 import ProductMediaManager from '~/components/Admin/ProductMediaManager.vue'
-import ProductOptionGroupsEditor from '~/components/admin/ProductOptionGroupsEditor.vue'
+import ProductOptionGroupsEditor from '~/components/Admin/ProductOptionGroupsEditor.vue'
 
 definePageMeta({
   layout: false,
@@ -40,12 +40,14 @@ const form = ref<Partial<ProductCreate>>({})
 // Initialize form when product data is loaded
 watch(product, (newVal) => {
   if (newVal) {
+    const hasJson = newVal.content_json && Object.keys(newVal.content_json).length > 0
+    const contentFallback = hasJson ? newVal.content_json : (newVal.description_html || null)
     form.value = {
       name: newVal.name,
       slug: newVal.slug,
       category_id: newVal.category_id || null,
       description: newVal.description,
-      content_json: newVal.content_json,
+      content_json: contentFallback,
       doc_iframe_url: newVal.doc_iframe_url,
       is_active: newVal.is_active,
       is_featured: newVal.is_featured,
