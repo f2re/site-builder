@@ -1,3 +1,5 @@
+import type { UseFetchOptions } from 'nuxt/app'
+
 export interface C2CShipmentResponse {
   provider: string
   order_id: string
@@ -12,6 +14,6 @@ export interface C2CShipmentResponse {
   instructions: string[]
 }
 
-export const useC2CShipment = (orderId: string) => {
-  return useApi<C2CShipmentResponse>(`/delivery/orders/${orderId}/c2c-shipment`)
+export const useC2CShipment = (orderId: string, options: UseFetchOptions<C2CShipmentResponse> = {}) => {
+  return useApi<C2CShipmentResponse>(`/delivery/orders/${orderId}/c2c-shipment`, options)
 }

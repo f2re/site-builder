@@ -52,7 +52,15 @@ const isC2CProvider = computed(() =>
   order.value?.delivery_provider === 'ozon' || order.value?.delivery_provider === 'wb'
 )
 
-const { data: c2cData, pending: c2cPending, error: c2cError } = await useC2CShipment(orderId)
+// Only fetch C2C data if the provider is ozon or wb
+const { data: c2cData, pending: c2cPending, error: c2cError } = await useC2CShipment(orderId, {
+  immediate: isC2CProvider.value,
+  watch: [isC2CProvider],
+  transform: (data) => {
+    if (!isC2CProvider.value) return null
+    return data
+  }
+})
 
 const statusOptions = [
   { label: 'Новый', value: 'pending' },

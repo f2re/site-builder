@@ -765,7 +765,21 @@ class MigrationService:
         metadata: Dict[str, Any] = job.extra_data or {}  # type: ignore[assignment]
         last_device_id: int = int(metadata.get("devices_last_id") or 0)
 
+        logger.info(
+            "migrate_devices_start",
+            job_id=str(job.id),
+            last_device_id=last_device_id,
+            addresses_done=metadata.get("addresses_done"),
+            devices_done=metadata.get("devices_done"),
+        )
+
         async with OCAsyncSessionLocal() as oc_session:
+            # Сначала посчитаем общее количество записей в oc_devices
+            total_stmt = select(func.count()).select_from(OCDevice)
+            total_res = await oc_session.execute(total_stmt)
+            total_in_oc = int(total_res.scalar() or 0)
+            logger.info("migrate_devices_oc_total", total_in_oc_devices=total_in_oc)
+
             stmt = (
                 select(OCDevice)
                 .where(OCDevice.device_id > last_device_id)
@@ -775,8 +789,21 @@ class MigrationService:
             result = await oc_session.execute(stmt)
             oc_devices = result.scalars().all()
 
+            logger.info(
+                "migrate_devices_fetched",
+                fetched=len(oc_devices),
+                cursor_from=last_device_id,
+                batch_size=self.batch_size,
+            )
+
             if not oc_devices:
-                logger.info("migrate_devices_complete", processed=0, skipped=0)
+                logger.info(
+                    "migrate_devices_complete",
+                    processed=0,
+                    skipped=0,
+                    total_in_oc=total_in_oc,
+                    reason="no_rows_after_cursor",
+                )
                 return False
 
             migrated = 0
@@ -787,6 +814,16 @@ class MigrationService:
             for oc_dev in oc_devices:
                 current_last_id = oc_dev.device_id
 
+                logger.info(
+                    "migrate_devices_row",
+                    oc_device_id=oc_dev.device_id,
+                    oc_customer_id=oc_dev.customer_id,
+                    device_serial=oc_dev.device_serial,
+                    device_name=oc_dev.device_name,
+                    device_type=oc_dev.device_type,
+                    register_date=str(oc_dev.register_date),
+                )
+
                 # Find customer in OpenCart to get email
                 cust_stmt = select(OCCustomer).where(OCCustomer.customer_id == oc_dev.customer_id)
                 cust_result = await oc_session.execute(cust_stmt)
@@ -796,12 +833,27 @@ class MigrationService:
                         "migrate_devices_no_customer",
                         oc_device_id=oc_dev.device_id,
                         oc_customer_id=oc_dev.customer_id,
+                        reason="customer_not_found_in_oc_customer",
                     )
                     skipped += 1
                     continue
 
+                logger.info(
+                    "migrate_devices_customer_found",
+                    oc_device_id=oc_dev.device_id,
+                    oc_customer_id=oc_cust.customer_id,
+                    email_preview=oc_cust.email[:3] + "***" if oc_cust.email else "EMPTY",
+                    email_empty=not bool(oc_cust.email),
+                )
+
                 # Resolve User by email_hash
                 email_hash = get_blind_index(oc_cust.email)
+                logger.info(
+                    "migrate_devices_email_hash",
+                    oc_device_id=oc_dev.device_id,
+                    email_hash_prefix=email_hash[:8] if email_hash else "NONE",
+                )
+
                 user_stmt = select(User).where(User.email_hash == email_hash)
                 user_result = await self.session.execute(user_stmt)
                 user = user_result.scalar_one_or_none()
@@ -810,16 +862,31 @@ class MigrationService:
                         "migrate_devices_no_user",
                         oc_device_id=oc_dev.device_id,
                         oc_customer_id=oc_dev.customer_id,
+                        email_hash_prefix=email_hash[:8] if email_hash else "NONE",
+                        reason="user_not_found_by_email_hash_in_new_db",
                     )
                     skipped += 1
                     continue
+
+                logger.info(
+                    "migrate_devices_user_found",
+                    oc_device_id=oc_dev.device_id,
+                    user_id=str(user.id),
+                )
 
                 # Build device_uid — use serial if non-empty, else generate
                 raw_serial = (oc_dev.device_serial or "").strip()
                 if raw_serial:
                     device_uid = raw_serial
+                    logger.info("migrate_devices_uid_serial", oc_device_id=oc_dev.device_id, device_uid=device_uid)
                 else:
                     device_uid = f"oc-{oc_dev.device_id}-{uuid4().hex[:8]}"
+                    logger.info(
+                        "migrate_devices_uid_generated",
+                        oc_device_id=oc_dev.device_id,
+                        device_uid=device_uid,
+                        reason="empty_serial",
+                    )
 
                 # Ensure registered_at is timezone-aware
                 if oc_dev.register_date:
@@ -844,17 +911,30 @@ class MigrationService:
                     self.session.add(new_device)
                     await self.session.flush()
                     migrated += 1
+                    logger.info(
+                        "migrate_devices_ok",
+                        oc_device_id=oc_dev.device_id,
+                        device_uid=device_uid,
+                        user_id=str(user.id),
+                    )
                 except Exception as exc:
                     await self.session.rollback()
                     err_str = str(exc)
                     # ON CONFLICT SKIP for duplicate device_uid
                     if "unique" in err_str.lower() or "duplicate" in err_str.lower():
                         skipped += 1
+                        logger.warning(
+                            "migrate_devices_duplicate",
+                            oc_device_id=oc_dev.device_id,
+                            device_uid=device_uid,
+                            error=err_str,
+                        )
                     else:
                         errors_count += 1
                         logger.warning(
                             "migrate_devices_error",
                             oc_device_id=oc_dev.device_id,
+                            device_uid=device_uid,
                             error=err_str,
                         )
 
@@ -873,6 +953,7 @@ class MigrationService:
                 skipped=skipped,
                 errors=errors_count,
                 last_device_id=current_last_id,
+                will_retrigger=len(oc_devices) == self.batch_size,
             )
 
             # Retrigger if full batch fetched

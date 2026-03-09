@@ -321,7 +321,7 @@ class ProductService:
 
         content = await file.read()
         safe_filename = sanitize_filename(file.filename or "image.jpg")
-        object_name = f"products/{product_id}/{uuid.uuid4().hex[:8]}_{safe_filename}"
+        object_name = f"product/{product_id}/{uuid.uuid4().hex[:8]}_{safe_filename}"
 
         await storage_client.save_file(
             object_name=object_name,

@@ -5,17 +5,19 @@ from datetime import datetime
 
 
 class UserBase(BaseModel):
-    email: EmailStr
+    email: str
     full_name: str | None = None
 
 
-class UserCreate(UserBase):
+class UserCreate(BaseModel):
+    email: EmailStr
     password: str
+    full_name: str | None = None
 
 
 class UserResponse(BaseModel):
     id: UUID
-    email: EmailStr
+    email: str
     full_name: str | None = None
     phone: str | None = None
     is_active: bool
