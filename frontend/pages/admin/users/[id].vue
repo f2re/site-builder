@@ -1,16 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { useUser, type UserAdminUpdate, type AdminDeviceRead } from '~/composables/useUser'
+import { useUser, type AdminDeviceRead } from '~/composables/useUser'
 import { useToast } from '~/composables/useToast'
 import { useConfirm } from '~/composables/useConfirm'
 import UButton from '~/components/U/UButton.vue'
 import UCard from '~/components/U/UCard.vue'
 import UBadge from '~/components/U/UBadge.vue'
 import USkeleton from '~/components/U/USkeleton.vue'
-import UModal from '~/components/U/UModal.vue'
-import UInput from '~/components/U/UInput.vue'
-import USelect from '~/components/U/USelect.vue'
 
 definePageMeta({
   layout: false,
@@ -21,7 +18,7 @@ const route = useRoute()
 const toast = useToast()
 const { confirm } = useConfirm()
 const userId = route.params.id as string
-const { adminGetUserFull, adminUpdateUser, adminSetUserBlockStatus, adminGetUserDevices } = useUser()
+const { adminGetUserFull, adminSetUserBlockStatus, adminGetUserDevices } = useUser()
 
 const { data: user, pending, error, refresh } = await adminGetUserFull(userId)
 
@@ -64,43 +61,6 @@ const userInitials = computed(() => {
     .slice(0, 2)
 })
 
-// Edit User Logic
-const isEditModalOpen = ref(false)
-const isSubmitting = ref(false)
-const editForm = ref<UserAdminUpdate>({
-  full_name: '',
-  email: '',
-  phone: '',
-  role: 'customer',
-  is_active: true,
-})
-
-const openEditModal = () => {
-  if (!user.value) return
-  editForm.value = {
-    full_name: user.value.full_name || '',
-    email: user.value.email || '',
-    phone: user.value.phone || '',
-    role: user.value.role,
-    is_active: user.value.is_active,
-  }
-  isEditModalOpen.value = true
-}
-
-const handleUpdateUser = async () => {
-  isSubmitting.value = true
-  try {
-    await adminUpdateUser(userId, editForm.value)
-    toast.success('Пользователь обновлён')
-    isEditModalOpen.value = false
-    refresh()
-  } catch (err: any) {
-    toast.error(err.data?.message || 'Не удалось обновить пользователя')
-  } finally {
-    isSubmitting.value = false
-  }
-}
-
 const handleDeleteUser = async () => {
   const confirmed = await confirm({
     title: 'Удалить пользователя?',
@@ -126,12 +86,6 @@ const handleBlockStatus = async () => {
     toast.error(err.data?.message || 'Не удалось изменить статус')
   }
 }
-
-const roleOptions = [
-  { label: 'Покупатель', value: 'customer' },
-  { label: 'Менеджер', value: 'manager' },
-  { label: 'Админ', value: 'admin' }
-]
 </script>
 
 <template>
@@ -166,11 +120,21 @@ const roleOptions = [
 
     <template #header-actions>
       <div v-if="user" class="flex gap-2">
-        <UButton variant="outline" size="sm" @click="openEditModal" data-testid="edit-btn">
+        <UButton 
+          variant="outline" 
+          size="sm" 
+          :to="`/admin/users/${userId}/edit`" 
+          data-testid="edit-btn"
+        >
           <template #icon><Icon name="ph:pencil-simple-bold" /></template>
           <span class="hidden sm:inline">Редактировать</span>
         </UButton>
-        <UButton variant="error" size="sm" @click="handleDeleteUser" data-testid="delete-btn">
+        <UButton 
+          variant="error" 
+          size="sm" 
+          @click="handleDeleteUser" 
+          data-testid="delete-btn"
+        >
           <template #icon><Icon name="ph:trash-bold" /></template>
           <span class="hidden sm:inline">Удалить</span>
         </UButton>
@@ -366,9 +330,11 @@ const roleOptions = [
                       <span class="city">{{ addr.city }}</span>
                       <UBadge v-if="addr.is_default" variant="success" size="sm">Основной</UBadge>
                     </div>
-                    <p class="address-full">{{ addr.address }}</p>
-                    <div class="address-footer">
-                      Добавлен: {{ formatDate(addr.created_at) }}
+                    <p class="address-full">{{ addr.full_address }}</p>
+                    <div class="mt-2 text-sm">
+                      <p><span class="text-muted">Получатель:</span> {{ addr.recipient_name }}</p>
+                      <p><span class="text-muted">Телефон:</span> {{ addr.recipient_phone }}</p>
+                      <p><span class="text-muted">Тип:</span> {{ addr.address_type }} ({{ addr.provider }})</p>
                     </div>
                   </div>
                 </div>
@@ -468,32 +434,6 @@ const roleOptions = [
         </main>
       </div>
     </div>
-
-    <!-- Edit User Modal -->
-    <UModal v-model="isEditModalOpen" title="Редактировать профиль" data-testid="edit-user-modal">
-      <div class="space-y-4 pt-4">
-        <UInput v-model="editForm.full_name" label="Полное имя" placeholder="Иван Иванов" data-testid="edit-name-input" />
-        <UInput v-model="editForm.email" label="Email (Логин)" placeholder="user@example.com" required data-testid="edit-email-input" />
-        <UInput v-model="editForm.phone" label="Телефон" placeholder="+7 999 000 00 00" data-testid="edit-phone-input" />
-        <USelect v-model="editForm.role" label="Роль пользователя" :options="roleOptions" data-testid="edit-role-select" />
-        
-        <div class="flex items-center justify-between p-3 bg-surface-2 rounded-lg border border-border mt-6">
-          <label class="text-sm font-semibold text-text" for="active-toggle">Активный аккаунт</label>
-          <input
-            id="active-toggle"
-            v-model="editForm.is_active"
-            type="checkbox"
-            class="w-5 h-5 accent-accent cursor-pointer"
-            data-testid="edit-active-toggle"
-          />
-        </div>
-
-        <div class="flex flex-col gap-3 mt-8 sm:flex-row sm:justify-end">
-          <UButton variant="ghost" @click="isEditModalOpen = false">Отмена</UButton>
-          <UButton variant="primary" :loading="isSubmitting" @click="handleUpdateUser">Сохранить изменения</UButton>
-        </div>
-      </div>
-    </UModal>
   </NuxtLayout>
 </template>
 
@@ -671,66 +611,10 @@ const roleOptions = [
 .address-full {
   font-size: var(--text-sm);
   color: var(--color-text-2);
-  margin-bottom: 12px;
+  margin-bottom: 4px;
 }
 
 .address-footer {
-  font-size: 10px;
-  font-family: var(--font-mono);
-  color: var(--color-muted);
-}
-
-.device-card {
-  padding: 20px;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  position: relative;
-  overflow: hidden;
-  transition: all var(--transition-fast);
-}
-
-.device-card:hover {
-  background: var(--color-surface-3);
-  border-color: var(--color-border-strong);
-}
-
-.device-status-indicator {
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 4px;
-  background: var(--color-border-strong);
-}
-
-.device-card.online .device-status-indicator {
-  background: var(--color-success);
-  box-shadow: 2px 0 10px var(--color-success-bg);
-}
-
-.device-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-bg);
-  color: var(--color-text-2);
-}
-
-.device-card.online .device-icon {
-  color: var(--color-success);
-  background: var(--color-success-bg);
-}
-
-.device-meta {
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--color-border);
-  display: flex;
-  justify-content: space-between;
   font-size: 10px;
   font-family: var(--font-mono);
   color: var(--color-muted);

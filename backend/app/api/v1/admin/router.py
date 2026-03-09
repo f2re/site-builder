@@ -158,6 +158,19 @@ class DeliveryAddressResponse(BaseModel):
     is_default: bool
 
 
+class DeliveryAddressCreate(BaseModel):
+    name: str
+    recipient_name: str
+    recipient_phone: str
+    full_address: str
+    address_type: str
+    city: str
+    postal_code: Optional[str] = None
+    provider: str
+    pickup_point_code: Optional[str] = None
+    is_default: bool
+
+
 class DeliveryAddressUpdate(BaseModel):
     name: Optional[str] = None
     recipient_name: Optional[str] = None
@@ -756,6 +769,42 @@ async def get_user_addresses(
         raise HTTPException(status_code=404, detail="User not found")
     addresses = await addr_repo.list_by_user(user_id)
     return {"items": [DeliveryAddressResponse.model_validate(a) for a in addresses]}
+
+
+@router.post("/users/{user_id}/addresses", response_model=DeliveryAddressResponse, status_code=status.HTTP_201_CREATED)
+async def create_user_address(
+    user_id: UUID,
+    payload: DeliveryAddressCreate,
+    _admin: User = AdminDep,
+    repo: UserRepository = Depends(get_user_repo),
+    addr_repo: DeliveryAddressRepository = Depends(get_address_repo)
+) -> Any:
+    """Create a new delivery address for a user."""
+    user = await repo.get_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # If is_default is true, unset other defaults
+    if payload.is_default:
+        from app.db.models.delivery_address import DeliveryAddress
+        await addr_repo.session.execute(
+            update(DeliveryAddress).where(DeliveryAddress.user_id == user_id).values(is_default=False)
+        )
+
+    addr = await addr_repo.create(
+        user_id=user_id,
+        name=payload.name,
+        recipient_name=payload.recipient_name,
+        recipient_phone=payload.recipient_phone,
+        address_type=payload.address_type,
+        full_address=payload.full_address,
+        city=payload.city,
+        postal_code=payload.postal_code,
+        provider=payload.provider,
+        pickup_point_code=payload.pickup_point_code,
+        is_default=payload.is_default
+    )
+    return DeliveryAddressResponse.model_validate(addr)
 
 
 @router.put("/users/{user_id}/addresses/{addr_id}", response_model=DeliveryAddressResponse)

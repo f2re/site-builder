@@ -37,20 +37,32 @@ export interface UserAdminUpdate {
 
 export interface UserAddress {
   id: string
-  city?: string
-  street?: string
-  house?: string
-  apartment?: string
+  name: string
+  recipient_name: string
+  recipient_phone: string
+  full_address: string
+  address_type: string
+  city: string
   postal_code?: string
-  country?: string
-  full_address?: string
-  is_default?: boolean
+  provider: string
+  pickup_point_code?: string
+  is_default: boolean
+  created_at?: string
 }
+
+export type UserAddressCreate = Omit<UserAddress, 'id' | 'created_at'>
 
 export interface AdminDeliveryAddressRead {
   id: string
+  name: string
+  recipient_name: string
+  recipient_phone: string
+  full_address: string
+  address_type: string
   city: string
-  address: string
+  postal_code?: string
+  provider: string
+  pickup_point_code?: string
   is_default: boolean
   created_at: string
 }
@@ -195,9 +207,16 @@ export const useUser = () => {
     })
   }
 
-  const adminUpdateUserAddress = async (userId: string, addrId: string, data: Partial<UserAddress>) => {
+  const adminUpdateUserAddress = async (userId: string, addrId: string, data: Partial<UserAddressCreate>) => {
     return await apiFetch<UserAddress>(`/admin/users/${userId}/addresses/${addrId}`, {
       method: 'PUT',
+      body: data
+    })
+  }
+
+  const adminCreateUserAddress = async (userId: string, data: UserAddressCreate) => {
+    return await apiFetch<UserAddress>(`/admin/users/${userId}/addresses`, {
+      method: 'POST',
       body: data
     })
   }
@@ -248,6 +267,7 @@ export const useUser = () => {
     adminGetUserAddresses,
     adminDeleteUserAddress,
     adminUpdateUserAddress,
+    adminCreateUserAddress,
     adminGetUserFull,
     adminGetUserDevices,
     adminGetDevices,
