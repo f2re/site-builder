@@ -1,0 +1,28 @@
+{
+  "task_id": "p32_frontend_user_profile_redesign",
+  "phase": 32,
+  "agent": "frontend-agent",
+  "priority": "high",
+  "status": "pending",
+  "title": "Redesign Admin User Profile Page",
+  "description": "The current Admin User Profile page ([id].vue) uses an inconsistent 'racing/sci-fi' style that doesn't match the rest of the admin panel. Rework it to be modern, clean, and consistent with the Admin Dashboard.",
+  "steps": [
+    "Remove all 'race-' prefixed CSS classes and specialized fonts (Orbitron, Michroma, Rajdhani).",
+    "Remove non-standard CSS like clip-path, skewX, and custom borders from the page.",
+    "Re-implement the layout using standard UCard, UButton, and UBadge components.",
+    "Use standard admin color tokens (var(--color-bg), var(--color-surface), var(--color-text), etc.).",
+    "Implement a professional header with standard back button and action buttons (Edit, Delete).",
+    "Design a clean profile summary section (Avatar placeholder, basic info).",
+    "Improve the Tabs component UI to match modern standards (horizontal scrolling on mobile, clean active states).",
+    "Implement data grids for General Info and Security sections using standard cards.",
+    "Implement clean tables for Orders and Addresses sections.",
+    "Ensure the layout is fully responsive (mobile-first) and uses the available screen area effectively.",
+    "Add data-testid attributes for important elements."
+  ],
+  "zone": "frontend/pages/admin/users/[id].vue",
+  "contracts": [
+    "frontend/layouts/admin.vue (style reference)",
+    "frontend/pages/admin/index.vue (style reference)",
+    "frontend/assets/css/tokens.css"
+  ]
+}
