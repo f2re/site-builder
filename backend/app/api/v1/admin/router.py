@@ -8,7 +8,7 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, status, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, EmailStr
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import require_admin, get_product_repo, get_db, get_cart_service

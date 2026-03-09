@@ -12,11 +12,23 @@ from app.core.logging import logger
 def run_migration_task(self, job_id: str):
     """
     Celery task to run a specific migration job.
+    Uses Redis lock to prevent concurrent execution of the same job.
     """
     async def _run():
         from app.db.celery_session import celery_engine  # noqa: PLC0415
         from app.db.opencart_session import oc_engine  # noqa: PLC0415
         from app.db.models.migration import MigrationStatus  # noqa: PLC0415
+        from app.db.redis import get_redis  # noqa: PLC0415
+
+        lock_key = f"migration_lock:{job_id}"
+        lock_ttl = 300  # 5 minutes — enough for one batch
+
+        redis = await get_redis()
+        # SET NX EX — atomic acquire
+        acquired = await redis.set(lock_key, "1", nx=True, ex=lock_ttl)
+        if not acquired:
+            logger.warning("migration_task_skipped_locked", job_id=job_id)
+            return
 
         session = None
         try:
@@ -26,7 +38,6 @@ def run_migration_task(self, job_id: str):
             await service.run_batch(UUID(job_id))
         except Exception as exc:
             logger.error("migration_task_failed", job_id=job_id, error=str(exc))
-            # Mark job as FAILED in the same event loop
             if session:
                 try:
                     await repo.update_job_status(UUID(job_id), MigrationStatus.FAILED)
@@ -34,12 +45,9 @@ def run_migration_task(self, job_id: str):
                     logger.error("migration_mark_failed_error", job_id=job_id, error=str(mark_exc))
             raise
         finally:
-            # Close session first
+            await redis.delete(lock_key)
             if session:
                 await session.close()
-            # Dispose celery_engine (NullPool — безопасно) и oc_engine (aiomysql pool)
-            # INSIDE the running event loop — до того как asyncio.run() его закроет.
-            # Основной FastAPI pg_engine не трогаем — он живёт в другом процессе.
             await celery_engine.dispose()
             await oc_engine.dispose()
 
@@ -47,4 +55,3 @@ def run_migration_task(self, job_id: str):
         return asyncio.run(_run())
     except Exception as exc:
         raise self.retry(exc=exc, countdown=60)
-
