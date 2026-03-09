@@ -1,4 +1,3 @@
-import re
 
 with open("backend/app/api/v1/blog/router.py", "r") as f:
     content = f.read()

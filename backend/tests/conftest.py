@@ -10,7 +10,6 @@ from app.main import app
 from app.db.base import Base
 from app.db.session import get_db
 from app.db.redis import get_redis
-from app.core.config import settings
 
 # Import all models to ensure they are registered with SQLAlchemy
 from app.db.models import user, product, order, blog, delivery_address, order_tracking  # noqa: F401

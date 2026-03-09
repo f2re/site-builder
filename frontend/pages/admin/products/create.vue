@@ -9,7 +9,7 @@ import UCard from '~/components/U/UCard.vue'
 import USelect from '~/components/U/USelect.vue'
 import UTextarea from '~/components/U/UTextarea.vue'
 import TipTapEditor from '~/components/blog/TipTapEditor.vue'
-import ProductMediaManager from '~/components/Admin/ProductMediaManager.vue'
+import ProductMediaManager from '~/components/admin/ProductMediaManager.vue'
 
 definePageMeta({
   layout: false,

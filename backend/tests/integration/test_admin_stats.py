@@ -1,6 +1,6 @@
 import pytest
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from httpx import AsyncClient
 from app.db.models.order import Order, OrderStatus
 from app.db.models.user import User

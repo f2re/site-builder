@@ -10,8 +10,8 @@ import USelect from '~/components/U/USelect.vue'
 import UTextarea from '~/components/U/UTextarea.vue'
 import USkeleton from '~/components/U/USkeleton.vue'
 import TipTapEditor from '~/components/blog/TipTapEditor.vue'
-import ProductMediaManager from '~/components/Admin/ProductMediaManager.vue'
-import ProductOptionGroupsEditor from '~/components/Admin/ProductOptionGroupsEditor.vue'
+import ProductMediaManager from '~/components/admin/ProductMediaManager.vue'
+import ProductOptionGroupsEditor from '~/components/admin/ProductOptionGroupsEditor.vue'
 
 definePageMeta({
   layout: false,

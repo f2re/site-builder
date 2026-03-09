@@ -1,7 +1,7 @@
 # Module: tests/unit/admin/test_migration_html.py | Agent: backend-agent | Task: p11_backend_001
 import pytest
 import httpx
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 from app.api.v1.admin.migration_service import MigrationService
 
 @pytest.mark.asyncio

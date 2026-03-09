@@ -3,7 +3,6 @@
 import pytest
 from unittest.mock import AsyncMock, patch
 from app.api.v1.delivery.service import DeliveryService
-from app.api.v1.delivery.schemas import PickupPointRead
 
 @pytest.mark.asyncio
 async def test_get_pickup_points_cleans_data():
@@ -43,7 +42,7 @@ async def test_get_pickup_points_cleans_data():
         # Ensure redis is mocked or doesn't interfere
         with patch("app.api.v1.delivery.service.redis_client.get", new_callable=AsyncMock) as mock_redis_get:
             mock_redis_get.return_value = None
-            with patch("app.api.v1.delivery.service.redis_client.set", new_callable=AsyncMock) as mock_redis_set:
+            with patch("app.api.v1.delivery.service.redis_client.set", new_callable=AsyncMock):
                 
                 result = await service.get_pickup_points(44)
                 

@@ -1,5 +1,4 @@
 # Module: tests/unit/core/test_config.py
-import pytest
 import os
 from unittest.mock import patch
 from app.core.config import Settings

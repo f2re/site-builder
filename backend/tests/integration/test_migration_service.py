@@ -7,7 +7,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.admin.migration_service import MigrationService
-from app.db.models.migration import MigrationJob, MigrationStatus
 from app.db.models.product import Product
 from app.db.models.user import User
 from app.db.models.blog import Author
@@ -135,7 +134,7 @@ async def test_migrate_catalog_product_html_persistence(db_session: AsyncSession
     monkeypatch.setattr(MigrationService, "_download_image", mock_download_image)
     
     # Correct the monkeypatch target for Meilisearch sync
-    with patch("app.tasks.search.sync_products_to_meilisearch_task.delay") as mock_sync:
+    with patch("app.tasks.search.sync_products_to_meilisearch_task.delay"):
         from app.api.v1.admin.migration_service import _BLEACH_ALLOWED_TAGS
         import bleach
         

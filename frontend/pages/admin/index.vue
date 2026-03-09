@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import AdminAttentionStats from '~/components/Admin/AdminAttentionStats.vue'
-import AdminSalesChart from '~/components/Admin/AdminSalesChart.vue'
-import AdminRecentOrders from '~/components/Admin/AdminRecentOrders.vue'
+import AdminAttentionStats from '~/components/admin/AdminAttentionStats.vue'
+import AdminSalesChart from '~/components/admin/AdminSalesChart.vue'
+import AdminRecentOrders from '~/components/admin/AdminRecentOrders.vue'
 import UCard from '~/components/U/UCard.vue'
 import USkeleton from '~/components/U/USkeleton.vue'
 

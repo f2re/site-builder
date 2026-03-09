@@ -2,7 +2,6 @@
 import pytest
 import uuid
 from app.api.v1.users.repository import DeliveryAddressRepository
-from app.core.security import decrypt_data
 
 
 @pytest.mark.asyncio
@@ -63,7 +62,7 @@ async def test_list_by_user_sorts_by_default(db_session):
     repo = DeliveryAddressRepository(db_session)
     user_id = uuid.uuid4()
 
-    addr1 = await repo.create(
+    await repo.create(
         user_id=user_id, name="A1", recipient_name="N1", recipient_phone="+79991111111",
         address_type="home", full_address="Addr1", city="Moscow", postal_code=None,
         provider="cdek", pickup_point_code=None, is_default=False

@@ -1,7 +1,6 @@
 # Module: tests/integration/test_user_addresses_api | Agent: testing-agent | Task: p11_testing_addresses_tracking
 import pytest
 from httpx import AsyncClient
-import uuid
 
 
 @pytest.mark.asyncio
@@ -129,7 +128,7 @@ async def test_delete_address(client: AsyncClient, admin_token: str):
 @pytest.mark.asyncio
 async def test_set_default_address(client: AsyncClient, admin_token: str):
     """Set address as default."""
-    addr1 = await client.post(
+    await client.post(
         "/api/v1/users/me/addresses",
         json={
             "name": "A1", "recipient_name": "N1", "recipient_phone": "+79991111111",

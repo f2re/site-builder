@@ -3,7 +3,7 @@ import uuid
 from httpx import AsyncClient
 from app.core.security import create_access_token, get_password_hash, get_blind_index
 from app.db.models.user import User
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 @pytest.mark.asyncio
 async def test_rich_product_flow(client: AsyncClient, db_session):
