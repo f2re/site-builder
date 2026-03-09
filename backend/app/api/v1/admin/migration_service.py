@@ -574,7 +574,7 @@ class MigrationService:
             customers = result.scalars().all()
 
             if not customers:
-                await self.repo.update_job_status(job.id, MigrationStatus.DONE)
+                # Do NOT mark DONE here — run_batch orchestrates addresses/devices after users
                 return False
 
             processed = 0
@@ -637,7 +637,7 @@ class MigrationService:
             await self.session.commit()
 
             if len(customers) < self.batch_size:
-                await self.repo.update_job_status(job.id, MigrationStatus.DONE)
+                # Do NOT mark DONE here — run_batch orchestrates addresses/devices after users
                 return False
             return True
 
