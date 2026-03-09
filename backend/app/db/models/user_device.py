@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import String, Boolean, DateTime, ForeignKey
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
@@ -28,6 +28,9 @@ class UserDevice(Base):
     registered_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+    # OpenCart migration fields
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    oc_device_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
 
     # Relationships
     user = relationship("User", back_populates="devices", lazy="selectin")

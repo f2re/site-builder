@@ -8,7 +8,7 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, status, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, EmailStr
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import require_admin, get_product_repo, get_db, get_cart_service
@@ -17,7 +17,14 @@ from app.db.models.product import ProductVariant, Product
 from app.db.models.user import User
 from app.db.models.user_device import UserDevice
 from app.api.v1.auth.schemas import UserResponse
-from app.api.v1.admin.schemas import AdminUserFullResponse, MigrationJobResponse, MigrationStartRequest, MigrationStatusResponse
+from app.api.v1.admin.schemas import (
+    AdminDeviceRead,
+    AdminDeviceUpdate,
+    AdminUserFullResponse,
+    MigrationJobResponse,
+    MigrationStartRequest,
+    MigrationStatusResponse,
+)
 from app.core.security import get_password_hash
 
 # Services & Repositories
@@ -811,6 +818,111 @@ async def list_all_devices(
             "is_active": d.is_active
         } for d in devices
     ]}
+
+# ─── Devices CRUD ────────────────────────────────────────────────────────────
+@router.get("/devices", response_model=dict)
+async def list_devices(
+    user_id: Optional[UUID] = Query(None),
+    is_active: Optional[bool] = Query(None),
+    search: Optional[str] = Query(None, description="Search by device_uid or name"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+    _admin: User = AdminDep,
+    session: AsyncSession = Depends(get_db),
+) -> Any:
+    """List all UserDevice records with optional filters."""
+    stmt = select(UserDevice)
+    if user_id is not None:
+        stmt = stmt.where(UserDevice.user_id == user_id)
+    if is_active is not None:
+        stmt = stmt.where(UserDevice.is_active == is_active)
+    if search:
+        pattern = f"%{search}%"
+        stmt = stmt.where(
+            or_(
+                UserDevice.device_uid.ilike(pattern),
+                UserDevice.name.ilike(pattern),
+            )
+        )
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total: int = int((await session.execute(count_stmt)).scalar() or 0)
+    offset = (page - 1) * per_page
+    stmt = stmt.order_by(UserDevice.registered_at.desc()).offset(offset).limit(per_page)
+    result = await session.execute(stmt)
+    items = result.scalars().all()
+    logger.info("admin_action", admin_id=str(_admin.id), action="list_devices", target_id=None)
+    return {
+        "items": [AdminDeviceRead.model_validate(d) for d in items],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    }
+
+
+@router.get("/devices/{device_id}", response_model=AdminDeviceRead)
+async def get_device(
+    device_id: UUID,
+    _admin: User = AdminDep,
+    session: AsyncSession = Depends(get_db),
+) -> Any:
+    """Get device details by UUID."""
+    result = await session.execute(select(UserDevice).where(UserDevice.id == device_id))
+    dev = result.scalar_one_or_none()
+    if not dev:
+        raise HTTPException(status_code=404, detail="Device not found")
+    logger.info("admin_action", admin_id=str(_admin.id), action="get_device", target_id=str(device_id))
+    return AdminDeviceRead.model_validate(dev)
+
+
+@router.patch("/devices/{device_id}", response_model=AdminDeviceRead)
+async def update_device(
+    device_id: UUID,
+    payload: AdminDeviceUpdate,
+    _admin: User = AdminDep,
+    session: AsyncSession = Depends(get_db),
+) -> Any:
+    """Update device fields (name, model, is_active, comment)."""
+    result = await session.execute(select(UserDevice).where(UserDevice.id == device_id))
+    dev = result.scalar_one_or_none()
+    if not dev:
+        raise HTTPException(status_code=404, detail="Device not found")
+    update_data = payload.model_dump(exclude_none=True)
+    for field, value in update_data.items():
+        setattr(dev, field, value)
+    await session.commit()
+    await session.refresh(dev)
+    logger.info("admin_action", admin_id=str(_admin.id), action="update_device", target_id=str(device_id))
+    return AdminDeviceRead.model_validate(dev)
+
+
+@router.delete("/devices/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_device(
+    device_id: UUID,
+    _admin: User = AdminDep,
+    session: AsyncSession = Depends(get_db),
+) -> None:
+    """Delete a device by UUID."""
+    result = await session.execute(select(UserDevice).where(UserDevice.id == device_id))
+    dev = result.scalar_one_or_none()
+    if not dev:
+        raise HTTPException(status_code=404, detail="Device not found")
+    await session.delete(dev)
+    await session.commit()
+    logger.info("admin_action", admin_id=str(_admin.id), action="delete_device", target_id=str(device_id))
+
+
+@router.get("/users/{user_id}/devices", response_model=List[AdminDeviceRead])
+async def get_user_devices(
+    user_id: UUID,
+    _admin: User = AdminDep,
+    session: AsyncSession = Depends(get_db),
+) -> Any:
+    """Get all devices for a specific user."""
+    result = await session.execute(select(UserDevice).where(UserDevice.user_id == user_id))
+    devices = result.scalars().all()
+    logger.info("admin_action", admin_id=str(_admin.id), action="list_user_devices", target_id=str(user_id))
+    return [AdminDeviceRead.model_validate(d) for d in devices]
+
 
 # ─── Firmware Admin ──────────────────────────────────────────────────────────
 @router.get("/firmware/devices", response_model=List[DeviceRead])

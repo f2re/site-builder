@@ -403,3 +403,46 @@ class OCProductOptionValue(OCBase):
 
     def __repr__(self) -> str:
         return f"<OCProductOptionValue {self.product_option_value_id} prod={self.product_id}>"
+
+
+class OCDevice(OCBase):
+    """OpenCart devices table"""
+    __tablename__ = "oc_devices"
+
+    device_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    customer_id: Mapped[int] = mapped_column(Integer)
+    device_type: Mapped[str] = mapped_column(String(40))
+    device_name: Mapped[str] = mapped_column(String(40))
+    device_serial: Mapped[str] = mapped_column(String(40))
+    register_date: Mapped[datetime] = mapped_column(DateTime)
+    comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<OCDevice {self.device_id} customer={self.customer_id}>"
+
+
+class OCToken(OCBase):
+    """OpenCart tokens table"""
+    __tablename__ = "oc_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token: Mapped[str] = mapped_column(String(255))
+    customer_id: Mapped[int] = mapped_column(Integer)
+
+    def __repr__(self) -> str:
+        return f"<OCToken {self.id} customer={self.customer_id}>"
+
+
+class OCTokenToDevice(OCBase):
+    """OpenCart token to device mapping table"""
+    __tablename__ = "oc_token_to_device"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token_id: Mapped[int] = mapped_column(Integer)
+    serial: Mapped[str] = mapped_column(String(255))
+    device_type: Mapped[str] = mapped_column(String(20))
+    date_added: Mapped[datetime] = mapped_column(DateTime)
+    comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<OCTokenToDevice {self.id} token={self.token_id} serial={self.serial}>"

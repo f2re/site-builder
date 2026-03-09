@@ -7,6 +7,28 @@ from app.db.models.migration import MigrationStatus, MigrationEntity
 from app.api.v1.auth.schemas import UserResponse
 from app.api.v1.orders.schemas import OrderRead
 
+
+class AdminDeviceRead(BaseModel):
+    id: UUID
+    user_id: UUID
+    device_uid: str
+    name: Optional[str] = None
+    model: Optional[str] = None
+    is_active: bool
+    registered_at: datetime
+    last_seen_at: Optional[datetime] = None
+    comment: Optional[str] = None
+    oc_device_id: Optional[int] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminDeviceUpdate(BaseModel):
+    name: Optional[str] = None
+    model: Optional[str] = None
+    is_active: Optional[bool] = None
+    comment: Optional[str] = None
+
 class MigrationJobResponse(BaseModel):
     id: UUID
     entity: MigrationEntity

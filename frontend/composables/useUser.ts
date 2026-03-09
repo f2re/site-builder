@@ -63,6 +63,20 @@ export interface AdminUserDeviceRead {
   is_online: boolean
 }
 
+export interface AdminDeviceRead {
+  id: string
+  user_id: string | null
+  device_uid: string
+  name: string | null
+  model: string | null
+  firmware_version: string | null
+  is_active: boolean
+  last_seen_at: string | null
+  registered_at: string | null
+  comment: string | null
+  oc_device_id: number | null
+}
+
 export interface AdminUserFullResponse {
   id: string
   email: string
@@ -194,6 +208,32 @@ export const useUser = () => {
     })
   }
 
+  const adminGetUserDevices = (userId: string) => {
+    return useApi<AdminDeviceRead[]>(`/admin/users/${userId}/devices`, {
+      key: `admin-user-devices-${userId}`
+    })
+  }
+
+  const adminGetDevices = (params: any) => {
+    return useApi<{ items: AdminDeviceRead[], total: number }>('/admin/devices', {
+      params,
+      key: `admin-devices-${JSON.stringify(isRef(params) ? unref(params) : params)}`
+    })
+  }
+
+  const adminPatchDevice = async (deviceId: string, data: Partial<Pick<AdminDeviceRead, 'name' | 'model' | 'is_active' | 'comment'>>) => {
+    return await apiFetch<AdminDeviceRead>(`/admin/devices/${deviceId}`, {
+      method: 'PATCH',
+      body: data
+    })
+  }
+
+  const adminDeleteDevice = async (deviceId: string) => {
+    return await apiFetch(`/admin/devices/${deviceId}`, {
+      method: 'DELETE'
+    })
+  }
+
   return {
     user,
     pending,
@@ -208,6 +248,10 @@ export const useUser = () => {
     adminGetUserAddresses,
     adminDeleteUserAddress,
     adminUpdateUserAddress,
-    adminGetUserFull
+    adminGetUserFull,
+    adminGetUserDevices,
+    adminGetDevices,
+    adminPatchDevice,
+    adminDeleteDevice
   }
 }

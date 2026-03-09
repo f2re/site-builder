@@ -1,9 +1,9 @@
 # Orchestrator Summary — WifiOBD Site
 
-Обновлено: 2026-03-08
+Обновлено: 2026-03-09
 
-## Текущая фаза: 32 (Testing & UX Polish)
-## Выполнено задач: 24 / 32 ✅
+## Текущая фаза: 32 (Device Migration from OpenCart)
+## Выполнено задач: 24 / 34 (2 новые задачи поставлены в очередь)
 
 ---
 
@@ -41,6 +41,23 @@
 - [backend/p31_backend_product_options.md](.claude/agents/reports/backend/p31_backend_product_options.md)
 - [backend/p31_backend_cart_options.md](.claude/agents/reports/backend/p31_backend_cart_options.md)
 - [frontend/p31_frontend_product_options.md](.claude/agents/reports/frontend/p31_frontend_product_options.md)
+
+---
+
+## Фаза 32 — Миграция устройств из OpenCart (2026-03-09)
+
+| task_id | Агент | Описание | Приоритет | Статус |
+|---|---|---|---|---|
+| p32_backend_devices_migration | backend-agent | UserDevice модель (+comment, +oc_device_id), Alembic, OC-модели, migrate_devices(), Admin CRUD API | high | ⏳ PENDING |
+| p32_frontend_devices_admin | frontend-agent | Страница /admin/devices, сайдбар, вкладка Devices в карточке пользователя | high | ⏳ PENDING (зависит от backend) |
+
+### Что нужно реализовать:
+- Добавить 2 поля в `UserDevice`: `comment` и `oc_device_id`
+- 3 новых OC-модели в `opencart_models.py`: `OCDevice`, `OCToken`, `OCTokenToDevice`
+- Метод `migrate_devices()` в `MigrationService` с пагинацией batch_size=50
+- 5 Admin CRUD эндпоинтов: GET list, GET detail, PATCH, DELETE, GET by user
+- Frontend: страница `/admin/devices/index.vue` с таблицей, фильтрами, пагинацией
+- Сайдбар: пункт "Устройства" перед "Миграция"
 
 ---
 

@@ -28,6 +28,7 @@ from app.db.opencart_models import (
     OCCategory,
     OCCategoryDescription,
     OCCustomer,
+    OCDevice,
     OCInformation,
     OCInformationDescription,
     OCOrder,
@@ -513,6 +514,16 @@ class MigrationService:
                         else:
                             metadata_u["addresses_done"] = True
                             await self.repo.update_job_status(
+                                job.id, MigrationStatus.RUNNING, extra_data=metadata_u
+                            )
+                            await self.session.refresh(job)
+                    if not should_retrigger and not metadata_u.get("devices_done"):
+                        devices_retrigger = await self.migrate_devices(job)
+                        if devices_retrigger:
+                            should_retrigger = True
+                        else:
+                            metadata_u["devices_done"] = True
+                            await self.repo.update_job_status(
                                 job.id, MigrationStatus.DONE, extra_data=metadata_u
                             )
                             await self.session.refresh(job)
@@ -739,6 +750,133 @@ class MigrationService:
 
             # Retrigger if full batch fetched
             return len(addresses) == self.batch_size
+
+    async def migrate_devices(self, job: MigrationJob) -> bool:
+        """Migrate OBD/IoT devices from oc_devices to user_devices.
+
+        Uses cursor-based pagination via extra_data['devices_last_id'].
+        Looks up User by email_hash via OCCustomer join (same as migrate_addresses).
+        Returns True if more batches remain, False when complete.
+        """
+        from app.core.logging import logger  # noqa: PLC0415
+        from app.core.security import get_blind_index  # noqa: PLC0415
+        from app.db.models.user_device import UserDevice  # noqa: PLC0415
+
+        metadata: Dict[str, Any] = job.extra_data or {}  # type: ignore[assignment]
+        last_device_id: int = int(metadata.get("devices_last_id") or 0)
+
+        async with OCAsyncSessionLocal() as oc_session:
+            stmt = (
+                select(OCDevice)
+                .where(OCDevice.device_id > last_device_id)
+                .order_by(OCDevice.device_id)
+                .limit(self.batch_size)
+            )
+            result = await oc_session.execute(stmt)
+            oc_devices = result.scalars().all()
+
+            if not oc_devices:
+                logger.info("migrate_devices_complete", processed=0, skipped=0)
+                return False
+
+            migrated = 0
+            skipped = 0
+            errors_count = 0
+            current_last_id = last_device_id
+
+            for oc_dev in oc_devices:
+                current_last_id = oc_dev.device_id
+
+                # Find customer in OpenCart to get email
+                cust_stmt = select(OCCustomer).where(OCCustomer.customer_id == oc_dev.customer_id)
+                cust_result = await oc_session.execute(cust_stmt)
+                oc_cust = cust_result.scalar_one_or_none()
+                if not oc_cust:
+                    logger.warning(
+                        "migrate_devices_no_customer",
+                        oc_device_id=oc_dev.device_id,
+                        oc_customer_id=oc_dev.customer_id,
+                    )
+                    skipped += 1
+                    continue
+
+                # Resolve User by email_hash
+                email_hash = get_blind_index(oc_cust.email)
+                user_stmt = select(User).where(User.email_hash == email_hash)
+                user_result = await self.session.execute(user_stmt)
+                user = user_result.scalar_one_or_none()
+                if not user:
+                    logger.warning(
+                        "migrate_devices_no_user",
+                        oc_device_id=oc_dev.device_id,
+                        oc_customer_id=oc_dev.customer_id,
+                    )
+                    skipped += 1
+                    continue
+
+                # Build device_uid — use serial if non-empty, else generate
+                raw_serial = (oc_dev.device_serial or "").strip()
+                if raw_serial:
+                    device_uid = raw_serial
+                else:
+                    device_uid = f"oc-{oc_dev.device_id}-{uuid4().hex[:8]}"
+
+                # Ensure registered_at is timezone-aware
+                if oc_dev.register_date:
+                    if oc_dev.register_date.tzinfo is None:
+                        registered_at = oc_dev.register_date.replace(tzinfo=timezone.utc)
+                    else:
+                        registered_at = oc_dev.register_date
+                else:
+                    registered_at = datetime.now(timezone.utc)
+
+                try:
+                    new_device = UserDevice(
+                        user_id=user.id,
+                        device_uid=device_uid,
+                        name=oc_dev.device_name or None,
+                        model=oc_dev.device_type or None,
+                        registered_at=registered_at,
+                        comment=oc_dev.comment,
+                        oc_device_id=oc_dev.device_id,
+                        is_active=True,
+                    )
+                    self.session.add(new_device)
+                    await self.session.flush()
+                    migrated += 1
+                except Exception as exc:
+                    await self.session.rollback()
+                    err_str = str(exc)
+                    # ON CONFLICT SKIP for duplicate device_uid
+                    if "unique" in err_str.lower() or "duplicate" in err_str.lower():
+                        skipped += 1
+                    else:
+                        errors_count += 1
+                        logger.warning(
+                            "migrate_devices_error",
+                            oc_device_id=oc_dev.device_id,
+                            error=err_str,
+                        )
+
+            job.processed += migrated
+            job.skipped += skipped
+            job.failed += errors_count
+
+            # Persist cursor into extra_data
+            metadata["devices_last_id"] = current_last_id
+            job.extra_data = metadata
+
+            await self.session.commit()
+            logger.info(
+                "migrate_devices_batch",
+                migrated=migrated,
+                skipped=skipped,
+                errors=errors_count,
+                last_device_id=current_last_id,
+            )
+
+            # Retrigger if full batch fetched
+            return len(oc_devices) == self.batch_size
 
     async def migrate_catalog(self, job: MigrationJob) -> bool:
         from app.core.logging import logger  # noqa: PLC0415

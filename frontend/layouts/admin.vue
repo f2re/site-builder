@@ -14,6 +14,7 @@ const navItems = [
   { label: 'Блог / Посты', icon: 'ph:article-bold', to: '/admin/blog' },
   { label: 'Блог / Категории', icon: 'ph:tag-bold', to: '/admin/blog/categories' },
   { label: 'Страницы', icon: 'ph:files-bold', to: '/admin/pages' },
+  { label: 'Устройства', icon: 'ph:cpu-bold', to: '/admin/devices' },
   { label: 'Миграция', icon: 'ph:database-bold', to: '/admin/migration' },
   { label: 'Назад на сайт', icon: 'ph:arrow-left-bold', to: '/' },
 ]

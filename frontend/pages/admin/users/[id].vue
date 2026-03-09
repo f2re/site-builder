@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { useUser } from '~/composables/useUser'
+import { useUser, type UserAdminUpdate, type AdminDeviceRead } from '~/composables/useUser'
+import { useToast } from '~/composables/useToast'
+import { useConfirm } from '~/composables/useConfirm'
 import UButton from '~/components/U/UButton.vue'
 import UCard from '~/components/U/UCard.vue'
 import UBadge from '~/components/U/UBadge.vue'
 import USkeleton from '~/components/U/USkeleton.vue'
+import UModal from '~/components/U/UModal.vue'
+import UInput from '~/components/U/UInput.vue'
+import USelect from '~/components/U/USelect.vue'
 
 definePageMeta({
   layout: false,
@@ -13,8 +18,10 @@ definePageMeta({
 })
 
 const route = useRoute()
+const toast = useToast()
+const { confirm } = useConfirm()
 const userId = route.params.id as string
-const { adminGetUserFull } = useUser()
+const { adminGetUserFull, adminUpdateUser, adminSetUserBlockStatus, adminGetUserDevices } = useUser()
 
 const { data: user, pending, error, refresh } = await adminGetUserFull(userId)
 
@@ -27,6 +34,14 @@ const tabs = [
   { id: 'devices', label: 'Устройства', icon: 'ph:cpu-bold' }
 ]
 
+// Devices tab — loaded via dedicated endpoint GET /admin/users/{id}/devices
+const { data: devicesData, pending: devicesPending, refresh: refreshDevices } = await adminGetUserDevices(userId)
+const userDevices = computed<AdminDeviceRead[]>(() => devicesData.value ?? [])
+
+watch(activeTab, (tab) => {
+  if (tab === 'devices') refreshDevices()
+})
+
 const formatDate = (dateString?: string | null) => {
   if (!dateString) return '—'
   return new Date(dateString).toLocaleString('ru-RU', {
@@ -37,6 +52,86 @@ const formatDate = (dateString?: string | null) => {
     minute: '2-digit'
   })
 }
+
+const userInitials = computed(() => {
+  if (!user.value?.full_name) return user.value?.email?.charAt(0).toUpperCase() || '?'
+  return user.value.full_name
+    .split(' ')
+    .filter(Boolean)
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+})
+
+// Edit User Logic
+const isEditModalOpen = ref(false)
+const isSubmitting = ref(false)
+const editForm = ref<UserAdminUpdate>({
+  full_name: '',
+  email: '',
+  phone: '',
+  role: 'customer',
+  is_active: true,
+})
+
+const openEditModal = () => {
+  if (!user.value) return
+  editForm.value = {
+    full_name: user.value.full_name || '',
+    email: user.value.email || '',
+    phone: user.value.phone || '',
+    role: user.value.role,
+    is_active: user.value.is_active,
+  }
+  isEditModalOpen.value = true
+}
+
+const handleUpdateUser = async () => {
+  isSubmitting.value = true
+  try {
+    await adminUpdateUser(userId, editForm.value)
+    toast.success('Пользователь обновлён')
+    isEditModalOpen.value = false
+    refresh()
+  } catch (err: any) {
+    toast.error(err.data?.message || 'Не удалось обновить пользователя')
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+const handleDeleteUser = async () => {
+  const confirmed = await confirm({
+    title: 'Удалить пользователя?',
+    message: 'Это действие необратимо. Все данные пользователя будут удалены.',
+    variant: 'danger',
+    confirmLabel: 'Удалить',
+    cancelLabel: 'Отмена'
+  })
+  
+  if (confirmed) {
+    toast.info('Функция удаления пользователя пока не реализована в API')
+  }
+}
+
+const handleBlockStatus = async () => {
+  if (!user.value) return
+  const newStatus = !user.value.is_active
+  try {
+    await adminSetUserBlockStatus(userId, newStatus)
+    toast.success(`Пользователь ${newStatus ? 'разблокирован' : 'заблокирован'}`)
+    refresh()
+  } catch (err: any) {
+    toast.error(err.data?.message || 'Не удалось изменить статус')
+  }
+}
+
+const roleOptions = [
+  { label: 'Покупатель', value: 'customer' },
+  { label: 'Менеджер', value: 'manager' },
+  { label: 'Админ', value: 'admin' }
+]
 </script>
 
 <template>
@@ -53,8 +148,8 @@ const formatDate = (dateString?: string | null) => {
         >
           <template #icon><Icon name="ph:caret-left-bold" size="20" /></template>
         </UButton>
-        <span class="text-muted mr-1">Пользователь:</span>
-        <h1 class="font-semibold text-lg truncate max-w-[200px] md:max-w-[400px]">
+        <span class="text-muted mr-1 hidden sm:inline">Пользователь:</span>
+        <h1 class="font-bold text-lg truncate max-w-[150px] sm:max-w-[300px] md:max-w-[400px]">
           {{ user?.full_name || user?.email || 'Загрузка...' }}
         </h1>
         <UBadge 
@@ -71,11 +166,11 @@ const formatDate = (dateString?: string | null) => {
 
     <template #header-actions>
       <div v-if="user" class="flex gap-2">
-        <UButton variant="outline" size="sm" data-testid="edit-btn">
+        <UButton variant="outline" size="sm" @click="openEditModal" data-testid="edit-btn">
           <template #icon><Icon name="ph:pencil-simple-bold" /></template>
           <span class="hidden sm:inline">Редактировать</span>
         </UButton>
-        <UButton variant="error" size="sm" data-testid="delete-btn">
+        <UButton variant="error" size="sm" @click="handleDeleteUser" data-testid="delete-btn">
           <template #icon><Icon name="ph:trash-bold" /></template>
           <span class="hidden sm:inline">Удалить</span>
         </UButton>
@@ -85,8 +180,8 @@ const formatDate = (dateString?: string | null) => {
     <div v-if="pending" class="space-y-6">
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div class="lg:col-span-4 space-y-6">
-          <USkeleton height="300px" />
-          <USkeleton height="200px" />
+          <USkeleton height="320px" />
+          <USkeleton height="220px" />
         </div>
         <div class="lg:col-span-8">
           <USkeleton height="600px" />
@@ -107,27 +202,30 @@ const formatDate = (dateString?: string | null) => {
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         <!-- Sidebar Panel -->
-        <div class="lg:col-span-4 space-y-6">
+        <aside class="lg:col-span-4 space-y-6">
           <!-- Profile Card -->
           <UCard>
-            <div class="flex flex-col items-center text-center py-4">
-              <div class="w-24 h-24 rounded-full bg-surface-2 flex items-center justify-center mb-4 text-muted overflow-hidden border border-border">
-                <Icon name="ph:user-circle-fill" size="96" />
+            <div class="flex flex-col items-center text-center py-6">
+              <div class="profile-avatar mb-4" data-testid="user-avatar">
+                <span v-if="userInitials">{{ userInitials }}</span>
+                <Icon v-else name="ph:user-circle-fill" size="96" />
               </div>
-              <h2 class="text-xl font-bold truncate w-full px-2 text-text">
+              <h2 class="text-xl font-bold truncate w-full px-2 text-text mb-1" data-testid="user-full-name">
                 {{ user.full_name || 'Без имени' }}
               </h2>
-              <p class="text-muted text-sm truncate w-full px-2 mb-4">{{ user.email }}</p>
+              <p class="text-muted text-sm truncate w-full px-2 mb-6">{{ user.email }}</p>
               
               <div class="flex flex-wrap justify-center gap-2">
-                <UBadge variant="accent" data-testid="user-role">{{ user.role }}</UBadge>
-                <UBadge :variant="user.is_verified ? 'success' : 'warning'">
+                <UBadge variant="accent" size="sm" data-testid="user-role-badge" class="uppercase font-bold tracking-wider">
+                  {{ user.role }}
+                </UBadge>
+                <UBadge :variant="user.is_verified ? 'success' : 'warning'" size="sm">
                   {{ user.is_verified ? 'Верифицирован' : 'Не верифицирован' }}
                 </UBadge>
               </div>
             </div>
             
-            <div class="mt-6 pt-6 border-t border-border space-y-4">
+            <div class="profile-stats border-t border-border pt-6 mt-2 space-y-3">
               <div class="flex justify-between items-center text-sm">
                 <span class="text-muted">ID:</span>
                 <span class="font-mono text-xs select-all text-text" data-testid="user-id">{{ user.id }}</span>
@@ -136,174 +234,176 @@ const formatDate = (dateString?: string | null) => {
                 <span class="text-muted">Регистрация:</span>
                 <span class="text-text">{{ formatDate(user.created_at) }}</span>
               </div>
+              <div class="flex justify-between items-center text-sm">
+                <span class="text-muted">Статус:</span>
+                <button 
+                  @click="handleBlockStatus"
+                  class="text-xs font-bold transition-colors hover:opacity-80"
+                  :class="user.is_active ? 'text-success' : 'text-error'"
+                >
+                  {{ user.is_active ? 'АКТИВЕН' : 'ЗАБЛОКИРОВАН' }}
+                </button>
+              </div>
             </div>
           </UCard>
 
-          <!-- Last Session Info -->
+          <!-- Last Activity Card -->
           <UCard>
             <template #header>
-              <div class="flex items-center gap-2 font-semibold text-sm">
+              <div class="flex items-center gap-2 font-bold text-sm uppercase tracking-wide">
                 <Icon name="ph:activity-bold" class="text-accent" />
                 <span class="text-text">Последняя активность</span>
               </div>
             </template>
-            <div class="space-y-4">
-              <div>
-                <span class="block text-xs text-muted uppercase mb-1">Дата и время</span>
-                <span class="font-medium text-sm text-text">{{ formatDate(user.last_login_at) }}</span>
+            <div class="space-y-5">
+              <div class="info-item">
+                <label>Дата и время</label>
+                <p>{{ formatDate(user.last_login_at) }}</p>
               </div>
-              <div>
-                <span class="block text-xs text-muted uppercase mb-1">IP адрес</span>
-                <span class="font-mono text-sm text-text">{{ user.last_login_ip || '—' }}</span>
+              <div class="info-item">
+                <label>IP адрес</label>
+                <p class="font-mono">{{ user.last_login_ip || '—' }}</p>
               </div>
-              <div>
-                <span class="block text-xs text-muted uppercase mb-1">Устройство</span>
-                <p class="text-xs text-muted leading-tight break-all bg-surface-2 p-2 rounded mt-1 border border-border">
+              <div class="info-item">
+                <label>Устройство</label>
+                <div class="user-agent-box">
                   {{ user.last_login_device || 'Нет данных' }}
-                </p>
+                </div>
               </div>
             </div>
           </UCard>
-        </div>
+        </aside>
 
         <!-- Main Content Area -->
-        <div class="lg:col-span-8">
-          <UCard class="p-0 overflow-hidden">
+        <main class="lg:col-span-8">
+          <UCard class="p-0 overflow-hidden main-content-card">
             <!-- Tabs Navigation -->
-            <div class="flex overflow-x-auto border-b border-border hide-scrollbar sticky top-0 bg-surface z-10">
+            <div class="tabs-nav">
               <button
                 v-for="tab in tabs"
                 :key="tab.id"
                 @click="activeTab = tab.id"
-                class="flex items-center gap-2 px-6 py-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors duration-200"
-                :class="activeTab === tab.id 
-                  ? 'border-accent text-accent' 
-                  : 'border-transparent text-muted hover:text-text hover:bg-surface-2'"
+                class="tab-btn"
+                :class="{ 'active': activeTab === tab.id }"
                 :data-testid="`tab-btn-${tab.id}`"
               >
-                <Icon :name="tab.icon" size="18" />
+                <Icon :name="tab.icon" size="20" />
                 <span>{{ tab.label }}</span>
+                <div v-if="activeTab === tab.id" class="tab-indicator"></div>
               </button>
             </div>
 
             <!-- Tab Content -->
-            <div class="p-6 md:p-8">
+            <div class="tab-content p-6 sm:p-8">
               
               <!-- General Section -->
-              <div v-if="activeTab === 'general'" class="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div>
-                  <h3 class="text-lg font-semibold mb-4 flex items-center gap-2 text-text">
+              <div v-if="activeTab === 'general'" class="section-fade-in">
+                <div class="flex items-center justify-between mb-6">
+                  <h3 class="text-lg font-bold flex items-center gap-2 text-text">
                     <Icon name="ph:user-bold" class="text-accent" />
                     Личные данные
                   </h3>
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="bg-surface-2 p-4 rounded-lg border border-border">
-                      <span class="block text-xs text-muted uppercase mb-1">ФИО</span>
-                      <span class="font-medium text-text">{{ user.full_name || '—' }}</span>
-                    </div>
-                    <div class="bg-surface-2 p-4 rounded-lg border border-border">
-                      <span class="block text-xs text-muted uppercase mb-1">Email (Логин)</span>
-                      <span class="font-medium font-mono text-text">{{ user.email }}</span>
-                    </div>
-                    <div class="bg-surface-2 p-4 rounded-lg border border-border">
-                      <span class="block text-xs text-muted uppercase mb-1">Телефон</span>
-                      <span class="font-medium text-text">{{ user.phone || '—' }}</span>
-                    </div>
-                    <div class="bg-surface-2 p-4 rounded-lg border border-border">
-                      <span class="block text-xs text-muted uppercase mb-1">Роль</span>
-                      <span class="font-medium uppercase text-text">{{ user.role }}</span>
-                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="data-box">
+                    <span class="data-label">ФИО</span>
+                    <span class="data-value">{{ user.full_name || '—' }}</span>
+                  </div>
+                  <div class="data-box">
+                    <span class="data-label">Email (Логин)</span>
+                    <span class="data-value font-mono">{{ user.email }}</span>
+                  </div>
+                  <div class="data-box">
+                    <span class="data-label">Телефон</span>
+                    <span class="data-value">{{ user.phone || '—' }}</span>
+                  </div>
+                  <div class="data-box">
+                    <span class="data-label">Роль в системе</span>
+                    <span class="data-value uppercase text-accent font-bold">{{ user.role }}</span>
                   </div>
                 </div>
               </div>
 
               <!-- Security Section -->
-              <div v-if="activeTab === 'security'" class="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div>
-                  <h3 class="text-lg font-semibold mb-4 flex items-center gap-2 text-warning">
-                    <Icon name="ph:shield-check-bold" />
-                    Параметры безопасности
-                  </h3>
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="bg-surface-2 p-4 rounded-lg border border-border">
-                      <span class="block text-xs text-muted uppercase mb-1">Последний вход</span>
-                      <span class="font-medium text-text">{{ formatDate(user.last_login_at) }}</span>
-                    </div>
-                    <div class="bg-surface-2 p-4 rounded-lg border border-border">
-                      <span class="block text-xs text-muted uppercase mb-1">IP-адрес входа</span>
-                      <span class="font-medium font-mono text-text">{{ user.last_login_ip || '—' }}</span>
-                    </div>
-                    <div class="bg-surface-2 p-4 rounded-lg border border-border md:col-span-2">
-                      <span class="block text-xs text-muted uppercase mb-1">Сигнатура устройства (User Agent)</span>
-                      <p class="text-xs font-mono text-muted mt-2 bg-bg p-3 rounded border border-border break-all">
-                        {{ user.last_login_device || 'Нет данных' }}
-                      </p>
-                    </div>
+              <div v-if="activeTab === 'security'" class="section-fade-in">
+                <h3 class="text-lg font-bold mb-6 flex items-center gap-2 text-text">
+                  <Icon name="ph:shield-check-bold" class="text-warning" />
+                  Безопасность
+                </h3>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="data-box">
+                    <span class="data-label">Последний вход</span>
+                    <span class="data-value">{{ formatDate(user.last_login_at) }}</span>
+                  </div>
+                  <div class="data-box">
+                    <span class="data-label">IP-адрес входа</span>
+                    <span class="data-value font-mono">{{ user.last_login_ip || '—' }}</span>
+                  </div>
+                  <div class="data-box sm:col-span-2">
+                    <span class="data-label">User Agent последнего входа</span>
+                    <p class="ua-text mt-2">{{ user.last_login_device || 'Нет данных' }}</p>
                   </div>
                 </div>
               </div>
 
               <!-- Addresses Section -->
-              <div v-if="activeTab === 'addresses'" class="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div class="flex justify-between items-center">
-                  <h3 class="text-lg font-semibold flex items-center gap-2 text-text">
-                    <Icon name="ph:map-pin-bold" class="text-info" />
-                    Адреса доставки
-                  </h3>
+              <div v-if="activeTab === 'addresses'" class="section-fade-in">
+                <h3 class="text-lg font-bold mb-6 flex items-center gap-2 text-text">
+                  <Icon name="ph:map-pin-bold" class="text-info" />
+                  Адреса доставки
+                </h3>
+
+                <div v-if="!user.addresses || user.addresses.length === 0" class="empty-placeholder">
+                  <Icon name="ph:map-pin-light" size="48" class="mb-2 opacity-30" />
+                  <p>У пользователя пока нет сохраненных адресов</p>
                 </div>
 
-                <div v-if="!user.addresses || user.addresses.length === 0" class="flex flex-col items-center justify-center py-12 text-muted border-2 border-dashed border-border rounded-xl">
-                  <Icon name="ph:map-pin-light" size="48" class="mb-2 opacity-50" />
-                  <p>Адреса не добавлены</p>
-                </div>
-
-                <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div v-for="addr in user.addresses" :key="addr.id" class="p-4 rounded-lg border border-border bg-surface-2 hover:border-info transition-colors">
-                    <div class="flex justify-between items-start mb-2">
-                      <span class="font-bold text-sm uppercase text-text">{{ addr.city }}</span>
+                <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div v-for="addr in user.addresses" :key="addr.id" class="address-card">
+                    <div class="address-header">
+                      <span class="city">{{ addr.city }}</span>
                       <UBadge v-if="addr.is_default" variant="success" size="sm">Основной</UBadge>
                     </div>
-                    <p class="text-sm text-text-2 mb-4">{{ addr.address }}</p>
-                    <div class="text-[10px] text-muted font-mono">Добавлен: {{ formatDate(addr.created_at) }}</div>
+                    <p class="address-full">{{ addr.address }}</p>
+                    <div class="address-footer">
+                      Добавлен: {{ formatDate(addr.created_at) }}
+                    </div>
                   </div>
                 </div>
               </div>
 
               <!-- Orders Section -->
-              <div v-if="activeTab === 'orders'" class="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <h3 class="text-lg font-semibold flex items-center gap-2 text-text">
+              <div v-if="activeTab === 'orders'" class="section-fade-in">
+                <h3 class="text-lg font-bold mb-6 flex items-center gap-2 text-text">
                   <Icon name="ph:shopping-cart-bold" class="text-primary" />
                   История заказов
                 </h3>
 
-                <div v-if="!user.orders || user.orders.length === 0" class="flex flex-col items-center justify-center py-12 text-muted border-2 border-dashed border-border rounded-xl">
-                  <Icon name="ph:receipt-light" size="48" class="mb-2 opacity-50" />
+                <div v-if="!user.orders || user.orders.length === 0" class="empty-placeholder">
+                  <Icon name="ph:receipt-light" size="48" class="mb-2 opacity-30" />
                   <p>История заказов пуста</p>
                 </div>
 
-                <div v-else class="overflow-x-auto -mx-6 md:-mx-8">
-                  <table class="w-full text-left border-collapse">
+                <div v-else class="admin-table-wrapper">
+                  <table class="admin-table">
                     <thead>
-                      <tr class="bg-surface-2 border-y border-border">
-                        <th class="px-6 py-3 text-xs font-bold uppercase text-muted tracking-wider">Заказ</th>
-                        <th class="px-6 py-3 text-xs font-bold uppercase text-muted tracking-wider">Дата</th>
-                        <th class="px-6 py-3 text-xs font-bold uppercase text-muted tracking-wider">Статус</th>
-                        <th class="px-6 py-3 text-xs font-bold uppercase text-muted tracking-wider text-right">Сумма</th>
+                      <tr>
+                        <th>Заказ</th>
+                        <th>Дата</th>
+                        <th>Статус</th>
+                        <th class="text-right">Сумма</th>
                       </tr>
                     </thead>
-                    <tbody class="divide-y divide-border">
-                      <tr 
-                        v-for="order in user.orders" 
-                        :key="order.id" 
-                        class="hover:bg-surface-2/50 transition-colors" 
-                        :data-testid="`order-row-${order.id}`"
-                      >
-                        <td class="px-6 py-4 font-mono text-sm text-accent">{{ order.id.split('-')[0] }}</td>
-                        <td class="px-6 py-4 text-sm text-text-2">{{ formatDate(order.created_at) }}</td>
-                        <td class="px-6 py-4">
+                    <tbody>
+                      <tr v-for="order in user.orders" :key="order.id" :data-testid="`order-row-${order.id}`">
+                        <td class="font-mono text-accent font-bold">{{ order.id.split('-')[0] }}</td>
+                        <td class="text-sm">{{ formatDate(order.created_at) }}</td>
+                        <td>
                           <UBadge variant="outline" size="sm">{{ order.status }}</UBadge>
                         </td>
-                        <td class="px-6 py-4 text-sm font-bold text-right text-text">
+                        <td class="text-right font-bold">
                           {{ order.total_amount }} {{ order.currency }}
                         </td>
                       </tr>
@@ -313,76 +413,342 @@ const formatDate = (dateString?: string | null) => {
               </div>
 
               <!-- Devices Section -->
-              <div v-if="activeTab === 'devices'" class="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div class="flex justify-between items-center">
-                  <h3 class="text-lg font-semibold flex items-center gap-2 text-text">
-                    <Icon name="ph:cpu-bold" class="text-success" />
-                    IoT Устройства
-                  </h3>
+              <div v-if="activeTab === 'devices'" class="section-fade-in">
+                <h3 class="text-lg font-bold mb-6 flex items-center gap-2 text-text">
+                  <Icon name="ph:cpu-bold" class="text-success" />
+                  IoT Устройства
+                </h3>
+
+                <div v-if="devicesPending" class="empty-placeholder">
+                  <Icon name="ph:spinner-bold" size="32" class="mb-2 opacity-50" />
+                  <p>Загрузка устройств...</p>
                 </div>
 
-                <div v-if="!user.devices || user.devices.length === 0" class="flex flex-col items-center justify-center py-12 text-muted border-2 border-dashed border-border rounded-xl">
-                  <Icon name="ph:cpu-light" size="48" class="mb-2 opacity-50" />
-                  <p>Устройства не подключены</p>
+                <div v-else-if="userDevices.length === 0" class="empty-placeholder">
+                  <Icon name="ph:cpu-light" size="48" class="mb-2 opacity-30" />
+                  <p>Нет подключенных устройств</p>
                 </div>
 
-                <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div 
-                    v-for="dev in user.devices" 
-                    :key="dev.id" 
-                    class="relative overflow-hidden p-5 rounded-lg border border-border bg-surface-2" 
-                    :data-testid="`device-card-${dev.id}`"
-                  >
-                    <div class="absolute top-0 left-0 bottom-0 w-1" :class="dev.is_online ? 'bg-success' : 'bg-muted'"></div>
-                    
-                    <div class="flex items-center gap-4 mb-4">
-                      <div class="w-12 h-12 rounded-lg flex items-center justify-center" :class="dev.is_online ? 'bg-success/10 text-success' : 'bg-muted/10 text-muted'">
-                        <Icon name="ph:circuitry-bold" size="28" />
-                      </div>
-                      <div class="flex-1 min-w-0">
-                        <h4 class="font-bold text-sm truncate text-text">{{ dev.name || 'Безымянный модуль' }}</h4>
-                        <p class="text-xs text-muted font-mono truncate">{{ dev.device_id }}</p>
-                      </div>
-                      <UBadge :variant="dev.is_online ? 'success' : 'ghost'" size="sm">
-                        {{ dev.is_online ? 'Онлайн' : 'Оффлайн' }}
-                      </UBadge>
-                    </div>
-                    
-                    <div class="flex justify-between items-center text-[10px] text-muted font-mono bg-bg/50 p-2 rounded border border-border/50">
-                      <span>ПОСЛЕДНЯЯ АКТИВНОСТЬ:</span>
-                      <span :class="{'text-success': dev.is_online}">{{ formatDate(dev.last_activity) }}</span>
-                    </div>
-                  </div>
+                <div v-else class="admin-table-wrapper">
+                  <table class="admin-table">
+                    <thead>
+                      <tr>
+                        <th>UID</th>
+                        <th>Название</th>
+                        <th>Модель</th>
+                        <th>Статус</th>
+                        <th>Зарегистрировано</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="dev in userDevices"
+                        :key="dev.id"
+                        :data-testid="`device-row-${dev.id}`"
+                      >
+                        <td>
+                          <span class="font-mono text-xs">{{ dev.device_uid }}</span>
+                        </td>
+                        <td>{{ dev.name || '—' }}</td>
+                        <td>{{ dev.model || '—' }}</td>
+                        <td>
+                          <span :class="dev.is_active ? 'status-active' : 'status-blocked'">
+                            {{ dev.is_active ? 'Активно' : 'Неактивно' }}
+                          </span>
+                        </td>
+                        <td>{{ formatDate(dev.registered_at) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
             </div>
           </UCard>
-        </div>
+        </main>
       </div>
     </div>
+
+    <!-- Edit User Modal -->
+    <UModal v-model="isEditModalOpen" title="Редактировать профиль" data-testid="edit-user-modal">
+      <div class="space-y-4 pt-4">
+        <UInput v-model="editForm.full_name" label="Полное имя" placeholder="Иван Иванов" data-testid="edit-name-input" />
+        <UInput v-model="editForm.email" label="Email (Логин)" placeholder="user@example.com" required data-testid="edit-email-input" />
+        <UInput v-model="editForm.phone" label="Телефон" placeholder="+7 999 000 00 00" data-testid="edit-phone-input" />
+        <USelect v-model="editForm.role" label="Роль пользователя" :options="roleOptions" data-testid="edit-role-select" />
+        
+        <div class="flex items-center justify-between p-3 bg-surface-2 rounded-lg border border-border mt-6">
+          <label class="text-sm font-semibold text-text" for="active-toggle">Активный аккаунт</label>
+          <input
+            id="active-toggle"
+            v-model="editForm.is_active"
+            type="checkbox"
+            class="w-5 h-5 accent-accent cursor-pointer"
+            data-testid="edit-active-toggle"
+          />
+        </div>
+
+        <div class="flex flex-col gap-3 mt-8 sm:flex-row sm:justify-end">
+          <UButton variant="ghost" @click="isEditModalOpen = false">Отмена</UButton>
+          <UButton variant="primary" :loading="isSubmitting" @click="handleUpdateUser">Сохранить изменения</UButton>
+        </div>
+      </div>
+    </UModal>
   </NuxtLayout>
 </template>
 
 <style scoped>
-.hide-scrollbar::-webkit-scrollbar { display: none; }
-.hide-scrollbar { scrollbar-width: none; }
-
-.animate-in {
-  animation-duration: 0.3s;
-  animation-fill-mode: both;
+/* Profile Header Styles */
+.profile-avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-2);
+  border: 2px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--color-accent);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+.info-item label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
 }
 
-@keyframes slideInFromBottom {
-  from { transform: translateY(10px); }
-  to { transform: translateY(0); }
+.info-item p {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text);
 }
 
-.fade-in { animation-name: fadeIn; }
-.slide-in-from-bottom-2 { animation-name: slideInFromBottom; }
+.user-agent-box {
+  font-size: 11px;
+  color: var(--color-text-2);
+  line-height: 1.4;
+  padding: 10px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  word-break: break-all;
+  font-family: var(--font-mono);
+}
+
+/* Tabs UI Styles */
+.tabs-nav {
+  display: flex;
+  overflow-x: auto;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  scrollbar-width: none;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.tabs-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 24px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  position: relative;
+}
+
+.tab-btn:hover {
+  color: var(--color-text);
+  background: var(--color-bg-subtle);
+}
+
+.tab-btn.active {
+  color: var(--color-accent);
+  background: var(--color-accent-glow);
+}
+
+.tab-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--color-accent);
+  box-shadow: 0 -2px 10px var(--color-accent-glow);
+}
+
+/* Section Styles */
+.section-fade-in {
+  animation: section-in 0.4s ease-out;
+}
+
+@keyframes section-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.data-box {
+  background: var(--color-surface-2);
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.data-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.data-value {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.ua-text {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--color-text-2);
+  background: var(--color-bg);
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  word-break: break-all;
+}
+
+/* Address & Device Cards */
+.address-card {
+  padding: 16px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.address-card:hover {
+  border-color: var(--color-info);
+  background: var(--color-surface-3);
+}
+
+.address-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.address-header .city {
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 12px;
+  color: var(--color-text);
+}
+
+.address-full {
+  font-size: var(--text-sm);
+  color: var(--color-text-2);
+  margin-bottom: 12px;
+}
+
+.address-footer {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--color-muted);
+}
+
+.device-card {
+  padding: 20px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  position: relative;
+  overflow: hidden;
+  transition: all var(--transition-fast);
+}
+
+.device-card:hover {
+  background: var(--color-surface-3);
+  border-color: var(--color-border-strong);
+}
+
+.device-status-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--color-border-strong);
+}
+
+.device-card.online .device-status-indicator {
+  background: var(--color-success);
+  box-shadow: 2px 0 10px var(--color-success-bg);
+}
+
+.device-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  color: var(--color-text-2);
+}
+
+.device-card.online .device-icon {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
+
+.device-meta {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--color-muted);
+}
+
+.empty-placeholder {
+  padding: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  color: var(--color-muted);
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.text-right { text-align: right; }
+
+.status-active { color: var(--color-success); font-weight: 600; }
+.status-blocked { color: var(--color-error); font-weight: 600; }
 </style>

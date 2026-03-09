@@ -1,0 +1,27 @@
+{
+  "task_id": "p32_frontend_devices_admin",
+  "phase": 32,
+  "agent": "frontend-agent",
+  "title": "Страница /admin/devices и интеграция в сайдбар",
+  "description": "Реализовать страницу управления устройствами в административной панели.\n\nЗависимость: задача p32_backend_devices_migration должна быть завершена — API уже доступно.\n\n## 1. Добавить пункт в сайдбар (frontend/layouts/admin.vue)\n\nДобавить в массив `navItems` новый пункт ПЕРЕД пунктом 'Миграция':\n```js\n{ label: 'Устройства', icon: 'ph:cpu-bold', to: '/admin/devices' },\n```\n\n## 2. Страница списка устройств (frontend/pages/admin/devices/index.vue)\n\nСоздать новый файл страницы с полной функциональностью:\n\n### Отображение\n- Заголовок страницы: \"Устройства\"\n- Таблица со следующими колонками:\n  - `device_uid` — уникальный идентификатор\n  - `name` — название\n  - `model` — модель\n  - `Пользователь` — ссылка `<NuxtLink :to=\"/admin/users/${device.user_id}\">` отображающая user_id (первые 8 символов UUID)\n  - `Статус` — бейдж: активен/неактивен\n  - `Зарегистрировано` — дата registered_at в формате dd.MM.yyyy\n  - `Последняя активность` — дата last_seen_at или «—»\n  - `Комментарий` — текст comment или «—»\n  - `Действия` — кнопки\n\n### Фильтры (панель над таблицей)\n- Поле поиска (search) — по device_uid и name, debounce 400ms\n- Селектор is_active: «Все», «Активные», «Неактивные»\n- Кнопка \"Сбросить фильтры\"\n\n### Действия в строке таблицы\n- Кнопка \"Активировать\" / \"Деактивировать\" — PATCH /admin/devices/{id} с {is_active: !device.is_active}\n- Кнопка \"Удалить\" — диалог подтверждения (нативный window.confirm или модальное окно в стиле проекта), затем DELETE /admin/devices/{id}\n\n### Пагинация\n- Кнопки \"Предыдущая\" / \"Следующая\", отображение \"Страница X из Y\"\n- per_page = 50\n\n### Состояния загрузки\n- Скелетон или спиннер при первичной загрузке\n- Индикатор при выполнении PATCH/DELETE операций\n- Отображение ошибок загрузки\n\n### Composable/API-вызовы\nИспользовать `useApiFetch` или `$fetch` (как принято в проекте) для:\n- `GET /api/v1/admin/devices?page=1&per_page=50&search=...&is_active=...`\n- `PATCH /api/v1/admin/devices/{id}`\n- `DELETE /api/v1/admin/devices/{id}`\n\n## 3. Страница /admin/users/[id].vue — вкладка Devices\n\nПроверить существующий файл `frontend/pages/admin/users/[id].vue`.\nЕсли в нём уже есть вкладка \"Устройства\" или \"Devices\" — убедиться что она делает запрос к `GET /api/v1/admin/users/{id}/devices` и корректно отображает данные.\nЕсли вкладки нет — добавить вкладку \"Устройства\" в карточку пользователя с таблицей: device_uid, name, model, is_active, registered_at.\n\n## Стиль\n- Использовать существующие CSS-классы и паттерны из других страниц admin (например admin/users/index.vue или admin/orders/index.vue)\n- Не создавать новые design tokens — только переиспользовать существующие CSS-переменные\n- Иконки: библиотека phosphor-icons (ph:) как в сайдбаре\n\n## Файлы для изучения перед реализацией\n- `frontend/layouts/admin.vue` — структура сайдбара\n- `frontend/pages/admin/users/index.vue` — паттерн таблицы с фильтрами\n- `frontend/pages/admin/orders/index.vue` — паттерн пагинации и действий\n- `frontend/pages/admin/users/[id].vue` — карточка пользователя с вкладками",
+  "depends_on": ["p32_backend_devices_migration"],
+  "priority": "high",
+  "contracts_required": [
+    ".claude/agents/contracts/api_contracts.md"
+  ],
+  "acceptance_criteria": [
+    "Пункт 'Устройства' появился в navItems в admin.vue перед пунктом 'Миграция'",
+    "Файл frontend/pages/admin/devices/index.vue создан",
+    "Таблица отображает все 8 колонок (device_uid, name, model, пользователь, статус, зарегистрировано, активность, комментарий)",
+    "Ссылка на пользователя ведёт на /admin/users/{user_id}",
+    "Фильтр search с debounce 400ms работает",
+    "Фильтр is_active работает",
+    "PATCH toggle is_active работает без перезагрузки страницы",
+    "DELETE с подтверждением работает",
+    "Пагинация (prev/next) реализована",
+    "Состояния загрузки (спиннер/скелетон) присутствуют",
+    "Вкладка Devices в /admin/users/[id].vue загружает данные через GET /admin/users/{id}/devices",
+    "Нет ESLint ошибок",
+    "Стиль соответствует остальным страницам admin-панели"
+  ]
+}
