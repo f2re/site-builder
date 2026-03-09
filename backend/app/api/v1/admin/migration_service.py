@@ -469,7 +469,7 @@ class MigrationService:
         """
         job = await self.repo.get_job_by_id(job_id)
         if not job or job.status not in [MigrationStatus.PENDING, MigrationStatus.RUNNING]:
-            return
+            return False
 
         # Set job as running
         if job.status == MigrationStatus.PENDING:
