@@ -504,30 +504,44 @@ class MigrationService:
         try:
             should_retrigger = False
             if job.entity == MigrationEntity.USERS:
-                should_retrigger = await self.migrate_users(job)
-                if not should_retrigger:
-                    # Users migration complete, now migrate addresses in batches
-                    metadata_u: Dict[str, Any] = job.extra_data or {}  # type: ignore[assignment]
-                    if not metadata_u.get("addresses_done"):
-                        addresses_retrigger = await self.migrate_addresses(job)
-                        if addresses_retrigger:
-                            should_retrigger = True
-                        else:
-                            metadata_u["addresses_done"] = True
-                            await self.repo.update_job_status(
-                                job.id, MigrationStatus.RUNNING, extra_data=metadata_u
-                            )
-                            await self.session.refresh(job)
-                    if not should_retrigger and not metadata_u.get("devices_done"):
-                        devices_retrigger = await self.migrate_devices(job)
-                        if devices_retrigger:
-                            should_retrigger = True
-                        else:
-                            metadata_u["devices_done"] = True
-                            await self.repo.update_job_status(
-                                job.id, MigrationStatus.DONE, extra_data=metadata_u
-                            )
-                            await self.session.refresh(job)
+                metadata_u: Dict[str, Any] = dict(job.extra_data or {})  # type: ignore[assignment]
+
+                # Phase 1: users — skip entirely if already done
+                if not metadata_u.get("users_done"):
+                    should_retrigger = await self.migrate_users(job)
+                    if not should_retrigger:
+                        metadata_u = dict(job.extra_data or {})
+                        metadata_u["users_done"] = True
+                        await self.repo.update_job_status(
+                            job.id, MigrationStatus.RUNNING, extra_data=metadata_u
+                        )
+                        await self.session.refresh(job)
+
+                # Phase 2: addresses
+                if not should_retrigger and not metadata_u.get("addresses_done"):
+                    addresses_retrigger = await self.migrate_addresses(job)
+                    if addresses_retrigger:
+                        should_retrigger = True
+                    else:
+                        metadata_u = dict(job.extra_data or {})
+                        metadata_u["addresses_done"] = True
+                        await self.repo.update_job_status(
+                            job.id, MigrationStatus.RUNNING, extra_data=metadata_u
+                        )
+                        await self.session.refresh(job)
+
+                # Phase 3: devices
+                if not should_retrigger and not metadata_u.get("devices_done"):
+                    devices_retrigger = await self.migrate_devices(job)
+                    if devices_retrigger:
+                        should_retrigger = True
+                    else:
+                        metadata_u = dict(job.extra_data or {})
+                        metadata_u["devices_done"] = True
+                        await self.repo.update_job_status(
+                            job.id, MigrationStatus.DONE, extra_data=metadata_u
+                        )
+                        await self.session.refresh(job)
             elif job.entity in [MigrationEntity.PRODUCTS, MigrationEntity.CATEGORIES]:
                 # First migrate information pages, then catalog
                 metadata: Dict[str, Any] = job.extra_data or {}  # type: ignore[assignment]
@@ -736,8 +750,8 @@ class MigrationService:
                         error=str(exc),
                     )
 
-            job.skipped += skipped
-            job.processed += processed
+            metadata["addresses_processed"] = metadata.get("addresses_processed", 0) + processed
+            metadata["addresses_skipped"] = metadata.get("addresses_skipped", 0) + skipped
 
             # Persist cursor into extra_data
             metadata["addresses_last_id"] = current_last_id
@@ -941,9 +955,9 @@ class MigrationService:
                             error=err_str,
                         )
 
-            job.processed += migrated
-            job.skipped += skipped
-            job.failed += errors_count
+            metadata["devices_processed"] = metadata.get("devices_processed", 0) + migrated
+            metadata["devices_skipped"] = metadata.get("devices_skipped", 0) + skipped
+            metadata["devices_failed"] = metadata.get("devices_failed", 0) + errors_count
 
             # Persist cursor into extra_data
             metadata["devices_last_id"] = current_last_id
