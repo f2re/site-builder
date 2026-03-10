@@ -1,0 +1,24 @@
+{
+  "task_id": "p35_backend_orderstatus_enum_fix",
+  "phase": 35,
+  "agent": "backend-agent",
+  "priority": "CRITICAL",
+  "title": "Fix OrderStatus enum mismatch: 'awaiting_payment' not defined",
+  "description": "CRITICAL production bug: PostgreSQL database contains orders with status='awaiting_payment', but Python enum OrderStatus does not define this value. SQLAlchemy raises LookupError when querying orders.\n\nStacktrace:\n- /app/app/api/v1/admin/router.py:468 in list_orders\n- /app/app/api/v1/orders/repository.py:80 in list_all\n- Error: sqlalchemy.exc.StatementError: (builtins.LookupError) 'awaiting_payment' is not among the defined enum values. Enum name: orderstatus. Possible values: pending, pending_payment, paid, processing, shipped, delivered, cancelled, refunded\n\nCurrent enum definition in backend/app/db/models/order.py:\n- PENDING = 'pending'\n- PENDING_PAYMENT = 'pending_payment'\n- PAID = 'paid'\n- PROCESSING = 'processing'\n- SHIPPED = 'shipped'\n- DELIVERED = 'delivered'\n- CANCELLED = 'cancelled'\n- REFUNDED = 'refunded'\n\nRequired actions:\n1. Investigate: check if 'awaiting_payment' is a legacy value from OpenCart migration or old code\n2. Decide strategy:\n   a) Add AWAITING_PAYMENT to OrderStatus enum + Alembic migration to ALTER TYPE orderstatus\n   b) OR create Alembic data migration to UPDATE orders SET status='pending_payment' WHERE status='awaiting_payment'\n3. Verify no other code references 'awaiting_payment' string literal\n4. Ensure Python enum and PostgreSQL enum are synchronized\n5. Test admin orders list endpoint works after fix\n\nFiles to check:\n- backend/app/db/models/order.py (enum definition)\n- backend/app/api/v1/orders/repository.py (query logic)\n- backend/app/api/v1/admin/router.py (list_orders endpoint)\n- backend/migrations/versions/* (check for legacy migrations)\n\nThis blocks admin panel from showing orders list.",
+  "depends_on": [],
+  "contracts_required": [
+    ".claude/agents/contracts/api_contracts.md"
+  ],
+  "acceptance_criteria": [
+    "OrderStatus enum in backend/app/db/models/order.py includes all values present in PostgreSQL database",
+    "Alembic migration created to synchronize PostgreSQL enum with Python enum",
+    "No 'awaiting_payment' string literals in codebase (or all mapped to correct enum value)",
+    "GET /api/v1/admin/orders endpoint returns 200 without LookupError",
+    "ruff check app/ → 0 errors",
+    "mypy app/ --ignore-missing-imports → Success",
+    "alembic check → OK",
+    "alembic heads → exactly 1 head",
+    "pytest tests/ -x -v → all green (if tests exist for orders)",
+    "Report written to .claude/agents/reports/backend/p35_backend_orderstatus_enum_fix.md"
+  ]
+}

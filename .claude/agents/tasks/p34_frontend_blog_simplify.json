@@ -1,0 +1,21 @@
+{
+  "task_id": "p34_frontend_blog_simplify",
+  "phase": 34,
+  "agent": "frontend-agent",
+  "title": "Упростить навигацию админки блога",
+  "description": "Упростить структуру админки блога для магазина OBD-адаптеров:\n\n1. Удалить раздел 'Блог / Категории' из навигации (строка 15 в layouts/admin.vue)\n2. Переименовать 'Блог / Посты' в просто 'Блог' (строка 14 в layouts/admin.vue)\n3. Категории остаются доступны через прямой URL /admin/blog/categories (для управления внутри формы поста)\n4. Страница /admin/blog/categories.vue остается без изменений (функционал сохраняется)\n5. Обновить data-testid если требуется\n\nФайлы для изменения:\n- frontend/layouts/admin.vue (строки 14-15 в массиве navItems)\n\nФайлы без изменений:\n- frontend/pages/admin/blog/categories.vue (остается как есть)\n- frontend/pages/admin/blog/index.vue (остается как есть)\n- frontend/pages/admin/blog/[slug].vue (остается как есть)\n- frontend/pages/admin/blog/create.vue (остается как есть)",
+  "depends_on": [],
+  "priority": "medium",
+  "contracts_required": [
+    ".claude/agents/contracts/api_contracts.md"
+  ],
+  "acceptance_criteria": [
+    "В навигации админки (layouts/admin.vue) удалена строка 'Блог / Категории'",
+    "В навигации админки 'Блог / Посты' переименован в 'Блог'",
+    "Страница /admin/blog/categories доступна по прямому URL",
+    "npm run lint проходит без ошибок",
+    "npm run type-check проходит без ошибок",
+    "Все data-testid корректны",
+    "Отчет записан в .claude/agents/reports/frontend/p34_frontend_blog_simplify.md"
+  ]
+}
