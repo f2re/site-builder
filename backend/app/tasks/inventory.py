@@ -4,7 +4,7 @@ from sqlalchemy import select
 from app.tasks.celery_app import celery_app
 from app.db.celery_session import CelerySessionLocal
 from app.db.models.order import Order, OrderStatus
-from app.integrations.redis_inventory import inventory
+from app.integrations.redis_inventory import get_inventory_for_celery
 from app.core.logging import logger
 from app.api.v1.products.repository import ProductRepository
 
@@ -16,6 +16,7 @@ def release_stale_reservations_task():
     release their stock in Redis and mark them as CANCELLED.
     """
     async def _process():
+        inventory = get_inventory_for_celery()
         async with CelerySessionLocal() as session:
             # Query pending orders older than 30 minutes
             threshold = datetime.now(timezone.utc) - timedelta(minutes=30)
@@ -55,6 +56,7 @@ def sync_stock_to_redis(self, variant_id: str, quantity: int) -> None:
     Called after stock changes in DB to keep Redis cache in sync.
     """
     async def _sync():
+        inventory = get_inventory_for_celery()
         async with CelerySessionLocal() as session:
             repo = ProductRepository(session)
             variant = await repo.get_variant_by_id(variant_id)
@@ -74,6 +76,7 @@ def release_reserved_stock(self, variant_id: str, quantity: int) -> None:
     Called when an order is cancelled or payment fails.
     """
     async def _release():
+        inventory = get_inventory_for_celery()
         from uuid import UUID
         await inventory.release_stock(UUID(variant_id), quantity)
 

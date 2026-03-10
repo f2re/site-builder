@@ -690,7 +690,20 @@ class MigrationService:
         metadata: Dict[str, Any] = job.extra_data or {}  # type: ignore[assignment]
         last_addr_id: int = int(metadata.get("addresses_last_id") or 0)
 
+        logger.info(
+            "migrate_addresses_start",
+            job_id=str(job.id),
+            last_addr_id=last_addr_id,
+            addresses_done=metadata.get("addresses_done"),
+        )
+
         async with OCAsyncSessionLocal() as oc_session:
+            # Count total addresses in oc_address
+            total_stmt = select(func.count()).select_from(OCAddress)
+            total_res = await oc_session.execute(total_stmt)
+            total_in_oc = int(total_res.scalar() or 0)
+            logger.info("migrate_addresses_oc_total", total_in_oc_addresses=total_in_oc)
+
             stmt = (
                 select(OCAddress)
                 .where(OCAddress.address_id > last_addr_id)
@@ -700,16 +713,38 @@ class MigrationService:
             result = await oc_session.execute(stmt)
             addresses = result.scalars().all()
 
+            logger.info(
+                "migrate_addresses_fetched",
+                fetched=len(addresses),
+                cursor_from=last_addr_id,
+                batch_size=self.batch_size,
+            )
+
             if not addresses:
-                logger.info("migrate_addresses_complete", processed=0, skipped=0)
+                logger.info(
+                    "migrate_addresses_complete",
+                    processed=0,
+                    skipped=0,
+                    total_in_oc=total_in_oc,
+                    reason="no_rows_after_cursor",
+                )
                 return False
 
             processed = 0
             skipped = 0
+            skipped_duplicate = 0
+            skipped_no_customer = 0
+            skipped_no_user = 0
             current_last_id = last_addr_id
 
             for oc_addr in addresses:
                 current_last_id = oc_addr.address_id
+
+                logger.info(
+                    "migrate_addresses_row",
+                    oc_address_id=oc_addr.address_id,
+                    oc_customer_id=oc_addr.customer_id,
+                )
 
                 # Check idempotency
                 check_stmt = select(DeliveryAddress).where(
@@ -718,6 +753,12 @@ class MigrationService:
                 existing = await self.session.execute(check_stmt)
                 if existing.scalar_one_or_none():
                     skipped += 1
+                    skipped_duplicate += 1
+                    logger.info(
+                        "migrate_addresses_skip_duplicate",
+                        oc_address_id=oc_addr.address_id,
+                        reason="already_migrated",
+                    )
                     continue
 
                 # Find customer in OpenCart
@@ -726,16 +767,52 @@ class MigrationService:
                 oc_cust = cust_result.scalar_one_or_none()
                 if not oc_cust:
                     skipped += 1
+                    skipped_no_customer += 1
+                    logger.warning(
+                        "migrate_addresses_no_customer",
+                        oc_address_id=oc_addr.address_id,
+                        oc_customer_id=oc_addr.customer_id,
+                        reason="customer_not_found_in_oc_customer",
+                    )
                     continue
+
+                logger.info(
+                    "migrate_addresses_customer_found",
+                    oc_address_id=oc_addr.address_id,
+                    oc_customer_id=oc_cust.customer_id,
+                    email_preview=oc_cust.email[:3] + "***" if oc_cust.email else "EMPTY",
+                    email_empty=not bool(oc_cust.email),
+                )
 
                 # Find user by email_hash
                 email_hash = get_blind_index(oc_cust.email)
+                logger.info(
+                    "migrate_addresses_email_hash",
+                    oc_address_id=oc_addr.address_id,
+                    email_hash_prefix=email_hash[:8] if email_hash else "NONE",
+                )
+
                 user_stmt = select(User).where(User.email_hash == email_hash)
                 user_result = await self.session.execute(user_stmt)
                 user = user_result.scalar_one_or_none()
                 if not user:
                     skipped += 1
+                    skipped_no_user += 1
+                    logger.warning(
+                        "migrate_addresses_no_user",
+                        oc_address_id=oc_addr.address_id,
+                        oc_customer_id=oc_addr.customer_id,
+                        email_hash_prefix=email_hash[:8] if email_hash else "NONE",
+                        email_preview=oc_cust.email[:3] + "***" if oc_cust.email else "EMPTY",
+                        reason="user_not_found_by_email_hash_in_new_db",
+                    )
                     continue
+
+                logger.info(
+                    "migrate_addresses_user_found",
+                    oc_address_id=oc_addr.address_id,
+                    user_id=str(user.id),
+                )
 
                 try:
                     # BUG FIX: Use SAVEPOINT instead of full rollback
@@ -772,6 +849,9 @@ class MigrationService:
 
             metadata["addresses_processed"] = metadata.get("addresses_processed", 0) + processed
             metadata["addresses_skipped"] = metadata.get("addresses_skipped", 0) + skipped
+            metadata["addresses_no_customer"] = metadata.get("addresses_no_customer", 0) + skipped_no_customer
+            metadata["addresses_no_user"] = metadata.get("addresses_no_user", 0) + skipped_no_user
+            metadata["addresses_duplicate"] = metadata.get("addresses_duplicate", 0) + skipped_duplicate
 
             # Persist cursor into extra_data
             metadata["addresses_last_id"] = current_last_id
@@ -782,6 +862,9 @@ class MigrationService:
                 "migrate_addresses_batch",
                 processed=processed,
                 skipped=skipped,
+                skipped_duplicate=skipped_duplicate,
+                skipped_no_customer=skipped_no_customer,
+                skipped_no_user=skipped_no_user,
                 last_addr_id=current_last_id,
             )
 
@@ -845,6 +928,9 @@ class MigrationService:
 
             migrated = 0
             skipped = 0
+            skipped_no_customer = 0
+            skipped_no_user = 0
+            skipped_duplicate = 0
             errors_count = 0
             current_last_id = last_device_id
 
@@ -866,13 +952,14 @@ class MigrationService:
                 cust_result = await oc_session.execute(cust_stmt)
                 oc_cust = cust_result.scalar_one_or_none()
                 if not oc_cust:
+                    skipped += 1
+                    skipped_no_customer += 1
                     logger.warning(
                         "migrate_devices_no_customer",
                         oc_device_id=oc_dev.device_id,
                         oc_customer_id=oc_dev.customer_id,
                         reason="customer_not_found_in_oc_customer",
                     )
-                    skipped += 1
                     continue
 
                 logger.info(
@@ -895,6 +982,8 @@ class MigrationService:
                 user_result = await self.session.execute(user_stmt)
                 user = user_result.scalar_one_or_none()
                 if not user:
+                    skipped += 1
+                    skipped_no_user += 1
                     logger.warning(
                         "migrate_devices_no_user",
                         oc_device_id=oc_dev.device_id,
@@ -902,7 +991,6 @@ class MigrationService:
                         email_hash_prefix=email_hash[:8] if email_hash else "NONE",
                         reason="user_not_found_by_email_hash_in_new_db",
                     )
-                    skipped += 1
                     continue
 
                 logger.info(
@@ -939,6 +1027,7 @@ class MigrationService:
                 existing_device = await self.session.execute(check_stmt)
                 if existing_device.scalar_one_or_none():
                     skipped += 1
+                    skipped_duplicate += 1
                     logger.info(
                         "migrate_devices_skip_duplicate",
                         oc_device_id=oc_dev.device_id,
@@ -991,6 +1080,9 @@ class MigrationService:
 
             metadata["devices_processed"] = metadata.get("devices_processed", 0) + migrated
             metadata["devices_skipped"] = metadata.get("devices_skipped", 0) + skipped
+            metadata["devices_no_customer"] = metadata.get("devices_no_customer", 0) + skipped_no_customer
+            metadata["devices_no_user"] = metadata.get("devices_no_user", 0) + skipped_no_user
+            metadata["devices_duplicate"] = metadata.get("devices_duplicate", 0) + skipped_duplicate
             metadata["devices_failed"] = metadata.get("devices_failed", 0) + errors_count
 
             # Persist cursor into extra_data
@@ -1002,6 +1094,9 @@ class MigrationService:
                 "migrate_devices_batch",
                 migrated=migrated,
                 skipped=skipped,
+                skipped_no_customer=skipped_no_customer,
+                skipped_no_user=skipped_no_user,
+                skipped_duplicate=skipped_duplicate,
                 errors=errors_count,
                 last_device_id=current_last_id,
                 will_retrigger=len(oc_devices) == self.batch_size,

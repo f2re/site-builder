@@ -1,0 +1,36 @@
+{
+  "task_id": "p2_backend_fix_addresses_migration",
+  "phase": 2,
+  "agent": "backend-agent",
+  "title": "Исправить миграцию адресов и устройств — все записи пропускаются из-за отсутствия связи с пользователями",
+  "description": "Миграция адресов и устройств не работает: все записи пропускаются (skipped=50, processed=0). Проблема в том, что код ищет пользователей по email_hash, но не находит их.\n\nПричины:\n1. При миграции пользователей могли быть пропущены записи с пустыми email (skipped=3 в логах)\n2. Адреса и устройства пытаются найти пользователей по email_hash, но если пользователь был пропущен — адрес/устройство тоже пропускается\n3. Нет логирования причин пропуска — непонятно, на каком этапе происходит skip\n4. Нет fallback-стратегии для связывания адресов с пользователями\n\nТребуется:\n1. Добавить детальное логирование в migrate_addresses и migrate_devices — на каждом этапе skip писать причину\n2. Проверить, все ли пользователи из oc_customer мигрированы в users (сравнить count)\n3. Если пользователь не найден по email_hash — попробовать найти по oc_customer_id (добавить поле в User)\n4. Если это невозможно — создать отчёт о несвязанных адресах/устройствах в extra_data\n5. Убедиться, что курсор addresses_last_id корректно обновляется даже при skip",
+  "acceptance_criteria": [
+    "Добавлено детальное логирование причин skip в migrate_addresses (строки 719, 728, 737)",
+    "Добавлено детальное логирование причин skip в migrate_devices",
+    "Проверка: SELECT COUNT(*) FROM oc_customer vs SELECT COUNT(*) FROM users — разница объяснена",
+    "Если пользователь не найден по email_hash — логируется email из oc_customer для отладки",
+    "Миграция адресов успешно обрабатывает хотя бы часть записей (processed > 0)",
+    "В extra_data добавлены счётчики: addresses_no_customer, addresses_no_user, devices_no_customer, devices_no_user",
+    "ruff, mypy проходят без ошибок"
+  ],
+  "files_to_modify": [
+    "backend/app/api/v1/admin/migration_service.py"
+  ],
+  "dependencies": [],
+  "priority": "P0",
+  "estimated_effort": "45min",
+  "context": {
+    "error_symptom": "migrate_addresses_batch last_addr_id=106 processed=0 skipped=50 — все адреса пропускаются",
+    "root_cause": "Адреса не находят пользователей по email_hash (строка 732-738)",
+    "users_migration_status": "users_done: true, но skipped=3 — возможно, пропущены пользователи с пустыми email",
+    "missing_logging": "Нет логов, почему именно skip — непонятно, на ��аком этапе (no customer / no user / duplicate)",
+    "solution_approach": "1) Добавить детальное логирование 2) Проверить count пользователей 3) Добавить fallback-стратегию или отчёт о несвязанных записях"
+  },
+  "verification_commands": [
+    "cd backend && ruff check app/api/v1/admin/migration_service.py",
+    "cd backend && mypy app/api/v1/admin/migration_service.py --ignore-missing-imports"
+  ],
+  "status": "pending",
+  "created_at": "2026-03-10T17:45:00Z",
+  "assigned_to": "backend-agent"
+}

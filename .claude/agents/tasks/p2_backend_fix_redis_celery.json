@@ -1,0 +1,36 @@
+{
+  "task_id": "p2_backend_fix_redis_celery",
+  "phase": 2,
+  "agent": "backend-agent",
+  "title": "Исправить RuntimeError в Celery-задаче release_stale_reservations при работе с async Redis",
+  "description": "Celery-задача `tasks.release_stale_reservations` падает с ошибкой `RuntimeError: unable to perform operation on <TCPTransport closed=True reading=False>; the handler is closed` при вызове `inventory.release_stock()` внутри `asyncio.run()`.\n\nПричина: глобальный `inventory = RedisInventory(redis_client)` в `backend/app/integrations/redis_inventory.py:74` создаётся при импорте с async Redis-клиентом, который затем используется внутри нового event loop в `asyncio.run()`. Async Redis-соединение привязано к исходному loop и не может использоваться в новом.\n\nТребуется: рефакторинг для создания нового Redis-клиента внутри каждого `asyncio.run()` блока в Celery-задачах.",
+  "acceptance_criteria": [
+    "Celery-задача `release_stale_reservations_task` выполняется без RuntimeError",
+    "Все три задачи в `backend/app/tasks/inventory.py` используют локальный Redis-клиент внутри async-функции",
+    "Глобальный `inventory` остаётся для FastAPI-эндпоинтов (через DI)",
+    "Добавлена функция `get_inventory_for_celery()` для создания нового клиента в Celery-контексте",
+    "ruff, mypy, pytest проходят без ошибок",
+    "Ручная проверка: запустить задачу вручную и убедиться в отсутствии ошибок транспорта"
+  ],
+  "files_to_modify": [
+    "backend/app/integrations/redis_inventory.py",
+    "backend/app/tasks/inventory.py"
+  ],
+  "dependencies": [],
+  "priority": "P0",
+  "estimated_effort": "30min",
+  "context": {
+    "error_traceback": "RuntimeError: unable to perform operation on <TCPTransport closed=True reading=False 0x55576c24c700>; the handler is closed",
+    "error_location": "backend/app/tasks/inventory.py:44 -> asyncio.run(_process()) -> inventory.release_stock()",
+    "root_cause": "Async Redis client created in module-level scope is reused in new event loop created by asyncio.run()",
+    "solution_approach": "Create fresh Redis client inside each asyncio.run() block for Celery tasks"
+  },
+  "verification_commands": [
+    "cd backend && ruff check app/integrations/redis_inventory.py app/tasks/inventory.py",
+    "cd backend && mypy app/integrations/redis_inventory.py app/tasks/inventory.py --ignore-missing-imports",
+    "cd backend && pytest tests/unit/tasks/ -v -k inventory"
+  ],
+  "status": "pending",
+  "created_at": "2026-03-10T17:30:00Z",
+  "assigned_to": "backend-agent"
+}

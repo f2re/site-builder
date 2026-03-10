@@ -71,4 +71,15 @@ def get_inventory(client: redis.Redis = Depends(get_redis)) -> RedisInventory:
     return RedisInventory(client)
 
 
+def get_inventory_for_celery() -> RedisInventory:
+    """
+    Create a fresh RedisInventory instance for Celery tasks.
+    Each call creates a new Redis client to avoid event loop conflicts
+    when using asyncio.run() in Celery workers.
+    """
+    from app.core.config import settings
+    client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+    return RedisInventory(client)
+
+
 inventory = RedisInventory(redis_client)
