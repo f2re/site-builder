@@ -24,8 +24,13 @@ class MigrationRepository:
     async def get_active_job_by_entity(self, entity: MigrationEntity) -> Optional[MigrationJob]:
         stmt = select(MigrationJob).where(
             MigrationJob.entity == entity,
-            MigrationJob.status.in_([MigrationStatus.PENDING, MigrationStatus.RUNNING])
-        )
+            MigrationJob.status.in_([
+                MigrationStatus.PENDING,
+                MigrationStatus.RUNNING,
+                MigrationStatus.PAUSED,
+                MigrationStatus.FAILED
+            ])
+        ).order_by(MigrationJob.updated_at.desc())
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 

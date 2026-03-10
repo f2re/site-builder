@@ -615,11 +615,12 @@ class MigrationService:
 
             for oc_cust in customers:
                 # Idempotency check: use get_blind_index(email)
-                email_hash = get_blind_index(oc_cust.email)
-
-                # If email_hash is empty or None (e.g. empty email), generate unique fallback
-                if not email_hash:
-                    email_hash = hashlib.sha256(str(uuid4()).encode()).hexdigest()
+                # BUG FIX: Check if email is empty BEFORE calling get_blind_index
+                if not oc_cust.email or not oc_cust.email.strip():
+                    # Generate unique hash for empty email using customer_id + uuid4
+                    email_hash = hashlib.sha256(f"empty_{oc_cust.customer_id}_{uuid4()}".encode()).hexdigest()
+                else:
+                    email_hash = get_blind_index(oc_cust.email)
 
                 check_stmt = select(User).where(User.email_hash == email_hash)
                 existing = await self.session.execute(check_stmt)
@@ -629,29 +630,31 @@ class MigrationService:
                     continue
 
                 try:
-                    new_user = User(
-                        email_hash=email_hash,
-                        email=encrypt_data(oc_cust.email),
-                        email_normalized=oc_cust.email.lower().strip(),
-                        full_name=encrypt_data(f"{oc_cust.firstname} {oc_cust.lastname}"),
-                        full_name_normalized=f"{oc_cust.firstname} {oc_cust.lastname}".lower().strip(),
-                        phone=encrypt_data(oc_cust.telephone) if oc_cust.telephone else None,
-                        phone_hash=get_blind_index(oc_cust.telephone) if oc_cust.telephone else None,
-                        phone_normalized=oc_cust.telephone.lower().strip() if oc_cust.telephone else None,
-                        hashed_password=oc_cust.password,  # Store OC hash as is
-                        role="customer",
-                        is_active=bool(oc_cust.status),
-                        created_at=(
-                            oc_cust.date_added.replace(tzinfo=timezone.utc)
-                            if oc_cust.date_added
-                            else datetime.now(timezone.utc)
-                        ),
-                    )
-                    self.session.add(new_user)
-                    await self.session.flush()
-                    processed += 1
+                    # BUG FIX: Use SAVEPOINT instead of full rollback
+                    async with self.session.begin_nested():
+                        new_user = User(
+                            email_hash=email_hash,
+                            email=encrypt_data(oc_cust.email),
+                            email_normalized=oc_cust.email.lower().strip(),
+                            full_name=encrypt_data(f"{oc_cust.firstname} {oc_cust.lastname}"),
+                            full_name_normalized=f"{oc_cust.firstname} {oc_cust.lastname}".lower().strip(),
+                            phone=encrypt_data(oc_cust.telephone) if oc_cust.telephone else None,
+                            phone_hash=get_blind_index(oc_cust.telephone) if oc_cust.telephone else None,
+                            phone_normalized=oc_cust.telephone.lower().strip() if oc_cust.telephone else None,
+                            hashed_password=oc_cust.password,  # Store OC hash as is
+                            role="customer",
+                            is_active=bool(oc_cust.status),
+                            created_at=(
+                                oc_cust.date_added.replace(tzinfo=timezone.utc)
+                                if oc_cust.date_added
+                                else datetime.now(timezone.utc)
+                            ),
+                        )
+                        self.session.add(new_user)
+                        await self.session.flush()
+                        processed += 1
                 except Exception as exc:
-                    await self.session.rollback()
+                    # Rollback only to SAVEPOINT, not entire batch
                     skipped += 1
                     logger.warning(
                         "migrate_users_skip",
@@ -735,29 +738,31 @@ class MigrationService:
                     continue
 
                 try:
-                    recipient_name = f"{oc_addr.firstname} {oc_addr.lastname}".strip()
-                    full_address = f"{oc_addr.address_1} {oc_addr.address_2 or ''}".strip()
+                    # BUG FIX: Use SAVEPOINT instead of full rollback
+                    async with self.session.begin_nested():
+                        recipient_name = f"{oc_addr.firstname} {oc_addr.lastname}".strip()
+                        full_address = f"{oc_addr.address_1} {oc_addr.address_2 or ''}".strip()
 
-                    new_address = DeliveryAddress(
-                        user_id=user.id,
-                        name=f"Адрес {oc_addr.address_id}",
-                        recipient_name=encrypt_data(recipient_name),
-                        recipient_phone=encrypt_data(oc_cust.telephone),
-                        recipient_phone_hash=get_blind_index(oc_cust.telephone),
-                        full_address=encrypt_data(full_address),
-                        address_type=AddressType.COURIER,
-                        city=oc_addr.city,
-                        postal_code=oc_addr.postcode,
-                        provider=DeliveryProvider.MANUAL,
-                        pickup_point_code=None,
-                        is_default=(oc_addr.address_id == oc_cust.address_id),
-                        oc_address_id=oc_addr.address_id,
-                    )
-                    self.session.add(new_address)
-                    await self.session.flush()
-                    processed += 1
+                        new_address = DeliveryAddress(
+                            user_id=user.id,
+                            name=f"Адрес {oc_addr.address_id}",
+                            recipient_name=encrypt_data(recipient_name),
+                            recipient_phone=encrypt_data(oc_cust.telephone),
+                            recipient_phone_hash=get_blind_index(oc_cust.telephone),
+                            full_address=encrypt_data(full_address),
+                            address_type=AddressType.COURIER,
+                            city=oc_addr.city,
+                            postal_code=oc_addr.postcode,
+                            provider=DeliveryProvider.MANUAL,
+                            pickup_point_code=None,
+                            is_default=(oc_addr.address_id == oc_cust.address_id),
+                            oc_address_id=oc_addr.address_id,
+                        )
+                        self.session.add(new_address)
+                        await self.session.flush()
+                        processed += 1
                 except Exception as exc:
-                    await self.session.rollback()
+                    # Rollback only to SAVEPOINT, not entire batch
                     skipped += 1
                     logger.warning(
                         "migrate_addresses_skip",
@@ -929,28 +934,42 @@ class MigrationService:
                 else:
                     registered_at = datetime.now(timezone.utc)
 
-                try:
-                    new_device = UserDevice(
-                        user_id=user.id,
-                        device_uid=device_uid,
-                        name=oc_dev.device_name or None,
-                        model=oc_dev.device_type or None,
-                        registered_at=registered_at,
-                        comment=oc_dev.comment,
-                        oc_device_id=oc_dev.device_id,
-                        is_active=True,
-                    )
-                    self.session.add(new_device)
-                    await self.session.flush()
-                    migrated += 1
+                # BUG FIX: Idempotency check by oc_device_id before INSERT
+                check_stmt = select(UserDevice).where(UserDevice.oc_device_id == oc_dev.device_id)
+                existing_device = await self.session.execute(check_stmt)
+                if existing_device.scalar_one_or_none():
+                    skipped += 1
                     logger.info(
-                        "migrate_devices_ok",
+                        "migrate_devices_skip_duplicate",
                         oc_device_id=oc_dev.device_id,
-                        device_uid=device_uid,
-                        user_id=str(user.id),
+                        reason="already_migrated",
                     )
+                    continue
+
+                try:
+                    # BUG FIX: Use SAVEPOINT instead of full rollback
+                    async with self.session.begin_nested():
+                        new_device = UserDevice(
+                            user_id=user.id,
+                            device_uid=device_uid,
+                            name=oc_dev.device_name or None,
+                            model=oc_dev.device_type or None,
+                            registered_at=registered_at,
+                            comment=oc_dev.comment,
+                            oc_device_id=oc_dev.device_id,
+                            is_active=True,
+                        )
+                        self.session.add(new_device)
+                        await self.session.flush()
+                        migrated += 1
+                        logger.info(
+                            "migrate_devices_ok",
+                            oc_device_id=oc_dev.device_id,
+                            device_uid=device_uid,
+                            user_id=str(user.id),
+                        )
                 except Exception as exc:
-                    await self.session.rollback()
+                    # Rollback only to SAVEPOINT, not entire batch
                     err_str = str(exc)
                     # ON CONFLICT SKIP for duplicate device_uid
                     if "unique" in err_str.lower() or "duplicate" in err_str.lower():
