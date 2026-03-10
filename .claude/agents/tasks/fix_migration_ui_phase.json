@@ -1,0 +1,20 @@
+{
+  "task_id": "fix_migration_ui_phase",
+  "agent": "frontend-agent",
+  "priority": "high",
+  "title": "Migration UI: отображение sub-phase (Адреса / Устройства) для USERS-джобы",
+  "context": {
+    "problem": "USERS migration job имеет 3 под-фазы: users → addresses → devices. После завершения пользователей (866/866) карточка USERS показывает 866/866 RUNNING — выглядит сломано. Backend теперь возвращает поля phase и phase_processed в entity status для USERS.",
+    "backend_change": "schemas.py: MigrationEntityStatus добавлены поля phase: Optional[str] и phase_processed: Optional[int]. API /admin/migration/status возвращает их для USERS entity когда status=RUNNING. Пример: {phase: 'Адреса', phase_processed: 51}. Возможные значения phase: 'Пользователи', 'Адреса', 'Устройства' — только пока RUNNING."
+  },
+  "files_to_modify": [
+    "frontend/pages/admin/migration.vue"
+  ],
+  "requirements": [
+    "Добавить phase?: string | null и phase_processed?: number | null в интерфейс MigrationEntityStatus",
+    "В entity card (под заголовком, над счётчиком processed/total) показывать phase если он есть: иконка стрелки + текст фазы + phase_processed в скобках",
+    "Использовать только var(--color-*) токены из tokens.css — цвет акцента для фазы",
+    "Добавить data-testid='entity-phase' на элемент фазы",
+    "Не трогать логику polling, кнопки, общий прогресс"
+  ]
+}
