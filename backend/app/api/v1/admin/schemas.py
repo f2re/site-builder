@@ -52,6 +52,8 @@ class MigrationEntityStatus(BaseModel):
     processed: int
     status: str # Matches frontend PENDING | RUNNING | COMPLETED | PAUSED | FAILED
     error: Optional[str] = None
+    phase: Optional[str] = None          # Current sub-phase label (e.g. "Адреса", "Устройства")
+    phase_processed: Optional[int] = None  # Items processed in current sub-phase
 
 class MigrationStatusResponse(BaseModel):
     overall_status: str # IDLE | RUNNING | PAUSED | COMPLETED | FAILED

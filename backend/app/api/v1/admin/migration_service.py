@@ -424,12 +424,27 @@ class MigrationService:
                 if status_str == "DONE":
                     status_str = "COMPLETED"
 
-                entities_data[ent.value] = {
+                entity_entry: Dict[str, Any] = {
                     "total": job_opt.total,
                     "processed": job_opt.processed,
                     "status": status_str,
                     "error": job_opt.errors[-1] if job_opt.errors else None,
                 }
+
+                # For USERS: annotate current sub-phase so UI can show progress
+                if ent == MigrationEntity.USERS and job_opt.status == MigrationStatus.RUNNING:
+                    extra = job_opt.extra_data or {}
+                    if not extra.get("users_done"):
+                        entity_entry["phase"] = "Пользователи"
+                        entity_entry["phase_processed"] = job_opt.processed
+                    elif not extra.get("addresses_done"):
+                        entity_entry["phase"] = "Адреса"
+                        entity_entry["phase_processed"] = int(extra.get("addresses_processed") or 0)
+                    elif not extra.get("devices_done"):
+                        entity_entry["phase"] = "Устройства"
+                        entity_entry["phase_processed"] = int(extra.get("devices_processed") or 0)
+
+                entities_data[ent.value] = entity_entry
                 total_items += job_opt.total
                 processed_items += job_opt.processed
 
@@ -1323,7 +1338,6 @@ class MigrationService:
             infos = result.scalars().all()
 
             if not infos:
-                await self.repo.update_job_status(job.id, MigrationStatus.DONE)
                 return False
 
             # Find or create system author
@@ -1420,7 +1434,7 @@ class MigrationService:
                 job.id, MigrationStatus.RUNNING, last_oc_id=last_id, processed=job.processed + processed
             )
             logger.info("migrate_information_batch", processed=processed, skipped=skipped, last_id=last_id)
-            return True
+            return len(infos) == self.batch_size
 
     async def migrate_orders(self, job: MigrationJob) -> bool:
         async with OCAsyncSessionLocal() as oc_session:

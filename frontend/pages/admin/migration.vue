@@ -20,6 +20,8 @@ interface MigrationEntityStatus {
   skipped?: number
   status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'PAUSED' | 'FAILED'
   error?: string | null
+  phase?: string | null
+  phase_processed?: number | null
 }
 
 interface MigrationStatus {
@@ -334,6 +336,15 @@ const getEntityLabel = (key: string) => {
 
             <div class="entity-card-body">
               <h3 class="entity-title">{{ getEntityLabel(key as string) }}</h3>
+
+              <div v-if="entity.phase" class="entity-phase" data-testid="entity-phase">
+                <Icon name="ph:arrow-right-bold" size="12" />
+                {{ entity.phase }}
+                <span v-if="entity.phase_processed != null" class="entity-phase-count">
+                  ({{ entity.phase_processed }})
+                </span>
+              </div>
+
               <div class="entity-stats">
                 <span class="processed">{{ entity.processed }}</span>
                 <span class="divider">/</span>
@@ -551,6 +562,20 @@ const getEntityLabel = (key: string) => {
   font-size: var(--text-xs);
   color: var(--color-error);
   margin-top: 0.5rem;
+}
+
+.entity-phase {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: var(--text-xs);
+  color: var(--color-accent);
+  margin-bottom: 0.5rem;
+  font-family: var(--font-mono);
+}
+
+.entity-phase-count {
+  color: var(--color-text-2);
 }
 
 .entity-skipped {
