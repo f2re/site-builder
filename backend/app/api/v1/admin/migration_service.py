@@ -524,8 +524,11 @@ class MigrationService:
                 # Phase 1: users — skip entirely if already done
                 if not metadata_u.get("users_done"):
                     should_retrigger = await self.migrate_users(job)
+                    # CRITICAL: reload job.extra_data after migrate_users committed changes
+                    await self.session.refresh(job)
+                    metadata_u = dict(job.extra_data or {})
+
                     if not should_retrigger:
-                        metadata_u = dict(job.extra_data or {})
                         metadata_u["users_done"] = True
                         await self.repo.update_job_status(
                             job.id, MigrationStatus.RUNNING, extra_data=metadata_u
@@ -535,10 +538,13 @@ class MigrationService:
                 # Phase 2: addresses
                 if not should_retrigger and not metadata_u.get("addresses_done"):
                     addresses_retrigger = await self.migrate_addresses(job)
+                    # CRITICAL: reload job.extra_data after migrate_addresses committed changes
+                    await self.session.refresh(job)
+                    metadata_u = dict(job.extra_data or {})
+
                     if addresses_retrigger:
                         should_retrigger = True
                     else:
-                        metadata_u = dict(job.extra_data or {})
                         metadata_u["addresses_done"] = True
                         await self.repo.update_job_status(
                             job.id, MigrationStatus.RUNNING, extra_data=metadata_u
@@ -548,10 +554,13 @@ class MigrationService:
                 # Phase 3: devices
                 if not should_retrigger and not metadata_u.get("devices_done"):
                     devices_retrigger = await self.migrate_devices(job)
+                    # CRITICAL: reload job.extra_data after migrate_devices committed changes
+                    await self.session.refresh(job)
+                    metadata_u = dict(job.extra_data or {})
+
                     if devices_retrigger:
                         should_retrigger = True
                     else:
-                        metadata_u = dict(job.extra_data or {})
                         metadata_u["devices_done"] = True
                         await self.repo.update_job_status(
                             job.id, MigrationStatus.DONE, extra_data=metadata_u
@@ -695,6 +704,8 @@ class MigrationService:
             job_id=str(job.id),
             last_addr_id=last_addr_id,
             addresses_done=metadata.get("addresses_done"),
+            job_extra_data_cursor=job.extra_data.get("addresses_last_id") if job.extra_data else None,
+            metadata_cursor=metadata.get("addresses_last_id"),
         )
 
         async with OCAsyncSessionLocal() as oc_session:
@@ -857,7 +868,14 @@ class MigrationService:
             metadata["addresses_last_id"] = current_last_id
             job.extra_data = metadata
 
+            logger.info(
+                "migrate_addresses_cursor_before_commit",
+                last_addr_id=current_last_id,
+                metadata_cursor=metadata.get("addresses_last_id"),
+            )
+
             await self.session.commit()
+
             logger.info(
                 "migrate_addresses_batch",
                 processed=processed,
@@ -866,6 +884,7 @@ class MigrationService:
                 skipped_no_customer=skipped_no_customer,
                 skipped_no_user=skipped_no_user,
                 last_addr_id=current_last_id,
+                cursor_saved=job.extra_data.get("addresses_last_id"),
             )
 
             # Retrigger if full batch fetched

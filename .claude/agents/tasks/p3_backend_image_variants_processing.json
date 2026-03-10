@@ -1,0 +1,47 @@
+{
+  "task_id": "p3_backend_image_variants_processing",
+  "phase": 3,
+  "agent": "backend-agent",
+  "title": "Реализовать Celery task для генерации множественных размеров изображений",
+  "description": "Рефакторинг app/tasks/media.py для генерации 5 размеров изображений вместо текущих 2 (original + thumb).\n\nТекущая логика:\n- process_image: конвертация в WebP + thumbnail 480px\n\nНовая логика:\n- process_image_variants: генерация 5 размеров с умной обработкой\n  - original: max 1920px (если исходник меньше — не апскейлить)\n  - large: 1024px\n  - medium: 480px\n  - thumb: 150x150 (crop to square для иконок)\n  - small: 320px (для мобильных списков)\n\nОсобенности:\n1. Умный resize: если исходник 800px — не создавать large (1024px), использовать исходник\n2. Crop для thumb: центрированный квадрат 150x150\n3. Сохранение в структуру: media/{entity}/{entity_id}/{seq}_{size}.webp\n4. Обновление formats JSON в БД: {\"thumb\": \"001_thumb.webp\", \"small\": \"001_small.webp\", ...}\n5. Удаление исходника после обработки (опционально через settings.KEEP_ORIGINAL)",
+  "acceptance_criteria": [
+    "Создан новый task process_image_variants(source_path, entity_type, entity_id, sequence, image_id)",
+    "Генерируются 5 размеров: original (1920), large (1024), medium (480), small (320), thumb (150x150 crop)",
+    "Умный resize: не апскейлить изображения меньше целевого размера",
+    "Thumb генерируется как центрированный квадрат 150x150 (crop)",
+    "Все варианты сохраняются в формате WebP (quality=85)",
+    "Имена файлов: {seq}.webp, {seq}_large.webp, {seq}_medium.webp, {seq}_small.webp, {seq}_thumb.webp",
+    "Обновление ProductImage.formats или BlogPostMedia.formats с путями ко всем вариантам",
+    "Старый task process_image помечен как deprecated, но оставлен для обратной совместимости",
+    "ruff, mypy проходят без ошибок",
+    "Добавлено логирование размеров каждого варианта"
+  ],
+  "files_to_modify": [
+    "backend/app/tasks/media.py"
+  ],
+  "dependencies": [
+    "p3_backend_image_model_extension"
+  ],
+  "priority": "P0",
+  "estimated_effort": "90min",
+  "context": {
+    "current_task": "process_image — 2 размера (original + thumb 480px)",
+    "new_task": "process_image_variants — 5 размеров с умной обработкой",
+    "sizes": {
+      "original": "max 1920px (не апскейлить)",
+      "large": "1024px",
+      "medium": "480px",
+      "small": "320px",
+      "thumb": "150x150 crop to square"
+    },
+    "storage_pattern": "media/{entity}/{entity_id}/{seq}_{size}.webp"
+  },
+  "verification_commands": [
+    "cd backend && ruff check app/tasks/media.py",
+    "cd backend && mypy app/tasks/media.py --ignore-missing-imports"
+  ],
+  "status": "completed",
+  "created_at": "2026-03-10T18:15:00Z",
+  "completed_at": "2026-03-11T00:00:00Z",
+  "assigned_to": "backend-agent"
+}

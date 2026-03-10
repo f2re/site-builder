@@ -1,0 +1,42 @@
+{
+  "task_id": "p3_backend_migration_images",
+  "phase": 3,
+  "agent": "backend-agent",
+  "title": "Добавить обработку изображений в миграцию OpenCart с прогресс-трекингом",
+  "description": "Текущая миграция продуктов создаёт записи ProductImage с URL из OpenCart, но не скачивает и не обрабатывает изображения. Требуется:\n\n1. Скачивание изображений из OpenCart URL\n2. Обработка через process_image_variants (генерация 5 размеров)\n3. Tracking прогресса через Redis\n4. Обновление extra_data с прогрессом для UI\n\nАрхитектура:\n- migrate_catalog создаёт ProductImage записи с temporary URL\n- После завершения migrate_catalog → запускается migrate_product_images_batch\n- migrate_product_images_batch: fetch batch ProductImage с temporary URL → download → dispatch Celery tasks → track progress\n- Celery task: process_downloaded_image(image_id, temp_path) → process_image_variants → update ProductImage.formats\n\nОсобенности:\n1. Batch processing: 50 изображений за раз\n2. Redis tracking: HSET migration:images:{job_id} {image_id} {status}\n3. Retry logic: 3 попытки для каждого изображения\n4. Timeout: 5 минут на скачивание 1 изображения\n5. Fallback: если изображение не скачалось — пропустить, но залогировать",
+  "acceptance_criteria": [
+    "Добавлен метод migrate_product_images_batch(job: MigrationJob) -> bool",
+    "Скачивание изображений из OpenCart URL через httpx с timeout=30s",
+    "Dispatch Celery task process_downloaded_image для каждого изображения",
+    "Redis tracking: HSET migration:images:{job_id} {image_id} {status}",
+    "Обновление extra_data: images_total, images_processed, images_failed",
+    "Retry logic: 3 попытки с exponential backoff",
+    "Логирование ошибок скачивания в extra_data.images_errors",
+    "Интеграция в run_batch: после migrate_catalog → migrate_product_images_batch",
+    "ruff, mypy проходят без ошибок"
+  ],
+  "files_to_modify": [
+    "backend/app/api/v1/admin/migration_service.py",
+    "backend/app/tasks/media.py"
+  ],
+  "dependencies": [
+    "p3_backend_image_model_extension",
+    "p3_backend_image_variants_processing"
+  ],
+  "priority": "P1",
+  "estimated_effort": "120min",
+  "context": {
+    "batch_size": 50,
+    "redis_tracking": "HSET migration:images:{job_id} {image_id} {status}",
+    "retry_logic": "3 attempts with exponential backoff",
+    "timeout": "30s per image download",
+    "fallback": "skip failed images, log errors"
+  },
+  "verification_commands": [
+    "cd backend && ruff check app/api/v1/admin/migration_service.py app/tasks/media.py",
+    "cd backend && mypy app/api/v1/admin/migration_service.py app/tasks/media.py --ignore-missing-imports"
+  ],
+  "status": "pending",
+  "created_at": "2026-03-10T18:15:00Z",
+  "assigned_to": "backend-agent"
+}

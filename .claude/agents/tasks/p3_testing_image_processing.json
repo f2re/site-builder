@@ -1,0 +1,46 @@
+{
+  "task_id": "p3_testing_image_processing",
+  "phase": 3,
+  "agent": "testing-agent",
+  "title": "Тесты для системы обработки изображений (unit + integration)",
+  "description": "Создать unit и integration тесты для новой системы обработки изображений с множественными размерами.\n\nUnit тесты:\n1. Генерация sequence: _generate_next_sequence\n2. Умный resize: не апскейлить изображения меньше целевого размера\n3. Crop для thumb: центрированный квадрат 150x150\n4. Форматирование путей: base_path + size → full path\n5. Helper-методы: get_url(size), get_all_urls()\n\nIntegration тесты:\n1. Upload изображения → verify process_image_variants → verify all 5 sizes created\n2. Delete изображения → verify all variants deleted from storage\n3. Update изображения → verify atomic replacement (new → old)\n4. Migration: mock OpenCart URL → download → process → verify formats JSON\n\nМоки:\n- Pillow Image.open: mock для тестовых изображений разных размеров\n- httpx: mock для скачивания из OpenCart\n- storage_client: mock для проверки save/delete операций\n- Celery: sync execution для тестов",
+  "acceptance_criteria": [
+    "Unit тесты в tests/unit/tasks/test_media.py: генерация размеров, умный resize, crop",
+    "Unit тесты в tests/unit/api/test_image_service.py: sequence generation, helper methods",
+    "Integration тест: upload → process → verify 5 sizes",
+    "Integration тест: delete → verify all variants deleted",
+    "Integration тест: update → verify atomic replacement",
+    "Integration тест: migration → mock download → verify processing",
+    "Моки для Pillow, httpx, storage_client",
+    "Coverage > 80% для app/tasks/media.py, app/api/v1/media/service.py",
+    "pytest проходит без ошибок"
+  ],
+  "files_to_modify": [
+    "tests/unit/tasks/test_media.py",
+    "tests/unit/api/test_image_service.py",
+    "tests/integration/test_image_upload.py",
+    "tests/integration/test_image_migration.py",
+    "tests/conftest.py"
+  ],
+  "dependencies": [
+    "p3_backend_image_model_extension",
+    "p3_backend_image_variants_processing",
+    "p3_backend_image_upload_service"
+  ],
+  "priority": "P2",
+  "estimated_effort": "120min",
+  "context": {
+    "unit_tests": "sequence generation, smart resize, crop, path formatting",
+    "integration_tests": "upload → process → verify, delete → verify, update → verify, migration → verify",
+    "mocks": "Pillow, httpx, storage_client, Celery",
+    "coverage_target": "> 80%"
+  },
+  "verification_commands": [
+    "cd backend && pytest tests/unit/tasks/test_media.py -v",
+    "cd backend && pytest tests/integration/test_image_upload.py -v",
+    "cd backend && pytest tests/ -v --cov=app/tasks/media --cov=app/api/v1/media/service --cov-report=term-missing"
+  ],
+  "status": "pending",
+  "created_at": "2026-03-10T18:15:00Z",
+  "assigned_to": "testing-agent"
+}

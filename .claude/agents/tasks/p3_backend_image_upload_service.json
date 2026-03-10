@@ -1,0 +1,42 @@
+{
+  "task_id": "p3_backend_image_upload_service",
+  "phase": 3,
+  "agent": "backend-agent",
+  "title": "Обновить MediaService и ProductService для работы с множественными размерами изображений",
+  "description": "Рефакторинг сервисов загрузки/удаления/обновления изображений для работы с новой системой множественных размеров и внутренней нумерацией.\n\nТекущая логика:\n- Upload: сохранение файла с UUID именем → вызов process_image\n- Delete: удаление 1 файла из storage\n\nНовая логика:\n- Upload: генерация sequence (max(sequence) + 1), сохранение исходника во временную директорию, вызов process_image_variants с sequence\n- Delete: удаление всех вариантов из storage (thumb, small, medium, large, original)\n- Update: atomic замена (загрузка новых вариантов → удаление старых)\n- Set cover: обновление is_cover флага\n\nОсобенности:\n1. Sequence генерируется автоматически: SELECT MAX(sequence) FROM product_images WHERE product_id = ? + 1\n2. Исходник сохраняется во временную директорию: media/temp/{uuid}.{ext}\n3. После успешной обработки Celery task — удаление temp файла\n4. При удалении изображения — удаление всех вариантов из formats JSON\n5. При обновлении — atomic операция: сначала загрузка новых, потом удаление старых",
+  "acceptance_criteria": [
+    "MediaService.create_media_record: генерирует sequence, вызывает process_image_variants",
+    "ProductService.upload_image: сохраняет исходник в temp, генерирует sequence, вызывает process_image_variants",
+    "MediaService.delete_media: удаляет все варианты из formats JSON",
+    "ProductService.delete_image: удаляет все варианты из storage",
+    "ProductService.update_image: atomic замена (новые → старые)",
+    "Добавлен метод _generate_next_sequence(entity_type, entity_id) -> int",
+    "Добавлен метод _delete_all_variants(formats: dict) для удаления всех размеров",
+    "ruff, mypy проходят без ошибок",
+    "Обратная совместимость: старые записи с url продолжают работать"
+  ],
+  "files_to_modify": [
+    "backend/app/api/v1/media/service.py",
+    "backend/app/api/v1/products/service.py"
+  ],
+  "dependencies": [
+    "p3_backend_image_model_extension",
+    "p3_backend_image_variants_processing"
+  ],
+  "priority": "P0",
+  "estimated_effort": "75min",
+  "context": {
+    "sequence_generation": "SELECT MAX(sequence) FROM product_images WHERE product_id = ? + 1",
+    "temp_storage": "media/temp/{uuid}.{ext}",
+    "atomic_update": "upload new → delete old (not vice versa)",
+    "delete_all_variants": "iterate formats JSON and delete each file"
+  },
+  "verification_commands": [
+    "cd backend && ruff check app/api/v1/media/service.py app/api/v1/products/service.py",
+    "cd backend && mypy app/api/v1/media/service.py app/api/v1/products/service.py --ignore-missing-imports"
+  ],
+  "status": "completed",
+  "created_at": "2026-03-10T18:15:00Z",
+  "completed_at": "2026-03-11T00:00:00Z",
+  "assigned_to": "backend-agent"
+}

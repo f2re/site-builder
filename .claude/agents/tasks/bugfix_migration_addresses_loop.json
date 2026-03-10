@@ -1,0 +1,35 @@
+{
+  "task_id": "bugfix_migration_addresses_loop",
+  "phase": "hotfix",
+  "agent": "backend-agent",
+  "title": "Fix: Миграция адресов зациклилась — курсор сбрасывается на 0 после каждого батча",
+  "description": "Миграция адресов (migrate_addresses) попала в бесконечный цикл:\n\n**Симптомы:**\n- Каждый батч начинается с last_addr_id=0 вместо продолжения с последнего ID\n- В логах: 'migrate_addresses_start last_addr_id=0' → обработка 50 записей → 'migrate_addresses_batch last_addr_id=106 processed=0 skipped=50' → ROLLBACK → снова 'last_addr_id=0'\n- Прогресс не сохраняется, все 50 записей пропускаются как already_migrated\n- Цикл повторяется бесконечно\n\n**Анализ кода (backend/app/api/v1/admin/migration_service.py):**\n\n1. Строка 691: `last_addr_id: int = int(metadata.get(\"addresses_last_id\") or 0)` — читает курсор из job.extra_data\n2. Строка 857: `metadata[\"addresses_last_id\"] = current_last_id` — обновляет курсор\n3. Строка 858: `job.extra_data = metadata` — присваивает обновлённый metadata\n4. Строка 860: `await self.session.commit()` — коммитит изменения\n5. Строка 872: `return len(addresses) == self.batch_size` — возвращает True для повторного запуска\n\n**Проблема:**\nПосле commit() происходит ROLLBACK, который откатывает изменения в job.extra_data. Возможные причины:\n\n1. **Exception после commit()** — если после строки 860 возникает исключение, транзакция откатывается\n2. **Проблема с session scope** — session может быть закрыта или откачена в другом месте\n3. **Проблема в run_batch()** — строка 537-546 вызывает migrate_addresses(), но может откатывать транзакцию при ошибке\n4. **Проблема с refresh** — строка 546 `await self.session.refresh(job)` может перезаписать job.extra_data старыми данными\n\n**Решение:**\n\n1. Добавить явный commit ПОСЛЕ migrate_addresses() в run_batch() (строка 537-546)\n2. Убедиться, что job.extra_data сохраняется ДО возврата из migrate_addresses()\n3. Добавить логирование перед/после commit для отладки\n4. Проверить, что session.refresh(job) не перезаписывает extra_data\n5. Рассмотреть использование отдельной транзакции для обновления курсора\n\n**Критичность:** P0 — блокирует production миграцию данных",
+  "acceptance_criteria": [
+    "Курсор addresses_last_id корректно сохраняется после каждого батча",
+    "Следующий батч начинается с last_addr_id > предыдущего (не с 0)",
+    "ROLLBACK не происходит после успешного commit в migrate_addresses()",
+    "Миграция адресов завершается успешно (addresses_done=True)",
+    "Добавлено детальное логирование commit/rollback для отладки",
+    "Проверено на production данных (519 адресов в oc_address)"
+  ],
+  "files_to_modify": [
+    "backend/app/api/v1/admin/migration_service.py"
+  ],
+  "dependencies": [],
+  "priority": "P0",
+  "estimated_effort": "30min",
+  "context": {
+    "current_behavior": "last_addr_id=0 → process 50 → ROLLBACK → last_addr_id=0 (loop)",
+    "expected_behavior": "last_addr_id=0 → process 50 → commit → last_addr_id=106 → process next 50",
+    "log_evidence": "migrate_addresses_start last_addr_id=0, migrate_addresses_batch last_addr_id=106, ROLLBACK, repeat",
+    "affected_lines": "690-872 (migrate_addresses), 536-546 (run_batch addresses phase)"
+  },
+  "verification_commands": [
+    "cd backend && ruff check app/api/v1/admin/migration_service.py",
+    "cd backend && mypy app/api/v1/admin/migration_service.py --ignore-missing-imports",
+    "# Manual test: запустить миграцию адресов и проверить логи на отсутствие ROLLBACK и прогресс курсора"
+  ],
+  "status": "pending",
+  "created_at": "2026-03-11T00:30:00Z",
+  "assigned_to": "backend-agent"
+}

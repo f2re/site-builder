@@ -193,18 +193,51 @@ class BlogPostMedia(Base):
     post_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("blog_posts.id", ondelete="CASCADE"), nullable=True
     )
-    
+
+    # DEPRECATED: use get_url() method instead. Kept for backward compatibility.
     url: Mapped[str] = mapped_column(String(1000), nullable=False)
     media_type: Mapped[str] = mapped_column(String(10), nullable=False)  # 'image' or 'video'
     alt: Mapped[str] = mapped_column(String(255), nullable=False)
     caption: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    
+
     width: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     height: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    
+
     mime_type: Mapped[str] = mapped_column(String(50), nullable=False)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
-    
+
+    # Multi-size image support (Task: p3_backend_image_model_extension)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    base_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    formats: Mapped[dict] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"),
+        server_default="{}",
+        default=dict
+    )
+
     # Relationships
     post: Mapped[BlogPost] = relationship("BlogPost", back_populates="media")
+
+    def get_url(self, size: str = "original") -> str:
+        """Get URL for specific image size.
+
+        Args:
+            size: One of 'thumb', 'small', 'medium', 'large', 'original'
+
+        Returns:
+            URL path to the image variant, falls back to url field if formats is empty
+        """
+        if not self.formats or size not in self.formats:
+            return self.url
+        return self.formats.get(size, self.url)
+
+    def get_all_urls(self) -> dict[str, str]:
+        """Get all available image size URLs.
+
+        Returns:
+            Dictionary mapping size names to URLs
+        """
+        if not self.formats:
+            return {"original": self.url}
+        return dict(self.formats)

@@ -106,6 +106,9 @@ class ProductImageBase(BaseModel):
 
 class ProductImageRead(ProductImageBase):
     id: UUID
+    sequence: int = 1
+    base_path: Optional[str] = None
+    formats: dict = Field(default_factory=dict)
     model_config = ConfigDict(from_attributes=True)
 
 class ProductVariantBase(BaseModel):

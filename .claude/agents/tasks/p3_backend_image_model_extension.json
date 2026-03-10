@@ -1,0 +1,43 @@
+{
+  "task_id": "p3_backend_image_model_extension",
+  "phase": 3,
+  "agent": "backend-agent",
+  "title": "Расширить модели ProductImage и BlogPostMedia для множественных размеров изображений",
+  "description": "Текущая система хранит только 1 размер изображения (original + thumbnail). Требуется поддержка множественных размеров (thumb 150px, small 480px, medium 1024px, large 1920px) с внутренней нумерацией вместо UUID в именах файлов.\n\nТекущая структура:\n- url: String(1000) — путь к файлу\n- width, height: Integer — размеры\n\nНовая структура:\n- sequence: Integer — порядковый номер (1, 2, 3...) для формирования имени файла\n- base_path: String(500) — базовый путь без расширения (product/{product_id}/{seq})\n- formats: JSONB — словарь с путями к разным размерам {\"thumb\": \"001_thumb.webp\", \"small\": \"001_small.webp\", \"medium\": \"001_medium.webp\", \"large\": \"001_large.webp\", \"original\": \"001.webp\"}\n- url: String(1000) — DEPRECATED, оставить для обратной совместимости\n\nПример структуры хранения:\nmedia/product/{product_id}/001.webp (original 1920px max)\nmedia/product/{product_id}/001_large.webp (1024px)\nmedia/product/{product_id}/001_medium.webp (480px)\nmedia/product/{product_id}/001_thumb.webp (150px)",
+  "acceptance_criteria": [
+    "Добавлены поля в ProductImage: sequence (Integer, NOT NULL), base_path (String(500)), formats (JSONB, default={})",
+    "Добавлены поля в BlogPostMedia: sequence (Integer, NOT NULL), base_path (String(500)), formats (JSONB, default={})",
+    "Создана Alembic миграция с добавлением полей и заполнением дефолтных значений для существующих записей",
+    "Обновлены Pydantic схемы: ProductImageRead, BlogPostMediaRead с новыми полями",
+    "Добавлены helper-методы в модели: get_url(size: str) -> str, get_all_urls() -> dict",
+    "Поле url помечено как deprecated в комментариях, но оставлено для обратной совместимости",
+    "ruff, mypy проходят без ошибок",
+    "alembic upgrade head выполняется успешно"
+  ],
+  "files_to_modify": [
+    "backend/app/db/models/product.py",
+    "backend/app/db/models/blog.py",
+    "backend/app/api/v1/products/schemas.py",
+    "backend/app/api/v1/blog/schemas.py",
+    "backend/app/db/migrations/versions/YYYYMMDD_HHMMSS_add_image_variants_support.py"
+  ],
+  "dependencies": [],
+  "priority": "P0",
+  "estimated_effort": "60min",
+  "context": {
+    "current_structure": "url (String), width (Integer), height (Integer)",
+    "new_structure": "sequence (Integer), base_path (String), formats (JSONB), url (deprecated)",
+    "storage_pattern": "media/{entity}/{entity_id}/{seq}_{size}.webp",
+    "sizes": ["thumb (150px)", "small (480px)", "medium (1024px)", "large (1920px)", "original (max 1920px)"]
+  },
+  "verification_commands": [
+    "cd backend && ruff check app/db/models/product.py app/db/models/blog.py",
+    "cd backend && mypy app/db/models/product.py app/db/models/blog.py --ignore-missing-imports",
+    "cd backend && alembic upgrade head",
+    "cd backend && alembic check"
+  ],
+  "status": "completed",
+  "created_at": "2026-03-10T18:15:00Z",
+  "completed_at": "2026-03-11T00:00:00Z",
+  "assigned_to": "backend-agent"
+}

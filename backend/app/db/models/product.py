@@ -96,6 +96,7 @@ class ProductImage(Base):
     product_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("products.id", ondelete="CASCADE"), nullable=False
     )
+    # DEPRECATED: use get_url() method instead. Kept for backward compatibility.
     url: Mapped[str] = mapped_column(String(1000), nullable=False)
     alt: Mapped[str] = mapped_column(String(255), nullable=False, server_default="")
     is_cover: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -103,7 +104,39 @@ class ProductImage(Base):
     width: Mapped[Optional[int]] = mapped_column(Integer)
     height: Mapped[Optional[int]] = mapped_column(Integer)
 
+    # Multi-size image support (Task: p3_backend_image_model_extension)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    base_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    formats: Mapped[dict] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"),
+        server_default="{}",
+        default=dict
+    )
+
     product: Mapped["Product"] = relationship("Product", back_populates="images")
+
+    def get_url(self, size: str = "original") -> str:
+        """Get URL for specific image size.
+
+        Args:
+            size: One of 'thumb', 'small', 'medium', 'large', 'original'
+
+        Returns:
+            URL path to the image variant, falls back to url field if formats is empty
+        """
+        if not self.formats or size not in self.formats:
+            return self.url
+        return self.formats.get(size, self.url)
+
+    def get_all_urls(self) -> dict[str, str]:
+        """Get all available image size URLs.
+
+        Returns:
+            Dictionary mapping size names to URLs
+        """
+        if not self.formats:
+            return {"original": self.url}
+        return dict(self.formats)
 
 
 class StockMovement(Base):

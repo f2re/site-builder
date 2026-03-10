@@ -1,0 +1,42 @@
+{
+  "task_id": "p3_frontend_image_component",
+  "phase": 3,
+  "agent": "frontend-agent",
+  "title": "Создать компонент ImageWithFallback для автоматического выбора размера изображения",
+  "description": "Создать Vue 3 компонент для отображения изображений с автоматическим выбором размера по контексту, fallback на меньший размер при ошибке загрузки, lazy loading и placeholder.\n\nТребования:\n1. Автоматический выбор размера по контексту:\n   - 'thumb' (150px) — иконки, карточки в списке\n   - 'small' (320px) — мобильные списки\n   - 'medium' (480px) — карточки товаров, превью блога\n   - 'large' (1024px) — страница товара, статья блога\n   - 'original' (1920px) — полноэкранный просмотр\n\n2. Fallback: если размер не загрузился → попробовать меньший размер\n3. Lazy loading: IntersectionObserver\n4. Placeholder: blur-up эффект или skeleton\n5. Responsive: srcset для разных DPR (1x, 2x)\n\nAPI компонента:\n<ImageWithFallback\n  :formats=\"product.images[0].formats\"\n  :alt=\"product.images[0].alt\"\n  size=\"medium\"\n  :lazy=\"true\"\n  class=\"product-image\"\n/>",
+  "acceptance_criteria": [
+    "Создан компонент frontend/components/ImageWithFallback.vue",
+    "Props: formats (Object), alt (String), size (String), lazy (Boolean), placeholder (String)",
+    "Автоматический выбор размера из formats по size prop",
+    "Fallback: medium → small → thumb при ошибке загрузки",
+    "Lazy loading через IntersectionObserver",
+    "Placeholder: blur-up эффект или skeleton loader",
+    "Responsive: srcset для 1x и 2x DPR",
+    "Composable useImageLoader для переиспользования логики",
+    "TypeScript типы для formats: Record<string, string>",
+    "Storybook примеры для всех размеров (опционально)"
+  ],
+  "files_to_modify": [
+    "frontend/components/ImageWithFallback.vue",
+    "frontend/composables/useImageLoader.ts",
+    "frontend/types/image.ts"
+  ],
+  "dependencies": [
+    "p3_backend_image_model_extension"
+  ],
+  "priority": "P1",
+  "estimated_effort": "90min",
+  "context": {
+    "sizes": ["thumb (150px)", "small (320px)", "medium (480px)", "large (1024px)", "original (1920px)"],
+    "fallback_order": "original → large → medium → small → thumb",
+    "lazy_loading": "IntersectionObserver API",
+    "placeholder": "blur-up effect or skeleton loader"
+  },
+  "verification_commands": [
+    "cd frontend && npm run type-check",
+    "cd frontend && npm run lint"
+  ],
+  "status": "pending",
+  "created_at": "2026-03-10T18:15:00Z",
+  "assigned_to": "frontend-agent"
+}

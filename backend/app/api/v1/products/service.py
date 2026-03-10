@@ -1,4 +1,4 @@
-# Module: api/v1/products/service.py | Agent: backend-agent | Task: bugfix_backend_category_count
+# Module: api/v1/products/service.py | Agent: backend-agent | Task: p3_backend_image_upload_service
 import bleach
 import uuid
 from typing import List, Optional
@@ -314,63 +314,241 @@ class ProductService:
             logger.warning("search_index_task_failed", product_id=index_data["id"], error=str(exc))
 
     # ─── Image Management ───
+    async def _generate_next_sequence(self, product_id: UUID) -> int:
+        """Generate next sequence number for product image.
+
+        Args:
+            product_id: UUID of product
+
+        Returns:
+            Next sequence number (1 if no images exist)
+        """
+        from sqlalchemy import func, select
+        from app.db.models.product import ProductImage
+
+        stmt = select(func.max(ProductImage.sequence)).where(
+            ProductImage.product_id == product_id
+        )
+        result = await self.repo.session.execute(stmt)
+        max_seq = result.scalar_one_or_none()
+
+        return (max_seq or 0) + 1
+
+    async def _delete_all_variants(self, formats: dict) -> None:
+        """Delete all image variants from storage.
+
+        Args:
+            formats: Dictionary mapping size names to file paths
+        """
+        for size_name, file_path in formats.items():
+            try:
+                await storage_client.delete_file(file_path)
+                logger.info("variant_deleted", size=size_name, path=file_path)
+            except Exception as exc:
+                logger.warning(
+                    "variant_deletion_failed",
+                    size=size_name,
+                    path=file_path,
+                    error=str(exc)
+                )
+
     async def upload_image(self, product_id: UUID, file: UploadFile) -> ProductImageRead:
+        """Upload product image and generate multiple size variants.
+
+        Args:
+            product_id: UUID of product
+            file: Uploaded file
+
+        Returns:
+            ProductImageRead with empty formats (will be filled by Celery task)
+        """
         product = await self.repo.get_by_id(product_id)
         if not product:
             raise HTTPException(status_code=404, detail="Product not found")
 
+        # Generate sequence
+        sequence = await self._generate_next_sequence(product_id)
+
+        # Save source to temp directory
         content = await file.read()
         safe_filename = sanitize_filename(file.filename or "image.jpg")
-        object_name = f"product/{product_id}/{uuid.uuid4().hex[:8]}_{safe_filename}"
+        temp_uuid = uuid.uuid4().hex[:12]
+        temp_path = f"media/temp/{temp_uuid}_{safe_filename}"
 
         await storage_client.save_file(
-            object_name=object_name,
+            object_name=temp_path,
             data=content,
             content_type=file.content_type or "image/jpeg"
         )
-
-        url = storage_client.get_public_url(object_name)
 
         # Check if there's any cover image already
         has_cover = await self.repo.has_cover_image(product_id)
         is_cover = not has_cover
 
-        new_image = await self.repo.add_image(product_id, url, alt=product.name, is_cover=is_cover)
-        
+        # Create ProductImage record with sequence and empty formats
+        new_image = ProductImage(
+            product_id=product_id,
+            url=temp_path,  # Temporary, will be updated by Celery
+            alt=product.name,
+            is_cover=is_cover,
+            sequence=sequence,
+            base_path="",  # Will be filled by Celery task
+            formats={},  # Will be filled by Celery task
+        )
+        self.repo.session.add(new_image)
+        await self.repo.session.flush()
+        await self.repo.session.refresh(new_image)
+
+        # Trigger Celery task for multi-size processing
+        from app.tasks.media import process_image_variants
+        process_image_variants.delay(
+            temp_path,
+            "product",
+            str(product_id),
+            sequence,
+            str(new_image.id)
+        )
+
         # If we just set a new cover, update og_image_url
         if is_cover:
-            # We need to reload to avoid session issues, but we already have 'product'
-            # though it might be stale regarding images list.
-            # repository.add_image doesn't update the 'product' object in memory.
-            product.og_image_url = url
-        
+            product.og_image_url = temp_path  # Will be updated after Celery processing
+
         await self.repo.session.commit()
+
+        logger.info(
+            "product_image_uploaded",
+            product_id=str(product_id),
+            image_id=str(new_image.id),
+            sequence=sequence
+        )
 
         return ProductImageRead.model_validate(new_image)
 
     async def delete_image(self, image_id: UUID) -> None:
-        image = await self.repo.delete_image(image_id)
+        """Delete product image and all its variants from storage.
+
+        Args:
+            image_id: UUID of ProductImage
+        """
+        # Get image record first
+        from sqlalchemy import select
+        stmt = select(ProductImage).where(ProductImage.id == image_id)
+        result = await self.repo.session.execute(stmt)
+        image = result.scalar_one_or_none()
+
         if not image:
             raise HTTPException(status_code=404, detail="Image not found")
-        
-        # Optional: remove from MinIO
-        # object_name = image.url.split("/media/")[-1]
-        # await minio_client.remove_object(minio_client.media_bucket, object_name)
-        
+
+        # Delete all variants if formats is populated
+        if image.formats:
+            await self._delete_all_variants(image.formats)
+        elif image.url:
+            # Backward compatibility: delete single file
+            try:
+                await storage_client.delete_file(image.url)
+                logger.info("legacy_image_deleted", url=image.url)
+            except Exception as exc:
+                logger.warning("legacy_image_deletion_failed", url=image.url, error=str(exc))
+
+        # Delete from database
+        await self.repo.session.delete(image)
         await self.repo.session.commit()
+
+        logger.info("product_image_deleted", image_id=str(image_id))
 
     async def set_cover_image(self, product_id: UUID, image_id: UUID) -> ProductImageRead:
         image = await self.repo.set_cover_image(product_id, image_id)
         if not image:
             raise HTTPException(status_code=404, detail="Image not found or not belonging to product")
-        
+
         # Re-apply Auto-SEO to update og_image_url if it was empty
         product = await self.repo.get_by_id(product_id)
         if product:
             self._apply_auto_seo(product)
-            
+
         await self.repo.session.commit()
         return ProductImageRead.model_validate(image)
+
+    async def update_image(self, image_id: UUID, file: UploadFile) -> ProductImageRead:
+        """Update (replace) product image with atomic operation.
+
+        Atomic flow: upload new variants → delete old variants
+
+        Args:
+            image_id: UUID of existing ProductImage
+            file: New uploaded file
+
+        Returns:
+            Updated ProductImageRead
+        """
+        from sqlalchemy import select
+
+        # 1. Load existing image
+        stmt = select(ProductImage).where(ProductImage.id == image_id)
+        result = await self.repo.session.execute(stmt)
+        old_image = result.scalar_one_or_none()
+
+        if not old_image:
+            raise HTTPException(status_code=404, detail="Image not found")
+
+        product_id = old_image.product_id
+        sequence = old_image.sequence
+
+        # 2. Save old formats for later deletion
+        old_formats = dict(old_image.formats) if old_image.formats else {}
+        old_url = old_image.url
+
+        # 3. Upload new file to temp
+        content = await file.read()
+        safe_filename = sanitize_filename(file.filename or "image.jpg")
+        temp_uuid = uuid.uuid4().hex[:12]
+        temp_path = f"media/temp/{temp_uuid}_{safe_filename}"
+
+        await storage_client.save_file(
+            object_name=temp_path,
+            data=content,
+            content_type=file.content_type or "image/jpeg"
+        )
+
+        # 4. Update record with temp path and empty formats
+        old_image.url = temp_path
+        old_image.formats = {}
+        old_image.base_path = ""
+        await self.repo.session.flush()
+
+        # 5. Trigger Celery task for new variants
+        from app.tasks.media import process_image_variants
+        process_image_variants.delay(
+            temp_path,
+            "product",
+            str(product_id),
+            sequence,
+            str(image_id)
+        )
+
+        await self.repo.session.commit()
+
+        # 6. Delete old variants (after successful commit)
+        if old_formats:
+            await self._delete_all_variants(old_formats)
+        elif old_url and old_url != temp_path:
+            # Backward compatibility: delete old single file
+            try:
+                await storage_client.delete_file(old_url)
+                logger.info("legacy_image_replaced", old_url=old_url)
+            except Exception as exc:
+                logger.warning("legacy_image_deletion_failed", old_url=old_url, error=str(exc))
+
+        logger.info(
+            "product_image_updated",
+            image_id=str(image_id),
+            product_id=str(product_id),
+            sequence=sequence
+        )
+
+        # Reload to get updated record
+        await self.repo.session.refresh(old_image)
+        return ProductImageRead.model_validate(old_image)
 
     # ─── Option Groups ───
     async def create_option_group(self, product_id: UUID, data: ProductOptionGroupCreate) -> ProductOptionGroupSchema:

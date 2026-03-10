@@ -154,3 +154,19 @@ class CommentRead(CommentBase):
 class CommentAdminRead(CommentRead):
     author_email: str  # This will be decrypted
     model_config = ConfigDict(from_attributes=True)
+
+class BlogPostMediaRead(BaseModel):
+    id: UUID
+    url: str
+    media_type: str
+    alt: str
+    caption: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    mime_type: str
+    size_bytes: int
+    sort_order: int = 0
+    sequence: int = 1
+    base_path: Optional[str] = None
+    formats: dict = Field(default_factory=dict)
+    model_config = ConfigDict(from_attributes=True)
