@@ -1,0 +1,31 @@
+{
+  "task_id": "p2_backend_fix_awaiting_payment_migration",
+  "phase": 2,
+  "agent": "backend-agent",
+  "title": "Исправить миграцию 381fe83fb1e0 — ошибка invalid input value for enum orderstatus: 'awaiting_payment'",
+  "description": "Миграция 381fe83fb1e0_fix_awaiting_payment_status_data_migration падает с ошибкой:\n\nasyncpg.exceptions.InvalidTextRepresentationError: invalid input value for enum orderstatus: \"awaiting_payment\"\n\nПроблема: В таблице orders есть записи со статусом 'awaiting_payment', но этого значения нет в PostgreSQL enum orderstatus. Миграция пытается выполнить UPDATE orders SET status = 'pending_payment' WHERE status = 'awaiting_payment', но PostgreSQL не может сравнить enum с несуществующим значением.\n\nРешение: Нужно временно изменить тип колонки status на VARCHAR, выполнить UPDATE, затем вернуть enum-тип.",
+  "acceptance_criteria": [
+    "Миграция 381fe83fb1e0 успешно выполняется без ошибок",
+    "Все записи с status='awaiting_payment' обновлены на 'pending_payment'",
+    "Колонка orders.status имеет тип orderstatus (enum) после миграции",
+    "alembic upgrade head проходит без ошибок",
+    "alembic downgrade -1 корректно откатывает изменения"
+  ],
+  "files_to_modify": [
+    "backend/app/db/migrations/versions/20260310_1709-381fe83fb1e0_fix_awaiting_payment_status_data_.py"
+  ],
+  "dependencies": [],
+  "priority": "P0",
+  "estimated_effort": "15min",
+  "context": {
+    "error": "asyncpg.exceptions.InvalidTextRepresentationError: invalid input value for enum orderstatus: 'awaiting_payment'",
+    "root_cause": "PostgreSQL enum orderstatus не содержит значения 'awaiting_payment', но в таблице orders есть записи с этим статусом",
+    "solution_approach": "1. ALTER COLUMN status TYPE VARCHAR 2. UPDATE orders SET status='pending_payment' WHERE status='awaiting_payment' 3. ALTER COLUMN status TYPE orderstatus USING status::orderstatus"
+  },
+  "verification_commands": [
+    "cd backend && alembic upgrade head"
+  ],
+  "status": "pending",
+  "created_at": "2026-03-10T18:00:00Z",
+  "assigned_to": "backend-agent"
+}

@@ -20,6 +20,11 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     # Data migration: replace legacy 'awaiting_payment' with 'pending_payment'
     # This fixes LookupError when SQLAlchemy tries to map DB values to Python enum
+
+    # Step 1: Temporarily convert enum to VARCHAR to allow comparison with invalid enum value
+    op.execute("ALTER TABLE orders ALTER COLUMN status TYPE VARCHAR USING status::TEXT")
+
+    # Step 2: Update data
     op.execute(
         """
         UPDATE orders
@@ -28,10 +33,18 @@ def upgrade() -> None:
         """
     )
 
+    # Step 3: Restore enum type
+    op.execute("ALTER TABLE orders ALTER COLUMN status TYPE orderstatus USING status::orderstatus")
+
 
 def downgrade() -> None:
     # Reverse migration: restore 'awaiting_payment' if needed
     # Note: This is only for rollback scenarios; 'awaiting_payment' is not in Python enum
+
+    # Step 1: Temporarily convert enum to VARCHAR
+    op.execute("ALTER TABLE orders ALTER COLUMN status TYPE VARCHAR USING status::TEXT")
+
+    # Step 2: Restore old value
     op.execute(
         """
         UPDATE orders
@@ -39,3 +52,6 @@ def downgrade() -> None:
         WHERE status = 'pending_payment'
         """
     )
+
+    # Step 3: Restore enum type (will fail if 'awaiting_payment' is not in enum, but that's expected)
+    op.execute("ALTER TABLE orders ALTER COLUMN status TYPE orderstatus USING status::orderstatus")
