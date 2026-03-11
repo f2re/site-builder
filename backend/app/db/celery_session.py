@@ -1,33 +1,44 @@
 # Module: db/celery_session.py | Agent: backend-agent | Task: p29_backend_meilisearch_eventloop_fix
 """
 Отдельная фабрика сессий для Celery-задач.
-
-Причина: asyncio.run() при завершении закрывает event loop. asyncpg (connection pool)
-пытается вернуть соединения в пул — что требует работающего event loop — и падает с:
-    RuntimeError: Event loop is closed
-    RuntimeWarning: coroutine 'Connection._cancel' was never awaited
-
-Решение: NullPool — соединения НЕ возвращаются в пул, а закрываются немедленно.
-Это корректно для Celery, где каждый asyncio.run() создаёт изолированный event loop.
-
-ВАЖНО: AsyncSessionLocal из session.py остаётся без изменений — он используется
-в FastAPI через Depends(get_db), где event loop живёт всё время жизни запроса.
-NullPool нужен ТОЛЬКО для Celery-задач.
 """
-from sqlalchemy.pool import NullPool
+import os
+from sqlalchemy.pool import NullPool, StaticPool
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-
 from app.core.config import settings
 
-celery_engine = create_async_engine(
-    settings.DATABASE_URL,
-    poolclass=NullPool,
-)
+_celery_engine = None
+_CelerySessionLocal = None
 
-CelerySessionLocal = async_sessionmaker(
-    bind=celery_engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False,
-)
+def get_celery_engine():
+    global _celery_engine
+    if _celery_engine is None:
+        test_url = os.getenv("TEST_DATABASE_URL")
+        if test_url:
+            db_url = test_url
+            poolclass = StaticPool if "sqlite" in test_url else NullPool
+        elif os.getenv("PYTEST_CURRENT_TEST"):
+            db_url = "sqlite+aiosqlite:///./test.db"
+            poolclass = StaticPool
+        else:
+            db_url = settings.DATABASE_URL
+            poolclass = NullPool
+        
+        _celery_engine = create_async_engine(
+            db_url,
+            poolclass=poolclass,
+        )
+    return _celery_engine
+
+def CelerySessionLocal():
+    global _CelerySessionLocal
+    if _CelerySessionLocal is None:
+        engine = get_celery_engine()
+        _CelerySessionLocal = async_sessionmaker(
+            bind=engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+            autocommit=False,
+            autoflush=False,
+        )
+    return _CelerySessionLocal()

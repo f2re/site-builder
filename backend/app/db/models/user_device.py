@@ -30,7 +30,11 @@ class UserDevice(Base):
     )
     # OpenCart migration fields
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
-    oc_device_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    oc_device_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True, unique=True)
+    module_device_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("module_devices.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     # Relationships
     user = relationship("User", back_populates="devices", lazy="selectin")
+    module_device = relationship("ModuleDevice", foreign_keys=[module_device_id])

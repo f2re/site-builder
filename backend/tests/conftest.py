@@ -26,9 +26,9 @@ from unittest.mock import MagicMock
 @pytest.fixture(scope="session")
 def event_loop():
     """Create an instance of the default event loop for each test case."""
-    # Force standard asyncio loop to ensure nest_asyncio works (uvloop is NOT patchable)
-    asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
-    loop = asyncio.get_event_loop_policy().new_event_loop()
+    # Force use of standard asyncio loop to avoid uvloop + nest_asyncio incompatibility
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     yield loop
     loop.close()
 
@@ -52,7 +52,7 @@ TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///./test.d
 async def engine(event_loop):
     # Ensure engine is created within the session event loop
     poolclass = StaticPool if "sqlite" in TEST_DATABASE_URL else None
-    
+
     engine = create_async_engine(
         TEST_DATABASE_URL,
         echo=False,
@@ -89,17 +89,17 @@ async def client(db_session: AsyncSession, redis_client: Redis) -> AsyncGenerato
     # Dependency overrides must be clean
     def _get_test_db():
         yield db_session
-    
+
     async def _get_test_redis():
         yield redis_client
 
     app.dependency_overrides[get_db] = _get_test_db
     app.dependency_overrides[get_redis] = _get_test_redis
-    
+
     # Using ASGITransport ensures we don't start a real server but use the app directly
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
-    
+
     app.dependency_overrides.clear()
 
 @pytest_asyncio.fixture
@@ -131,6 +131,10 @@ async def admin_token(db_session: AsyncSession) -> str:
 
     return create_access_token(subject=str(admin_id), role="admin")
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 63cb370f8cc6985bd77b9f5dfcc63e07aa502720
 @pytest_asyncio.fixture
 async def test_user(db_session: AsyncSession):
     from app.db.models.user import User
@@ -138,15 +142,27 @@ async def test_user(db_session: AsyncSession):
     import uuid
 
     user_id = uuid.uuid4()
+<<<<<<< HEAD
     email = f"user-test-{user_id}@example.com"
+=======
+    email = f"user-{user_id}@example.com"
+>>>>>>> 63cb370f8cc6985bd77b9f5dfcc63e07aa502720
     user = User(
         id=user_id,
         email=email,
         email_hash=get_blind_index(email),
+<<<<<<< HEAD
         hashed_password="hashed",
         role="user",
+=======
+        role="customer",
+>>>>>>> 63cb370f8cc6985bd77b9f5dfcc63e07aa502720
         is_active=True
     )
     db_session.add(user)
     await db_session.commit()
+<<<<<<< HEAD
+=======
+    await db_session.refresh(user)
+>>>>>>> 63cb370f8cc6985bd77b9f5dfcc63e07aa502720
     return user

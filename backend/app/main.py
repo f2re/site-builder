@@ -66,7 +66,7 @@ app = FastAPI(
     redirect_slashes=False,
 )
 
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")  # type: ignore
 
 app.add_middleware(
     CORSMiddleware,

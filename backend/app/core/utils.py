@@ -18,16 +18,24 @@ def run_async(coro: Coroutine[Any, Any, T]) -> T:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         return asyncio.run(coro)
-    
-    # Check if we can use nest_asyncio (only for standard asyncio loops)
-    loop_type = str(type(loop))
-    if "uvloop" not in loop_type.lower():
-        try:
-            import nest_asyncio
-            nest_asyncio.apply(loop)
-            return loop.run_until_complete(coro)
-        except (ImportError, ValueError):
-            pass
+
+    # Check if loop is uvloop, which nest_asyncio doesn't support
+    is_uvloop = "uvloop" in str(type(loop))
+
+    if is_uvloop:
+        # Fallback for uvloop: run in a separate thread to avoid nested loop issues
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(asyncio.run, coro)
+            return future.result()
+
+    # For standard asyncio loop, use nest_asyncio
+    try:
+        import nest_asyncio
+        nest_asyncio.apply(loop)
+    except ImportError:
+        pass
 
     # Fallback for uvloop or if nest_asyncio failed:
     # Run in a separate thread to avoid "loop already running"
@@ -57,11 +65,11 @@ def generate_slug(text: str, current_slug: Optional[str] = None) -> str:
     # If slug is provided and is valid latin-only (plus hyphens/underscores), return it
     if current_slug and re.match(r'^[a-z0-9\-_]+$', current_slug):
         return current_slug
-    
+
     # If current_slug is provided but has Cyrillic/etc, slugify it
     if current_slug:
         return slugify(current_slug)
-        
+
     # Otherwise slugify the text (usually title/name)
     return slugify(text)
 
@@ -155,17 +163,17 @@ def extract_text_from_tiptap(content: Any, max_len: int = 500) -> str:
     """
     if not isinstance(content, dict) or "content" not in content:
         return ""
-    
+
     texts = []
     for node in content.get("content", []):
         if node.get("type") == "paragraph" and "content" in node:
             p_text = "".join([t.get("text", "") for t in node.get("content", []) if t.get("type") == "text"])
             if p_text:
                 texts.append(p_text)
-        
+
         if len(" ".join(texts)) >= max_len:
             break
-            
+
     full_text = " ".join(texts).strip()
     if len(full_text) > max_len:
         return full_text[:max_len-3].strip() + "..."

@@ -39,7 +39,9 @@ class MigrationJobResponse(BaseModel):
     failed: int
     last_oc_id: Optional[int]
     errors: Optional[List]
+    created_at: datetime
     started_at: Optional[datetime]
+    completed_at: Optional[datetime]
     updated_at: Optional[datetime]
 
     model_config = ConfigDict(from_attributes=True)
