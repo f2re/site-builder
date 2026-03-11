@@ -126,3 +126,24 @@ async def admin_token(db_session: AsyncSession) -> str:
     await db_session.commit()
 
     return create_access_token(subject=str(admin_id), role="admin")
+
+
+@pytest_asyncio.fixture
+async def test_user(db_session: AsyncSession):
+    from app.db.models.user import User
+    from app.core.security import get_blind_index
+    import uuid
+
+    user_id = uuid.uuid4()
+    email = f"user-{user_id}@example.com"
+    user = User(
+        id=user_id,
+        email=email,
+        email_hash=get_blind_index(email),
+        role="customer",
+        is_active=True
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user

@@ -9,12 +9,12 @@ import uuid
 
 
 @pytest.mark.asyncio
-async def test_cdek_webhook_updates_status(client: AsyncClient, db_session: AsyncSession):
+async def test_cdek_webhook_updates_status(client: AsyncClient, db_session: AsyncSession, test_user):
     """CDEK webhook updates order status."""
     order_id = uuid.uuid4()
     order = Order(
         id=order_id,
-        user_id=uuid.uuid4(),
+        user_id=test_user.id,
         status=OrderStatus.PAID,
         total_amount=1000,
         currency="RUB",
@@ -48,12 +48,12 @@ async def test_cdek_webhook_updates_status(client: AsyncClient, db_session: Asyn
 
 
 @pytest.mark.asyncio
-async def test_cdek_webhook_idempotent(client: AsyncClient, db_session: AsyncSession):
+async def test_cdek_webhook_idempotent(client: AsyncClient, db_session: AsyncSession, test_user):
     """CDEK webhook is idempotent - duplicate calls don't create duplicate events."""
     order_id = uuid.uuid4()
     order = Order(
         id=order_id,
-        user_id=uuid.uuid4(),
+        user_id=test_user.id,
         status=OrderStatus.PAID,
         total_amount=1000,
         currency="RUB",
@@ -82,13 +82,13 @@ async def test_cdek_webhook_idempotent(client: AsyncClient, db_session: AsyncSes
 
 
 @pytest.mark.asyncio
-async def test_pochta_webhook_updates_status(client: AsyncClient, db_session: AsyncSession):
+async def test_pochta_webhook_updates_status(client: AsyncClient, db_session: AsyncSession, test_user):
     """Pochta webhook updates order status."""
     order_id = uuid.uuid4()
     tracking_num = f"TRACK-{order_id.hex[:14]}"
     order = Order(
         id=order_id,
-        user_id=uuid.uuid4(),
+        user_id=test_user.id,
         status=OrderStatus.PAID,
         total_amount=1000,
         currency="RUB",
