@@ -15,7 +15,19 @@ from app.db.redis import get_redis
 from app.tasks.celery_app import celery_app
 from unittest.mock import MagicMock
 
-# Configure Celery for tests - ALWAYS EAGER (synchronous execution, no broker needed)
+# --- CRITICAL FIX FOR LOOP MISMATCH ---
+# We must ensure that a single event loop is used for the entire session
+# and that sqlalchemy engines are created WITHIN that loop.
+
+@pytest.fixture(scope="session")
+def event_loop():
+    """Create an instance of the default event loop for each test case."""
+    policy = asyncio.get_event_loop_policy()
+    loop = policy.new_event_loop()
+    yield loop
+    loop.close()
+
+# Configure Celery for tests - ALWAYS EAGER
 celery_app.conf.update(
     task_always_eager=True,
     task_eager_propagates=True,
@@ -26,15 +38,14 @@ celery_app.conf.update(
 import celery.result
 celery.result.AsyncResult = MagicMock()
 
-# Import all models to ensure they are registered with SQLAlchemy
+# Import all models
 from app.db.models import user, product, order, blog, delivery_address, order_tracking  # noqa: F401
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///./test.db")
 
 @pytest_asyncio.fixture(scope="session")
-async def engine():
-    # Use StaticPool for SQLite to share connection between threads if needed,
-    # though with asyncio it's mainly for loop consistency.
+async def engine(event_loop):
+    # Ensure engine is created within the session event loop
     poolclass = StaticPool if "sqlite" in TEST_DATABASE_URL else None
     
     engine = create_async_engine(
@@ -65,10 +76,12 @@ async def db_session(engine) -> AsyncGenerator[AsyncSession, None]:
     )
     async with session_factory() as session:
         yield session
+        # Use rollback to keep tests isolated
         await session.rollback()
 
 @pytest_asyncio.fixture
 async def client(db_session: AsyncSession, redis_client: Redis) -> AsyncGenerator[AsyncClient, None]:
+    # Dependency overrides must be clean
     def _get_test_db():
         yield db_session
     
@@ -77,8 +90,11 @@ async def client(db_session: AsyncSession, redis_client: Redis) -> AsyncGenerato
 
     app.dependency_overrides[get_db] = _get_test_db
     app.dependency_overrides[get_redis] = _get_test_redis
+    
+    # Using ASGITransport ensures we don't start a real server but use the app directly
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
+    
     app.dependency_overrides.clear()
 
 @pytest_asyncio.fixture
