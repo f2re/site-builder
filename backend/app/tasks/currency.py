@@ -1,7 +1,7 @@
 import httpx
 import json
 from app.tasks.celery_app import celery_app
-from app.db.redis import redis_client
+from app.db.redis import get_redis_client
 from app.core.logging import logger
 
 @celery_app.task(name="tasks.update_cbr_rates")
@@ -15,7 +15,7 @@ def update_cbr_rates():
             data = response.json()
             
             # Store full response for general use
-            redis_client.set("cbr:rates:full", json.dumps(data), ex=3600*2)
+            get_redis_client().set("cbr:rates:full", json.dumps(data), ex=3600*2)
             
             # Store simplified rates
             rates = {
@@ -23,7 +23,7 @@ def update_cbr_rates():
                 "EUR": data["Valute"]["EUR"]["Value"],
                 "CNY": data["Valute"]["CNY"]["Value"]
             }
-            redis_client.set("cbr:rates", json.dumps(rates), ex=3600*2)
+            get_redis_client().set("cbr:rates", json.dumps(rates), ex=3600*2)
             
             logger.info("cbr_rates_updated", rates=rates)
             return rates

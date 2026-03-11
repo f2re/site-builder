@@ -1,7 +1,7 @@
 # Module: integrations/redis_inventory.py | Agent: backend-agent | Task: BE-01
 import redis.asyncio as redis
 from fastapi import Depends
-from app.db.redis import redis_client, get_redis
+from app.db.redis import get_redis_client, get_redis
 from uuid import UUID
 
 
@@ -82,4 +82,4 @@ def get_inventory_for_celery() -> RedisInventory:
     return RedisInventory(client)
 
 
-inventory = RedisInventory(redis_client)
+inventory = RedisInventory(get_redis_client())

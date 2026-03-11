@@ -4,7 +4,7 @@ import json
 from decimal import Decimal
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from app.core.config import settings
-from app.db.redis import redis_client
+from app.db.redis import get_redis_client
 from app.core.logging import logger
 from app.api.v1.delivery.provider import DeliveryOption, PickupPoint, PackageDimensions, ShipmentResult
 from app.api.v1.delivery.city_mapping import CITY_MAPPING
@@ -38,7 +38,7 @@ class PochtaClient:
             return []
 
         cache_key = f"pochta:rate:{from_city_code}:{to_city_code}:{dimensions.weight_grams}"
-        cached = await redis_client.get(cache_key)
+        cached = await get_redis_client().get(cache_key)
         if cached:
             data = json.loads(cached)
             return [DeliveryOption(**opt) for opt in data]
@@ -76,7 +76,7 @@ class PochtaClient:
             )
         ]
 
-        await redis_client.set(cache_key, json.dumps([opt.__dict__ for opt in options]), ex=600)
+        await get_redis_client().set(cache_key, json.dumps([opt.__dict__ for opt in options]), ex=600)
         return options
 
     async def get_pickup_points(self, city_code: int) -> list[PickupPoint]:

@@ -7,12 +7,12 @@ import uuid
 
 
 @pytest.mark.asyncio
-async def test_poll_delivery_statuses_cdek(db_session):
+async def test_poll_delivery_statuses_cdek(db_session, test_user):
     """Poll delivery statuses updates CDEK orders."""
     order_id = uuid.uuid4()
     order = Order(
         id=order_id,
-        user_id=uuid.uuid4(),
+        user_id=test_user.id,
         status=OrderStatus.PAID,
         total_amount=1000,
         currency="RUB",
@@ -43,12 +43,12 @@ async def test_poll_delivery_statuses_cdek(db_session):
 
 
 @pytest.mark.asyncio
-async def test_poll_delivery_statuses_pochta(db_session):
+async def test_poll_delivery_statuses_pochta(db_session, test_user):
     """Poll delivery statuses updates Pochta orders."""
     order_id = uuid.uuid4()
     order = Order(
         id=order_id,
-        user_id=uuid.uuid4(),
+        user_id=test_user.id,
         status=OrderStatus.PAID,
         total_amount=1000,
         currency="RUB",
@@ -78,11 +78,11 @@ async def test_poll_delivery_statuses_pochta(db_session):
 
 
 @pytest.mark.asyncio
-async def test_poll_delivery_statuses_handles_errors(db_session):
+async def test_poll_delivery_statuses_handles_errors(db_session, test_user):
     """Poll delivery statuses handles provider errors gracefully."""
     order = Order(
         id=uuid.uuid4(),
-        user_id=uuid.uuid4(),
+        user_id=test_user.id,
         status=OrderStatus.PAID,
         total_amount=1000,
         currency="RUB",

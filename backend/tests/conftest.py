@@ -2,6 +2,10 @@ import asyncio
 import pytest
 import pytest_asyncio
 import os
+
+# FORCE standard asyncio loop BEFORE any other imports might trigger uvloop
+asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
+
 from typing import AsyncGenerator, Generator
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
@@ -22,8 +26,9 @@ from unittest.mock import MagicMock
 @pytest.fixture(scope="session")
 def event_loop():
     """Create an instance of the default event loop for each test case."""
-    policy = asyncio.get_event_loop_policy()
-    loop = policy.new_event_loop()
+    # Force standard asyncio loop to ensure nest_asyncio works (uvloop is NOT patchable)
+    asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
+    loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
 
@@ -125,3 +130,23 @@ async def admin_token(db_session: AsyncSession) -> str:
     await db_session.commit()
 
     return create_access_token(subject=str(admin_id), role="admin")
+
+@pytest_asyncio.fixture
+async def test_user(db_session: AsyncSession):
+    from app.db.models.user import User
+    from app.core.security import get_blind_index
+    import uuid
+
+    user_id = uuid.uuid4()
+    email = f"user-test-{user_id}@example.com"
+    user = User(
+        id=user_id,
+        email=email,
+        email_hash=get_blind_index(email),
+        hashed_password="hashed",
+        role="user",
+        is_active=True
+    )
+    db_session.add(user)
+    await db_session.commit()
+    return user

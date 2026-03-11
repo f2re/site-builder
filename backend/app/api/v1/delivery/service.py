@@ -9,7 +9,7 @@ from app.api.v1.delivery.schemas import (
 )
 from app.api.v1.delivery.provider import PackageDimensions
 from app.api.v1.delivery.aggregator import aggregator
-from app.db.redis import redis_client
+from app.db.redis import get_redis_client
 from app.core.logging import logger
 
 class DeliveryService:
@@ -44,7 +44,7 @@ class DeliveryService:
         Optimized for rapid map interactions by reducing payload size.
         """
         cache_key = f"cdek:pvz_clean:{city_code}"
-        cached_pvz = await redis_client.get(cache_key)
+        cached_pvz = await get_redis_client().get(cache_key)
         
         if cached_pvz:
             pvz_data = json.loads(cached_pvz)
@@ -78,7 +78,7 @@ class DeliveryService:
                 continue
 
         # Cache cleaned data for 6 hours
-        await redis_client.set(
+        await get_redis_client().set(
             cache_key, 
             json.dumps([p.model_dump() for p in cleaned_points]), 
             ex=6*3600
@@ -96,7 +96,7 @@ class DeliveryService:
         height_cm: int = 10,
     ) -> AggregatedRateResponse:
         cache_key = f"delivery:all:{from_city_code}:{to_city_code}:{weight_grams}"
-        cached = await redis_client.get(cache_key)
+        cached = await get_redis_client().get(cache_key)
         if cached:
             data = json.loads(cached)
             return AggregatedRateResponse(**data)
@@ -112,7 +112,7 @@ class DeliveryService:
             options=[DeliveryOptionResponse(**opt.__dict__) for opt in options],
             total_providers=len(set(opt.provider for opt in options)),
         )
-        await redis_client.set(cache_key, json.dumps(response.model_dump()), ex=600)
+        await get_redis_client().set(cache_key, json.dumps(response.model_dump()), ex=600)
         return response
 
     async def get_all_pickup_points(

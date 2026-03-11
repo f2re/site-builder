@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from app.core.config import settings
 from app.core.logging import logger
 from app.db.session import get_db
-from app.db.redis import redis_client
+from app.db.redis import get_redis_client
 from app.integrations.yoomoney import yoomoney_client
 from app.api.v1.orders.repository import OrderRepository
 from app.db.models.order import OrderStatus
@@ -44,7 +44,7 @@ async def yoomoney_webhook(
 
     # Idempotency: avoid processing same payment_id twice
     idempotency_key = f"payments:processed:{payment_id}"
-    is_new = await redis_client.set(idempotency_key, "1", nx=True, ex=86400)
+    is_new = await get_redis_client().set(idempotency_key, "1", nx=True, ex=86400)
     if not is_new:
         logger.info("payment_already_processed", payment_id=payment_id)
         return {"status": "already_processed"}

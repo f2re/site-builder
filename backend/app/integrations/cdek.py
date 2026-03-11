@@ -2,7 +2,7 @@ import httpx
 import json
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from app.core.config import settings
-from app.db.redis import redis_client
+from app.db.redis import get_redis_client
 from app.core.logging import logger
 from decimal import Decimal
 from typing import Dict, Any, List
@@ -28,7 +28,7 @@ class CDEKClient:
         OAuth2 token with Redis caching.
         Contract: CDEK OAuth2 token stored ONLY in Redis (`cdek:token`), NOT in DB or logs.
         """
-        token = await redis_client.get("cdek:token")
+        token = await get_redis_client().get("cdek:token")
         if token:
             return token.decode("utf-8") if isinstance(token, bytes) else token
 
@@ -50,7 +50,7 @@ class CDEKClient:
             expires_in = data.get("expires_in", 3600)
             
             # Store in redis with 1-minute buffer
-            await redis_client.set("cdek:token", token, ex=int(expires_in) - 60)
+            await get_redis_client().set("cdek:token", token, ex=int(expires_in) - 60)
             return token
 
     @retry(
@@ -77,7 +77,7 @@ class CDEKClient:
             )
             
             if response.status_code == 401:
-                await redis_client.delete("cdek:token")
+                await get_redis_client().delete("cdek:token")
                 response.raise_for_status()
                 
             response.raise_for_status()
@@ -122,7 +122,7 @@ class CDEKClient:
             )
             
             if response.status_code == 401:
-                await redis_client.delete("cdek:token")
+                await get_redis_client().delete("cdek:token")
                 response.raise_for_status()
             
             response.raise_for_status()
@@ -146,7 +146,7 @@ class CDEKClient:
         PVZ list cached in Redis with TTL 6h: key `cdek:pvz:{city_code}`
         """
         cache_key = f"cdek:pvz:{city_code}"
-        cached_pvz = await redis_client.get(cache_key)
+        cached_pvz = await get_redis_client().get(cache_key)
         if cached_pvz:
             return json.loads(cached_pvz)
 
@@ -160,13 +160,13 @@ class CDEKClient:
             )
             
             if response.status_code == 401:
-                await redis_client.delete("cdek:token")
+                await get_redis_client().delete("cdek:token")
                 response.raise_for_status()
             
             response.raise_for_status()
             pvz_list = response.json()
             
-            await redis_client.set(cache_key, json.dumps(pvz_list), ex=6*3600)
+            await get_redis_client().set(cache_key, json.dumps(pvz_list), ex=6*3600)
             return pvz_list
 
     @retry(
@@ -214,7 +214,7 @@ class CDEKClient:
             )
             
             if response.status_code == 401:
-                await redis_client.delete("cdek:token")
+                await get_redis_client().delete("cdek:token")
                 response.raise_for_status()
                 
             response.raise_for_status()
@@ -239,7 +239,7 @@ class CDEKClient:
             )
             
             if response.status_code == 401:
-                await redis_client.delete("cdek:token")
+                await get_redis_client().delete("cdek:token")
                 response.raise_for_status()
                 
             response.raise_for_status()

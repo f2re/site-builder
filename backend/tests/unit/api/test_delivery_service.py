@@ -40,22 +40,22 @@ async def test_get_pickup_points_cleans_data():
         mock_get.return_value = mock_raw_points
         
         # Ensure redis is mocked or doesn't interfere
-        with patch("app.api.v1.delivery.service.redis_client.get", new_callable=AsyncMock) as mock_redis_get:
-            mock_redis_get.return_value = None
-            with patch("app.api.v1.delivery.service.redis_client.set", new_callable=AsyncMock):
+        with patch("app.api.v1.delivery.service.get_redis_client") as mock_get_redis:
+            mock_get_redis.return_value.get = AsyncMock(return_value=None)
+            mock_get_redis.return_value.set = AsyncMock()
                 
-                result = await service.get_pickup_points(44)
-                
-                assert len(result) == 2
-                assert result[0].code == "PVZ1"
-                assert result[0].phone == "+79001112233"
-                assert result[0].note == "Bring ID"
-                assert result[0].latitude == 55.75
-                
-                assert result[1].code == "PVZ2"
-                assert result[1].phone == ""
-                assert result[1].note == "Blue door"
-                assert result[1].latitude == 55.80
+            result = await service.get_pickup_points(44)
+            
+            assert len(result) == 2
+            assert result[0].code == "PVZ1"
+            assert result[0].phone == "+79001112233"
+            assert result[0].note == "Bring ID"
+            assert result[0].latitude == 55.75
+            
+            assert result[1].code == "PVZ2"
+            assert result[1].phone == ""
+            assert result[1].note == "Blue door"
+            assert result[1].latitude == 55.80
 
 @pytest.mark.asyncio
 async def test_get_pickup_points_uses_cache():
@@ -74,8 +74,8 @@ async def test_get_pickup_points_uses_cache():
     ]
     
     import json
-    with patch("app.api.v1.delivery.service.redis_client.get", new_callable=AsyncMock) as mock_redis_get:
-        mock_redis_get.return_value = json.dumps(cached_data).encode()
+    with patch("app.api.v1.delivery.service.get_redis_client") as mock_get_redis:
+        mock_get_redis.return_value.get = AsyncMock(return_value=json.dumps(cached_data).encode())
         
         result = await service.get_pickup_points(44)
         

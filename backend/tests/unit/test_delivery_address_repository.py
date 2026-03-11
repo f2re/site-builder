@@ -5,10 +5,10 @@ from app.api.v1.users.repository import DeliveryAddressRepository
 
 
 @pytest.mark.asyncio
-async def test_create_address_encrypts_pii(db_session):
+async def test_create_address_encrypts_pii(db_session, test_user):
     """Create address encrypts PII fields."""
     repo = DeliveryAddressRepository(db_session)
-    user_id = uuid.uuid4()
+    user_id = test_user.id
 
     addr = await repo.create(
         user_id=user_id,
@@ -32,10 +32,10 @@ async def test_create_address_encrypts_pii(db_session):
 
 
 @pytest.mark.asyncio
-async def test_get_by_id_decrypts_pii(db_session):
+async def test_get_by_id_decrypts_pii(db_session, test_user):
     """Get by ID decrypts PII fields."""
     repo = DeliveryAddressRepository(db_session)
-    user_id = uuid.uuid4()
+    user_id = test_user.id
 
     created = await repo.create(
         user_id=user_id,
@@ -57,10 +57,10 @@ async def test_get_by_id_decrypts_pii(db_session):
 
 
 @pytest.mark.asyncio
-async def test_list_by_user_sorts_by_default(db_session):
+async def test_list_by_user_sorts_by_default(db_session, test_user):
     """List addresses sorted by is_default DESC."""
     repo = DeliveryAddressRepository(db_session)
-    user_id = uuid.uuid4()
+    user_id = test_user.id
 
     await repo.create(
         user_id=user_id, name="A1", recipient_name="N1", recipient_phone="+79991111111",
@@ -79,10 +79,10 @@ async def test_list_by_user_sorts_by_default(db_session):
 
 
 @pytest.mark.asyncio
-async def test_set_default_unsets_others(db_session):
+async def test_set_default_unsets_others(db_session, test_user):
     """Set default unsets other addresses."""
     repo = DeliveryAddressRepository(db_session)
-    user_id = uuid.uuid4()
+    user_id = test_user.id
 
     addr1 = await repo.create(
         user_id=user_id, name="A1", recipient_name="N1", recipient_phone="+79991111111",
@@ -105,10 +105,10 @@ async def test_set_default_unsets_others(db_session):
 
 
 @pytest.mark.asyncio
-async def test_update_address(db_session):
+async def test_update_address(db_session, test_user):
     """Update address with new data."""
     repo = DeliveryAddressRepository(db_session)
-    user_id = uuid.uuid4()
+    user_id = test_user.id
 
     addr = await repo.create(
         user_id=user_id, name="Old", recipient_name="Old Name", recipient_phone="+79991111111",
@@ -124,10 +124,10 @@ async def test_update_address(db_session):
 
 
 @pytest.mark.asyncio
-async def test_delete_address(db_session):
+async def test_delete_address(db_session, test_user):
     """Delete address."""
     repo = DeliveryAddressRepository(db_session)
-    user_id = uuid.uuid4()
+    user_id = test_user.id
 
     addr = await repo.create(
         user_id=user_id, name="ToDelete", recipient_name="N", recipient_phone="+79991111111",
