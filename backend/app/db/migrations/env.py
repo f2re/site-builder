@@ -14,7 +14,16 @@ from alembic import context
 
 # ── Import app settings & all models so autogenerate works ───────────────────
 from app.core.config import settings
-import app.db.models  # noqa: F401  registers User, Order, UserDevice
+try:
+    import app.db.models  # noqa: F401
+    from app.db.models.user import User  # noqa
+    from app.db.models.user_device import UserDevice  # noqa
+    from app.db.models.delivery_address import DeliveryAddress  # noqa
+    from app.db.models.migration import MigrationJob, MigrationLog  # noqa
+    # Import other critical models if needed
+except ImportError as e:
+    raise RuntimeError(f"[Alembic env.py] Error importing models: {e}") from e
+
 from app.db.base import Base
 
 # Alembic Config object (provides access to alembic.ini values)

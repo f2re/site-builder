@@ -20,15 +20,19 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 from app.core.config import settings
 from app.core.security import encrypt_data, get_blind_index
 from app.db.models.blog import Author, BlogPost, BlogPostStatus, Tag
-from app.db.models.migration import MigrationEntity, MigrationJob, MigrationStatus
+from app.db.models.migration import MigrationEntity, MigrationJob, MigrationStatus, MigrationLog
 from app.db.models.order import Order, OrderItem, OrderStatus
 from app.db.models.product import Category, Product, ProductImage, ProductVariant, ProductOptionGroup, ProductOptionValue
 from app.db.models.user import User
+from app.db.models.user_device import UserDevice
+from app.db.models.delivery_address import DeliveryAddress
+from app.db.models.firmware import ModuleDevice
 from app.db.opencart_models import (
     OCCategory,
     OCCategoryDescription,
     OCCustomer,
     OCDevice,
+    OCAddress,
     OCInformation,
     OCInformationDescription,
     OCOrder,
@@ -105,6 +109,17 @@ class MigrationService:
         self.repo = repo
         self.session = session
         self.batch_size = 50
+
+    async def _log_migration(self, job_id: UUID, level: str, message: str, oc_id: Optional[int] = None) -> None:
+        """Log a migration event to the database."""
+        log = MigrationLog(
+            job_id=job_id,
+            level=level,
+            message=message,
+            oc_id=oc_id
+        )
+        self.session.add(log)
+        # We don't commit here, as it's usually part of a larger transaction
 
     async def _html_to_tiptap(self, html: str, client: Optional[httpx.AsyncClient] = None) -> Dict[str, Any]:
         """Convert HTML to TipTap JSON format with support for nested tags, images, and sanitization."""
@@ -267,6 +282,8 @@ class MigrationService:
             # All entities in recommended order
             entities = [
                 MigrationEntity.USERS,
+                MigrationEntity.ADDRESSES,
+                MigrationEntity.DEVICES,
                 MigrationEntity.CATEGORIES,
                 MigrationEntity.PRODUCTS,
                 MigrationEntity.ORDERS,
@@ -497,6 +514,10 @@ class MigrationService:
                 count_stmt = None
                 if job.entity == MigrationEntity.USERS:
                     count_stmt = select(func.count()).select_from(OCCustomer)
+                elif job.entity == MigrationEntity.ADDRESSES:
+                    count_stmt = select(func.count()).select_from(OCAddress)
+                elif job.entity == MigrationEntity.DEVICES:
+                    count_stmt = select(func.count()).select_from(OCDevice)
                 elif job.entity in [MigrationEntity.PRODUCTS, MigrationEntity.CATEGORIES]:
                     # Count both information pages and products
                     info_count_stmt = select(func.count()).select_from(OCInformation)
@@ -563,9 +584,17 @@ class MigrationService:
                     else:
                         metadata_u["devices_done"] = True
                         await self.repo.update_job_status(
-                            job.id, MigrationStatus.DONE, extra_data=metadata_u
+                            job.id, MigrationStatus.DONE, extra_data=metadata_u, completed_at=datetime.now(timezone.utc)
                         )
                         await self.session.refresh(job)
+            elif job.entity == MigrationEntity.ADDRESSES:
+                should_retrigger = await self.migrate_addresses(job)
+                if not should_retrigger:
+                    await self.repo.update_job_status(job_id, MigrationStatus.DONE, completed_at=datetime.now(timezone.utc))
+            elif job.entity == MigrationEntity.DEVICES:
+                should_retrigger = await self.migrate_devices(job)
+                if not should_retrigger:
+                    await self.repo.update_job_status(job_id, MigrationStatus.DONE, completed_at=datetime.now(timezone.utc))
             elif job.entity in [MigrationEntity.PRODUCTS, MigrationEntity.CATEGORIES]:
                 # First migrate information pages, then catalog
                 metadata: Dict[str, Any] = job.extra_data or {}  # type: ignore[assignment]
@@ -583,8 +612,10 @@ class MigrationService:
                     should_retrigger = await self.migrate_catalog(job)
             elif job.entity == MigrationEntity.ORDERS:
                 should_retrigger = await self.migrate_orders(job)
+                if not should_retrigger:
+                    await self.repo.update_job_status(job_id, MigrationStatus.DONE, completed_at=datetime.now(timezone.utc))
             else:
-                await self.repo.update_job_status(job_id, MigrationStatus.DONE)
+                await self.repo.update_job_status(job_id, MigrationStatus.DONE, completed_at=datetime.now(timezone.utc))
 
             # Check retrigger — caller will dispatch AFTER releasing lock
             if should_retrigger:
@@ -665,6 +696,7 @@ class MigrationService:
                 except Exception as exc:
                     # Rollback only to SAVEPOINT, not entire batch
                     skipped += 1
+                    await self._log_migration(job.id, "ERROR", f"Failed to migrate user: {str(exc)}", oc_id=oc_cust.customer_id)
                     logger.warning(
                         "migrate_users_skip",
                         oc_customer_id=oc_cust.customer_id,
@@ -693,7 +725,7 @@ class MigrationService:
         """
         from app.core.logging import logger  # noqa: PLC0415
         from app.core.security import encrypt_data, get_blind_index  # noqa: PLC0415
-        from app.db.models.delivery_address import AddressType, DeliveryAddress, DeliveryProvider  # noqa: PLC0415
+        from app.db.models.delivery_address import AddressType, DeliveryProvider  # noqa: PLC0415
         from app.db.opencart_models import OCAddress, OCCustomer  # noqa: PLC0415
 
         metadata: Dict[str, Any] = job.extra_data or {}  # type: ignore[assignment]
@@ -852,6 +884,7 @@ class MigrationService:
                 except Exception as exc:
                     # Rollback only to SAVEPOINT, not entire batch
                     skipped += 1
+                    await self._log_migration(job.id, "ERROR", f"Failed to migrate address: {str(exc)}", oc_id=oc_addr.address_id)
                     logger.warning(
                         "migrate_addresses_skip",
                         oc_address_id=oc_addr.address_id,
@@ -899,7 +932,6 @@ class MigrationService:
         """
         from app.core.logging import logger  # noqa: PLC0415
         from app.core.security import get_blind_index  # noqa: PLC0415
-        from app.db.models.user_device import UserDevice  # noqa: PLC0415
 
         metadata: Dict[str, Any] = job.extra_data or {}  # type: ignore[assignment]
         last_device_id: int = int(metadata.get("devices_last_id") or 0)
@@ -1055,6 +1087,13 @@ class MigrationService:
                     continue
 
                 try:
+                    # Try to find ModuleDevice by serial
+                    module_device_id = None
+                    if raw_serial:
+                        mod_stmt = select(ModuleDevice.id).where(ModuleDevice.serial == raw_serial)
+                        mod_res = await self.session.execute(mod_stmt)
+                        module_device_id = mod_res.scalar_one_or_none()
+
                     # BUG FIX: Use SAVEPOINT instead of full rollback
                     async with self.session.begin_nested():
                         new_device = UserDevice(
@@ -1065,6 +1104,7 @@ class MigrationService:
                             registered_at=registered_at,
                             comment=oc_dev.comment,
                             oc_device_id=oc_dev.device_id,
+                            module_device_id=module_device_id,
                             is_active=True,
                         )
                         self.session.add(new_device)
@@ -1079,6 +1119,7 @@ class MigrationService:
                 except Exception as exc:
                     # Rollback only to SAVEPOINT, not entire batch
                     err_str = str(exc)
+                    await self._log_migration(job.id, "ERROR", f"Failed to migrate device: {err_str}", oc_id=oc_dev.device_id)
                     # ON CONFLICT SKIP for duplicate device_uid
                     if "unique" in err_str.lower() or "duplicate" in err_str.lower():
                         skipped += 1
@@ -1142,7 +1183,7 @@ class MigrationService:
             products = result.scalars().all()
 
             if not products:
-                await self.repo.update_job_status(job.id, MigrationStatus.DONE)
+                await self.repo.update_job_status(job.id, MigrationStatus.DONE, completed_at=datetime.now(timezone.utc))
                 return False
 
             processed = 0
@@ -1452,7 +1493,7 @@ class MigrationService:
                 pass  # Non-critical
 
             if len(products) < self.batch_size:
-                await self.repo.update_job_status(job.id, MigrationStatus.DONE)
+                await self.repo.update_job_status(job.id, MigrationStatus.DONE, completed_at=datetime.now(timezone.utc))
                 return False
             return True
 
@@ -1581,7 +1622,7 @@ class MigrationService:
             orders = result.scalars().all()
 
             if not orders:
-                await self.repo.update_job_status(job.id, MigrationStatus.DONE)
+                await self.repo.update_job_status(job.id, MigrationStatus.DONE, completed_at=datetime.now(timezone.utc))
                 return False
 
             processed = 0
@@ -1661,7 +1702,7 @@ class MigrationService:
             await self.session.commit()
 
             if len(orders) < self.batch_size:
-                await self.repo.update_job_status(job.id, MigrationStatus.DONE)
+                await self.repo.update_job_status(job.id, MigrationStatus.DONE, completed_at=datetime.now(timezone.utc))
                 return False
             return True
 
