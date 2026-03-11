@@ -1,9 +1,11 @@
 import asyncio
 import pytest
 import pytest_asyncio
+import os
 from typing import AsyncGenerator, Generator
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.pool import StaticPool
 from redis.asyncio import Redis
 
 from app.main import app
@@ -11,51 +13,57 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.db.redis import get_redis
 from app.tasks.celery_app import celery_app
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock
 
 # Configure Celery for tests - ALWAYS EAGER (synchronous execution, no broker needed)
 celery_app.conf.update(
     task_always_eager=True,
     task_eager_propagates=True,
-    result_backend=None,  # Disable result backend for tests
+    result_backend=None,
 )
 
-# Mock AsyncResult to avoid Redis connection attempts when checking task status
+# Mock AsyncResult to avoid Redis connection attempts
 import celery.result
 celery.result.AsyncResult = MagicMock()
 
 # Import all models to ensure they are registered with SQLAlchemy
 from app.db.models import user, product, order, blog, delivery_address, order_tracking  # noqa: F401
 
-# Test database URL - using a separate database for testing
-import os
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///./test.db")
 
-engine_test = create_async_engine(TEST_DATABASE_URL, echo=False)
-AsyncSessionTest = async_sessionmaker(
-    bind=engine_test,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False,
-)
-
-async def init_db():
-    async with engine_test.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
+@pytest_asyncio.fixture(scope="session")
+async def engine():
+    # Use StaticPool for SQLite to share connection between threads if needed,
+    # though with asyncio it's mainly for loop consistency.
+    poolclass = StaticPool if "sqlite" in TEST_DATABASE_URL else None
+    
+    engine = create_async_engine(
+        TEST_DATABASE_URL,
+        echo=False,
+        poolclass=poolclass,
+    )
+    yield engine
+    await engine.dispose()
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
-async def setup_db():
-    await init_db()
+async def setup_db(engine):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
     yield
-    # Cleanup after all tests
-    async with engine_test.begin() as conn:
+    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
 @pytest_asyncio.fixture
-async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    async with AsyncSessionTest() as session:
+async def db_session(engine) -> AsyncGenerator[AsyncSession, None]:
+    session_factory = async_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False,
+    )
+    async with session_factory() as session:
         yield session
         await session.rollback()
 
