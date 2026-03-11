@@ -1,11 +1,11 @@
 # Module: tasks/migration_tasks.py | Agent: backend-agent | Task: p17_backend_celery_migration_fix
-import asyncio
 from uuid import UUID
 from app.tasks.celery_app import celery_app
 from app.db.celery_session import CelerySessionLocal
 from app.api.v1.admin.migration_service import MigrationService
 from app.api.v1.admin.migration_repository import MigrationRepository
 from app.core.logging import logger
+from app.core.utils import run_async
 
 
 @celery_app.task(name="tasks.run_migration_task", bind=True, max_retries=3)
@@ -56,7 +56,7 @@ def run_migration_task(self, job_id: str):
         return should_retrigger
 
     try:
-        should_retrigger = asyncio.run(_run())
+        should_retrigger = run_async(_run())
         # Dispatch next task AFTER lock is released (asyncio.run completed = finally ran)
         if should_retrigger:
             run_migration_task.delay(job_id)

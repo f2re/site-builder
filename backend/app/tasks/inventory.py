@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta, timezone
-import asyncio
 from sqlalchemy import select
 from app.tasks.celery_app import celery_app
 from app.db.celery_session import CelerySessionLocal
 from app.db.models.order import Order, OrderStatus
 from app.integrations.redis_inventory import get_inventory_for_celery
 from app.core.logging import logger
+from app.core.utils import run_async
 from app.api.v1.products.repository import ProductRepository
 
 
@@ -42,7 +42,7 @@ def release_stale_reservations_task():
             return len(stale_orders)
 
     try:
-        return asyncio.run(_process())
+        return run_async(_process())
     except Exception as e:
         logger.error("release_stale_reservations_failed", error=str(e))
         raise
@@ -64,7 +64,7 @@ def sync_stock_to_redis(self, variant_id: str, quantity: int) -> None:
                 await inventory.set_stock(variant.id, variant.stock)
 
     try:
-        asyncio.run(_sync())
+        run_async(_sync())
     except Exception as exc:
         raise self.retry(exc=exc, countdown=10)
 
@@ -81,6 +81,6 @@ def release_reserved_stock(self, variant_id: str, quantity: int) -> None:
         await inventory.release_stock(UUID(variant_id), quantity)
 
     try:
-        asyncio.run(_release())
+        run_async(_release())
     except Exception as exc:
         raise self.retry(exc=exc, countdown=10)

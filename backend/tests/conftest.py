@@ -10,13 +10,26 @@ from app.main import app
 from app.db.base import Base
 from app.db.session import get_db
 from app.db.redis import get_redis
+from app.tasks.celery_app import celery_app
+from unittest.mock import MagicMock, AsyncMock
+
+# Configure Celery for tests - ALWAYS EAGER (synchronous execution, no broker needed)
+celery_app.conf.update(
+    task_always_eager=True,
+    task_eager_propagates=True,
+    result_backend=None,  # Disable result backend for tests
+)
+
+# Mock AsyncResult to avoid Redis connection attempts when checking task status
+import celery.result
+celery.result.AsyncResult = MagicMock()
 
 # Import all models to ensure they are registered with SQLAlchemy
 from app.db.models import user, product, order, blog, delivery_address, order_tracking  # noqa: F401
 
 # Test database URL - using a separate database for testing
-# In a real environment, this should be provided via environment variables
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
+import os
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///./test.db")
 
 engine_test = create_async_engine(TEST_DATABASE_URL, echo=False)
 AsyncSessionTest = async_sessionmaker(
@@ -26,12 +39,6 @@ AsyncSessionTest = async_sessionmaker(
     autocommit=False,
     autoflush=False,
 )
-
-@pytest.fixture(scope="session")
-def event_loop() -> Generator:
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
 
 async def init_db():
     async with engine_test.begin() as conn:

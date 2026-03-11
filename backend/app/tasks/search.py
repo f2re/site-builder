@@ -1,5 +1,4 @@
 # Module: tasks/search.py | Agent: backend-agent | Task: p11_backend_002
-import asyncio
 from decimal import Decimal
 from typing import Any, Dict
 
@@ -9,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.logging import logger
+from app.core.utils import run_async
 from app.db.models.product import Product
 from app.db.celery_session import CelerySessionLocal
 from app.tasks.celery_app import celery_app
@@ -32,7 +32,7 @@ def index_product_task(product_data: Dict[str, Any]) -> None:
             await index.add_documents([safe_data])
 
     try:
-        asyncio.run(_index())
+        run_async(_index())
     except Exception as e:
         logger.error("meilisearch_indexing_failed", domain="products", error=str(e))
         raise
@@ -50,7 +50,7 @@ def remove_product_from_index_task(product_id: str) -> None:
             await index.delete_document(product_id)
 
     try:
-        asyncio.run(_remove())
+        run_async(_remove())
     except Exception as e:
         logger.error("meilisearch_removal_failed", domain="products", error=str(e))
         raise
@@ -68,7 +68,7 @@ def index_blog_post_task(post_data: Dict[str, Any]) -> None:
             await index.add_documents([post_data])
 
     try:
-        asyncio.run(_index())
+        run_async(_index())
     except Exception as e:
         logger.error("meilisearch_indexing_failed", domain="blog", error=str(e))
         raise
@@ -86,7 +86,7 @@ def remove_blog_post_from_index_task(post_id: str) -> None:
             await index.delete_document(post_id)
 
     try:
-        asyncio.run(_remove())
+        run_async(_remove())
     except Exception as e:
         logger.error("meilisearch_removal_failed", domain="blog", error=str(e))
         raise
@@ -128,7 +128,7 @@ def sync_products_to_meilisearch_task() -> None:
                     await index.add_documents(documents)
 
     try:
-        asyncio.run(_sync())
+        run_async(_sync())
     except Exception as e:
         logger.error("meilisearch_bulk_sync_failed", domain="products", error=str(e))
         raise

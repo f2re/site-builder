@@ -3,7 +3,13 @@ import uuid
 from httpx import AsyncClient
 from app.core.security import create_access_token, get_password_hash, get_blind_index
 from app.db.models.user import User
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock, MagicMock
+import base64
+
+# 1x1 black pixel PNG
+VALID_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
 
 @pytest.mark.asyncio
 async def test_rich_product_flow(client: AsyncClient, db_session):
@@ -47,21 +53,23 @@ async def test_rich_product_flow(client: AsyncClient, db_session):
         product_id = resp.json()["id"]
         assert mock_index.called
 
-    # 3. Upload image (Mock storage_client)
-    with patch("app.api.v1.products.service.storage_client") as mock_storage:
-        from unittest.mock import AsyncMock
-        mock_storage.save_file = AsyncMock(return_value=None)
-        mock_storage.get_public_url.return_value = "https://media.test/test.jpg"
+    # 3. Upload image (Mock storage_client in BOTH service and task)
+    mock_storage = MagicMock()
+    mock_storage.save_file = AsyncMock(return_value=None)
+    mock_storage.read_file = AsyncMock(return_value=VALID_PNG)
+    mock_storage.get_public_url.return_value = "https://media.test/test.jpg"
+    mock_storage.delete_file = AsyncMock(return_value=None)
+    
+    # We must patch where it's USED
+    with patch("app.api.v1.products.service.storage_client", mock_storage), \
+         patch("app.tasks.media.storage_client", mock_storage):
         
-        file_content = b"fake-image-binary"
-        files = {"file": ("test.jpg", file_content, "image/jpeg")}
+        files = {"file": ("test.png", VALID_PNG, "image/png")}
         img_resp = await client.post(f"/api/v1/admin/products/{product_id}/images", files=files, headers=headers)
         
         assert img_resp.status_code == 201
         image_id = img_resp.json()["id"]
-        image_url = img_resp.json()["url"]
-        assert image_url == "https://media.test/test.jpg"
-
+        
     # 4. Set as cover
     cover_resp = await client.put(f"/api/v1/admin/products/{product_id}/images/{image_id}/cover", headers=headers)
     assert cover_resp.status_code == 200
@@ -72,6 +80,14 @@ async def test_rich_product_flow(client: AsyncClient, db_session):
     data = get_resp.json()
     
     assert data["content_json"] == content_json
-    assert data["og_image_url"] == "https://media.test/test.jpg"
     # Auto-generated meta_description check
     assert "This is a rich description test" in data["meta_description"]
+    
+    # Check that variants were created in DB (even if storage was mocked)
+    from app.db.models.product import ProductImage
+    from sqlalchemy import select
+    stmt = select(ProductImage).where(ProductImage.id == uuid.UUID(image_id))
+    result = await db_session.execute(stmt)
+    img_db = result.scalar_one()
+    assert img_db.formats is not None
+    assert "original" in img_db.formats

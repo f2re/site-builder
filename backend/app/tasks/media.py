@@ -3,7 +3,6 @@
 Handles image optimization, WebP conversion, thumbnail generation,
 and dimension extraction for blog posts and product images.
 """
-import asyncio
 from io import BytesIO
 from pathlib import Path
 from typing import Literal, Any, cast
@@ -12,6 +11,7 @@ from PIL import Image, ImageOps
 from sqlalchemy import select
 
 from app.core.logging import logger
+from app.core.utils import run_async
 from app.db.celery_session import CelerySessionLocal
 from app.integrations.local_storage import storage_client
 from app.tasks.celery_app import celery_app
@@ -98,7 +98,7 @@ def process_image_variants(
             image_id=image_id,
         )
 
-        asyncio.run(
+        run_async(
             _process_image_variants_async(
                 source_path, entity_type, entity_id, sequence, image_id
             )
@@ -302,7 +302,7 @@ def process_image(
         )
 
         # Run async operation in sync context
-        asyncio.run(_process_image_async(object_name, media_id, context))
+        run_async(_process_image_async(object_name, media_id, context))
 
         logger.info(
             "processing_image_complete",
@@ -438,7 +438,7 @@ def delete_media_from_storage(object_name: str):
     Called when BlogPostMedia or ProductImage is deleted from database.
     """
     try:
-        asyncio.run(_delete_media_async(object_name))
+        run_async(_delete_media_async(object_name))
         logger.info("media_deleted_from_storage", object_name=object_name)
     except Exception as exc:
         logger.error(
