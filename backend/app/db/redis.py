@@ -12,5 +12,7 @@ def get_redis_client() -> redis.Redis:
         _redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
     return _redis_client
 
+redis_client = get_redis_client()
+
 async def get_redis():
     yield get_redis_client()

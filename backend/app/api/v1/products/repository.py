@@ -426,9 +426,12 @@ class ProductRepository:
             .where(ProductImage.id == image_id)
             .where(ProductImage.product_id == product_id)
             .values(is_cover=True)
-            .returning(ProductImage)
         )
-        res = await self.session.execute(stmt)
+        await self.session.execute(stmt)
+        
+        # Select after update for better compatibility (e.g. SQLite without RETURNING)
+        stmt_select = select(ProductImage).where(ProductImage.id == image_id)
+        res = await self.session.execute(stmt_select)
         return res.scalar_one_or_none()
 
     async def count_images(self, product_id: UUID) -> int:

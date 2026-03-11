@@ -14,14 +14,25 @@
 в FastAPI через Depends(get_db), где event loop живёт всё время жизни запроса.
 NullPool нужен ТОЛЬКО для Celery-задач.
 """
-from sqlalchemy.pool import NullPool
+import os
+from sqlalchemy.pool import NullPool, StaticPool
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 from app.core.config import settings
 
+# In test mode, use TEST_DATABASE_URL if available
+test_url = os.getenv("TEST_DATABASE_URL")
+if test_url:
+    db_url = test_url
+    # Use StaticPool for sqlite to avoid "table not found" in different connections
+    poolclass = StaticPool if "sqlite" in test_url else NullPool
+else:
+    db_url = settings.DATABASE_URL
+    poolclass = NullPool
+
 celery_engine = create_async_engine(
-    settings.DATABASE_URL,
-    poolclass=NullPool,
+    db_url,
+    poolclass=poolclass,
 )
 
 CelerySessionLocal = async_sessionmaker(

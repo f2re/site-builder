@@ -6,31 +6,35 @@ import bleach
 import os
 
 import asyncio
-from typing import Optional, Any, Coroutine, TypeVar
+from typing import Coroutine, TypeVar
 
 T = TypeVar("T")
 
 def run_async(coro: Coroutine[Any, Any, T]) -> T:
     """
     Safely run an async coroutine from a synchronous context.
-    If an event loop is already running, it attempts to use it.
-    Otherwise, it creates a new one via asyncio.run().
     """
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
-        # No running event loop, safe to use asyncio.run()
         return asyncio.run(coro)
     
-    # If a loop is already running (e.g. in tests or FastAPI),
-    # we use nest_asyncio to allow nested event loops.
-    # This is better than a thread for shared state (like DB sessions).
+    # Check if loop is uvloop, which nest_asyncio doesn't support
+    is_uvloop = "uvloop" in str(type(loop))
+    
+    if is_uvloop:
+        # Fallback for uvloop: run in a separate thread to avoid nested loop issues
+        from concurrent.futures import ThreadPoolExecutor
+        
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(asyncio.run, coro)
+            return future.result()
+
+    # For standard asyncio loop, use nest_asyncio
     try:
         import nest_asyncio
         nest_asyncio.apply(loop)
     except ImportError:
-        # Fallback to the thread approach if nest_asyncio is missing,
-        # but warn that this might cause loop issues with some DB drivers.
         pass
 
     return loop.run_until_complete(coro)

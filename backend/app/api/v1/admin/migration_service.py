@@ -657,8 +657,8 @@ class MigrationService:
                 # Idempotency check: use get_blind_index(email)
                 # BUG FIX: Check if email is empty BEFORE calling get_blind_index
                 if not oc_cust.email or not oc_cust.email.strip():
-                    # Generate unique hash for empty email using customer_id + uuid4
-                    email_hash = hashlib.sha256(f"empty_{oc_cust.customer_id}_{uuid4()}".encode()).hexdigest()
+                    # Generate unique hash for empty email using customer_id
+                    email_hash = hashlib.sha256(f"empty_{oc_cust.customer_id}".encode()).hexdigest()
                 else:
                     email_hash = get_blind_index(oc_cust.email)
 
@@ -828,7 +828,11 @@ class MigrationService:
                 )
 
                 # Find user by email_hash
-                email_hash = get_blind_index(oc_cust.email)
+                if not oc_cust.email or not oc_cust.email.strip():
+                    email_hash = hashlib.sha256(f"empty_{oc_cust.customer_id}".encode()).hexdigest()
+                else:
+                    email_hash = get_blind_index(oc_cust.email)
+                
                 logger.info(
                     "migrate_addresses_email_hash",
                     oc_address_id=oc_addr.address_id,
@@ -1022,7 +1026,11 @@ class MigrationService:
                 )
 
                 # Resolve User by email_hash
-                email_hash = get_blind_index(oc_cust.email)
+                if not oc_cust.email or not oc_cust.email.strip():
+                    email_hash = hashlib.sha256(f"empty_{oc_cust.customer_id}".encode()).hexdigest()
+                else:
+                    email_hash = get_blind_index(oc_cust.email)
+                
                 logger.info(
                     "migrate_devices_email_hash",
                     oc_device_id=oc_dev.device_id,
@@ -1646,7 +1654,14 @@ class MigrationService:
                     skipped += 1
                 else:
                     # Link to migrated users and products
-                    email_hash = get_blind_index(oc_order.email)
+                    if not oc_order.email or not oc_order.email.strip():
+                        if oc_order.customer_id:
+                            email_hash = hashlib.sha256(f"empty_{oc_order.customer_id}".encode()).hexdigest()
+                        else:
+                            email_hash = hashlib.sha256(f"empty_order_{oc_order.order_id}".encode()).hexdigest()
+                    else:
+                        email_hash = get_blind_index(oc_order.email)
+                        
                     user_stmt = select(User).where(User.email_hash == email_hash)
                     user_res = await self.session.execute(user_stmt)
                     user = user_res.scalar_one_or_none()

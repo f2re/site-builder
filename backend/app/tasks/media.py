@@ -231,11 +231,14 @@ async def _process_image_variants_async(
     formats_dict["thumb"] = thumb_path
 
     # 6. Update database record
+    import uuid
+    image_uuid = uuid.UUID(image_id) if isinstance(image_id, str) else image_id
+
     async with CelerySessionLocal() as db:
         if entity_type == "product":
             from app.db.models.product import ProductImage
 
-            stmt_prod = select(ProductImage).where(ProductImage.id == image_id)
+            stmt_prod = select(ProductImage).where(ProductImage.id == image_uuid)
             result_prod = await db.execute(stmt_prod)
             media_prod = result_prod.scalar_one_or_none()
 
@@ -250,7 +253,7 @@ async def _process_image_variants_async(
         elif entity_type == "blog":
             from app.db.models.blog import BlogPostMedia
 
-            stmt_blog = select(BlogPostMedia).where(BlogPostMedia.id == image_id)
+            stmt_blog = select(BlogPostMedia).where(BlogPostMedia.id == image_uuid)
             result_blog = await db.execute(stmt_blog)
             media_blog = result_blog.scalar_one_or_none()
 
@@ -272,7 +275,7 @@ async def _process_image_variants_async(
 def process_image(
     self,
     object_name: str,
-    media_id: int,
+    media_id: str,
     context: Literal["blog", "product"] = "blog",
 ):
     """
@@ -324,7 +327,7 @@ def process_image(
 
 async def _process_image_async(
     object_name: str,
-    media_id: int,
+    media_id: str,
     context: Literal["blog", "product"],
 ):
     """Async implementation of image processing."""
@@ -399,11 +402,14 @@ async def _process_image_async(
     )
 
     # 5. Update database record
+    import uuid
+    media_uuid = uuid.UUID(media_id) if isinstance(media_id, str) else media_id
+
     async with CelerySessionLocal() as db:
         if context == "blog":
             from app.db.models.blog import BlogPostMedia
 
-            stmt_blog = select(BlogPostMedia).where(BlogPostMedia.id == media_id)
+            stmt_blog = select(BlogPostMedia).where(BlogPostMedia.id == media_uuid)
             result_blog = await db.execute(stmt_blog)
             media_blog = result_blog.scalar_one_or_none()
 
@@ -419,7 +425,7 @@ async def _process_image_async(
         elif context == "product":
             from app.db.models.product import ProductImage
 
-            stmt_prod = select(ProductImage).where(ProductImage.id == media_id)
+            stmt_prod = select(ProductImage).where(ProductImage.id == media_uuid)
             result_prod = await db.execute(stmt_prod)
             media_prod = result_prod.scalar_one_or_none()
 

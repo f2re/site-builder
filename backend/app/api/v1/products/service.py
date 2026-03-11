@@ -396,7 +396,7 @@ class ProductService:
             formats={},  # Will be filled by Celery task
         )
         self.repo.session.add(new_image)
-        await self.repo.session.flush()
+        await self.repo.session.commit()
         await self.repo.session.refresh(new_image)
 
         # Trigger Celery task for multi-size processing
