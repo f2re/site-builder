@@ -1,4 +1,7 @@
-.PHONY: test test-e2e check seed-e2e seed-e2e-reset dev-start test-e2e-ci feature-test
+.PHONY: test test-e2e check seed-e2e seed-e2e-reset dev-start test-e2e-ci feature-test install-hooks
+
+install-hooks:
+	bash scripts/install-hooks.sh
 
 test:
 	pytest tests/unit tests/integration
