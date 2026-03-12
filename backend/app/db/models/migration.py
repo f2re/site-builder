@@ -7,21 +7,21 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
 class MigrationStatus(str, enum.Enum):
-    PENDING  = "PENDING"
-    RUNNING  = "RUNNING"
-    PAUSED   = "PAUSED"
-    DONE     = "DONE"
-    FAILED   = "FAILED"
+    PENDING  = "pending"
+    RUNNING  = "running"
+    PAUSED   = "paused"
+    DONE     = "done"
+    FAILED   = "failed"
 
 class MigrationEntity(str, enum.Enum):
-    USERS      = "USERS"
-    CATEGORIES = "CATEGORIES"
-    PRODUCTS   = "PRODUCTS"
-    IMAGES     = "IMAGES"
-    ORDERS     = "ORDERS"
-    BLOG       = "BLOG"
-    DEVICES    = "DEVICES"
-    ADDRESSES  = "ADDRESSES"
+    USERS      = "users"
+    CATEGORIES = "categories"
+    PRODUCTS   = "products"
+    IMAGES     = "images"
+    ORDERS     = "orders"
+    BLOG       = "blog"
+    DEVICES    = "devices"
+    ADDRESSES  = "addresses"
 
 MIGRATION_STATUS_ENUM = SAEnum(
     MigrationStatus,

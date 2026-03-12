@@ -1,0 +1,27 @@
+{
+  "task_id": "fix_migration_enum_case",
+  "agent": "backend-agent",
+  "priority": "critical",
+  "title": "Исправить несоответствие регистра enum миграции с PostgreSQL",
+  "description": "PostgreSQL enum определён с нижним регистром (users, pending), но Python enum изменён на верхний (USERS, PENDING). Это вызывает ошибку: invalid input value for enum migrationentity: 'ADDRESSES'",
+  "context": {
+    "root_cause": "PostgreSQL enum создан с lowercase значениями в миграции 20260301_1230, но Python enum изменён на uppercase",
+    "affected_files": [
+      "backend/app/db/models/migration.py",
+      "backend/app/db/migrations/versions/"
+    ],
+    "db_enum_values": "users, categories, products, images, orders, blog, devices, addresses (lowercase)",
+    "python_enum_values": "USERS, CATEGORIES, PRODUCTS, IMAGES, ORDERS, BLOG, DEVICES, ADDRESSES (uppercase)"
+  },
+  "acceptance_criteria": [
+    "Python enum MigrationEntity и MigrationStatus используют lowercase значения",
+    "Создана миграция для конвертации существующих данных в БД с uppercase на lowercase",
+    "GET /api/v1/admin/migration/status работает без ошибок",
+    "POST /api/v1/admin/migration/start работает без ошибок"
+  ],
+  "approach": [
+    "Вернуть Python enum к lowercase (users, pending)",
+    "Создать Alembic миграцию с UPDATE для конвертации данных: UPDATE migration_jobs SET entity = LOWER(entity::text)::migrationentity, status = LOWER(status::text)::migrationstatus",
+    "Применить миграцию"
+  ]
+}
