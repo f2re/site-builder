@@ -1,119 +1,57 @@
-import asyncio
 import pytest
+import asyncio
+import uuid
 import pytest_asyncio
-import os
-
-# FORCE standard asyncio loop BEFORE any other imports might trigger uvloop
-asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
-
-from typing import AsyncGenerator, Generator
-from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy.pool import StaticPool
-from redis.asyncio import Redis
-
-from app.main import app
+from typing import AsyncGenerator
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from app.db.base import Base
-from app.db.session import get_db
-from app.db.redis import get_redis
-from app.tasks.celery_app import celery_app
-from unittest.mock import MagicMock
+from app.core.config import settings
 
-# --- CRITICAL FIX FOR LOOP MISMATCH ---
-# We must ensure that a single event loop is used for the entire session
-# and that sqlalchemy engines are created WITHIN that loop.
+# Test database URL - using a separate database for tests
+TEST_SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL.replace("site-builder", "site-builder-test")
 
 @pytest.fixture(scope="session")
 def event_loop():
-    """Create an instance of the default event loop for each test case."""
-    # Force use of standard asyncio loop to avoid uvloop + nest_asyncio incompatibility
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
 
-# Configure Celery for tests - ALWAYS EAGER
-celery_app.conf.update(
-    task_always_eager=True,
-    task_eager_propagates=True,
-    result_backend=None,
-)
-
-# Mock AsyncResult to avoid Redis connection attempts
-import celery.result
-celery.result.AsyncResult = MagicMock()
-
-# Import all models
-from app.db.models import user, product, order, blog, delivery_address, order_tracking  # noqa: F401
-
-TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///./test.db")
-
 @pytest_asyncio.fixture(scope="session")
-async def engine(event_loop):
-    # Ensure engine is created within the session event loop
-    poolclass = StaticPool if "sqlite" in TEST_DATABASE_URL else None
-
-    engine = create_async_engine(
-        TEST_DATABASE_URL,
-        echo=False,
-        poolclass=poolclass,
-    )
-    yield engine
-    await engine.dispose()
-
-@pytest_asyncio.fixture(scope="session", autouse=True)
-async def setup_db(engine):
+async def db_engine():
+    engine = create_async_engine(TEST_SQLALCHEMY_DATABASE_URL, echo=False)
+    
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
-    yield
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+    
+    yield engine
+    await engine.dispose()
 
 @pytest_asyncio.fixture
-async def db_session(engine) -> AsyncGenerator[AsyncSession, None]:
-    session_factory = async_sessionmaker(
-        bind=engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-        autocommit=False,
-        autoflush=False,
-    )
-    async with session_factory() as session:
+async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
+    async_session = async_sessionmaker(db_engine, expire_on_commit=False, class_=AsyncSession)
+    async with async_session() as session:
         yield session
-        # Use rollback to keep tests isolated
         await session.rollback()
 
 @pytest_asyncio.fixture
-async def client(db_session: AsyncSession, redis_client: Redis) -> AsyncGenerator[AsyncClient, None]:
-    # Dependency overrides must be clean
-    def _get_test_db():
+async def client(db_session):
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+    from app.db.session import get_db
+
+    async def override_get_db():
         yield db_session
 
-    async def _get_test_redis():
-        yield redis_client
-
-    app.dependency_overrides[get_db] = _get_test_db
-    app.dependency_overrides[get_redis] = _get_test_redis
-
-    # Using ASGITransport ensures we don't start a real server but use the app directly
+    app.dependency_overrides[get_db] = override_get_db
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
-
     app.dependency_overrides.clear()
 
 @pytest_asyncio.fixture
-async def redis_client() -> AsyncGenerator[Redis, None]:
-    from fakeredis.aioredis import FakeRedis
-    client = FakeRedis(decode_responses=True)
-    yield client
-    await client.flushdb()
-    await client.close()
-
-@pytest_asyncio.fixture
-async def admin_token(db_session: AsyncSession) -> str:
+async def admin_token(db_session: AsyncSession):
     from app.db.models.user import User
-    from app.core.security import create_access_token, get_password_hash, get_blind_index
+    from app.core.security import get_blind_index, get_password_hash, create_access_token
     import uuid
 
     admin_id = uuid.uuid4()
@@ -131,10 +69,7 @@ async def admin_token(db_session: AsyncSession) -> str:
 
     return create_access_token(subject=str(admin_id), role="admin")
 
-<<<<<<< HEAD
-=======
 
->>>>>>> 63cb370f8cc6985bd77b9f5dfcc63e07aa502720
 @pytest_asyncio.fixture
 async def test_user(db_session: AsyncSession):
     from app.db.models.user import User
@@ -142,27 +77,15 @@ async def test_user(db_session: AsyncSession):
     import uuid
 
     user_id = uuid.uuid4()
-<<<<<<< HEAD
-    email = f"user-test-{user_id}@example.com"
-=======
     email = f"user-{user_id}@example.com"
->>>>>>> 63cb370f8cc6985bd77b9f5dfcc63e07aa502720
     user = User(
         id=user_id,
         email=email,
         email_hash=get_blind_index(email),
-<<<<<<< HEAD
-        hashed_password="hashed",
-        role="user",
-=======
         role="customer",
->>>>>>> 63cb370f8cc6985bd77b9f5dfcc63e07aa502720
         is_active=True
     )
     db_session.add(user)
     await db_session.commit()
-<<<<<<< HEAD
-=======
     await db_session.refresh(user)
->>>>>>> 63cb370f8cc6985bd77b9f5dfcc63e07aa502720
     return user

@@ -23,12 +23,24 @@ class MigrationEntity(str, enum.Enum):
     DEVICES    = "devices"
     ADDRESSES  = "addresses"
 
+MIGRATION_STATUS_ENUM = SAEnum(
+    MigrationStatus,
+    name="migrationstatus",
+    values_callable=lambda enum_cls: [s.value for s in enum_cls],
+)
+
+MIGRATION_ENTITY_ENUM = SAEnum(
+    MigrationEntity,
+    name="migrationentity",
+    values_callable=lambda enum_cls: [e.value for e in enum_cls],
+)
+
 class MigrationJob(Base):
     __tablename__ = "migration_jobs"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    entity: Mapped[MigrationEntity] = mapped_column(SAEnum(MigrationEntity), nullable=False)
-    status: Mapped[MigrationStatus] = mapped_column(SAEnum(MigrationStatus), default=MigrationStatus.PENDING)
+    entity: Mapped[MigrationEntity] = mapped_column(MIGRATION_ENTITY_ENUM, nullable=False)
+    status: Mapped[MigrationStatus] = mapped_column(MIGRATION_STATUS_ENUM, default=MigrationStatus.PENDING)
     
     total: Mapped[int] = mapped_column(Integer, default=0)
     processed: Mapped[int] = mapped_column(Integer, default=0)

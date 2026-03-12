@@ -12,7 +12,7 @@ definePageMeta({
 })
 
 // Types
-type MigrationEntityKey = 'users' | 'categories' | 'products' | 'images' | 'orders' | 'blog'
+type MigrationEntityKey = 'users' | 'categories' | 'products' | 'images' | 'orders' | 'blog' | 'addresses' | 'devices'
 
 interface MigrationEntityStatus {
   total: number
@@ -197,6 +197,8 @@ const getEntityIcon = (key: MigrationEntityKey) => {
     case 'images': return 'ph:image-duotone'
     case 'orders': return 'ph:shopping-cart-duotone'
     case 'blog': return 'ph:article-duotone'
+    case 'addresses': return 'ph:map-pin-duotone'
+    case 'devices': return 'ph:cpu-duotone'
   }
 }
 
@@ -207,7 +209,9 @@ const getEntityLabel = (key: string) => {
     products: 'Товары',
     images: 'Изображения',
     orders: 'Заказы',
-    blog: 'Блог (новости и инструкции)'
+    blog: 'Блог (новости и инструкции)',
+    addresses: 'Адреса доставки',
+    devices: 'OBD устройства'
   }
   return labels[key] || key
 }
