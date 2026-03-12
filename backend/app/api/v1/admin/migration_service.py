@@ -555,6 +555,9 @@ class MigrationService:
                             job.id, MigrationStatus.RUNNING, extra_data=metadata_u
                         )
                         await self.session.refresh(job)
+                        # FIX: Check if job was paused/stopped between phases
+                        if job.status != MigrationStatus.RUNNING:
+                            return False
 
                 # Phase 2: addresses
                 if not should_retrigger and not metadata_u.get("addresses_done"):
@@ -571,6 +574,9 @@ class MigrationService:
                             job.id, MigrationStatus.RUNNING, extra_data=metadata_u
                         )
                         await self.session.refresh(job)
+                        # FIX: Check if job was paused/stopped between phases
+                        if job.status != MigrationStatus.RUNNING:
+                            return False
 
                 # Phase 3: devices
                 if not should_retrigger and not metadata_u.get("devices_done"):
@@ -692,6 +698,8 @@ class MigrationService:
                         )
                         self.session.add(new_user)
                         await self.session.flush()
+                        # FIX: Update cursor ONLY after successful flush
+                        last_id = oc_cust.customer_id
                         processed += 1
                 except Exception as exc:
                     # Rollback only to SAVEPOINT, not entire batch
@@ -703,14 +711,15 @@ class MigrationService:
                         error=str(exc),
                     )
 
-                last_id = oc_cust.customer_id
-
-            # Update job stats
-            job.processed += processed
-            job.skipped += skipped
-            job.last_oc_id = last_id
-
-            await self.session.commit()
+            # FIX: Use atomic update via repository
+            await self.repo.update_job_status(
+                job.id,
+                MigrationStatus.RUNNING,
+                processed=job.processed + processed,
+                skipped=job.skipped + skipped,
+                last_oc_id=last_id
+            )
+            await self.session.refresh(job)
 
             if len(customers) < self.batch_size:
                 # Do NOT mark DONE here — run_batch orchestrates addresses/devices after users
@@ -728,6 +737,8 @@ class MigrationService:
         from app.db.models.delivery_address import AddressType, DeliveryProvider  # noqa: PLC0415
         from app.db.opencart_models import OCAddress, OCCustomer  # noqa: PLC0415
 
+        # FIX: Refresh job to avoid race condition with concurrent tasks
+        await self.session.refresh(job)
         metadata: Dict[str, Any] = job.extra_data or {}  # type: ignore[assignment]
         last_addr_id: int = int(metadata.get("addresses_last_id") or 0)
 
@@ -781,8 +792,6 @@ class MigrationService:
             current_last_id = last_addr_id
 
             for oc_addr in addresses:
-                current_last_id = oc_addr.address_id
-
                 logger.info(
                     "migrate_addresses_row",
                     oc_address_id=oc_addr.address_id,
@@ -797,6 +806,7 @@ class MigrationService:
                 if existing.scalar_one_or_none():
                     skipped += 1
                     skipped_duplicate += 1
+                    current_last_id = oc_addr.address_id
                     logger.info(
                         "migrate_addresses_skip_duplicate",
                         oc_address_id=oc_addr.address_id,
@@ -811,6 +821,7 @@ class MigrationService:
                 if not oc_cust:
                     skipped += 1
                     skipped_no_customer += 1
+                    current_last_id = oc_addr.address_id
                     logger.warning(
                         "migrate_addresses_no_customer",
                         oc_address_id=oc_addr.address_id,
@@ -832,7 +843,7 @@ class MigrationService:
                     email_hash = hashlib.sha256(f"empty_{oc_cust.customer_id}".encode()).hexdigest()
                 else:
                     email_hash = get_blind_index(oc_cust.email)
-                
+
                 logger.info(
                     "migrate_addresses_email_hash",
                     oc_address_id=oc_addr.address_id,
@@ -845,6 +856,7 @@ class MigrationService:
                 if not user:
                     skipped += 1
                     skipped_no_user += 1
+                    current_last_id = oc_addr.address_id
                     logger.warning(
                         "migrate_addresses_no_user",
                         oc_address_id=oc_addr.address_id,
@@ -884,6 +896,8 @@ class MigrationService:
                         )
                         self.session.add(new_address)
                         await self.session.flush()
+                        # FIX: Update cursor ONLY after successful flush
+                        current_last_id = oc_addr.address_id
                         processed += 1
                 except Exception as exc:
                     # Rollback only to SAVEPOINT, not entire batch
@@ -937,6 +951,8 @@ class MigrationService:
         from app.core.logging import logger  # noqa: PLC0415
         from app.core.security import get_blind_index  # noqa: PLC0415
 
+        # FIX: Refresh job to avoid race condition with concurrent tasks
+        await self.session.refresh(job)
         metadata: Dict[str, Any] = job.extra_data or {}  # type: ignore[assignment]
         last_device_id: int = int(metadata.get("devices_last_id") or 0)
 
@@ -990,8 +1006,6 @@ class MigrationService:
             current_last_id = last_device_id
 
             for oc_dev in oc_devices:
-                current_last_id = oc_dev.device_id
-
                 logger.info(
                     "migrate_devices_row",
                     oc_device_id=oc_dev.device_id,
@@ -1009,6 +1023,7 @@ class MigrationService:
                 if not oc_cust:
                     skipped += 1
                     skipped_no_customer += 1
+                    current_last_id = oc_dev.device_id
                     logger.warning(
                         "migrate_devices_no_customer",
                         oc_device_id=oc_dev.device_id,
@@ -1043,6 +1058,7 @@ class MigrationService:
                 if not user:
                     skipped += 1
                     skipped_no_user += 1
+                    current_last_id = oc_dev.device_id
                     logger.warning(
                         "migrate_devices_no_user",
                         oc_device_id=oc_dev.device_id,
@@ -1087,6 +1103,7 @@ class MigrationService:
                 if existing_device.scalar_one_or_none():
                     skipped += 1
                     skipped_duplicate += 1
+                    current_last_id = oc_dev.device_id
                     logger.info(
                         "migrate_devices_skip_duplicate",
                         oc_device_id=oc_dev.device_id,
@@ -1117,6 +1134,8 @@ class MigrationService:
                         )
                         self.session.add(new_device)
                         await self.session.flush()
+                        # FIX: Update cursor ONLY after successful flush
+                        current_last_id = oc_dev.device_id
                         migrated += 1
                         logger.info(
                             "migrate_devices_ok",
