@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# ============================================================
+# pre-commit hook — WifiOBD / site-builder
+# Запускает: lint фронтенда, тесты, lint + typecheck бекенда
+# Установка: bash scripts/install-hooks.sh
+# Пропуск (экстренно): git commit --no-verify
+# ============================================================
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+BACKEND="$ROOT/backend"
+FRONTEND="$ROOT/frontend"
+FAILED=0
+
+red()   { echo -e "\033[0;31m$*\033[0m"; }
+green() { echo -e "\033[0;32m$*\033[0m"; }
+yellow(){ echo -e "\033[0;33m$*\033[0m"; }
+
+run_check() {
+  local name="$1"
+  local cmd="$2"
+  local cwd="$3"
+
+  echo -n "  ⏳ $name ... "
+  if output=$(cd "$cwd" && eval "$cmd" 2>&1); then
+    green "✅ OK"
+  else
+    red "❌ FAIL"
+    echo "$output" | head -40 | sed 's/^/     /'
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  🔍 Pre-Commit Checks — WifiOBD"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# ── FRONTEND ─────────────────────────────────────
+echo ""
+yellow "▶ Frontend"
+run_check "ESLint / vue-tsc" "npm run lint" "$FRONTEND"
+
+# ── BACKEND ──────────────────────────────────────
+echo ""
+yellow "▶ Backend — linting"
+run_check "ruff check"  "ruff check app/"                       "$BACKEND"
+run_check "mypy"        "mypy app/ --ignore-missing-imports"    "$BACKEND"
+
+# ── MIGRATIONS ───────────────────────────────────
+echo ""
+yellow "▶ Alembic migrations"
+if pg_isready -q 2>/dev/null; then
+  run_check "alembic check" "alembic check && alembic heads" "$BACKEND"
+else
+  yellow "  ⚠️  PostgreSQL недоступен — alembic пропущен"
+fi
+
+# ── TESTS ────────────────────────────────────────
+echo ""
+yellow "▶ Tests"
+run_check "pytest unit+integration" "pytest tests/unit tests/integration -x -q --tb=short --timeout=60" "$ROOT"
+
+# ── ИТОГ ─────────────────────────────────────────
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if [ "$FAILED" -gt 0 ]; then
+  red "  🚫 COMMIT BLOCKED — $FAILED проверка(и) не прошли"
+  red "     Исправь ошибки и повтори git commit"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  exit 1
+fi
+
+green "  ✅ Все проверки пройдены — коммит разрешён"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+exit 0
