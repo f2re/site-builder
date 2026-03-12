@@ -2,7 +2,7 @@ import pytest
 from httpx import AsyncClient
 from unittest.mock import patch
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_cms_flow(client: AsyncClient, admin_token: str):
     headers = {"Authorization": f"Bearer {admin_token}"}
 

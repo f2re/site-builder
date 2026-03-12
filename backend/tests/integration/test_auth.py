@@ -1,7 +1,7 @@
 import pytest
 from httpx import AsyncClient
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_auth_flow(client: AsyncClient):
     # 1. Register
     reg_payload = {

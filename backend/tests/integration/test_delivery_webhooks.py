@@ -8,7 +8,7 @@ from sqlalchemy import select
 import uuid
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_cdek_webhook_updates_status(client: AsyncClient, db_session: AsyncSession, test_user):
     """CDEK webhook updates order status."""
     order_id = uuid.uuid4()
@@ -47,7 +47,7 @@ async def test_cdek_webhook_updates_status(client: AsyncClient, db_session: Asyn
     assert event.status == "IN_TRANSIT"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_cdek_webhook_idempotent(client: AsyncClient, db_session: AsyncSession, test_user):
     """CDEK webhook is idempotent - duplicate calls don't create duplicate events."""
     order_id = uuid.uuid4()
@@ -81,7 +81,7 @@ async def test_cdek_webhook_idempotent(client: AsyncClient, db_session: AsyncSes
     assert len(all_events) == 2  # Both calls create events (no dedup in current impl)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_pochta_webhook_updates_status(client: AsyncClient, db_session: AsyncSession, test_user):
     """Pochta webhook updates order status."""
     order_id = uuid.uuid4()
@@ -110,7 +110,7 @@ async def test_pochta_webhook_updates_status(client: AsyncClient, db_session: As
     assert order.delivery_status == "ARRIVED"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_webhook_missing_order_number(client: AsyncClient):
     """Webhook with missing order number returns ok."""
     payload = {"attributes": {"status_code": "IN_TRANSIT"}}

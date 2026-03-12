@@ -6,7 +6,7 @@ from app.db.models.order import Order, OrderStatus
 import uuid
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_poll_delivery_statuses_cdek(db_session, test_user):
     """Poll delivery statuses updates CDEK orders."""
     order_id = uuid.uuid4()
@@ -42,7 +42,7 @@ async def test_poll_delivery_statuses_cdek(db_session, test_user):
     assert order.delivery_status == "IN_TRANSIT"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_poll_delivery_statuses_pochta(db_session, test_user):
     """Poll delivery statuses updates Pochta orders."""
     order_id = uuid.uuid4()
@@ -77,7 +77,7 @@ async def test_poll_delivery_statuses_pochta(db_session, test_user):
     assert order.delivery_status == "ARRIVED"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_poll_delivery_statuses_handles_errors(db_session, test_user):
     """Poll delivery statuses handles provider errors gracefully."""
     order = Order(

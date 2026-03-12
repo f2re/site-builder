@@ -4,7 +4,7 @@ import httpx
 from unittest.mock import MagicMock
 from app.api.v1.admin.migration_service import MigrationService
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_html_to_tiptap_nested_tags():
     service = MigrationService(repo=MagicMock(), session=MagicMock())
     html = '<p><span>Text </span><a href="http://example.com"><b>Bold Link</b></a><span> end</span></p>'
@@ -37,7 +37,7 @@ async def test_html_to_tiptap_nested_tags():
     # So [link, bold] is expected.
     assert result["content"] == expected_content
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_html_to_tiptap_strip_unsafe():
     service = MigrationService(repo=MagicMock(), session=MagicMock())
     html = '<p>Safe</p><script>alert(1)</script><iframe></iframe>'
@@ -48,7 +48,7 @@ async def test_html_to_tiptap_strip_unsafe():
     assert result["content"][0]["type"] == "paragraph"
     assert result["content"][0]["content"][0]["text"] == "Safe"
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_html_to_tiptap_images(monkeypatch):
     service = MigrationService(repo=MagicMock(), session=MagicMock())
     
@@ -68,7 +68,7 @@ async def test_html_to_tiptap_images(monkeypatch):
     assert result["content"][1]["attrs"]["src"] == "local://img.jpg"
     assert result["content"][1]["attrs"]["alt"] == "alt text"
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_html_to_tiptap_problematic_html():
     service = MigrationService(repo=MagicMock(), session=MagicMock())
     html = """

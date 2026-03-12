@@ -8,7 +8,7 @@ from app.api.v1.admin.migration_service import MigrationService
 from app.db.models.migration import MigrationEntity, MigrationJob, MigrationStatus
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_run_batch_refreshes_job_after_migrate_addresses():
     """Test that run_batch() refreshes job after migrate_addresses() to load committed cursor.
 
@@ -57,7 +57,7 @@ async def test_run_batch_refreshes_job_after_migrate_addresses():
         assert mock_session.refresh.call_count >= 1
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_run_batch_refreshes_job_after_migrate_devices():
     """Test that run_batch() refreshes job after migrate_devices() as well."""
     # Arrange

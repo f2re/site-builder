@@ -17,7 +17,7 @@ def migration_repo():
     repo.update_job_status = AsyncMock()
     return repo
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 async def system_author(db_session: AsyncSession):
     # Ensure an author exists for blog posts
     from app.core.security import get_blind_index
@@ -44,17 +44,13 @@ async def system_author(db_session: AsyncSession):
     await db_session.commit()
     return author
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_migration_html_to_tiptap_integration(db_session: AsyncSession, migration_repo, system_author):
     """
     Integration test for HTML migration.
     Verifies that MigrationService._html_to_tiptap correctly transforms 
     problematic HTML into TipTap JSON and downloads images.
     """
-    # Fix system_author if it was passed as a coroutine (depending on pytest-asyncio version/setup)
-    if hasattr(system_author, "__await__"):
-        system_author = await system_author
-
     service = MigrationService(repo=migration_repo, session=db_session)
     
     problematic_html = """
@@ -116,16 +112,12 @@ async def test_migration_html_to_tiptap_integration(db_session: AsyncSession, mi
             bold_node = next(n for n in content[2]["content"] if n.get("text") == "bold")
             assert any(m["type"] == "bold" for m in bold_node["marks"])
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_migrate_catalog_product_html_persistence(db_session: AsyncSession, migration_repo, monkeypatch, system_author):
     """
     Test the full migration path for a product to ensure content_json and description_html 
     are correctly saved in the database.
     """
-    # Fix system_author if it was passed as a coroutine
-    if hasattr(system_author, "__await__"):
-        await system_author
-
     service = MigrationService(repo=migration_repo, session=db_session)
     
     async def mock_download_image(self, client, url, folder):

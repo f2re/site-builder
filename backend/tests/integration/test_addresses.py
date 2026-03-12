@@ -2,7 +2,7 @@
 import pytest
 from httpx import AsyncClient
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_address_management(client: AsyncClient):
     # 1. Register & Login
     reg_payload = {

@@ -6,7 +6,7 @@ from app.db.models.order import Order, OrderStatus
 from app.db.models.user import User
 from app.core.security import create_access_token, get_password_hash, get_blind_index
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_admin_stats_aggregation(client: AsyncClient, db_session):
     # Setup Admin
     admin_id = uuid.uuid4()

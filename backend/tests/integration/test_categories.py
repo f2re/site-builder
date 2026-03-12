@@ -4,7 +4,7 @@ from httpx import AsyncClient
 from app.core.security import create_access_token, get_password_hash, get_blind_index
 from app.db.models.user import User
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_category_product_count(client: AsyncClient, db_session):
     # 1. Setup Admin
     admin_id = uuid.uuid4()

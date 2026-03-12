@@ -4,7 +4,7 @@ from httpx import AsyncClient
 from app.db.models.user import User
 from app.core.security import create_access_token, get_blind_index
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_get_user_full_details(client: AsyncClient, db_session):
     # Setup Admin
     admin_id = uuid.uuid4()

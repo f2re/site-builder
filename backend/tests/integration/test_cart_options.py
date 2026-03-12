@@ -4,7 +4,7 @@ from httpx import AsyncClient
 from app.db.models.product import Product, ProductVariant, ProductOptionGroup, ProductOptionValue
 from redis.asyncio import Redis
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_cart_options_flow(client: AsyncClient, db_session, redis_client: Redis):
     # 1. Setup Product with Options
     p_id = uuid.uuid4()

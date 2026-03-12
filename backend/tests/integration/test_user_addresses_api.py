@@ -3,7 +3,7 @@ import pytest
 from httpx import AsyncClient
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_list_addresses_empty(client: AsyncClient, admin_token: str):
     """List addresses returns empty array for new user."""
     response = await client.get(
@@ -14,7 +14,7 @@ async def test_list_addresses_empty(client: AsyncClient, admin_token: str):
     assert response.json() == []
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_create_address(client: AsyncClient, admin_token: str):
     """Create new delivery address."""
     payload = {
@@ -41,7 +41,7 @@ async def test_create_address(client: AsyncClient, admin_token: str):
     assert data["is_default"] is True
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_create_address_invalid_phone(client: AsyncClient, admin_token: str):
     """Create address with invalid phone fails."""
     payload = {
@@ -62,7 +62,7 @@ async def test_create_address_invalid_phone(client: AsyncClient, admin_token: st
     assert response.status_code == 422
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_update_address(client: AsyncClient, admin_token: str):
     """Update existing address."""
     create_payload = {
@@ -92,7 +92,7 @@ async def test_update_address(client: AsyncClient, admin_token: str):
     assert response.json()["name"] == "New"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_delete_address(client: AsyncClient, admin_token: str):
     """Delete address."""
     create_payload = {
@@ -125,7 +125,7 @@ async def test_delete_address(client: AsyncClient, admin_token: str):
     assert len(list_resp.json()) == 0
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_set_default_address(client: AsyncClient, admin_token: str):
     """Set address as default."""
     await client.post(

@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import AsyncMock, patch
 from app.api.v1.delivery.service import DeliveryService
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_get_pickup_points_cleans_data():
     service = DeliveryService()
     
@@ -57,7 +57,7 @@ async def test_get_pickup_points_cleans_data():
             assert result[1].note == "Blue door"
             assert result[1].latitude == 55.80
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_get_pickup_points_uses_cache():
     service = DeliveryService()
     cached_data = [

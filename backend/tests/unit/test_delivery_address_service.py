@@ -21,7 +21,7 @@ def test_validate_phone_e164_invalid():
         validate_phone_e164("invalid")
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_service_create_address_validates_phone():
     """Service validates phone before creating."""
     repo = AsyncMock()
@@ -44,7 +44,7 @@ async def test_service_create_address_validates_phone():
     assert exc.value.status_code == 422
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_service_create_default_unsets_others():
     """Service unsets other defaults when is_default=True."""
     repo = AsyncMock()

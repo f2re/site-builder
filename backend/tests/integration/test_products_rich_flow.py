@@ -11,7 +11,7 @@ VALID_PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 )
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_rich_product_flow(client: AsyncClient, db_session):
     # 1. Setup Admin
     admin_id = uuid.uuid4()

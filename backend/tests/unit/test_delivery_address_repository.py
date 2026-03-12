@@ -4,7 +4,7 @@ import uuid
 from app.api.v1.users.repository import DeliveryAddressRepository
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_create_address_encrypts_pii(db_session, test_user):
     """Create address encrypts PII fields."""
     repo = DeliveryAddressRepository(db_session)
@@ -31,7 +31,7 @@ async def test_create_address_encrypts_pii(db_session, test_user):
     assert addr.is_default is True
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_get_by_id_decrypts_pii(db_session, test_user):
     """Get by ID decrypts PII fields."""
     repo = DeliveryAddressRepository(db_session)
@@ -56,7 +56,7 @@ async def test_get_by_id_decrypts_pii(db_session, test_user):
     assert fetched.recipient_phone == "+79997654321"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_list_by_user_sorts_by_default(db_session, test_user):
     """List addresses sorted by is_default DESC."""
     repo = DeliveryAddressRepository(db_session)
@@ -78,7 +78,7 @@ async def test_list_by_user_sorts_by_default(db_session, test_user):
     assert addresses[0].id == addr2.id  # default first
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_set_default_unsets_others(db_session, test_user):
     """Set default unsets other addresses."""
     repo = DeliveryAddressRepository(db_session)
@@ -104,7 +104,7 @@ async def test_set_default_unsets_others(db_session, test_user):
     assert updated2.is_default is True
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_update_address(db_session, test_user):
     """Update address with new data."""
     repo = DeliveryAddressRepository(db_session)
@@ -123,7 +123,7 @@ async def test_update_address(db_session, test_user):
     assert updated.recipient_name == "Old Name"  # unchanged
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_delete_address(db_session, test_user):
     """Delete address."""
     repo = DeliveryAddressRepository(db_session)

@@ -1,5 +1,5 @@
 import pytest
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_dummy():
     assert True

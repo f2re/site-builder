@@ -4,7 +4,7 @@ from httpx import AsyncClient
 from app.db.models.product import Product, ProductVariant
 from redis.asyncio import Redis
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_cart_guest_flow(client: AsyncClient, db_session, redis_client: Redis):
     # 1. Setup Product
     p_id = uuid.uuid4()
