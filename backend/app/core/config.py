@@ -38,6 +38,7 @@ class Settings(BaseSettings):
 
     # ── Database ──────────────────────────────────────────────────────────────
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/wifiobd"
+    SYNC_DATABASE_URL: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/wifiobd"
 
     # ── Redis ─────────────────────────────────────────────────────────────────
     REDIS_URL: str = "redis://localhost:6379/0"

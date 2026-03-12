@@ -1,0 +1,26 @@
+{
+  "task_id": "fix_celery_db_connection",
+  "agent": "backend-agent",
+  "priority": "high",
+  "title": "Исправить подключение Celery к PostgreSQL",
+  "description": "Celery не может подключиться к PostgreSQL: OSError: [Errno 111] Connection refused. Проблема в том, что Celery пытается использовать asyncpg (асинхронный драйвер), но Celery — синхронный фреймворк и требует psycopg2.",
+  "context": {
+    "error": "OSError: Multiple exceptions: [Errno 111] Connection refused, [Errno 99] Cannot assign requested address",
+    "root_cause": "Celery использует DATABASE_URL с asyncpg драйвером вместо psycopg2",
+    "affected_files": [
+      "backend/app/tasks/celery_app.py",
+      "backend/app/core/config.py"
+    ]
+  },
+  "acceptance_criteria": [
+    "Celery успешно подключается к PostgreSQL",
+    "Celery задачи могут выполнять синхронные SQL запросы",
+    "Нет ошибок Connection refused в логах sb_celery"
+  ],
+  "approach": [
+    "Проверить backend/app/tasks/celery_app.py — какой DATABASE_URL используется",
+    "Создать отдельный SYNC_DATABASE_URL для Celery с psycopg2 драйвером",
+    "Заменить postgresql+asyncpg:// на postgresql+psycopg2:// для Celery",
+    "Убедиться, что psycopg2-binary в requirements.txt"
+  ]
+}

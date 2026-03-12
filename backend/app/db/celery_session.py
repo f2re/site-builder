@@ -1,4 +1,4 @@
-# Module: db/celery_session.py | Agent: backend-agent | Task: p29_backend_meilisearch_eventloop_fix
+# Module: db/celery_session.py | Agent: backend-agent | Task: fix_celery_db_connection
 """
 Отдельная фабрика сессий для Celery-задач.
 """
@@ -23,7 +23,7 @@ def get_celery_engine():
         else:
             db_url = settings.DATABASE_URL
             poolclass = NullPool
-        
+
         _celery_engine = create_async_engine(
             db_url,
             poolclass=poolclass,
