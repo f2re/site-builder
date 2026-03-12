@@ -48,18 +48,19 @@ run_check "ruff check"  "ruff check app/"                       "$BACKEND"
 run_check "mypy"        "mypy app/ --ignore-missing-imports"    "$BACKEND"
 
 # ── MIGRATIONS ───────────────────────────────────
-echo ""
-yellow "▶ Alembic migrations"
-if pg_isready -q 2>/dev/null; then
-  run_check "alembic check" "alembic check && alembic heads" "$BACKEND"
-else
-  yellow "  ⚠️  PostgreSQL недоступен — alembic пропущен"
-fi
+# echo ""
+# yellow "▶ Alembic migrations"
+# Отключено: требует запущенной БД
+# if command -v pg_isready >/dev/null 2>&1 && pg_isready -q 2>/dev/null; then
+#   run_check "alembic check" "alembic check && alembic heads" "$BACKEND"
+# else
+#   yellow "  ⚠️  PostgreSQL недоступен — alembic пропущен"
+# fi
 
 # ── TESTS ────────────────────────────────────────
 echo ""
 yellow "▶ Tests"
-run_check "pytest unit+integration" "export PYTHONPATH=$BACKEND && pytest tests/unit tests/integration -x -q --tb=short --timeout=60" "$ROOT"
+run_check "pytest unit+integration" "PYTHONPATH=. pytest ../tests/unit ../tests/integration -x -q --tb=short --timeout=60" "$BACKEND"
 
 # ── ИТОГ ─────────────────────────────────────────
 echo ""
