@@ -1,0 +1,24 @@
+{
+  "task_id": "fix_enum_case_mismatch",
+  "agent": "backend-agent",
+  "priority": "critical",
+  "title": "Исправить несоответствие регистра в MigrationEntity enum",
+  "description": "SQLAlchemy выбрасывает LookupError при чтении migration_jobs из БД: 'USERS' is not among the defined enum values. Enum name: migrationentity. Possible values: users, categories, products, ..., addresses",
+  "context": {
+    "error_location": "backend/app/api/v1/admin/migration_repository.py:39",
+    "root_cause": "В БД хранятся значения enum в верхнем регистре (USERS), а в Python enum определены в нижнем (users)",
+    "affected_files": [
+      "backend/app/db/models/migration.py",
+      "backend/app/api/v1/admin/migration_repository.py"
+    ]
+  },
+  "acceptance_criteria": [
+    "Enum MigrationEntity корректно обрабатывает значения из БД независимо от регистра",
+    "GET /api/v1/admin/migration/status возвращает 200 без ошибок",
+    "Существующие записи в migration_jobs читаются без LookupError"
+  ],
+  "constraints": [
+    "Не менять существующие данные в БД",
+    "Сохранить обратную совместимость с текущими значениями enum"
+  ]
+}

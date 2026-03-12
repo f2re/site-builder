@@ -14,14 +14,14 @@ class MigrationStatus(str, enum.Enum):
     FAILED   = "failed"
 
 class MigrationEntity(str, enum.Enum):
-    USERS      = "users"
-    CATEGORIES = "categories"
-    PRODUCTS   = "products"
-    IMAGES     = "images"
-    ORDERS     = "orders"
-    BLOG       = "blog"
-    DEVICES    = "devices"
-    ADDRESSES  = "addresses"
+    USERS      = "USERS"
+    CATEGORIES = "CATEGORIES"
+    PRODUCTS   = "PRODUCTS"
+    IMAGES     = "IMAGES"
+    ORDERS     = "ORDERS"
+    BLOG       = "BLOG"
+    DEVICES    = "DEVICES"
+    ADDRESSES  = "ADDRESSES"
 
 MIGRATION_STATUS_ENUM = SAEnum(
     MigrationStatus,
