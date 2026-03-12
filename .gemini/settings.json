@@ -14,16 +14,16 @@
   "agents": {
     "overrides": {
       "orchestrator": {
-        "modelConfig": { "model": "gemini-3-pro-preview" }
+        "modelConfig": { "model": "gemini-3.1-pro-preview" }
       },
       "backend-agent": {
-        "modelConfig": { "model": "gemini-3-pro-preview" }
+        "modelConfig": { "model": "gemini-3.1-pro-preview" }
       },
       "security-agent": {
-        "modelConfig": { "model": "gemini-3-pro-preview" }
+        "modelConfig": { "model": "gemini-3.1-pro-preview" }
       },
       "devops-agent": {
-        "modelConfig": { "model": "gemini-3-pro-preview" }
+        "modelConfig": { "model": "gemini-3.1-pro-preview" }
       },
       "frontend-agent": {
         "modelConfig": { "model": "gemini-3-flash-preview" }
