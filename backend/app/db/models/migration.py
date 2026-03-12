@@ -7,11 +7,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
 class MigrationStatus(str, enum.Enum):
-    PENDING  = "pending"
-    RUNNING  = "running"
-    PAUSED   = "paused"
-    DONE     = "done"
-    FAILED   = "failed"
+    PENDING  = "PENDING"
+    RUNNING  = "RUNNING"
+    PAUSED   = "PAUSED"
+    DONE     = "DONE"
+    FAILED   = "FAILED"
 
 class MigrationEntity(str, enum.Enum):
     USERS      = "USERS"
