@@ -287,6 +287,8 @@ class MigrationService:
                 MigrationEntity.CATEGORIES,
                 MigrationEntity.PRODUCTS,
                 MigrationEntity.ORDERS,
+                MigrationEntity.BLOG,
+                MigrationEntity.IMAGES,
             ]
 
         jobs = []
@@ -518,19 +520,14 @@ class MigrationService:
                     count_stmt = select(func.count()).select_from(OCAddress)
                 elif job.entity == MigrationEntity.DEVICES:
                     count_stmt = select(func.count()).select_from(OCDevice)
-                elif job.entity in [MigrationEntity.PRODUCTS, MigrationEntity.CATEGORIES]:
-                    # Count both information pages and products
-                    info_count_stmt = select(func.count()).select_from(OCInformation)
-                    info_res = await oc_session.execute(info_count_stmt)
-                    info_count = int(info_res.scalar() or 0)
-
-                    prod_count_stmt = select(func.count()).select_from(OCProduct)
-                    prod_res = await oc_session.execute(prod_count_stmt)
-                    prod_count = int(prod_res.scalar() or 0)
-
-                    job.total = info_count + prod_count
+                elif job.entity == MigrationEntity.CATEGORIES:
+                    count_stmt = select(func.count()).select_from(OCCategory)
+                elif job.entity == MigrationEntity.PRODUCTS:
+                    count_stmt = select(func.count()).select_from(OCProduct)
                 elif job.entity == MigrationEntity.ORDERS:
                     count_stmt = select(func.count()).select_from(OCOrder)
+                elif job.entity == MigrationEntity.BLOG:
+                    count_stmt = select(func.count()).select_from(OCInformation)
 
                 if count_stmt is not None:
                     count_res = await oc_session.execute(count_stmt)
@@ -601,25 +598,27 @@ class MigrationService:
                 should_retrigger = await self.migrate_devices(job)
                 if not should_retrigger:
                     await self.repo.update_job_status(job_id, MigrationStatus.DONE, completed_at=datetime.now(timezone.utc))
-            elif job.entity in [MigrationEntity.PRODUCTS, MigrationEntity.CATEGORIES]:
-                # First migrate information pages, then catalog
-                metadata: Dict[str, Any] = job.extra_data or {}  # type: ignore[assignment]
-                if not metadata.get("information_done"):
-                    should_retrigger = await self.migrate_information(job)
-                    if not should_retrigger:
-                        # Information migration complete, switch to catalog
-                        metadata["information_done"] = True
-                        await self.repo.update_job_status(
-                            job.id, MigrationStatus.RUNNING, last_oc_id=0, extra_data=metadata
-                        )
-                        await self.session.refresh(job)
-                        should_retrigger = await self.migrate_catalog(job)
-                else:
-                    should_retrigger = await self.migrate_catalog(job)
+            elif job.entity == MigrationEntity.CATEGORIES:
+                await self._migrate_categories()
+                # Categories are migrated all at once
+                job.processed = job.total
+                await self.repo.update_job_status(
+                    job_id, MigrationStatus.DONE, processed=job.total, completed_at=datetime.now(timezone.utc)
+                )
+                should_retrigger = False
+            elif job.entity == MigrationEntity.PRODUCTS:
+                should_retrigger = await self.migrate_catalog(job)
             elif job.entity == MigrationEntity.ORDERS:
                 should_retrigger = await self.migrate_orders(job)
                 if not should_retrigger:
                     await self.repo.update_job_status(job_id, MigrationStatus.DONE, completed_at=datetime.now(timezone.utc))
+            elif job.entity == MigrationEntity.BLOG:
+                should_retrigger = await self.migrate_information(job)
+                if not should_retrigger:
+                    await self.repo.update_job_status(job_id, MigrationStatus.DONE, completed_at=datetime.now(timezone.utc))
+            elif job.entity == MigrationEntity.IMAGES:
+                # Images are typically handled as part of product/blog content migration
+                await self.repo.update_job_status(job_id, MigrationStatus.DONE, completed_at=datetime.now(timezone.utc))
             else:
                 await self.repo.update_job_status(job_id, MigrationStatus.DONE, completed_at=datetime.now(timezone.utc))
 

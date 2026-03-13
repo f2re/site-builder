@@ -1,6 +1,5 @@
 # Module: tests/unit/test_delivery_address_repository | Agent: testing-agent | Task: p11_testing_addresses_tracking
 import pytest
-import uuid
 from app.api.v1.users.repository import DeliveryAddressRepository
 
 

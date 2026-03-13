@@ -1,5 +1,4 @@
 import pytest
-import asyncio
 import uuid
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
@@ -84,7 +83,6 @@ async def client(db_session, redis_client):
 async def admin_token(db_session: AsyncSession):
     from app.db.models.user import User
     from app.core.security import get_blind_index, get_password_hash, create_access_token
-    import uuid
 
     admin_id = uuid.uuid4()
     email = f"admin-test-{admin_id}@example.com"
@@ -106,7 +104,6 @@ async def admin_token(db_session: AsyncSession):
 async def test_user(db_session: AsyncSession):
     from app.db.models.user import User
     from app.core.security import get_blind_index
-    import uuid
 
     user_id = uuid.uuid4()
     email = f"user-{user_id}@example.com"
