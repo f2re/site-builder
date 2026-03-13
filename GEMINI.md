@@ -21,6 +21,13 @@ This file serves as the primary entry point and coordination hub for autonomous 
 
 ---
 
+## 🛠️ Project Conventions
+- **PostgreSQL Enums**: All enum labels and their Python counterparts MUST be in **lowercase** (e.g., `users`, `pending`).
+- **File Headers**: Every file must start with `# Module: <path> | Agent: <name> | Task: <id>`.
+- **Async First**: Use `async/await` for all DB and external I/O operations.
+
+---
+
 ## 🚀 Entry Point for New Tasks
 Use `/agents:plan <task description>` to start the orchestration process.
 The orchestrator will decompose the task and create JSON files in `.gemini/agents/tasks/`.

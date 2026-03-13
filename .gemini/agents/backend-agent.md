@@ -174,9 +174,8 @@ backend/
 
 ## 📜 Coding Contracts
 
-### General
-- File header: `# Module: <domain>/<file> | Agent: backend-agent | Task: <task_id>`
-- NO `Any` in type hints — use `TypeVar`, `Generic`, `Protocol`
+### Database (PostgreSQL)
+- **Enum Casing**: ALL PostgreSQL enum labels and their corresponding Python `enum.Enum` values MUST be in **lowercase** (e.g., `'users'`, `'pending'`). Never use uppercase for enum labels in the database.
 - NO f-strings in SQL — use only parameterized SQLAlchemy queries
 - NO hardcoded secrets — always use `app/core/config.py` → `BaseSettings` → `.env`
 - NO top-level `app/models/`, `app/schemas/`, `app/services/` — feature-first only
