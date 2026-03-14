@@ -1,55 +1,69 @@
 # Module: db/celery_session.py | Agent: backend-agent | Task: fix_celery_db_connection
 """
 Отдельная фабрика сессий для Celery-задач.
-Engine живёт весь lifetime worker-процесса.
-НЕ вызывать dispose() из задач — это ломает параллельные задачи в том же worker.
+
+ВАЖНО: каждый вызов asyncio.run() в Celery создаёт новый event loop.
+Async engines привязаны к event loop, поэтому нельзя переиспользовать
+глобальный engine между разными asyncio.run() вызовами.
+
+CelerySessionLocal() создаёт НОВЫЙ engine при каждом вызове.
+Вызывающий код ОБЯЗАН использовать `async with CelerySessionLocal() as session:`
+и engine будет dispose'd автоматически при выходе из контекста.
 """
 import os
+from contextlib import asynccontextmanager
 from sqlalchemy.pool import NullPool, StaticPool
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession, AsyncEngine
 from app.core.config import settings
 
-_celery_engine = None
-_CelerySessionLocal = None
+
+def _create_celery_engine() -> AsyncEngine:
+    """Create a fresh async engine for the current event loop."""
+    test_url = os.getenv("TEST_DATABASE_URL")
+    if test_url:
+        db_url = test_url
+        poolclass = StaticPool if "sqlite" in test_url else NullPool
+    elif os.getenv("PYTEST_CURRENT_TEST"):
+        db_url = "sqlite+aiosqlite:///./test.db"
+        poolclass = StaticPool
+    else:
+        db_url = settings.DATABASE_URL
+        poolclass = NullPool
+
+    return create_async_engine(db_url, poolclass=poolclass)
 
 
+@asynccontextmanager
+async def CelerySessionLocal():
+    """
+    Async context manager that creates a fresh engine + session per call.
+    Engine is disposed on exit — safe for asyncio.run() in Celery prefork workers.
+
+    Usage:
+        async with CelerySessionLocal() as session:
+            result = await session.execute(...)
+    """
+    engine = _create_celery_engine()
+    factory = async_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False,
+    )
+    session = factory()
+    try:
+        yield session
+    finally:
+        await session.close()
+        await engine.dispose()
+
+
+# Legacy compat — не используется в новом коде
 def get_celery_engine():
-    global _celery_engine
-    if _celery_engine is None:
-        test_url = os.getenv("TEST_DATABASE_URL")
-        if test_url:
-            db_url = test_url
-            poolclass = StaticPool if "sqlite" in test_url else NullPool
-        elif os.getenv("PYTEST_CURRENT_TEST"):
-            db_url = "sqlite+aiosqlite:///./test.db"
-            poolclass = StaticPool
-        else:
-            db_url = settings.DATABASE_URL
-            poolclass = NullPool
-
-        _celery_engine = create_async_engine(
-            db_url,
-            poolclass=poolclass,
-        )
-    return _celery_engine
+    return _create_celery_engine()
 
 
 def reset_celery_engine() -> None:
-    """Call after fork to force re-creation in the child process."""
-    global _celery_engine, _CelerySessionLocal
-    _celery_engine = None
-    _CelerySessionLocal = None
-
-
-def CelerySessionLocal():
-    global _CelerySessionLocal
-    if _CelerySessionLocal is None:
-        engine = get_celery_engine()
-        _CelerySessionLocal = async_sessionmaker(
-            bind=engine,
-            class_=AsyncSession,
-            expire_on_commit=False,
-            autocommit=False,
-            autoflush=False,
-        )
-    return _CelerySessionLocal()
+    """No-op — engines are now per-call, no global state to reset."""
+    pass
