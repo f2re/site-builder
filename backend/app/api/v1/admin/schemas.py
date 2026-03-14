@@ -1,9 +1,10 @@
-# Module: api/v1/admin/schemas.py | Agent: backend-agent | Task: BE-03_cart_orders_payments
+# Module: api/v1/admin/schemas.py | Agent: backend-agent | Task: admin_devices_crud
 from datetime import datetime
 from uuid import UUID
 from typing import List, Optional, Dict
 from pydantic import BaseModel, ConfigDict
 from app.db.models.migration import MigrationStatus, MigrationEntity
+from app.db.models.user_device import DeviceModel
 from app.api.v1.auth.schemas import UserResponse
 from app.api.v1.orders.schemas import OrderRead
 
@@ -13,19 +14,31 @@ class AdminDeviceRead(BaseModel):
     user_id: UUID
     device_uid: str
     name: Optional[str] = None
-    model: Optional[str] = None
+    model: DeviceModel
     is_active: bool
     registered_at: datetime
     last_seen_at: Optional[datetime] = None
     comment: Optional[str] = None
     oc_device_id: Optional[int] = None
+    user_email: Optional[str] = None
+    user_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class AdminDeviceUpdate(BaseModel):
+class AdminDeviceCreate(BaseModel):
+    device_uid: str
+    user_id: UUID
+    model: DeviceModel = DeviceModel.WIFI_OBD2
     name: Optional[str] = None
-    model: Optional[str] = None
+    comment: Optional[str] = None
+    is_active: bool = True
+
+
+class AdminDeviceUpdate(BaseModel):
+    user_id: Optional[UUID] = None
+    name: Optional[str] = None
+    model: Optional[DeviceModel] = None
     is_active: Optional[bool] = None
     comment: Optional[str] = None
 
@@ -84,7 +97,7 @@ class AdminUserDeviceRead(BaseModel):
     id: UUID
     device_uid: str
     name: Optional[str] = None
-    model: Optional[str] = None
+    model: DeviceModel
     last_seen_at: Optional[datetime] = None
     is_active: bool
 

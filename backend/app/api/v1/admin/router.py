@@ -1,4 +1,4 @@
-# Module: api/v1/admin/router.py | Agent: backend-agent | Task: p12_backend_admin_stats
+# Module: api/v1/admin/router.py | Agent: backend-agent | Task: admin_devices_crud
 import io
 import uuid as _uuid_module
 import openpyxl
@@ -15,10 +15,11 @@ from app.core.dependencies import require_admin, get_product_repo, get_db, get_c
 from app.db.models.order import Order, OrderStatus, OrderItem
 from app.db.models.product import ProductVariant, Product
 from app.db.models.user import User
-from app.db.models.user_device import UserDevice
+from app.db.models.user_device import UserDevice, DeviceModel
 from app.api.v1.auth.schemas import UserResponse
 from app.api.v1.admin.schemas import (
     AdminDeviceRead,
+    AdminDeviceCreate,
     AdminDeviceUpdate,
     AdminUserFullResponse,
     MigrationJobResponse,
@@ -869,22 +870,32 @@ async def list_all_devices(
     ]}
 
 # ─── Devices CRUD ────────────────────────────────────────────────────────────
+@router.get("/device-models", response_model=List[str])
+async def list_device_models(_admin: User = AdminDep) -> List[str]:
+    """Return list of allowed device models."""
+    return [m.value for m in DeviceModel]
+
+
 @router.get("/devices", response_model=dict)
 async def list_devices(
     user_id: Optional[UUID] = Query(None),
     is_active: Optional[bool] = Query(None),
+    model: Optional[DeviceModel] = Query(None, description="Filter by device model"),
     search: Optional[str] = Query(None, description="Search by device_uid or name"),
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),
     _admin: User = AdminDep,
     session: AsyncSession = Depends(get_db),
+    user_repo: UserRepository = Depends(get_user_repo)
 ) -> Any:
-    """List all UserDevice records with optional filters."""
-    stmt = select(UserDevice)
+    """List all UserDevice records with optional filters and user info."""
+    stmt = select(UserDevice).join(User, UserDevice.user_id == User.id)
     if user_id is not None:
         stmt = stmt.where(UserDevice.user_id == user_id)
     if is_active is not None:
         stmt = stmt.where(UserDevice.is_active == is_active)
+    if model is not None:
+        stmt = stmt.where(UserDevice.model == model)
     if search:
         pattern = f"%{search}%"
         stmt = stmt.where(
@@ -893,19 +904,87 @@ async def list_devices(
                 UserDevice.name.ilike(pattern),
             )
         )
+    
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total: int = int((await session.execute(count_stmt)).scalar() or 0)
+    
     offset = (page - 1) * per_page
-    stmt = stmt.order_by(UserDevice.registered_at.desc()).offset(offset).limit(per_page)
-    result = await session.execute(stmt)
-    items = result.scalars().all()
+    
+    # We use select(UserDevice, User) to get both
+    items_stmt = select(UserDevice, User).join(User, UserDevice.user_id == User.id)
+    # Re-apply filters to the new stmt
+    if user_id is not None:
+        items_stmt = items_stmt.where(UserDevice.user_id == user_id)
+    if is_active is not None:
+        items_stmt = items_stmt.where(UserDevice.is_active == is_active)
+    if model is not None:
+        items_stmt = items_stmt.where(UserDevice.model == model)
+    if search:
+        pattern = f"%{search}%"
+        items_stmt = items_stmt.where(
+            or_(
+                UserDevice.device_uid.ilike(pattern),
+                UserDevice.name.ilike(pattern),
+            )
+        )
+    items_stmt = items_stmt.order_by(UserDevice.registered_at.desc()).offset(offset).limit(per_page)
+    
+    result = await session.execute(items_stmt)
+    rows = result.all()
+    
+    items = []
+    for dev, user in rows:
+        decrypted_user = user_repo._decrypt_user(user)
+        dev_data = AdminDeviceRead.model_validate(dev)
+        dev_data.user_email = decrypted_user.email
+        dev_data.user_name = decrypted_user.full_name
+        items.append(dev_data)
+
     logger.info("admin_action", admin_id=str(_admin.id), action="list_devices", target_id=None)
     return {
-        "items": [AdminDeviceRead.model_validate(d) for d in items],
+        "items": items,
         "total": total,
         "page": page,
         "per_page": per_page,
     }
+
+
+@router.post("/devices", response_model=AdminDeviceRead, status_code=status.HTTP_201_CREATED)
+async def create_device(
+    payload: AdminDeviceCreate,
+    _admin: User = AdminDep,
+    session: AsyncSession = Depends(get_db),
+    user_repo: UserRepository = Depends(get_user_repo)
+) -> Any:
+    """Create a new device for a user."""
+    # Check if user exists
+    user = await user_repo.get_by_id(payload.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if UID is unique
+    existing_stmt = select(UserDevice).where(UserDevice.device_uid == payload.device_uid)
+    existing = (await session.execute(existing_stmt)).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=400, detail="Device with this UID already exists")
+    
+    new_dev = UserDevice(
+        user_id=payload.user_id,
+        device_uid=payload.device_uid,
+        model=payload.model,
+        name=payload.name,
+        comment=payload.comment,
+        is_active=payload.is_active
+    )
+    session.add(new_dev)
+    await session.commit()
+    await session.refresh(new_dev)
+    
+    # Return with user info
+    res = AdminDeviceRead.model_validate(new_dev)
+    res.user_email = user.email
+    res.user_name = user.full_name
+    return res
 
 
 @router.get("/devices/{device_id}", response_model=AdminDeviceRead)
@@ -913,14 +992,23 @@ async def get_device(
     device_id: UUID,
     _admin: User = AdminDep,
     session: AsyncSession = Depends(get_db),
+    user_repo: UserRepository = Depends(get_user_repo)
 ) -> Any:
-    """Get device details by UUID."""
-    result = await session.execute(select(UserDevice).where(UserDevice.id == device_id))
-    dev = result.scalar_one_or_none()
-    if not dev:
+    """Get device details by UUID with user info."""
+    stmt = select(UserDevice, User).join(User, UserDevice.user_id == User.id).where(UserDevice.id == device_id)
+    result = await session.execute(stmt)
+    row = result.first()
+    if not row:
         raise HTTPException(status_code=404, detail="Device not found")
+    
+    dev, user = row
+    decrypted_user = user_repo._decrypt_user(user)
+    res = AdminDeviceRead.model_validate(dev)
+    res.user_email = decrypted_user.email
+    res.user_name = decrypted_user.full_name
+    
     logger.info("admin_action", admin_id=str(_admin.id), action="get_device", target_id=str(device_id))
-    return AdminDeviceRead.model_validate(dev)
+    return res
 
 
 @router.patch("/devices/{device_id}", response_model=AdminDeviceRead)
@@ -929,19 +1017,37 @@ async def update_device(
     payload: AdminDeviceUpdate,
     _admin: User = AdminDep,
     session: AsyncSession = Depends(get_db),
+    user_repo: UserRepository = Depends(get_user_repo)
 ) -> Any:
-    """Update device fields (name, model, is_active, comment)."""
-    result = await session.execute(select(UserDevice).where(UserDevice.id == device_id))
-    dev = result.scalar_one_or_none()
-    if not dev:
+    """Update device fields (name, model, user_id, is_active, comment)."""
+    stmt = select(UserDevice, User).join(User, UserDevice.user_id == User.id).where(UserDevice.id == device_id)
+    result = await session.execute(stmt)
+    row = result.first()
+    if not row:
         raise HTTPException(status_code=404, detail="Device not found")
+    
+    dev, user = row
     update_data = payload.model_dump(exclude_none=True)
+    
+    if "user_id" in update_data:
+        new_user = await user_repo.get_by_id(update_data["user_id"])
+        if not new_user:
+            raise HTTPException(status_code=404, detail="New user not found")
+        user = new_user # for response
+
     for field, value in update_data.items():
         setattr(dev, field, value)
+        
     await session.commit()
     await session.refresh(dev)
+    
+    decrypted_user = user_repo._decrypt_user(user)
+    res = AdminDeviceRead.model_validate(dev)
+    res.user_email = decrypted_user.email
+    res.user_name = decrypted_user.full_name
+    
     logger.info("admin_action", admin_id=str(_admin.id), action="update_device", target_id=str(device_id))
-    return AdminDeviceRead.model_validate(dev)
+    return res
 
 
 @router.delete("/devices/{device_id}", status_code=status.HTTP_204_NO_CONTENT)

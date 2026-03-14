@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { useUser, type AdminDeviceRead } from '~/composables/useUser'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useUser, type AdminDeviceRead, type AdminDeviceCreate, type AdminDeviceUpdate } from '~/composables/useUser'
 import { useToast } from '~/composables/useToast'
 import { useConfirm } from '~/composables/useConfirm'
 import UButton from '~/components/U/UButton.vue'
 import UInput from '~/components/U/UInput.vue'
 import UCard from '~/components/U/UCard.vue'
 import USkeleton from '~/components/U/USkeleton.vue'
+import UModal from '~/components/U/UModal.vue'
+import USelect from '~/components/U/USelect.vue'
+import UBadge from '~/components/U/UBadge.vue'
 
 definePageMeta({
   layout: false,
@@ -16,95 +19,163 @@ definePageMeta({
 
 const toast = useToast()
 const { confirm } = useConfirm()
-const { adminGetDevices, adminPatchDevice, adminDeleteDevice } = useUser()
+const { 
+  adminGetDevices, 
+  adminPatchDevice, 
+  adminDeleteDevice, 
+  adminCreateDevice, 
+  adminGetDeviceModels,
+  adminGetUsers,
+  formatDeviceModel
+} = useUser()
 
+// State
 const searchQuery = ref('')
 const isActiveFilter = ref<string>('')
+const modelFilter = ref<string>('')
 const currentPage = ref(1)
 const perPage = 50
+const groupingMode = ref<'user' | 'flat'>('user')
 
+// Models list
+const { data: modelsData } = await adminGetDeviceModels()
+const availableModels = computed(() => modelsData.value || ['wifi_obd2', 'wifi_obd2_advanced'])
+
+// Fetch devices
 const buildParams = () => {
-  const params: Record<string, string | number> = {
+  const params: Record<string, any> = {
     page: currentPage.value,
     per_page: perPage,
   }
   if (searchQuery.value) params.search = searchQuery.value
-  if (isActiveFilter.value !== '') params.is_active = isActiveFilter.value
+  if (isActiveFilter.value !== '') params.is_active = isActiveFilter.value === 'true'
+  if (modelFilter.value) params.model = modelFilter.value
   return params
 }
 
-const queryKey = computed(() =>
-  `admin-devices-p${currentPage.value}-s${searchQuery.value}-a${isActiveFilter.value}`
-)
-
 const { data, pending, error, refresh } = await adminGetDevices(computed(() => buildParams()))
 
-const devices = computed<AdminDeviceRead[]>(() => {
-  if (!data.value) return []
-  if (Array.isArray(data.value)) return data.value
-  if ('items' in data.value) return (data.value as { items: AdminDeviceRead[]; total: number }).items
-  return []
-})
-
-const total = computed<number>(() => {
-  if (!data.value) return 0
-  if (Array.isArray(data.value)) return (data.value as AdminDeviceRead[]).length
-  if ('total' in data.value) return (data.value as { items: AdminDeviceRead[]; total: number }).total
-  return 0
-})
-
+const devices = computed<AdminDeviceRead[]>(() => data.value?.items || [])
+const total = computed(() => data.value?.total || 0)
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / perPage)))
 
-// Debounced search
-let searchTimeout: ReturnType<typeof setTimeout> | null = null
-const onSearchInput = () => {
-  if (searchTimeout) clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(() => {
-    currentPage.value = 1
-    refresh()
-  }, 400)
-}
-
-watch(isActiveFilter, () => {
-  currentPage.value = 1
-  refresh()
+// Grouping
+const groupedDevices = computed(() => {
+  if (groupingMode.value === 'flat') {
+    return [{ id: 'all', title: 'Все устройства', items: devices.value }]
+  }
+  
+  const groups: Record<string, { id: string, title: string, subtitle: string, items: AdminDeviceRead[] }> = {}
+  
+  devices.value.forEach(dev => {
+    const userId = dev.user_id || 'unassigned'
+    if (!groups[userId]) {
+      groups[userId] = {
+        id: userId,
+        title: dev.user_name || 'Без имени',
+        subtitle: dev.user_email || '—',
+        items: []
+      }
+    }
+    groups[userId].items.push(dev)
+  })
+  
+  return Object.values(groups)
 })
 
-const resetFilters = () => {
-  searchQuery.value = ''
-  isActiveFilter.value = ''
-  currentPage.value = 1
-  refresh()
-}
+// Modals state
+const isAddModalOpen = ref(false)
+const isEditModalOpen = ref(false)
+const currentDevice = ref<AdminDeviceRead | null>(null)
 
-// Loading states per device
-const loadingIds = ref<Set<string>>(new Set())
+// Form state
+const deviceForm = ref<AdminDeviceCreate>({
+  device_uid: '',
+  user_id: '',
+  model: 'wifi_obd2',
+  name: '',
+  comment: '',
+  is_active: true
+})
 
-const setLoading = (id: string, val: boolean) => {
-  const next = new Set(loadingIds.value)
-  if (val) next.add(id)
-  else next.delete(id)
-  loadingIds.value = next
-}
+const editForm = ref<AdminDeviceUpdate>({
+  user_id: '',
+  name: '',
+  model: '',
+  comment: '',
+  is_active: true
+})
 
-// Toggle is_active
-const handleToggleActive = async (device: AdminDeviceRead) => {
-  setLoading(device.id, true)
+// User search for creation
+const userSearchQuery = ref('')
+const usersList = ref<any[]>([])
+const isSearchingUsers = ref(false)
+
+const searchUsers = async () => {
+  if (userSearchQuery.value.length < 2) return
+  isSearchingUsers.value = true
   try {
-    await adminPatchDevice(device.id, { is_active: !device.is_active })
-    toast.success(
-      device.is_active ? 'Устройство деактивировано' : 'Устройство активировано'
-    )
-    refresh()
-  } catch (err: unknown) {
-    const apiErr = err as { data?: { detail?: string } }
-    toast.error(apiErr.data?.detail || 'Не удалось изменить статус устройства')
+    const { data: userData } = await adminGetUsers({ q: userSearchQuery.value, per_page: 5 })
+    usersList.value = userData.value?.items || []
+  } catch (err) {
+    console.error(err)
   } finally {
-    setLoading(device.id, false)
+    isSearchingUsers.value = false
   }
 }
 
-// Delete device
+// Actions
+const openAddModal = () => {
+  deviceForm.value = {
+    device_uid: '',
+    user_id: '',
+    model: availableModels.value[0] || 'wifi_obd2',
+    name: '',
+    comment: '',
+    is_active: true
+  }
+  userSearchQuery.value = ''
+  usersList.value = []
+  isAddModalOpen.value = true
+}
+
+const openEditModal = (device: AdminDeviceRead) => {
+  currentDevice.value = device
+  editForm.value = {
+    user_id: device.user_id,
+    name: device.name,
+    model: device.model,
+    comment: device.comment,
+    is_active: device.is_active
+  }
+  userSearchQuery.value = device.user_email || ''
+  usersList.value = [{ id: device.user_id, email: device.user_email, full_name: device.user_name }]
+  isEditModalOpen.value = true
+}
+
+const handleCreate = async () => {
+  try {
+    await adminCreateDevice(deviceForm.value)
+    toast.success('Устройство добавлено')
+    isAddModalOpen.value = false
+    refresh()
+  } catch (err: any) {
+    toast.error(err.data?.detail || 'Ошибка при создании устройства')
+  }
+}
+
+const handleUpdate = async () => {
+  if (!currentDevice.value) return
+  try {
+    await adminPatchDevice(currentDevice.value.id, editForm.value)
+    toast.success('Устройство обновлено')
+    isEditModalOpen.value = false
+    refresh()
+  } catch (err: any) {
+    toast.error(err.data?.detail || 'Ошибка при обновлении устройства')
+  }
+}
+
 const handleDelete = async (device: AdminDeviceRead) => {
   const confirmed = await confirm({
     title: 'Удалить устройство?',
@@ -115,37 +186,59 @@ const handleDelete = async (device: AdminDeviceRead) => {
   })
   if (!confirmed) return
 
-  setLoading(device.id, true)
   try {
     await adminDeleteDevice(device.id)
     toast.success('Устройство удалено')
     refresh()
-  } catch (err: unknown) {
-    const apiErr = err as { data?: { detail?: string } }
-    toast.error(apiErr.data?.detail || 'Не удалось удалить устройство')
-  } finally {
-    setLoading(device.id, false)
+  } catch (err: any) {
+    toast.error(err.data?.detail || 'Не удалось удалить устройство')
   }
 }
 
-const formatDate = (dateString?: string | null) => {
-  if (!dateString) return '—'
-  return new Date(dateString).toLocaleDateString('ru-RU', {
+const handleToggleActive = async (device: AdminDeviceRead) => {
+  try {
+    await adminPatchDevice(device.id, { is_active: !device.is_active })
+    toast.success(device.is_active ? 'Деактивировано' : 'Активировано')
+    refresh()
+  } catch (err: any) {
+    toast.error('Ошибка при изменении статуса')
+  }
+}
+
+// Helpers
+const formatDate = (date?: string | null) => {
+  if (!date) return '—'
+  return new Date(date).toLocaleString('ru-RU', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
   })
 }
 
-const shortUuid = (id?: string | null) => {
-  if (!id) return '—'
-  return id.slice(0, 8)
+const resetFilters = () => {
+  searchQuery.value = ''
+  isActiveFilter.value = ''
+  modelFilter.value = ''
+  currentPage.value = 1
+  refresh()
 }
+
+watch([searchQuery, isActiveFilter, modelFilter], () => {
+  currentPage.value = 1
+  refresh()
+})
 </script>
 
 <template>
   <NuxtLayout name="admin">
     <template #header-title>Устройства</template>
+    <template #header-actions>
+      <UButton variant="primary" icon="ph:plus-bold" @click="openAddModal">
+        Добавить устройство
+      </UButton>
+    </template>
 
     <div class="admin-devices-page" data-testid="admin-devices-page">
       <!-- Filters -->
@@ -156,167 +249,220 @@ const shortUuid = (id?: string | null) => {
               v-model="searchQuery"
               placeholder="Поиск по UID или названию..."
               icon="ph:magnifying-glass-bold"
-              @input="onSearchInput"
               data-testid="device-search-input"
             />
           </div>
-          <div class="status-filter">
-            <select
+          <div class="filter-group">
+            <USelect
               v-model="isActiveFilter"
-              class="native-select"
+              :options="[
+                { label: 'Все статусы', value: '' },
+                { label: 'Активные', value: 'true' },
+                { label: 'Неактивные', value: 'false' }
+              ]"
               data-testid="device-status-filter"
-            >
-              <option value="">Все</option>
-              <option value="true">Активные</option>
-              <option value="false">Неактивные</option>
-            </select>
+            />
+            <USelect
+              v-model="modelFilter"
+              :options="[
+                { label: 'Все модели', value: '' },
+                ...availableModels.map(m => ({ label: formatDeviceModel(m), value: m }))
+              ]"
+              data-testid="device-model-filter"
+            />
+            <USelect
+              v-model="groupingMode"
+              :options="[
+                { label: 'Группировка: Пользователь', value: 'user' },
+                { label: 'Плоский список', value: 'flat' }
+              ]"
+            />
           </div>
-          <UButton variant="ghost" size="sm" @click="resetFilters" data-testid="device-reset-filters">
-            <template #icon><Icon name="ph:x-circle-bold" size="18" /></template>
-            <span class="desktop-only">Сбросить</span>
+          <UButton variant="ghost" size="sm" @click="resetFilters">
+            Сбросить
           </UButton>
         </div>
       </UCard>
 
-      <!-- Table -->
-      <UCard class="table-card">
-        <div v-if="pending" class="loading-state" data-testid="devices-loading">
-          <USkeleton v-for="i in 6" :key="i" height="52px" class="mb-2" />
-        </div>
-        <div v-else-if="error" class="error-state" data-testid="devices-error">
-          Ошибка при загрузке устройств
-        </div>
-        <div v-else class="admin-table-wrapper">
-          <table class="admin-table">
-            <thead>
-              <tr>
-                <th>UID</th>
-                <th class="desktop-only">Название</th>
-                <th class="desktop-only">Модель</th>
-                <th class="desktop-only">Пользователь</th>
-                <th>Статус</th>
-                <th class="desktop-only">Зарегистрировано</th>
-                <th class="desktop-only">Активность</th>
-                <th class="desktop-only">Комментарий</th>
-                <th class="actions-col">Действия</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="device in devices"
-                :key="device.id"
-                data-testid="device-row"
-              >
-                <td>
-                  <div class="device-uid-cell">
-                    <span class="uid-text" :title="device.device_uid">{{ device.device_uid }}</span>
-                    <div class="device-meta-mobile mobile-only">
-                      <span class="meta-name">{{ device.name || '—' }}</span>
-                      <span class="meta-model">{{ device.model || '—' }}</span>
+      <!-- Content -->
+      <div v-if="pending" class="loading-state">
+        <USkeleton v-for="i in 3" :key="i" height="200px" class="mb-4" />
+      </div>
+      
+      <div v-else-if="groupedDevices.length === 0" class="empty-state">
+        <Icon name="ph:cpu-bold" size="48" class="mb-2" />
+        <p>Устройства не найдены</p>
+      </div>
+
+      <div v-else class="groups-container">
+        <div v-for="group in groupedDevices" :key="group.id" class="device-group">
+          <div v-if="groupingMode === 'user' && group.id !== 'unassigned'" class="group-header">
+            <NuxtLink :to="`/admin/users/${group.id}`" class="group-title">
+              {{ group.title }}
+              <span class="group-subtitle">{{ group.subtitle }}</span>
+            </NuxtLink>
+            <UBadge variant="secondary">{{ group.items.length }}</UBadge>
+          </div>
+          <div v-else-if="groupingMode === 'flat'" class="group-header">
+            <span class="group-title">{{ group.title }}</span>
+            <UBadge variant="secondary">{{ total }}</UBadge>
+          </div>
+
+          <div class="devices-grid">
+            <div v-for="device in group.items" :key="device.id" class="device-card-wrapper">
+              <UCard class="device-card" @click="openEditModal(device)">
+                <div class="device-card-header">
+                  <code class="device-uid">{{ device.device_uid }}</code>
+                  <UBadge :variant="device.is_active ? 'success' : 'secondary'">
+                    {{ device.is_active ? 'Активен' : 'Отключен' }}
+                  </UBadge>
+                </div>
+                
+                <div class="device-card-body">
+                  <div class="main-info">
+                    <h4 class="device-name">{{ device.name || 'Без названия' }}</h4>
+                    <span class="device-model">{{ formatDeviceModel(device.model) }}</span>
+                  </div>
+                  
+                  <div class="meta-info">
+                    <div class="meta-item">
+                      <Icon name="ph:calendar-bold" />
+                      <span>Рег: {{ formatDate(device.registered_at) }}</span>
+                    </div>
+                    <div class="meta-item" v-if="device.last_seen_at">
+                      <Icon name="ph:broadcast-bold" />
+                      <span>Был: {{ formatDate(device.last_seen_at) }}</span>
                     </div>
                   </div>
-                </td>
-                <td class="desktop-only">
-                  <span class="device-name">{{ device.name || '—' }}</span>
-                </td>
-                <td class="desktop-only">
-                  <span class="device-model">{{ device.model || '—' }}</span>
-                </td>
-                <td class="desktop-only">
-                  <NuxtLink
-                    v-if="device.user_id"
-                    :to="`/admin/users/${device.user_id}`"
-                    class="user-link"
-                    :title="device.user_id"
-                    data-testid="device-user-link"
-                  >
-                    {{ shortUuid(device.user_id) }}
-                  </NuxtLink>
-                  <span v-else class="text-muted">—</span>
-                </td>
-                <td>
-                  <span
-                    :class="device.is_active ? 'badge-active' : 'badge-inactive'"
-                    data-testid="device-status-badge"
-                  >
-                    {{ device.is_active ? 'Активно' : 'Неактивно' }}
-                  </span>
-                </td>
-                <td class="desktop-only text-sm">
-                  {{ formatDate(device.registered_at) }}
-                </td>
-                <td class="desktop-only text-sm">
-                  {{ formatDate(device.last_seen_at) }}
-                </td>
-                <td class="desktop-only comment-cell">
-                  <span :title="device.comment || undefined">{{ device.comment || '—' }}</span>
-                </td>
-                <td class="actions-cell">
-                  <div class="actions-group">
-                    <UButton
-                      :variant="device.is_active ? 'ghost' : 'primary'"
-                      size="sm"
-                      :loading="loadingIds.has(device.id)"
-                      :aria-label="device.is_active ? 'Деактивировать' : 'Активировать'"
-                      data-testid="device-toggle-btn"
-                      @click="handleToggleActive(device)"
-                    >
-                      <template #icon>
-                        <Icon
-                          :name="device.is_active ? 'ph:toggle-right-bold' : 'ph:toggle-left-bold'"
-                          size="20"
-                        />
-                      </template>
-                    </UButton>
-                    <UButton
-                      variant="ghost"
-                      size="sm"
-                      :loading="loadingIds.has(device.id)"
-                      aria-label="Удалить устройство"
-                      data-testid="device-delete-btn"
-                      @click="handleDelete(device)"
-                    >
-                      <template #icon>
-                        <Icon name="ph:trash-bold" size="20" />
-                      </template>
-                    </UButton>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                </div>
 
-          <div v-if="devices.length === 0" class="empty-state" data-testid="devices-empty">
-            Устройства не найдены
+                <div class="device-card-actions" @click.stop>
+                  <UButton variant="ghost" size="sm" @click="handleToggleActive(device)">
+                    <Icon :name="device.is_active ? 'ph:toggle-right-fill' : 'ph:toggle-left'" size="20" />
+                  </UButton>
+                  <UButton variant="ghost" size="sm" @click="handleDelete(device)">
+                    <Icon name="ph:trash-bold" size="18" />
+                  </UButton>
+                </div>
+              </UCard>
+            </div>
           </div>
         </div>
-      </UCard>
+      </div>
 
       <!-- Pagination -->
-      <div v-if="total > perPage" class="pagination" data-testid="devices-pagination">
-        <UButton
-          variant="ghost"
-          :disabled="currentPage === 1"
-          data-testid="devices-prev-page"
-          @click="currentPage--; refresh()"
-        >
-          <template #icon><Icon name="ph:caret-left-bold" /></template>
-          <span class="desktop-only">Предыдущая</span>
-        </UButton>
-        <span class="page-info" data-testid="devices-page-info">
-          Страница {{ currentPage }} из {{ totalPages }}
-        </span>
-        <UButton
-          variant="ghost"
-          :disabled="currentPage >= totalPages"
-          data-testid="devices-next-page"
-          @click="currentPage++; refresh()"
-        >
-          <span class="desktop-only">Следующая</span>
-          <template #icon><Icon name="ph:caret-right-bold" /></template>
-        </UButton>
+      <div v-if="total > perPage" class="pagination-footer">
+        <p class="pagination-info">Показано {{ (currentPage - 1) * perPage + 1 }} - {{ Math.min(currentPage * perPage, total) }} из {{ total }}</p>
+        <div class="pagination-controls">
+          <UButton variant="ghost" :disabled="currentPage === 1" @click="currentPage--">Назад</UButton>
+          <span class="page-num">{{ currentPage }} / {{ totalPages }}</span>
+          <UButton variant="ghost" :disabled="currentPage === totalPages" @click="currentPage++">Вперед</UButton>
+        </div>
       </div>
     </div>
+
+    <!-- Add Modal -->
+    <UModal v-model="isAddModalOpen" title="Добавить устройство">
+      <div class="device-form">
+        <div class="form-section">
+          <label>Пользователь</label>
+          <UInput 
+            v-model="userSearchQuery" 
+            placeholder="Поиск по email или имени..." 
+            @input="searchUsers"
+          />
+          <div v-if="usersList.length > 0" class="user-search-results">
+            <div 
+              v-for="user in usersList" 
+              :key="user.id" 
+              class="user-result-item"
+              :class="{ selected: deviceForm.user_id === user.id }"
+              @click="deviceForm.user_id = user.id; userSearchQuery = user.email"
+            >
+              <span class="user-email">{{ user.email }}</span>
+              <span class="user-name">{{ user.full_name }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-section">
+            <label>UID (S/N)</label>
+            <UInput v-model="deviceForm.device_uid" placeholder="MAC или Serial" />
+          </div>
+          <div class="form-section">
+            <label>Модель</label>
+            <USelect v-model="deviceForm.model" :options="availableModels.map(m => ({ label: formatDeviceModel(m), value: m }))" />
+          </div>
+        </div>
+
+        <div class="form-section">
+          <label>Название (опционально)</label>
+          <UInput v-model="deviceForm.name" placeholder="Напр. Машина жены" />
+        </div>
+
+        <div class="form-section">
+          <label>Комментарий</label>
+          <UInput v-model="deviceForm.comment" placeholder="Служебная заметка..." />
+        </div>
+      </div>
+      <template #footer>
+        <UButton variant="ghost" @click="isAddModalOpen = false">Отмена</UButton>
+        <UButton variant="primary" :disabled="!deviceForm.user_id || !deviceForm.device_uid" @click="handleCreate">Создать</UButton>
+      </template>
+    </UModal>
+
+    <!-- Edit Modal -->
+    <UModal v-model="isEditModalOpen" title="Редактировать устройство">
+      <div class="device-form">
+        <div class="form-section">
+          <label>Владелец</label>
+          <UInput 
+            v-model="userSearchQuery" 
+            placeholder="Сменить владельца (email)..." 
+            @input="searchUsers"
+          />
+          <div v-if="usersList.length > 0" class="user-search-results">
+            <div 
+              v-for="user in usersList" 
+              :key="user.id" 
+              class="user-result-item"
+              :class="{ selected: editForm.user_id === user.id }"
+              @click="editForm.user_id = user.id; userSearchQuery = user.email"
+            >
+              <span class="user-email">{{ user.email }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-section">
+            <label>Название</label>
+            <UInput v-model="editForm.name" />
+          </div>
+          <div class="form-section">
+            <label>Модель</label>
+            <USelect v-model="editForm.model" :options="availableModels.map(m => ({ label: formatDeviceModel(m), value: m }))" />
+          </div>
+        </div>
+
+        <div class="form-section">
+          <label>Комментарий</label>
+          <UInput v-model="editForm.comment" />
+        </div>
+
+        <div class="form-section">
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="editForm.is_active" />
+            Устройство активно
+          </label>
+        </div>
+      </div>
+      <template #footer>
+        <UButton variant="ghost" @click="isEditModalOpen = false">Отмена</UButton>
+        <UButton variant="primary" @click="handleUpdate">Сохранить</UButton>
+      </template>
+    </UModal>
   </NuxtLayout>
 </template>
 
@@ -324,216 +470,232 @@ const shortUuid = (id?: string | null) => {
 .admin-devices-page {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-}
-
-.filters-card :deep(.card__body) {
-  padding: 12px;
+  gap: 24px;
 }
 
 .filters {
   display: flex;
-  gap: 12px;
+  gap: 16px;
   align-items: center;
   flex-wrap: wrap;
 }
 
 .search-box {
   flex: 1;
-  min-width: 200px;
+  min-width: 250px;
 }
 
-.status-filter {
-  width: auto;
-}
-
-.native-select {
-  height: 44px;
-  padding: 0 12px;
-  background-color: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-  border-radius: var(--radius-md);
-  font-family: inherit;
-  font-size: var(--text-sm);
-  outline: none;
-  cursor: pointer;
-  min-width: 130px;
-}
-
-.native-select:focus {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 2px var(--color-accent-glow);
-}
-
-.table-card :deep(.card__body) {
-  padding: 0;
-}
-
-.table-card {
-  overflow: hidden;
-}
-
-.actions-col,
-.actions-cell {
-  text-align: right;
-  width: 56px;
-}
-
-@media (min-width: 768px) {
-  .actions-col,
-  .actions-cell {
-    width: 100px;
-  }
-}
-
-.actions-group {
+.filter-group {
   display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.groups-container {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.device-group {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.group-header {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border);
 }
 
-.device-uid-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.uid-text {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  font-weight: 600;
+.group-title {
+  font-size: var(--text-lg);
+  font-weight: 700;
   color: var(--color-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.device-meta-mobile {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  text-decoration: none;
 }
 
-.meta-name {
+.group-subtitle {
   font-size: var(--text-xs);
-  font-weight: 600;
+  font-weight: 400;
   color: var(--color-text-2);
 }
 
-.meta-model {
+.devices-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.device-card {
+  height: 100%;
+  cursor: pointer;
+  transition: transform 0.2s;
+  position: relative;
+}
+
+.device-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-accent);
+}
+
+.device-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.device-uid {
+  font-family: var(--font-mono);
   font-size: var(--text-xs);
-  color: var(--color-muted);
+  color: var(--color-text-2);
+  background: var(--color-surface-2);
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
 .device-name {
-  font-weight: 500;
-  color: var(--color-text);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
+  font-weight: 700;
+  margin: 0;
 }
 
 .device-model {
-  color: var(--color-text-2);
-  font-size: var(--text-sm);
-}
-
-.user-link {
-  font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--color-accent);
-  text-decoration: none;
+  text-transform: uppercase;
   font-weight: 600;
-  transition: opacity var(--transition-fast);
 }
 
-.user-link:hover {
-  opacity: 0.75;
-  text-decoration: underline;
-}
-
-.text-muted {
-  color: var(--color-muted);
-  font-size: var(--text-sm);
-}
-
-.badge-active {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  background: var(--color-success-bg);
-  color: var(--color-success);
-  white-space: nowrap;
-}
-
-.badge-inactive {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  background: var(--color-surface-3);
-  color: var(--color-text-2);
-  white-space: nowrap;
-}
-
-.comment-cell {
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--color-text-2);
-  font-size: var(--text-xs);
-}
-
-.text-sm {
-  font-size: var(--text-sm);
-  color: var(--color-text-2);
-}
-
-.loading-state,
-.error-state,
-.empty-state {
-  padding: 48px;
-  text-align: center;
-  color: var(--color-text-2);
-}
-
-.pagination {
+.meta-info {
+  margin-top: 16px;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-xs);
+  color: var(--color-text-2);
+}
+
+.device-card-actions {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: none;
+  gap: 4px;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.device-card:hover .device-card-actions {
+  display: flex;
+}
+
+.pagination-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.pagination-info {
+  font-size: var(--text-sm);
+  color: var(--color-text-2);
+}
+
+.pagination-controls {
+  display: flex;
   align-items: center;
   gap: 16px;
-  margin-top: 8px;
 }
 
-.page-info {
-  font-weight: 600;
-  font-family: var(--font-mono);
+.device-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-section label {
   font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.user-search-results {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-top: 4px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.user-result-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+}
+
+.user-result-item:hover {
+  background: var(--color-surface-3);
+}
+
+.user-result-item.selected {
+  background: var(--color-accent-glow);
+  border-left: 3px solid var(--color-accent);
+}
+
+.user-email {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.user-name {
+  font-size: var(--text-xs);
   color: var(--color-text-2);
 }
 
-/* mobile-only helper — duplicated for scoped context */
-.mobile-only {
-  display: none;
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  cursor: pointer;
 }
 
 @media (max-width: 768px) {
-  .mobile-only {
-    display: flex;
+  .devices-grid {
+    grid-template-columns: 1fr;
   }
-  .desktop-only {
-    display: none;
+  .form-grid {
+    grid-template-columns: 1fr;
   }
-}
-
-.mb-2 {
-  margin-bottom: 8px;
 }
 </style>

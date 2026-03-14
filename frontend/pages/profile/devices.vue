@@ -14,22 +14,32 @@ useHead({
   ]
 })
 
-const { devices, pending, fetchDevices, registerDevice } = useIoT()
+const { devices, pending, fetchDevices, registerDevice, formatDeviceModel } = useIoT()
 const toast = useToast()
 
 const schema = zod.object({
   device_uid: zod.string().min(5, 'UID должен быть не короче 5 символов').max(50, 'UID слишком длинный'),
   name: zod.string().min(2, 'Имя устройства не короче 2 символов').max(50, 'Имя слишком длинное').nullable().optional(),
-  model: zod.string().max(50, 'Модель слишком длинная').nullable().optional()
+  model: zod.enum(['wifi_obd2', 'wifi_obd2_advanced'], {
+    errorMap: () => ({ message: 'Выберите модель из списка' })
+  })
 })
 
 const { handleSubmit, resetForm, errors, defineField } = useForm({
-  validationSchema: toTypedSchema(schema)
+  validationSchema: toTypedSchema(schema),
+  initialValues: {
+    model: 'wifi_obd2'
+  }
 })
 
 const [device_uid, device_uidProps] = defineField('device_uid')
 const [name, nameProps] = defineField('name')
 const [model, modelProps] = defineField('model')
+
+const availableModels = [
+  { label: 'Wifi OBD2', value: 'wifi_obd2' },
+  { label: 'Wifi OBD2 Advanced', value: 'wifi_obd2_advanced' }
+]
 
 const showAddForm = ref(false)
 
@@ -112,10 +122,10 @@ const onSubmit = handleSubmit(async (values) => {
 
               <div class="form-group">
                 <label>Модель</label>
-                <UInput
+                <USelect
                   v-model="model"
                   v-bind="modelProps"
-                  placeholder="OBD-II Dongle"
+                  :options="availableModels"
                   :error="errors.model"
                   icon="ph:package-bold"
                 />
@@ -166,7 +176,7 @@ const onSubmit = handleSubmit(async (values) => {
                 </div>
                 <div class="device-details">
                   <h4 class="device-name">{{ device.name || 'Безымянное устройство' }}</h4>
-                  <p class="device-model">{{ device.model || 'Неизвестная модель' }}</p>
+                  <p class="device-model">{{ formatDeviceModel(device.model) }}</p>
                   <code class="device-uid">{{ device.device_uid }}</code>
                 </div>
               </div>

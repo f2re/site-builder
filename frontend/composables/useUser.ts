@@ -69,24 +69,44 @@ export interface AdminDeliveryAddressRead {
 
 export interface AdminUserDeviceRead {
   id: string
-  device_id: string
+  device_uid: string
   name: string | null
-  last_activity: string | null
-  is_online: boolean
+  model: string
+  last_seen_at: string | null
+  is_active: boolean
 }
 
 export interface AdminDeviceRead {
   id: string
-  user_id: string | null
+  user_id: string
   device_uid: string
   name: string | null
-  model: string | null
+  model: string
   firmware_version: string | null
   is_active: boolean
   last_seen_at: string | null
-  registered_at: string | null
+  registered_at: string
   comment: string | null
   oc_device_id: number | null
+  user_email?: string
+  user_name?: string
+}
+
+export interface AdminDeviceCreate {
+  device_uid: string
+  user_id: string
+  model: string
+  name?: string | null
+  comment?: string | null
+  is_active?: boolean
+}
+
+export interface AdminDeviceUpdate {
+  user_id?: string
+  name?: string | null
+  model?: string | null
+  is_active?: boolean
+  comment?: string | null
 }
 
 export interface AdminUserFullResponse {
@@ -240,7 +260,20 @@ export const useUser = () => {
     })
   }
 
-  const adminPatchDevice = async (deviceId: string, data: Partial<Pick<AdminDeviceRead, 'name' | 'model' | 'is_active' | 'comment'>>) => {
+  const adminGetDeviceModels = () => {
+    return useApi<string[]>('/admin/device-models', {
+      key: 'admin-device-models'
+    })
+  }
+
+  const adminCreateDevice = async (data: AdminDeviceCreate) => {
+    return await apiFetch<AdminDeviceRead>('/admin/devices', {
+      method: 'POST',
+      body: data
+    })
+  }
+
+  const adminPatchDevice = async (deviceId: string, data: AdminDeviceUpdate) => {
     return await apiFetch<AdminDeviceRead>(`/admin/devices/${deviceId}`, {
       method: 'PATCH',
       body: data
@@ -251,6 +284,14 @@ export const useUser = () => {
     return await apiFetch(`/admin/devices/${deviceId}`, {
       method: 'DELETE'
     })
+  }
+
+  const formatDeviceModel = (model: string) => {
+    const models: Record<string, string> = {
+      'wifi_obd2': 'Wifi OBD2',
+      'wifi_obd2_advanced': 'Wifi OBD2 Advanced'
+    }
+    return models[model] || model
   }
 
   return {
@@ -271,7 +312,10 @@ export const useUser = () => {
     adminGetUserFull,
     adminGetUserDevices,
     adminGetDevices,
+    adminGetDeviceModels,
+    adminCreateDevice,
     adminPatchDevice,
-    adminDeleteDevice
+    adminDeleteDevice,
+    formatDeviceModel
   }
 }

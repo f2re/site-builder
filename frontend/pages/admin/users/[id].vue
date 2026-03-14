@@ -380,10 +380,20 @@ const handleBlockStatus = async () => {
 
               <!-- Devices Section -->
               <div v-if="activeTab === 'devices'" class="section-fade-in">
-                <h3 class="text-lg font-bold mb-6 flex items-center gap-2 text-text">
-                  <Icon name="ph:cpu-bold" class="text-success" />
-                  IoT Устройства
-                </h3>
+                <div class="flex items-center justify-between mb-6">
+                  <h3 class="text-lg font-bold flex items-center gap-2 text-text">
+                    <Icon name="ph:cpu-bold" class="text-success" />
+                    IoT Устройства
+                  </h3>
+                  <UButton 
+                    variant="ghost" 
+                    size="sm" 
+                    :to="`/admin/devices?user_id=${userId}`"
+                    icon="ph:arrow-square-out-bold"
+                  >
+                    Посмотреть все
+                  </UButton>
+                </div>
 
                 <div v-if="devicesPending" class="empty-placeholder">
                   <Icon name="ph:spinner-bold" size="32" class="mb-2 opacity-50" />

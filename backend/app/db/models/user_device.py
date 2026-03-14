@@ -1,10 +1,16 @@
-# Module: db/models/user_device.py | Agent: backend-agent | Task: stage2_rbac
+# Module: db/models/user_device.py | Agent: backend-agent | Task: admin_devices_crud
 import uuid
+import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, Integer, Text
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, Integer, Text, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
+
+
+class DeviceModel(str, enum.Enum):
+    WIFI_OBD2 = "wifi_obd2"
+    WIFI_OBD2_ADVANCED = "wifi_obd2_advanced"
 
 
 class UserDevice(Base):
@@ -19,7 +25,9 @@ class UserDevice(Base):
     # Hardware identifier — MAC address, serial number, etc.
     device_uid: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    model: Mapped[DeviceModel] = mapped_column(
+        Enum(DeviceModel), nullable=False, default=DeviceModel.WIFI_OBD2
+    )
     firmware_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(

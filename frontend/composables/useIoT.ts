@@ -103,6 +103,15 @@ export const useIoT = () => {
     return socket
   }
 
+  const formatDeviceModel = (model: string | null) => {
+    if (!model) return 'Неизвестная модель'
+    const models: Record<string, string> = {
+      'wifi_obd2': 'Wifi OBD2',
+      'wifi_obd2_advanced': 'Wifi OBD2 Advanced'
+    }
+    return models[model] || model
+  }
+
   return {
     devices,
     pending,
@@ -110,6 +119,7 @@ export const useIoT = () => {
     fetchDevices,
     registerDevice,
     getDevice,
-    connectDevice
+    connectDevice,
+    formatDeviceModel
   }
 }
