@@ -24,7 +24,7 @@ from app.db.models.migration import MigrationEntity, MigrationJob, MigrationStat
 from app.db.models.order import Order, OrderItem, OrderStatus
 from app.db.models.product import Category, Product, ProductImage, ProductVariant, ProductOptionGroup, ProductOptionValue
 from app.db.models.user import User
-from app.db.models.user_device import UserDevice
+from app.db.models.user_device import UserDevice, DeviceModel
 from app.db.models.delivery_address import DeliveryAddress
 from app.db.models.firmware import ModuleDevice
 from app.db.opencart_models import (
@@ -1118,13 +1118,21 @@ class MigrationService:
                         mod_res = await self.session.execute(mod_stmt)
                         module_device_id = mod_res.scalar_one_or_none()
 
+                    # Map OpenCart device_type string to DeviceModel enum
+                    _oc_model_map = {
+                        "wifi obd2 advanced": DeviceModel.WIFI_OBD2_ADVANCED,
+                        "wifi obd2": DeviceModel.WIFI_OBD2,
+                    }
+                    _raw_type = (oc_dev.device_type or "").strip().lower()
+                    device_model = _oc_model_map.get(_raw_type, DeviceModel.WIFI_OBD2)
+
                     # BUG FIX: Use SAVEPOINT instead of full rollback
                     async with self.session.begin_nested():
                         new_device = UserDevice(
                             user_id=user.id,
                             device_uid=device_uid,
                             name=oc_dev.device_name or None,
-                            model=oc_dev.device_type or None,
+                            model=device_model,
                             registered_at=registered_at,
                             comment=oc_dev.comment,
                             oc_device_id=oc_dev.device_id,

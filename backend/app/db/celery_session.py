@@ -19,13 +19,10 @@ from app.core.config import settings
 
 def _create_celery_engine() -> AsyncEngine:
     """Create a fresh async engine for the current event loop."""
-    test_url = os.getenv("TEST_DATABASE_URL")
-    if test_url:
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        test_url = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///./test.db")
         db_url = test_url
         poolclass = StaticPool if "sqlite" in test_url else NullPool
-    elif os.getenv("PYTEST_CURRENT_TEST"):
-        db_url = "sqlite+aiosqlite:///./test.db"
-        poolclass = StaticPool
     else:
         db_url = settings.DATABASE_URL
         poolclass = NullPool
