@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 
 import bleach
 import httpx
+import structlog
 from bs4 import BeautifulSoup, Tag as BSTag
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm.attributes import flag_modified
@@ -103,6 +104,8 @@ _BLEACH_ALLOWED_TAGS: list[str] = [
 ]
 
 T = TypeVar("T")
+
+logger = structlog.get_logger()
 
 
 class MigrationService:
@@ -1664,6 +1667,7 @@ class MigrationService:
 
             processed = 0
             skipped = 0
+            errors_count = 0
             last_id = job.last_oc_id or 0
 
             # Status mapping: OC 1->PENDING, 2->PROCESSING, 5->DELIVERED, 7/14->CANCELLED.
@@ -1681,7 +1685,10 @@ class MigrationService:
                 existing = await self.session.execute(order_check_stmt)
                 if existing.scalar_one_or_none():
                     skipped += 1
-                else:
+                    last_id = oc_order.order_id
+                    continue
+
+                try:
                     # Link to migrated users and products
                     if not oc_order.email or not oc_order.email.strip():
                         if oc_order.customer_id:
@@ -1690,51 +1697,69 @@ class MigrationService:
                             email_hash = hashlib.sha256(f"empty_order_{oc_order.order_id}".encode()).hexdigest()
                     else:
                         email_hash = get_blind_index(oc_order.email)
-                        
+
                     user_stmt = select(User).where(User.email_hash == email_hash)
                     user_res = await self.session.execute(user_stmt)
                     user = user_res.scalar_one_or_none()
 
-                    new_order = Order(
-                        user_id=user.id if user else None,
-                        status=status_map.get(oc_order.order_status_id, OrderStatus.PENDING),
-                        total_amount=oc_order.total,
-                        currency=oc_order.currency_code,
-                        shipping_address=f"{oc_order.shipping_address_1}, {oc_order.shipping_city}, {oc_order.shipping_country}",
-                        oc_order_id=oc_order.order_id,
-                        created_at=(
-                            oc_order.date_added.replace(tzinfo=timezone.utc)
-                            if oc_order.date_added
-                            else datetime.now(timezone.utc)
-                        ),
-                    )
-                    self.session.add(new_order)
-
-                    # Migrate order items
+                    # Fetch order items from OC before SAVEPOINT
                     item_stmt = select(OCOrderProduct).where(OCOrderProduct.order_id == oc_order.order_id)
                     item_res = await oc_session.execute(item_stmt)
                     oc_items = item_res.scalars().all()
 
-                    for oc_item in oc_items:
-                        # Find variant by oc_product_id
-                        var_stmt = (
-                            select(ProductVariant)
-                            .join(Product)
-                            .where(Product.oc_product_id == oc_item.product_id)
+                    # BUG FIX: Use SAVEPOINT so one bad order doesn't crash the batch
+                    async with self.session.begin_nested():
+                        new_order = Order(
+                            user_id=user.id if user else None,
+                            status=status_map.get(oc_order.order_status_id, OrderStatus.PENDING),
+                            total_amount=oc_order.total,
+                            currency=oc_order.currency_code,
+                            shipping_address=f"{oc_order.shipping_address_1}, {oc_order.shipping_city}, {oc_order.shipping_country}",
+                            oc_order_id=oc_order.order_id,
+                            created_at=(
+                                oc_order.date_added.replace(tzinfo=timezone.utc)
+                                if oc_order.date_added
+                                else datetime.now(timezone.utc)
+                            ),
                         )
-                        var_res = await self.session.execute(var_stmt)
-                        variant = var_res.scalar_one_or_none()
+                        self.session.add(new_order)
 
-                        if variant:
-                            order_item = OrderItem(
-                                order=new_order,
-                                product_variant_id=variant.id,
-                                quantity=oc_item.quantity,
-                                price=oc_item.price,
+                        for oc_item in oc_items:
+                            # Find variant by oc_product_id
+                            var_stmt = (
+                                select(ProductVariant)
+                                .join(Product)
+                                .where(Product.oc_product_id == oc_item.product_id)
                             )
-                            self.session.add(order_item)
+                            var_res = await self.session.execute(var_stmt)
+                            variant = var_res.scalar_one_or_none()
+
+                            if variant:
+                                order_item = OrderItem(
+                                    order=new_order,
+                                    product_variant_id=variant.id,
+                                    quantity=oc_item.quantity,
+                                    price=oc_item.price,
+                                )
+                                self.session.add(order_item)
+
+                        await self.session.flush()
 
                     processed += 1
+                except Exception as exc:
+                    # Rollback only to SAVEPOINT, not entire batch
+                    err_str = str(exc)
+                    await self._log_migration(
+                        job.id, "ERROR",
+                        f"Failed to migrate order oc_id={oc_order.order_id}: {err_str}",
+                        oc_id=oc_order.order_id,
+                    )
+                    errors_count += 1
+                    logger.warning(
+                        "migrate_orders_error",
+                        oc_order_id=oc_order.order_id,
+                        error=err_str,
+                    )
 
                 last_id = oc_order.order_id
 
@@ -1744,6 +1769,14 @@ class MigrationService:
             job.last_oc_id = last_id
 
             await self.session.commit()
+
+            logger.info(
+                "migrate_orders_batch",
+                migrated=processed,
+                skipped=skipped,
+                errors=errors_count,
+                last_order_id=last_id,
+            )
 
             if len(orders) < self.batch_size:
                 await self.repo.update_job_status(job.id, MigrationStatus.DONE, completed_at=datetime.now(timezone.utc))
