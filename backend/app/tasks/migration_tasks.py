@@ -18,7 +18,7 @@ def run_migration_task(self, job_id: str):
     async def _run() -> bool:
         """Returns True if the job should be re-triggered."""
         from app.db.celery_session import get_celery_engine  # noqa: PLC0415
-        from app.db.opencart_session import oc_engine  # noqa: PLC0415
+        from app.db.opencart_session import get_oc_engine  # noqa: PLC0415
         from app.db.models.migration import MigrationStatus  # noqa: PLC0415
         from app.db.redis import get_redis_client  # noqa: PLC0415
 
@@ -51,7 +51,7 @@ def run_migration_task(self, job_id: str):
             if session:
                 await session.close()
             await get_celery_engine().dispose()
-            await oc_engine.dispose()
+            await get_oc_engine().dispose()
 
         return should_retrigger
 
