@@ -94,6 +94,7 @@ class OrderRead(BaseModel):
     tracking_url: Optional[str] = None
     delivery_status: Optional[str] = None
     delivery_provider: Optional[str] = None
+    is_archived: bool = False
     created_at: datetime
     items: List[OrderItemRead]
     tracking_events: List[OrderTrackingEventRead] = []

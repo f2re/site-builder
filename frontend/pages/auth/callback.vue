@@ -3,7 +3,7 @@ import { useAuthStore } from '~/stores/authStore'
 import { useToast } from '~/composables/useToast'
 
 definePageMeta({
-  layout: 'default'
+  layout: 'auth'
 })
 
 const route = useRoute()

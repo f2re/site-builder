@@ -2,7 +2,7 @@
 name: devops-agent
 description: Infrastructure agent for Docker, GitLab CI/CD, Nginx, and Meilisearch.
 kind: local
-tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_search]
+tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_search, replace]
 ---
 # AGENT: devops-agent
 

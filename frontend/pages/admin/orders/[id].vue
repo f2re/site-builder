@@ -89,6 +89,19 @@ async function updateStatus(newStatus: string) {
   }
 }
 
+async function archiveOrder() {
+  if (!confirm('Архивировать заказ?')) return
+  try {
+    await apiFetch(`/admin/orders/${orderId}/archive`, {
+      method: 'POST',
+    })
+    toast.success('Заказ архивирован')
+    router.push('/admin/orders')
+  } catch (e: any) {
+    toast.error(e.data?.message || 'Ошибка архивации')
+  }
+}
+
 const providerLabel = computed(() => {
   if (!c2cData.value) return ''
   return c2cData.value.provider === 'ozon' ? 'Ozon' : 'WB Track'
@@ -181,27 +194,23 @@ const getStatusLabel = (status: string) => {
           </div>
           
           <div class="flex items-center gap-2">
-            <USelectMenu
-              v-model="order.status"
+            <USelect
+              v-if="order"
+              :modelValue="order.status"
               :options="statusOptions"
-              value-attribute="value"
-              option-attribute="label"
-              data-testid="change-status-select"
               class="w-48"
-              @update:model-value="updateStatus"
+              @update:modelValue="updateStatus"
+            />
+            <UButton
+              v-if="order && !order.is_archived"
+              icon="ph:archive-bold"
+              color="white"
+              variant="solid"
+              @click="archiveOrder"
+              data-testid="archive-order-btn"
             >
-              <template #default="{ open }">
-                <UButton
-                  color="white"
-                  variant="solid"
-                  :loading="updatingStatus"
-                  data-testid="change-status-btn"
-                >
-                  {{ getStatusLabel(order.status) }}
-                  <UIcon name="i-heroicons-chevron-down" class="ml-auto w-4 h-4 transition-transform" :class="{ 'rotate-180': open }" />
-                </UButton>
-              </template>
-            </USelectMenu>
+              Архивировать
+            </UButton>
           </div>
         </div>
 

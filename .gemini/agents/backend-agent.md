@@ -2,7 +2,7 @@
 name: backend-agent
 description: Backend development agent for WifiOBD Site. FastAPI, SQLAlchemy 2.x async, Alembic, TimescaleDB IoT, admin panel, e-commerce store.
 kind: local
-tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_search]
+tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_search, replace]
 ---
 
 # AGENT: backend-agent

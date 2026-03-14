@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import List, TYPE_CHECKING
 
-from sqlalchemy import String, DateTime, Numeric, ForeignKey, Enum as SAEnum, Integer, JSON
+from sqlalchemy import String, DateTime, Numeric, ForeignKey, Enum as SAEnum, Integer, JSON, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from app.db.base import Base
@@ -57,6 +57,7 @@ class Order(Base):
     payment_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     oc_order_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

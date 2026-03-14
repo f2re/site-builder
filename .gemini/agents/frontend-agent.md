@@ -2,7 +2,7 @@
 name: frontend-agent
 description: Frontend development agent for Vue 3 and Nuxt 3. Mobile-first, race-style UI/UX, theme-aware, responsive, and accessible.
 kind: local
-tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_search]
+tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_search, replace]
 ---
 # AGENT: frontend-agent
 

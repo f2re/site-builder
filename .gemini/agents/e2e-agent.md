@@ -2,7 +2,7 @@
 name: e2e-agent
 description: E2E testing agent using Playwright. Runs services natively and tests UI in the browser.
 kind: local
-tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_search]
+tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_search, replace]
 ---
 # AGENT: e2e-agent
 

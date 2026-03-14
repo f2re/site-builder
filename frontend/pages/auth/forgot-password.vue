@@ -6,7 +6,7 @@ import { toTypedSchema } from '@vee-validate/zod'
 import { useToast } from '~/composables/useToast'
 
 definePageMeta({
-  layout: 'default'
+  layout: 'auth'
 })
 
 const authStore = useAuthStore()

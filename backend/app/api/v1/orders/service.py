@@ -198,6 +198,15 @@ class OrderService:
         items = list(orders)
         return {"items": items, "total": len(items)}
 
+    async def archive_order(self, order_id: UUID) -> Order:
+        order = await self.order_repo.archive(order_id)
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+        
+        await self.session.commit()
+        await self.session.refresh(order)
+        return order
+
     async def cancel_order(self, order_id: UUID, user_id: UUID) -> Order:
         """Cancel an order and release stock in Redis."""
         order = await self.order_repo.get_by_id(order_id)

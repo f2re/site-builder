@@ -6,7 +6,7 @@ import { toTypedSchema } from '@vee-validate/zod'
 import { useToast } from '~/composables/useToast'
 
 definePageMeta({
-  layout: 'default'
+  layout: 'auth'
 })
 
 const authStore = useAuthStore()
@@ -52,6 +52,11 @@ const loginWithProvider = (provider: string) => {
 
 // Telegram Login Widget handler
 onMounted(() => {
+  if (authStore.isAuthenticated) {
+    router.replace('/profile')
+    return
+  }
+
   const botName = config.public.telegramBotName
   
   // Define callback on window

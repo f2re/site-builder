@@ -7,7 +7,7 @@ import { useToast } from '~/composables/useToast'
 import { onMounted, onUnmounted } from 'vue'
 
 definePageMeta({
-  layout: 'default'
+  layout: 'auth'
 })
 
 const authStore = useAuthStore()

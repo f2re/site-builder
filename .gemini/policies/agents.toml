@@ -74,6 +74,18 @@ priority = 80
 
 [[rules]]
 toolName = "run_shell_command"
+commandPrefix = "git"
+decision = "allow"
+priority = 70
+
+[[rules]]
+toolName = "run_shell_command"
+commandPrefix = "make"
+decision = "allow"
+priority = 80
+
+[[rules]]
+toolName = "run_shell_command"
 commandPrefix = "npm run lint"
 decision = "allow"
 priority = 80

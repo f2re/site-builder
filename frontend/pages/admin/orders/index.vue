@@ -4,6 +4,7 @@ import UBadge from '~/components/U/UBadge.vue'
 import USkeleton from '~/components/U/USkeleton.vue'
 import USelect from '~/components/U/USelect.vue'
 import UButton from '~/components/U/UButton.vue'
+import UInput from '~/components/U/UInput.vue'
 
 definePageMeta({
   layout: false,
@@ -13,18 +14,36 @@ definePageMeta({
 
 const route = useRoute()
 const router = useRouter()
+const toast = useToast()
 
 // Reactive filters from URL
 const page = ref(Number(route.query.page) || 1)
 const perPage = ref(20)
 const statusFilter = ref<string | undefined>(route.query.status as string)
 const dateFilter = ref<string>(route.query.date as string || 'all')
+const searchQuery = ref(route.query.search as string || '')
+const includeArchived = ref(route.query.archived === 'true')
+
+// Debounced search
+const debouncedSearch = ref(searchQuery.value)
+let searchTimeout: any = null
+
+watch(searchQuery, (val) => {
+  if (searchTimeout) clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(() => {
+    debouncedSearch.value = val
+    page.value = 1 // Reset to first page on search
+  }, 400)
+})
 
 // Computed query params
 const queryParams = computed(() => ({
   page: page.value,
   per_page: perPage.value,
   ...(statusFilter.value && { status: statusFilter.value }),
+  ...(dateFilter.value !== 'all' && { date: dateFilter.value }),
+  ...(debouncedSearch.value && { search: debouncedSearch.value }),
+  include_archived: includeArchived.value,
 }))
 
 const { data: orders, pending, refresh } = await useApi<any>('/admin/orders', {
@@ -34,12 +53,14 @@ const { data: orders, pending, refresh } = await useApi<any>('/admin/orders', {
 const apiFetch = useApiFetch()
 
 // Update URL when filters change
-watch([page, statusFilter, dateFilter], () => {
+watch([page, statusFilter, dateFilter, debouncedSearch, includeArchived], () => {
   router.push({
     query: {
       ...(page.value > 1 && { page: page.value }),
       ...(statusFilter.value && { status: statusFilter.value }),
       ...(dateFilter.value !== 'all' && { date: dateFilter.value }),
+      ...(debouncedSearch.value && { search: debouncedSearch.value }),
+      ...(includeArchived.value && { archived: 'true' }),
     },
   })
 })
@@ -50,6 +71,7 @@ const statusMap = {
   paid: { label: 'Оплачен', variant: 'success' },
   shipped: { label: 'Отправлен', variant: 'info' },
   delivered: { label: 'Доставлен', variant: 'success' },
+  cancelled: { label: 'Отменен', variant: 'error' },
 }
 
 const statusOptions = [
@@ -69,13 +91,27 @@ const dateFilterOptions = [
 
 async function updateStatus(orderId: string, status: string) {
   try {
-    await apiFetch(`/admin/orders/${orderId}`, {
-      method: 'PATCH',
-      body: { status },
+    await apiFetch(`/admin/orders/${orderId}/status`, {
+      method: 'PUT',
+      body: { new_status: status },
     })
+    toast.success('Статус обновлен')
     await refresh()
-  } catch (e) {
-    console.error(e)
+  } catch (e: any) {
+    toast.error(e.data?.message || 'Ошибка обновления статуса')
+  }
+}
+
+async function archiveOrder(orderId: string) {
+  if (!confirm('Архивировать заказ? Он перестанет отображаться в общем списке.')) return
+  try {
+    await apiFetch(`/admin/orders/${orderId}/archive`, {
+      method: 'POST',
+    })
+    toast.success('Заказ архивирован')
+    await refresh()
+  } catch (e: any) {
+    toast.error(e.data?.message || 'Ошибка архивации')
   }
 }
 
@@ -95,10 +131,22 @@ function prevPage() {
 <template>
   <NuxtLayout name="admin">
     <template #header-title>Заказы</template>
+    <template #header-actions>
+      <div class="flex items-center gap-2 text-sm text-muted">
+        <input type="checkbox" id="inc-archived" v-model="includeArchived" class="rounded border-border text-accent focus:ring-accent" />
+        <label for="inc-archived">Показать архивные</label>
+      </div>
+    </template>
 
     <div class="admin-orders-page">
       <UCard class="filters-card">
         <div class="filters">
+          <UInput
+            v-model="searchQuery"
+            placeholder="Поиск (ID, Email, Тел, Трек)"
+            icon="ph:magnifying-glass-bold"
+            data-testid="order-search"
+          />
           <USelect
             v-model="statusFilter"
             :options="statusOptions"
@@ -112,6 +160,10 @@ function prevPage() {
           />
         </div>
       </UCard>
+
+      <div class="results-info text-sm text-muted px-1" v-if="orders?.total !== undefined">
+        Найдено заказов: <strong>{{ orders.total }}</strong>
+      </div>
 
       <UCard class="table-card">
       <div v-if="pending" class="p-4 space-y-4">
@@ -129,20 +181,18 @@ function prevPage() {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="order in orders?.items" :key="order.id" data-testid="order-card">
+            <tr v-for="order in orders?.items" :key="order.id" data-testid="order-card" :class="{ 'opacity-60 grayscale-[0.5]': order.is_archived }">
               <td>
                 <div class="order-info">
-                  <NuxtLink :to="`/admin/orders/${order.id}`" data-testid="order-detail-link" class="order-id font-mono truncate">
-                    #{{ order.id.slice(0, 8) }}
-                  </NuxtLink>
-                  <div class="order-meta mobile-only">
-                    <span class="price">{{ order.total_amount || order.total_rub }} ₽</span>
-                    <span class="dot">•</span>
-                    <UBadge :variant="statusMap[order.status as keyof typeof statusMap]?.variant || 'default'" size="sm">
-                      {{ statusMap[order.status as keyof typeof statusMap]?.label || order.status }}
-                    </UBadge>
-                    <span class="dot">•</span>
-                    <span class="date">{{ new Date(order.created_at).toLocaleDateString() }}</span>
+                  <div class="flex items-center gap-2">
+                    <NuxtLink :to="`/admin/orders/${order.id}`" data-testid="order-detail-link" class="order-id font-mono truncate">
+                      #{{ order.id.slice(0, 8) }}
+                    </NuxtLink>
+                    <UIcon v-if="order.is_archived" name="ph:archive-bold" class="text-muted w-4 h-4" title="Архивирован" />
+                  </div>
+                  <div class="order-meta">
+                    <span class="price mobile-only">{{ order.total_amount || order.total_rub }} ₽</span>
+                    <span class="email truncate" v-if="order.user_email">{{ order.user_email }}</span>
                   </div>
                 </div>
               </td>
@@ -165,6 +215,15 @@ function prevPage() {
                     :options="statusOptions.slice(1)"
                     size="sm"
                     class="status-select"
+                  />
+                  <UButton
+                    v-if="!order.is_archived"
+                    icon="ph:archive-bold"
+                    variant="ghost"
+                    color="gray"
+                    size="sm"
+                    @click="archiveOrder(order.id)"
+                    title="В архив"
                   />
                 </div>
               </td>

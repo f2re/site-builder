@@ -54,9 +54,15 @@ class OrderRepository:
         limit: int = 20,
         date_from: Optional[date] = None,
         date_to: Optional[date] = None,
+        search: Optional[str] = None,
+        include_archived: bool = False,
     ) -> tuple[Sequence[Order], int]:
+        from app.db.models.user import User
+        from sqlalchemy import or_, cast, String
+
         stmt = (
             select(Order)
+            .outerjoin(User, Order.user_id == User.id)
             .options(
                 selectinload(Order.user),
                 selectinload(Order.items).selectinload(OrderItem.product_variant).selectinload(ProductVariant.product).selectinload(Product.images),
@@ -64,23 +70,49 @@ class OrderRepository:
             )
             .order_by(Order.created_at.desc())
         )
-        count_stmt = select(func.count()).select_from(Order)
+        count_stmt = select(func.count()).select_from(Order).outerjoin(User, Order.user_id == User.id)
+
+        if not include_archived:
+            stmt = stmt.where(Order.is_archived.is_(False))
+            count_stmt = count_stmt.where(Order.is_archived.is_(False))
+
         if status:
             status_lower = status.lower()
             stmt = stmt.where(Order.status == status_lower)
             count_stmt = count_stmt.where(Order.status == status_lower)
+        
         if date_from:
             dt_from = datetime.combine(date_from, datetime.min.time())
             stmt = stmt.where(Order.created_at >= dt_from)
             count_stmt = count_stmt.where(Order.created_at >= dt_from)
+        
         if date_to:
             dt_to = datetime.combine(date_to + timedelta(days=1), datetime.min.time())
             stmt = stmt.where(Order.created_at < dt_to)
             count_stmt = count_stmt.where(Order.created_at < dt_to)
+
+        if search:
+            search_filter = or_(
+                cast(Order.id, String).ilike(f"%{search}%"),
+                Order.tracking_number.ilike(f"%{search}%"),
+                User.email_normalized.ilike(f"%{search}%"),
+                User.phone_normalized.ilike(f"%{search}%"),
+                User.full_name_normalized.ilike(f"%{search}%"),
+            )
+            stmt = stmt.where(search_filter)
+            count_stmt = count_stmt.where(search_filter)
+
         total = (await self.session.execute(count_stmt)).scalar() or 0
         stmt = stmt.offset(offset).limit(limit)
         result = await self.session.execute(stmt)
         return result.scalars().all(), total
+
+    async def archive(self, order_id: UUID) -> Optional[Order]:
+        order = await self.get_by_id(order_id)
+        if order:
+            order.is_archived = True
+            await self.session.flush()
+        return order
 
     async def update(self, order: Order) -> Order:
         await self.session.flush()

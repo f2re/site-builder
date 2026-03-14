@@ -460,14 +460,34 @@ async def list_orders(
     status: Optional[str] = Query(None, description="Filter by order status"),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
+    date: Optional[str] = Query(None, description="Filter by date: today, week, month, all"),
     date_from: Optional[date] = Query(None, description="Filter orders from date (inclusive)"),
     date_to: Optional[date] = Query(None, description="Filter orders to date (inclusive)"),
+    search: Optional[str] = Query(None, description="Search by order ID, tracking, email, phone, name"),
+    include_archived: bool = Query(False, description="Include archived orders in results"),
     _admin: User = AdminDep,
     repo: OrderRepository = Depends(get_order_repo),
 ) -> Any:
     offset = (page - 1) * per_page
+    
+    # Handle shorthand date filter
+    if date and date != "all":
+        now = datetime.now(timezone.utc).date()
+        if date == "today":
+            date_from = now
+        elif date == "week":
+            date_from = now - timedelta(days=7)
+        elif date == "month":
+            date_from = now - timedelta(days=30)
+
     items, total = await repo.list_all(
-        status=status, offset=offset, limit=per_page, date_from=date_from, date_to=date_to
+        status=status, 
+        offset=offset, 
+        limit=per_page, 
+        date_from=date_from, 
+        date_to=date_to,
+        search=search,
+        include_archived=include_archived
     )
     return {
         "items": [OrderRead.model_validate(o) for o in items],
@@ -495,6 +515,14 @@ async def update_order_status(
     service: OrderService = Depends(get_admin_order_service)
 ) -> Any:
     return await service.update_order_status(order_id, new_status)
+
+@router.post("/orders/{order_id}/archive")
+async def archive_order(
+    order_id: UUID,
+    _admin: User = AdminDep,
+    service: OrderService = Depends(get_admin_order_service)
+) -> Any:
+    return await service.archive_order(order_id)
 
 # ─── Blog ────────────────────────────────────────────────────────────────────
 @router.post("/blog/posts", status_code=status.HTTP_201_CREATED)

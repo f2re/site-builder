@@ -45,9 +45,6 @@
     "plan": true
   },
 
-  "experimental": {
-    "enableAgents": true
-  },
   "policyPaths": [
     ".gemini/policies"
   ],

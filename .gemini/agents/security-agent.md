@@ -2,7 +2,7 @@
 name: security-agent
 description: READ-ONLY аудитор безопасности. Backend, frontend, infra, IoT. OWASP, 152-ФЗ, GDPR.
 kind: local
-tools: [read_file, grep_search, glob, run_shell_command]
+tools: [read_file, grep_search, glob, run_shell_command, replace]
 ---
 # AGENT: security-agent
 

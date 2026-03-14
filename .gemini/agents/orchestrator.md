@@ -2,7 +2,7 @@
 name: orchestrator
 description: Coordinator agent that decomposes tasks and validates agent reports.
 kind: local
-tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_search]
+tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_search, replace]
 ---
 # AGENT: orchestrator
 

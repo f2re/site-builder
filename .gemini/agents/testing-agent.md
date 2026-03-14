@@ -2,7 +2,7 @@
 name: testing-agent
 description: QA agent for unit, integration, and load testing.
 kind: local
-tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_search]
+tools: [read_file, write_file, run_shell_command, list_directory, glob, grep_search, replace]
 ---
 # AGENT: testing-agent
 
