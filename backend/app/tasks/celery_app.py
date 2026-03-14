@@ -4,12 +4,14 @@ from celery.signals import worker_process_init
 from app.core.config import settings
 from app.db.redis import reset_redis_client
 from app.db.opencart_session import reset_oc_engine
+from app.db.celery_session import reset_celery_engine
 
 @worker_process_init.connect
 def reset_connections_on_fork(**kwargs):
     """Ensure each worker process creates its own connections with a new event loop."""
     reset_redis_client()
     reset_oc_engine()
+    reset_celery_engine()
 
 # CELERY_BROKER_URL, CELERY_RESULT_BACKEND will be picked up from settings automatically 
 # if we use config_from_object with the 'CELERY' namespace.

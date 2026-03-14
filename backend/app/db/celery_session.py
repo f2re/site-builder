@@ -1,6 +1,8 @@
 # Module: db/celery_session.py | Agent: backend-agent | Task: fix_celery_db_connection
 """
 Отдельная фабрика сессий для Celery-задач.
+Engine живёт весь lifetime worker-процесса.
+НЕ вызывать dispose() из задач — это ломает параллельные задачи в том же worker.
 """
 import os
 from sqlalchemy.pool import NullPool, StaticPool
@@ -9,6 +11,7 @@ from app.core.config import settings
 
 _celery_engine = None
 _CelerySessionLocal = None
+
 
 def get_celery_engine():
     global _celery_engine
@@ -29,6 +32,14 @@ def get_celery_engine():
             poolclass=poolclass,
         )
     return _celery_engine
+
+
+def reset_celery_engine() -> None:
+    """Call after fork to force re-creation in the child process."""
+    global _celery_engine, _CelerySessionLocal
+    _celery_engine = None
+    _CelerySessionLocal = None
+
 
 def CelerySessionLocal():
     global _CelerySessionLocal
