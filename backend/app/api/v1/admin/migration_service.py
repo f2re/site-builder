@@ -14,6 +14,7 @@ import bleach
 import httpx
 from bs4 import BeautifulSoup, Tag as BSTag
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
@@ -917,6 +918,7 @@ class MigrationService:
             # Persist cursor into extra_data
             metadata["addresses_last_id"] = current_last_id
             job.extra_data = metadata
+            flag_modified(job, "extra_data")
 
             logger.info(
                 "migrate_addresses_cursor_before_commit",
@@ -1182,6 +1184,7 @@ class MigrationService:
             # Persist cursor into extra_data
             metadata["devices_last_id"] = current_last_id
             job.extra_data = metadata
+            flag_modified(job, "extra_data")
 
             await self.session.commit()
             logger.info(
