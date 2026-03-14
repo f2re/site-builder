@@ -33,7 +33,7 @@ def upgrade() -> None:
     
     # 4. Remove old column and rename new one
     op.drop_column('user_devices', 'model')
-    op.rename_column('user_devices', 'model_new', 'model')  # type: ignore
+    op.alter_column('user_devices', 'model_new', new_column_name='model')
     
     # 5. Set NOT NULL and DEFAULT
     op.alter_column('user_devices', 'model', nullable=False, server_default='wifi_obd2')
@@ -47,7 +47,7 @@ def downgrade() -> None:
     
     # 3. Swap columns
     op.drop_column('user_devices', 'model')
-    op.rename_column('user_devices', 'model_old', 'model')  # type: ignore
+    op.alter_column('user_devices', 'model_old', new_column_name='model')
     
     # 4. Drop the enum type
     op.execute("DROP TYPE devicemodel")
