@@ -16,21 +16,36 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Convert from native pg enum to varchar, preserving values
+    # 1. Drop the default value first because it depends on the enum type
+    op.execute("ALTER TABLE user_devices ALTER COLUMN model DROP DEFAULT")
+    
+    # 2. Convert from native pg enum to varchar, preserving values
     op.execute("""
         ALTER TABLE user_devices
         ALTER COLUMN model TYPE VARCHAR(50)
         USING model::text
     """)
-    # Drop the now-unused pg enum type
+    
+    # 3. Drop the now-unused pg enum type
     op.execute("DROP TYPE IF EXISTS devicemodel")
+    
+    # 4. Restore the default value (now as a string)
+    op.execute("ALTER TABLE user_devices ALTER COLUMN model SET DEFAULT 'wifi_obd2'")
 
 
 def downgrade() -> None:
-    # Recreate the pg enum type and convert back
+    # 1. Recreate the pg enum type
     op.execute("CREATE TYPE devicemodel AS ENUM ('wifi_obd2', 'wifi_obd2_advanced')")
+    
+    # 2. Drop the string default
+    op.execute("ALTER TABLE user_devices ALTER COLUMN model DROP DEFAULT")
+    
+    # 3. Convert back to enum
     op.execute("""
         ALTER TABLE user_devices
         ALTER COLUMN model TYPE devicemodel
         USING model::devicemodel
     """)
+    
+    # 4. Restore the enum default
+    op.execute("ALTER TABLE user_devices ALTER COLUMN model SET DEFAULT 'wifi_obd2'::devicemodel")
