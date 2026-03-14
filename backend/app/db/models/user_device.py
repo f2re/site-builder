@@ -26,7 +26,9 @@ class UserDevice(Base):
     device_uid: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     model: Mapped[DeviceModel] = mapped_column(
-        Enum(DeviceModel), nullable=False, default=DeviceModel.WIFI_OBD2
+        Enum(DeviceModel, values_callable=lambda x: [e.value for e in x], native_enum=False),
+        nullable=False,
+        default=DeviceModel.WIFI_OBD2,
     )
     firmware_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

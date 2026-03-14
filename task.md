@@ -1,170 +1,179 @@
-@orchestrator
-## 1. Дублирование страницы логина в админке
-
-### Диагноз
-
-`auth/login.vue` использует `layout: 'default'`. Layout `default.vue` — это **публичный** layout сайта (шапка, футер). Когда неавторизованный пользователь попадает на `/admin/*`, middleware редиректит на `/auth/login`, который рендерится внутри `default` layout. Если `default` layout содержит `<slot>` или `<NuxtPage>` где-то в теле — страница логина рендерится дважды: один раз как основной контент, второй раз внутри layout-слота.
-
-Вероятная причина: `default.vue` содержит `<NuxtPage />` или `<slot />` в теле страницы (не только в `<main>`), либо layout рендерит дочерний контент дважды.
-
-### Что НАДО сделать
-
-#### frontend-agent:
-- Проверить `frontend/layouts/default.vue` — убедиться что `<slot />` или `<NuxtPage />` встречается ровно **один раз**
-- Страница `auth/login.vue` использует `layout: 'default'` — это корректно, но нужно убедиться что `default` layout не добавляет лишних оберток с `<slot>`
-- Если `default` layout содержит header/footer с собственным `<slot>` для контента — убедиться что auth-страницы не получают двойной рендер
-- Альтернативное решение: создать отдельный layout `auth.vue` (минимальный, без header/footer) и переключить все страницы в `pages/auth/*.vue` на `layout: 'auth'`
-
-### Что НЕЛЬЗЯ делать
-- Нельзя менять `definePageMeta` в admin-страницах — они уже используют `layout: false` корректно
-- Нельзя убирать middleware `auth` с admin-страниц
-- Нельзя делать layout `auth` с `layout: false` — это сломает SSR
-
-### Граничные условия
-- После фикса: `/auth/login` рендерится ровно один раз, без дублирования
-- Авторизованный пользователь, заходящий на `/auth/login`, должен редиректиться на `/profile` (добавить guard в login.vue если его нет)
-
----
-
-## 2. 500 на /admin/orders/[id] — TypeError: Cannot destructure property 'open'
-
-### Диагноз
-
-Ошибка в `frontend/pages/admin/orders/[id].vue:261`:
-```
-TypeError: Cannot destructure property 'open' of 'undefined' as it is undefined.
-```
-
-Причина: `USelectMenu` использует scoped slot `#default="{ open }"`:
-```vue
-<USelectMenu ...>
-  <template #default="{ open }">   <!-- строка ~193 -->
-    <UButton ...>
-      <UIcon :class="{ 'rotate-180': open }" />
-    </UButton>
-  </template>
-</USelectMenu>
-```
-
-`USelectMenu` — это компонент из **Nuxt UI**, который передаёт `{ open }` в default slot. Но в проекте используется **кастомный** `USelectMenu` или компонент не поддерживает этот slot API. При SSR slot вызывается с `undefined` вместо объекта `{ open }`.
-
-### Что НАДО сделать
-
-#### frontend-agent:
-- В `frontend/pages/admin/orders/[id].vue` заменить `USelectMenu` на нативный `<select>` или кастомный компонент проекта (`USelect` из `~/components/U/USelect.vue`)
-- Убрать scoped slot `#default="{ open }"` — он несовместим с кастомным компонентом
-- Реализовать смену статуса через простой `<select>` + кнопку "Сохранить", либо через `USelect` (который уже используется в `admin/orders/index.vue`)
-- Проверить что `USelect` из `~/components/U/USelect.vue` существует и поддерживает `v-model` + `options`
-
-Минимальный фикс — заменить блок (строки ~184-205):
-```vue
-<!-- БЫЛО -->
-<USelectMenu v-model="order.status" :options="statusOptions" ...>
-  <template #default="{ open }">
-    <UButton ...>{{ getStatusLabel(order.status) }}<UIcon :class="{ 'rotate-180': open }" /></UButton>
-  </template>
-</USelectMenu>
-
-<!-- НАДО -->
-<USelect
-  v-model="order.status"
-  :options="statusOptions"
-  @update:model-value="updateStatus"
-/>
-```
-
-### Что НЕЛЬЗЯ делать
-- Нельзя использовать `USelectMenu` с scoped slot `#default="{ open }"` — он не работает в SSR с кастомными компонентами
-- Нельзя оборачивать в `<ClientOnly>` — это скроет проблему, но сломает SEO и первый рендер
-- Нельзя менять логику `updateStatus` — она корректна
-
-### Граничные условия
-- После фикса: `/admin/orders/{id}` открывается без 500
-- Смена статуса работает: выбрал → сохранилось → toast → refresh
-- При `pending=true` показывается skeleton, при `error` — кнопка retry
-
----
-
-## 3. Работа с заказами в админке — фильтры, поиск, навигация, статусы, архивирование
-
-### Текущее состояние (`admin/orders/index.vue`)
-
-- Фильтр по статусу — есть, но не синхронизирован с URL при первой загрузке
-- Фильтр по дате (`dateFilter`) — есть в URL, но **не передаётся в API** (не включён в `queryParams`)
-- Поиск — **отсутствует**
-- Глубокие ссылки — частично (page, status), но dateFilter теряется при refresh
-- Архивирование — **отсутствует**
-- Навигация к заказу — есть (клик по строке)
-- Смена статуса из списка — есть через `updateStatus`, но вызывает `PATCH /admin/orders/{id}` вместо `PUT /admin/orders/{id}/status`
-
-### Что НАДО сделать
-
-#### backend-agent:
-- Проверить эндпоинт `GET /api/v1/admin/orders`:
-  - Добавить query param `search` — поиск по `order_id` (partial), `user_email`, `user_phone`, `tracking_number`
-  - Добавить query param `date` — фильтр: `today`, `week`, `month`, `all` (конвертировать в `created_at >= X`)
-  - Убедиться что `status` фильтр работает корректно
-  - Ответ должен содержать `{ items: [...], total: int, page: int, per_page: int }`
-- Проверить эндпоинт `PUT /api/v1/admin/orders/{id}/status`:
-  - Принимает `{ new_status: string }`
-  - Валидирует что статус из допустимого списка
-  - Возвращает обновлённый заказ
-- Добавить эндпоинт `POST /api/v1/admin/orders/{id}/archive`:
-  - Устанавливает `is_archived = true` на заказе
-  - Архивированные заказы не показываются в основном списке (если не передан `?include_archived=true`)
-  - Возвращает 200 с обновлённым заказом
-
-#### frontend-agent:
-- `admin/orders/index.vue`:
-  - Добавить поле поиска (debounce 400ms) — передавать в API как `search`
-  - Исправить `queryParams` — добавить `date: dateFilter.value` если не `'all'`
-  - Исправить инициализацию: `statusFilter` и `dateFilter` читать из `route.query` при монтировании (уже есть, проверить что работает)
-  - Добавить кнопку "Архивировать" в действиях строки (с confirm dialog)
-  - Добавить toggle "Показать архивные" (передаёт `include_archived=true` в API)
-  - Исправить вызов смены статуса: использовать `PUT /admin/orders/{id}/status` с `{ new_status }`, не `PATCH /admin/orders/{id}`
-  - Отображать `total` — "Показано X из Y заказов"
-
-- `admin/orders/[id].vue`:
-  - Исправить 500 (см. п.2)
-  - Добавить кнопку "Архивировать заказ" в header actions (с confirm)
-  - Кнопка "Назад" (`/admin/orders`) — уже есть, оставить
-
-### Что НЕЛЬЗЯ делать
-- Нельзя удалять заказы — только архивировать
-- Нельзя менять статус на произвольную строку — только из фиксированного списка: `pending`, `awaiting_payment`, `paid`, `shipped`, `delivered`, `cancelled`
-- Нельзя сбрасывать фильтры при навигации назад — URL должен сохранять состояние
-- Нельзя делать бесконечный скролл — только пагинация
-- Нельзя использовать `USelectMenu` с scoped slot `#default` — только `USelect`
-
-### Граничные условия
-- Поиск по пустой строке = нет фильтра (не передавать `search=` в API)
-- Фильтр `date=all` = не передавать параметр в API
-- Архивированный заказ исчезает из списка сразу после архивирования (optimistic update или refresh)
-- При смене статуса на `cancelled` — показать дополнительный confirm: "Вы уверены? Это действие нельзя отменить"
-- Пагинация сбрасывается на страницу 1 при изменении любого фильтра
-
----
-
-## Порядок выполнения
-
-```
-1. frontend-agent: фикс 500 на /admin/orders/[id] (замена USelectMenu → USelect)
-2. frontend-agent: фикс дублирования страницы логина (layout audit)
-3. backend-agent: расширение GET /admin/orders (search, date filter, total)
-4. backend-agent: POST /admin/orders/{id}/archive
-5. frontend-agent: доработка admin/orders/index.vue (поиск, дата, архив, total)
-6. frontend-agent: кнопка архивирования на /admin/orders/[id]
-```
-
----
-
-## Критерии приёмки
-
-- [ ] `/admin/orders/{id}` открывается без 500 на prod
-- [ ] Страница логина рендерится ровно один раз
-- [ ] Поиск по заказам работает (email, телефон, трек-номер, ID)
-- [ ] Фильтр по дате передаётся в API и работает
-- [ ] URL сохраняет все фильтры (page, status, date, search)
-- [ ] Заказ можно архивировать из списка и из детальной страницы
-- [ ] Смена статуса работает через правильный эндпоинт
-- [ ] Отображается общее количество заказов
+@orchestrator fix delegateion for this ^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/fastapi/applications.py", line 1134, in __call__
+sb_backend      |     await super().__call__(scope, receive, send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/applications.py", line 107, in __call__
+sb_backend      |     await self.middleware_stack(scope, receive, send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
+sb_backend      |     raise exc
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+sb_backend      |     await self.app(scope, receive, _send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/cors.py", line 87, in __call__
+sb_backend      |     await self.app(scope, receive, send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+sb_backend      |     return await self.app(scope, receive, send)
+sb_backend      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+sb_backend      |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+sb_backend      |     raise exc
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+sb_backend      |     await app(scope, receive, sender)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+sb_backend      |     await self.app(scope, receive, send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 716, in __call__
+sb_backend      |     await self.middleware_stack(scope, receive, send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 736, in app
+sb_backend      |     await route.handle(scope, receive, send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 290, in handle
+sb_backend      |     await self.app(scope, receive, send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 119, in app
+sb_backend      |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+sb_backend      |     raise exc
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+sb_backend      |     await app(scope, receive, sender)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 105, in app
+sb_backend      |     response = await f(request)
+sb_backend      |                ^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 425, in app
+sb_backend      |     raw_response = await run_endpoint_function(
+sb_backend      |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 313, in run_endpoint_function
+sb_backend      |     return await dependant.call(**values)
+sb_backend      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/app/app/api/v1/admin/router.py", line 960, in list_devices
+sb_backend      |     result = await session.execute(items_stmt)
+sb_backend      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 449, in execute
+sb_backend      |     result = await greenlet_spawn(
+sb_backend      |              ^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 203, in greenlet_spawn
+sb_backend      |     result = context.switch(value)
+sb_backend      |              ^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+sb_backend      |     return self._execute_internal(
+sb_backend      |            ^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2249, in _execute_internal
+sb_backend      |     result: Result[Any] = compile_state_cls.orm_execute_statement(
+sb_backend      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/context.py", line 309, in orm_execute_statement
+sb_backend      |     return cls.orm_setup_cursor_result(
+sb_backend      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/context.py", line 616, in orm_setup_cursor_result
+sb_backend      |     return loading.instances(result, querycontext)
+sb_backend      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/loading.py", line 262, in instances
+sb_backend      |     _prebuffered = list(chunks(None))
+sb_backend      |                    ^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/loading.py", line 220, in chunks
+sb_backend      |     fetch = cursor._raw_all_rows()
+sb_backend      |             ^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/result.py", line 541, in _raw_all_rows
+sb_backend      |     return [make_row(row) for row in rows]
+sb_backend      |             ^^^^^^^^^^^^^
+sb_backend      |   File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+sb_backend      |   File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/sql/sqltypes.py", line 1829, in process
+sb_backend      |     value = self._object_value_for_elem(value)
+sb_backend      |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/sql/sqltypes.py", line 1711, in _object_value_for_elem
+sb_backend      |     raise LookupError(
+sb_backend      | LookupError: 'wifi_obd2' is not among the defined enum values. Enum name: devicemodel. Possible values: WIFI_OBD2, WIFI_OBD2_A..
+sb_backend      | 77.239.239.99:0 - "GET /api/v1/admin/devices?page=1&per_page=50 HTTP/1.1" 500
+sb_backend      | [2026-03-14 08:59:30 +0000] [7] [ERROR] Exception in ASGI application
+sb_backend      | Traceback (most recent call last):
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/sql/sqltypes.py", line 1709, in _object_value_for_elem
+sb_backend      |     return self._object_lookup[elem]  # type: ignore[return-value]
+sb_backend      |            ~~~~~~~~~~~~~~~~~~~^^^^^^
+sb_backend      | KeyError: 'wifi_obd2'
+sb_backend      |
+sb_backend      | The above exception was the direct cause of the following exception:
+sb_backend      |
+sb_backend      | Traceback (most recent call last):
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 416, in run_asgi
+sb_backend      |     result = await app(  # type: ignore[func-returns-value]
+sb_backend      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+sb_backend      |     return await self.app(scope, receive, send)
+sb_backend      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/fastapi/applications.py", line 1134, in __call__
+sb_backend      |     await super().__call__(scope, receive, send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/applications.py", line 107, in __call__
+sb_backend      |     await self.middleware_stack(scope, receive, send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
+sb_backend      |     raise exc
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+sb_backend      |     await self.app(scope, receive, _send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/cors.py", line 87, in __call__
+sb_backend      |     await self.app(scope, receive, send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+sb_backend      |     return await self.app(scope, receive, send)
+sb_backend      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+sb_backend      |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+sb_backend      |     raise exc
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+sb_backend      |     await app(scope, receive, sender)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+sb_backend      |     await self.app(scope, receive, send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 716, in __call__
+sb_backend      |     await self.middleware_stack(scope, receive, send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 736, in app
+sb_backend      |     await route.handle(scope, receive, send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 290, in handle
+sb_backend      |     await self.app(scope, receive, send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 119, in app
+sb_backend      |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+sb_backend      |     raise exc
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+sb_backend      |     await app(scope, receive, sender)
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 105, in app
+sb_backend      |     response = await f(request)
+sb_backend      |                ^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 425, in app
+sb_backend      |     raw_response = await run_endpoint_function(
+sb_backend      |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 313, in run_endpoint_function
+sb_backend      |     return await dependant.call(**values)
+sb_backend      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/app/app/api/v1/admin/router.py", line 960, in list_devices
+sb_backend      |     result = await session.execute(items_stmt)
+sb_backend      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 449, in execute
+sb_backend      |     result = await greenlet_spawn(
+sb_backend      |              ^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 203, in greenlet_spawn
+sb_backend      |     result = context.switch(value)
+sb_backend      |              ^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+sb_backend      |     return self._execute_internal(
+sb_backend      |            ^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2249, in _execute_internal
+sb_backend      |     result: Result[Any] = compile_state_cls.orm_execute_statement(
+sb_backend      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/context.py", line 309, in orm_execute_statement
+sb_backend      |     return cls.orm_setup_cursor_result(
+sb_backend      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/context.py", line 616, in orm_setup_cursor_result
+sb_backend      |     return loading.instances(result, querycontext)
+sb_backend      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/loading.py", line 262, in instances
+sb_backend      |     _prebuffered = list(chunks(None))
+sb_backend      |                    ^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/loading.py", line 220, in chunks
+sb_backend      |     fetch = cursor._raw_all_rows()
+sb_backend      |             ^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/result.py", line 541, in _raw_all_rows
+sb_backend      |     return [make_row(row) for row in rows]
+sb_backend      |             ^^^^^^^^^^^^^
+sb_backend      |   File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+sb_backend      |   File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/sql/sqltypes.py", line 1829, in process
+sb_backend      |     value = self._object_value_for_elem(value)
+sb_backend      |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sb_backend      |   File "/usr/local/lib/python3.12/site-packages/sqlalchemy/sql/sqltypes.py", line 1711, in _object_value_for_elem
+sb_backend      |     raise LookupError(
+sb_backend      | LookupError: 'wifi_obd2' is not among the defined enum values. Enum name: devicemodel. Possible values: WIFI_OBD2, WIFI_OBD2_A..
+sb_meilisearch  | 2026-03-14T08:59:32.178672Z  INFO HTTP request{method=GET host="localhost:7700" route=/health query_parameters= user_agent=curl/8.14.1 status_code=200}: meilisearch: close time.busy=151µs time.idle=24.2µs
