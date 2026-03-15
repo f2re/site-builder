@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "20260315_1400"
@@ -18,13 +19,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create contactstatus ENUM type
-    contactstatus = sa.Enum("NEW", "READ", "REPLIED", name="contactstatus")
-    contactstatus.create(op.get_bind(), checkfirst=True)
+    # Safely create contactstatus ENUM type
+    res = op.get_bind().execute(sa.text("SELECT 1 FROM pg_type WHERE typname = 'contactstatus'"))
+    if not res.first():
+        sa.Enum("NEW", "READ", "REPLIED", name="contactstatus").create(op.get_bind())
 
     op.create_table(
         "contact_message",
-        sa.Column("id", sa.UUID(), nullable=False, default=sa.text("gen_random_uuid()")),
+        sa.Column("id", sa.UUID(), nullable=False, server_default=sa.text("gen_random_uuid()")),
         sa.Column("name", sa.Text(), nullable=False),
         sa.Column("email", sa.Text(), nullable=False),
         sa.Column("phone", sa.Text(), nullable=True),
@@ -32,7 +34,7 @@ def upgrade() -> None:
         sa.Column("message", sa.Text(), nullable=False),
         sa.Column(
             "status",
-            sa.Enum("NEW", "READ", "REPLIED", name="contactstatus"),
+            postgresql.ENUM("NEW", "READ", "REPLIED", name="contactstatus", create_type=False),
             nullable=False,
             server_default="NEW",
         ),
@@ -65,5 +67,4 @@ def downgrade() -> None:
     op.drop_table("contact_message")
 
     # Drop the ENUM type
-    contactstatus = sa.Enum("NEW", "READ", "REPLIED", name="contactstatus")
-    contactstatus.drop(op.get_bind(), checkfirst=True)
+    op.execute("DROP TYPE IF EXISTS contactstatus")
