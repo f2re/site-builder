@@ -13,7 +13,6 @@ const footerLinks = [
     links: [
       { to: '/blog',     label: 'Блог и новости'   },
       { to: '/about',    label: 'О компании'       },
-      { to: '/contacts', label: 'Контакты'         },
       { to: '/contact',  label: 'Обратная связь'   },
     ],
   },
