@@ -1,0 +1,16 @@
+{
+  "task_id": "p48_backend_contact_public_settings",
+  "phase": 48,
+  "agent": "backend-agent",
+  "title": "Добавить публичный GET /contact/settings без авторизации",
+  "description": "В backend/app/api/v1/contact/router.py существует ТОЛЬКО эндпоинт GET /admin/settings/contact с Depends(require_admin). Публичного эндпоинта нет. Фронтенд вызывает GET /api/v1/contact/settings — этот путь не существует, поэтому текст из настроек никогда не показывается.\n\nЧто сделать:\n1. В файле backend/app/api/v1/contact/router.py добавить новый публичный эндпоинт:\n\n```python\n@router.get(\n    \"/contact/settings\",\n    response_model=SiteSettingsResponse,\n    summary=\"Get public contact page settings (no auth required)\",\n)\nasync def get_contact_settings_public(\n    svc: ContactService = Depends(get_contact_service),\n) -> SiteSettingsResponse:\n    return await svc.get_contact_settings()\n```\n\nЭтот эндпоинт возвращает только contact_page_text (публичные данные). Никакой аутентификации не требуется — это публичная страница /contact.\n\n2. Убедиться что эндпоинт зарегистрирован в router aggregator (backend/app/api/v1/router.py) — уже должен быть, т.к. contact router уже подключён.\n\n3. Проверить через ruff + mypy что ошибок нет.\n\nВАЖНО: НЕ менять существующий admin-эндпоинт GET /admin/settings/contact — он должен остаться как есть с require_admin.",
+  "depends_on": [],
+  "priority": "high",
+  "contracts_required": [".claude/agents/contracts/api_contracts.md"],
+  "acceptance_criteria": [
+    "GET /api/v1/contact/settings возвращает {contact_email, contact_page_text} без авторизации (HTTP 200)",
+    "GET /admin/settings/contact остаётся нетронутым с require_admin",
+    "ruff check app/ — 0 ошибок",
+    "mypy app/ --ignore-missing-imports — 0 ошибок"
+  ]
+}

@@ -70,6 +70,23 @@ async def submit_contact(
     return svc._decrypt_message(obj)
 
 
+@router.get(
+    "/contact/settings",
+    response_model=SiteSettingsResponse,
+    summary="Get contact page text (public)",
+)
+async def get_contact_settings_public(
+    svc: ContactService = Depends(get_contact_service),
+) -> SiteSettingsResponse:
+    """Public endpoint — returns only contact_page_text for display on the contact page."""
+    settings_data = await svc.get_contact_settings()
+    # Do not expose contact_email publicly
+    return SiteSettingsResponse(
+        contact_email=None,
+        contact_page_text=settings_data.contact_page_text,
+    )
+
+
 # ── Admin endpoints ──────────────────────────────────────────────────────────
 
 @router.get(

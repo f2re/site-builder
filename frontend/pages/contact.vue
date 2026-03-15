@@ -18,9 +18,14 @@ const settings = ref({ contact_page_text: null as string | null })
 onMounted(async () => {
   settings.value = await getContactSettings()
 
-  // Load SmartCaptcha widget after mount (client-only)
+  // Load SmartCaptcha script dynamically (client-only, avoids SSR issues)
   if (config.public.smartCaptchaSiteKey) {
-    initSmartCaptcha()
+    const script = document.createElement('script')
+    script.src = 'https://smartcaptcha.yandexcloud.net/captcha.js'
+    script.async = true
+    script.defer = true
+    script.onload = () => initSmartCaptcha()
+    document.head.appendChild(script)
   }
 })
 
@@ -183,18 +188,8 @@ async function handleSubmit() {
   }
 }
 
-// Load SmartCaptcha script in head (client-side only, when sitekey configured)
-if (config.public.smartCaptchaSiteKey) {
-  useHead({
-    script: [
-      {
-        src: 'https://smartcaptcha.yandexcloud.net/captcha.js',
-        defer: true,
-        async: true,
-      },
-    ],
-  })
-}
+// Load SmartCaptcha script dynamically in onMounted (client-only)
+// useHead in root setup runs on SSR where window/captcha API is unavailable
 </script>
 
 <template>
@@ -214,15 +209,18 @@ if (config.public.smartCaptchaSiteKey) {
 
     <!-- Main content -->
     <div class="contact-layout">
-      <!-- Greeting text from settings -->
-      <div
-        v-if="settings.contact_page_text"
-        class="contact-greeting"
-        v-html="settings.contact_page_text"
-      />
+      <!-- Left column: greeting + form -->
+      <div class="contact-main">
+        <!-- Greeting text from settings -->
+        <div
+          v-if="settings.contact_page_text"
+          class="contact-greeting"
+          v-html="settings.contact_page_text"
+          data-testid="contact-greeting-text"
+        />
 
-      <!-- Form card -->
-      <div class="contact-card" data-testid="contact-form">
+        <!-- Form card -->
+        <div class="contact-card" data-testid="contact-form">
         <div class="contact-card__header">
           <Icon name="ph:envelope-simple-bold" class="contact-card__icon" aria-hidden="true" />
           <h2 class="contact-card__title">Форма обратной связи</h2>
@@ -314,6 +312,7 @@ if (config.public.smartCaptchaSiteKey) {
             Отправить заявку
           </UButton>
         </form>
+        </div>
       </div>
 
       <!-- Info sidebar -->
@@ -405,27 +404,22 @@ if (config.public.smartCaptchaSiteKey) {
   display: grid;
   grid-template-columns: 1fr;
   gap: 2rem;
+  align-items: start;
 }
 
 @media (min-width: 1024px) {
   .contact-layout {
     grid-template-columns: 1fr 320px;
-    grid-template-rows: auto 1fr;
-    align-items: start;
+    gap: 32px;
   }
+}
 
-  .contact-greeting {
-    grid-column: 1 / -1;
-  }
-
-  .contact-card {
-    grid-column: 1;
-  }
-
-  .contact-info {
-    grid-column: 2;
-    grid-row: 2;
-  }
+/* ── Main column (greeting + form) ── */
+.contact-main {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
 }
 
 /* ── Greeting ── */
@@ -520,6 +514,14 @@ if (config.public.smartCaptchaSiteKey) {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  position: sticky;
+  top: 100px;
+}
+
+@media (max-width: 1023px) {
+  .contact-info {
+    position: static;
+  }
 }
 
 .info-card {
