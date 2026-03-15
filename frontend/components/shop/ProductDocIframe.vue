@@ -9,11 +9,12 @@
       v-if="isIntersecting"
       ref="iframeRef"
       :src="url"
-      :style="{ height: iframeHeight + 'px', opacity: isLoading ? 0 : 1 }"
+      :style="{ height: iframeHeightCss, opacity: isLoading ? 0 : 1 }"
       frameborder="0"
+      scrolling="no"
       width="100%"
       @load="onIframeLoad"
-      sandbox="allow-scripts allow-same-origin"
+      sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
     ></iframe>
 
     <div v-if="hasError" class="iframe-error">
@@ -44,7 +45,8 @@ const iframeRef = ref<HTMLIFrameElement | null>(null)
 const isIntersecting = ref(false)
 const isLoading = ref(true)
 const hasError = ref(false)
-const iframeHeight = ref(400) // Default initial height
+// Height as CSS string (e.g. '2033px') — supports both numeric and string values from postMessage
+const iframeHeightCss = ref('600px')
 
 let observer: IntersectionObserver | null = null
 
@@ -53,22 +55,35 @@ const onIframeLoad = () => {
 }
 
 const handleMessage = (event: MessageEvent) => {
-  // If using iframeResizer, it typically sends a message with specific format.
-  // Or custom script inside iframe might send: { type: 'resize', height: 500 }
-  
-  // Security check: ensure message is from the expected origin if needed.
-  // But we allow multiple origins potentially.
-  
-  if (typeof event.data === 'object' && event.data !== null) {
-    if (event.data.type === 'resize' && typeof event.data.height === 'number') {
-      iframeHeight.value = event.data.height
+  if (typeof event.data !== 'object' || event.data === null) {
+    // iframeResizer string format: "[iFrameSizer]id:height:..."
+    if (typeof event.data === 'string' && event.data.includes('[iFrameSizer]')) {
+      const parts = event.data.split(':')
+      if (parts.length > 2 && !isNaN(Number(parts[1]))) {
+        iframeHeightCss.value = `${parts[1]}px`
+      }
     }
-  } else if (typeof event.data === 'string' && event.data.includes('[iFrameSizer]')) {
-    // Basic iframeResizer integration fallback
-    const parts = event.data.split(':')
-    if (parts.length > 2 && !isNaN(Number(parts[1]))) {
-       iframeHeight.value = Number(parts[1])
-    }
+    return
+  }
+
+  const data = event.data as Record<string, unknown>
+
+  // Format used by mad-auto.ru and similar docs: { docIframeHeight: '2033px' } or { docIframeHeight: 2033 }
+  if (data.docIframeHeight !== undefined) {
+    const h = data.docIframeHeight
+    iframeHeightCss.value = typeof h === 'number' ? `${h}px` : String(h)
+    return
+  }
+
+  // Generic resize: { type: 'resize', height: 500 }
+  if (data.type === 'resize' && typeof data.height === 'number') {
+    iframeHeightCss.value = `${data.height}px`
+    return
+  }
+
+  // iframeResizer object format: { iframe: ..., height: 500 }
+  if (typeof data.height === 'number' && data.height > 0) {
+    iframeHeightCss.value = `${data.height}px`
   }
 }
 
@@ -104,9 +119,9 @@ onUnmounted(() => {
   position: relative;
   width: 100%;
   margin: 2rem 0;
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--bg-surface, #f9f9f9);
+  border-radius: var(--radius-md, 8px);
+  /* No overflow:hidden — iframe must grow to full height seamlessly */
+  background: var(--color-surface, #f9f9f9);
 }
 
 .iframe-loading {
@@ -138,8 +153,10 @@ onUnmounted(() => {
 }
 
 iframe {
+  display: block;
   transition: opacity 0.3s ease;
-  min-height: 400px;
+  /* No min-height — height is driven entirely by postMessage from the document */
+  overflow: hidden;
 }
 
 .iframe-error {
