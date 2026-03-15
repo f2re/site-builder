@@ -446,3 +446,24 @@ class OCTokenToDevice(OCBase):
 
     def __repr__(self) -> str:
         return f"<OCTokenToDevice {self.id} token={self.token_id} serial={self.serial}>"
+
+
+class OCComplectation(OCBase):
+    """OpenCart complectations catalog"""
+    __tablename__ = "oc_complectations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[int] = mapped_column(Integer)
+    caption: Mapped[str] = mapped_column(String(255))
+    label: Mapped[str] = mapped_column(String(255))
+    simple: Mapped[bool] = mapped_column(Boolean)
+    date_added: Mapped[datetime] = mapped_column(DateTime)
+
+
+class OCComplectationToDevice(OCBase):
+    """OpenCart complectation-to-device M2M"""
+    __tablename__ = "oc_complectation_to_device"
+
+    complectation_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    serial: Mapped[str] = mapped_column(String(255), primary_key=True)
+    date_added: Mapped[datetime] = mapped_column(DateTime)

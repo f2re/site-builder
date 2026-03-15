@@ -3,7 +3,7 @@
 # via Base.metadata when env.py imports this package.
 from app.db.models.user import User          # noqa: F401
 from app.db.models.order import Order, OrderItem        # noqa: F401
-from app.db.models.user_device import UserDevice  # noqa: F401
+from app.db.models.user_device import UserDevice, user_device_complectations  # noqa: F401
 from app.db.models.delivery_address import DeliveryAddress  # noqa: F401
 from app.db.models.order_tracking import OrderTrackingEvent  # noqa: F401
 from app.db.models.product import Category, Product, ProductVariant, ProductImage, ProductOptionGroup, ProductOptionValue  # noqa: F401

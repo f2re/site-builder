@@ -1,0 +1,11 @@
+{
+  "id": "p36_backend_device_models",
+  "agent": "backend-agent",
+  "phase": 1,
+  "status": "PENDING",
+  "title": "Модели и Alembic для миграции девайсов v2",
+  "description": "Добавить OC-модели (OCComplectation, OCComplectationToDevice) в opencart_models.py. Создать M2M таблицу user_device_complectations в user_device.py. Добавить relationship complectations в UserDevice. Создать Alembic миграцию.",
+  "depends_on": [],
+  "plan": ".claude/agents/plans/p36_device_migration_v2.md",
+  "created_at": "2026-03-15"
+}

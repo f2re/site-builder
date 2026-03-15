@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, TypeVar
 from urllib.parse import urlparse
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import bleach
 import httpx
@@ -26,12 +26,14 @@ from app.db.models.migration import MigrationEntity, MigrationJob, MigrationStat
 from app.db.models.order import Order, OrderItem, OrderStatus
 from app.db.models.product import Category, Product, ProductImage, ProductVariant, ProductOptionGroup, ProductOptionValue
 from app.db.models.user import User
-from app.db.models.user_device import UserDevice, DeviceModel
+from app.db.models.user_device import UserDevice, DeviceModel, user_device_complectations
 from app.db.models.delivery_address import DeliveryAddress
-from app.db.models.firmware import ModuleDevice
+from app.db.models.firmware import ModuleComplectation
 from app.db.opencart_models import (
     OCCategory,
     OCCategoryDescription,
+    OCComplectation,
+    OCComplectationToDevice,
     OCCustomer,
     OCDevice,
     OCAddress,
@@ -49,6 +51,8 @@ from app.db.opencart_models import (
     OCOptionValueDescription,
     OCProductOption,
     OCProductOptionValue,
+    OCTokenToDevice,
+    OCToken,
 )
 from app.db.opencart_session import OCAsyncSessionLocal
 
@@ -104,6 +108,12 @@ _BLEACH_ALLOWED_TAGS: list[str] = [
 ]
 
 T = TypeVar("T")
+
+# Mapping: oc_token_to_device.device_type → UserDevice.model
+_TTD_MODEL_MAP: Dict[str, DeviceModel] = {
+    "obd": DeviceModel.WIFI_OBD2,
+    "afr": DeviceModel.WIFI_OBD2_ADVANCED,
+}
 
 logger = structlog.get_logger()
 
@@ -523,7 +533,7 @@ class MigrationService:
                 elif job.entity == MigrationEntity.ADDRESSES:
                     count_stmt = select(func.count()).select_from(OCAddress)
                 elif job.entity == MigrationEntity.DEVICES:
-                    count_stmt = select(func.count()).select_from(OCDevice)
+                    count_stmt = select(func.count()).select_from(OCTokenToDevice)
                 elif job.entity == MigrationEntity.CATEGORIES:
                     count_stmt = select(func.count()).select_from(OCCategory)
                 elif job.entity == MigrationEntity.PRODUCTS:
@@ -946,264 +956,464 @@ class MigrationService:
             return len(addresses) == self.batch_size
 
     async def migrate_devices(self, job: MigrationJob) -> bool:
-        """Migrate OBD/IoT devices from oc_devices to user_devices.
+        """Migrate OBD/IoT devices from oc_token_to_device to user_devices.
 
-        Uses cursor-based pagination via extra_data['devices_last_id'].
-        Looks up User by email_hash via OCCustomer join (same as migrate_addresses).
-        Returns True if more batches remain, False when complete.
+        Three sub-phases managed via job.extra_data flags:
+          A) complectations_done — one-shot import of oc_complectations → module_complectations
+          B) token_devices_done — batched import of oc_token_to_device → user_devices
+          C) device_complectations_done — batched M2M oc_complectation_to_device → user_device_complectations
+
+        Returns True if more batches remain (retrigger), False when all phases complete.
         """
         from app.core.logging import logger  # noqa: PLC0415
-        from app.core.security import get_blind_index  # noqa: PLC0415
 
-        # FIX: Refresh job to avoid race condition with concurrent tasks
         await self.session.refresh(job)
-        metadata: Dict[str, Any] = job.extra_data or {}  # type: ignore[assignment]
-        last_device_id: int = int(metadata.get("devices_last_id") or 0)
+        metadata: Dict[str, Any] = dict(job.extra_data or {})
 
         logger.info(
             "migrate_devices_start",
             job_id=str(job.id),
-            last_device_id=last_device_id,
-            addresses_done=metadata.get("addresses_done"),
-            devices_done=metadata.get("devices_done"),
+            complectations_done=metadata.get("complectations_done"),
+            token_devices_done=metadata.get("token_devices_done"),
+            device_complectations_done=metadata.get("device_complectations_done"),
         )
 
-        async with OCAsyncSessionLocal() as oc_session:
-            # Сначала посчитаем общее количество записей в oc_devices
-            total_stmt = select(func.count()).select_from(OCDevice)
-            total_res = await oc_session.execute(total_stmt)
-            total_in_oc = int(total_res.scalar() or 0)
-            logger.info("migrate_devices_oc_total", total_in_oc_devices=total_in_oc)
+        # --- Sub-phase A: Complectations catalog (one-shot) ---
+        if not metadata.get("complectations_done"):
+            await self._migrate_complectations_catalog(job, metadata)
+            # Fall through to sub-phase B (no retrigger)
 
+        # --- Sub-phase B: Devices from oc_token_to_device ---
+        if not metadata.get("token_devices_done"):
+            retrigger = await self._migrate_token_devices(job, metadata)
+            if retrigger:
+                return True
+            # Fall through to sub-phase C
+
+        # --- Sub-phase C: M2M device complectations ---
+        if not metadata.get("device_complectations_done"):
+            retrigger = await self._migrate_device_complectations(job, metadata)
+            if retrigger:
+                return True
+
+        return False
+
+    # ------------------------------------------------------------------
+    # Sub-phase A: one-shot import of oc_complectations → module_complectations
+    # ------------------------------------------------------------------
+    async def _migrate_complectations_catalog(
+        self, job: MigrationJob, metadata: Dict[str, Any]
+    ) -> None:
+        from app.core.logging import logger  # noqa: PLC0415
+
+        logger.info("migrate_complectations_start", job_id=str(job.id))
+
+        complectation_map: Dict[str, str] = {}
+
+        async with OCAsyncSessionLocal() as oc_session:
+            stmt = select(OCComplectation).order_by(OCComplectation.id)
+            result = await oc_session.execute(stmt)
+            oc_complectations = result.scalars().all()
+
+            logger.info("migrate_complectations_fetched", count=len(oc_complectations))
+
+            for oc_c in oc_complectations:
+                # Check if already exists by label
+                existing_stmt = select(ModuleComplectation).where(
+                    ModuleComplectation.label == oc_c.label
+                )
+                existing_res = await self.session.execute(existing_stmt)
+                existing = existing_res.scalar_one_or_none()
+
+                if existing:
+                    complectation_map[str(oc_c.id)] = str(existing.id)
+                    logger.info(
+                        "migrate_complectations_skip",
+                        oc_id=oc_c.id,
+                        label=oc_c.label,
+                        reason="already_exists",
+                    )
+                    continue
+
+                new_mc = ModuleComplectation(
+                    caption=oc_c.caption,
+                    label=oc_c.label,
+                    code=oc_c.code,
+                    simple=oc_c.simple,
+                )
+                self.session.add(new_mc)
+                await self.session.flush()
+                complectation_map[str(oc_c.id)] = str(new_mc.id)
+                logger.info(
+                    "migrate_complectations_created",
+                    oc_id=oc_c.id,
+                    label=oc_c.label,
+                    new_id=str(new_mc.id),
+                )
+
+        metadata["complectation_map"] = complectation_map
+        metadata["complectations_done"] = True
+        job.extra_data = metadata
+        flag_modified(job, "extra_data")
+        await self.session.commit()
+
+        logger.info(
+            "migrate_complectations_done",
+            total=len(oc_complectations) if oc_complectations else 0,
+            mapped=len(complectation_map),
+        )
+
+    # ------------------------------------------------------------------
+    # Sub-phase B: batched import oc_token_to_device → user_devices
+    # ------------------------------------------------------------------
+    async def _migrate_token_devices(
+        self, job: MigrationJob, metadata: Dict[str, Any]
+    ) -> bool:
+        """Returns True if more batches remain (retrigger)."""
+        from app.core.logging import logger  # noqa: PLC0415
+
+        last_ttd_id: int = int(metadata.get("ttd_last_id") or 0)
+
+        async with OCAsyncSessionLocal() as oc_session:
             stmt = (
-                select(OCDevice)
-                .where(OCDevice.device_id > last_device_id)
-                .order_by(OCDevice.device_id)
+                select(OCTokenToDevice)
+                .where(OCTokenToDevice.id > last_ttd_id)
+                .order_by(OCTokenToDevice.id)
                 .limit(self.batch_size)
             )
             result = await oc_session.execute(stmt)
-            oc_devices = result.scalars().all()
+            batch = result.scalars().all()
 
             logger.info(
-                "migrate_devices_fetched",
-                fetched=len(oc_devices),
-                cursor_from=last_device_id,
+                "migrate_token_devices_fetched",
+                fetched=len(batch),
+                cursor_from=last_ttd_id,
                 batch_size=self.batch_size,
             )
 
-            if not oc_devices:
-                logger.info(
-                    "migrate_devices_complete",
-                    processed=0,
-                    skipped=0,
-                    total_in_oc=total_in_oc,
-                    reason="no_rows_after_cursor",
-                )
+            if not batch:
+                metadata["token_devices_done"] = True
+                job.extra_data = metadata
+                flag_modified(job, "extra_data")
+                await self.session.commit()
+                logger.info("migrate_token_devices_complete", reason="no_rows_after_cursor")
                 return False
 
             migrated = 0
             skipped = 0
+            skipped_no_token = 0
             skipped_no_customer = 0
             skipped_no_user = 0
-            skipped_duplicate = 0
             errors_count = 0
-            current_last_id = last_device_id
+            current_last_id = last_ttd_id
 
-            for oc_dev in oc_devices:
-                logger.info(
-                    "migrate_devices_row",
-                    oc_device_id=oc_dev.device_id,
-                    oc_customer_id=oc_dev.customer_id,
-                    device_serial=oc_dev.device_serial,
-                    device_name=oc_dev.device_name,
-                    device_type=oc_dev.device_type,
-                    register_date=str(oc_dev.register_date),
-                )
-
-                # Find customer in OpenCart to get email
-                cust_stmt = select(OCCustomer).where(OCCustomer.customer_id == oc_dev.customer_id)
-                cust_result = await oc_session.execute(cust_stmt)
-                oc_cust = cust_result.scalar_one_or_none()
-                if not oc_cust:
-                    skipped += 1
-                    skipped_no_customer += 1
-                    current_last_id = oc_dev.device_id
-                    logger.warning(
-                        "migrate_devices_no_customer",
-                        oc_device_id=oc_dev.device_id,
-                        oc_customer_id=oc_dev.customer_id,
-                        reason="customer_not_found_in_oc_customer",
-                    )
-                    continue
-
-                logger.info(
-                    "migrate_devices_customer_found",
-                    oc_device_id=oc_dev.device_id,
-                    oc_customer_id=oc_cust.customer_id,
-                    email_preview=oc_cust.email[:3] + "***" if oc_cust.email else "EMPTY",
-                    email_empty=not bool(oc_cust.email),
-                )
-
-                # Resolve User by email_hash
-                if not oc_cust.email or not oc_cust.email.strip():
-                    email_hash = hashlib.sha256(f"empty_{oc_cust.customer_id}".encode()).hexdigest()
-                else:
-                    email_hash = get_blind_index(oc_cust.email)
-                
-                logger.info(
-                    "migrate_devices_email_hash",
-                    oc_device_id=oc_dev.device_id,
-                    email_hash_prefix=email_hash[:8] if email_hash else "NONE",
-                )
-
-                user_stmt = select(User).where(User.email_hash == email_hash)
-                user_result = await self.session.execute(user_stmt)
-                user = user_result.scalar_one_or_none()
-                if not user:
-                    skipped += 1
-                    skipped_no_user += 1
-                    current_last_id = oc_dev.device_id
-                    logger.warning(
-                        "migrate_devices_no_user",
-                        oc_device_id=oc_dev.device_id,
-                        oc_customer_id=oc_dev.customer_id,
-                        email_hash_prefix=email_hash[:8] if email_hash else "NONE",
-                        reason="user_not_found_by_email_hash_in_new_db",
-                    )
-                    continue
-
-                logger.info(
-                    "migrate_devices_user_found",
-                    oc_device_id=oc_dev.device_id,
-                    user_id=str(user.id),
-                )
-
-                # Build device_uid — use serial if non-empty, else generate
-                raw_serial = (oc_dev.device_serial or "").strip()
-                if raw_serial:
-                    device_uid = raw_serial
-                    logger.info("migrate_devices_uid_serial", oc_device_id=oc_dev.device_id, device_uid=device_uid)
-                else:
-                    device_uid = f"oc-{oc_dev.device_id}-{uuid4().hex[:8]}"
-                    logger.info(
-                        "migrate_devices_uid_generated",
-                        oc_device_id=oc_dev.device_id,
-                        device_uid=device_uid,
-                        reason="empty_serial",
-                    )
-
-                # Ensure registered_at is timezone-aware
-                if oc_dev.register_date:
-                    if oc_dev.register_date.tzinfo is None:
-                        registered_at = oc_dev.register_date.replace(tzinfo=timezone.utc)
-                    else:
-                        registered_at = oc_dev.register_date
-                else:
-                    registered_at = datetime.now(timezone.utc)
-
-                # BUG FIX: Idempotency check by oc_device_id before INSERT
-                check_stmt = select(UserDevice).where(UserDevice.oc_device_id == oc_dev.device_id)
-                existing_device = await self.session.execute(check_stmt)
-                if existing_device.scalar_one_or_none():
-                    skipped += 1
-                    skipped_duplicate += 1
-                    current_last_id = oc_dev.device_id
-                    logger.info(
-                        "migrate_devices_skip_duplicate",
-                        oc_device_id=oc_dev.device_id,
-                        reason="already_migrated",
-                    )
-                    continue
-
+            for ttd in batch:
                 try:
-                    # Try to find ModuleDevice by serial
-                    module_device_id = None
-                    if raw_serial:
-                        mod_stmt = select(ModuleDevice.id).where(ModuleDevice.serial == raw_serial)
-                        mod_res = await self.session.execute(mod_stmt)
-                        module_device_id = mod_res.scalar_one_or_none()
+                    # 1. Resolve token → customer_id
+                    token_stmt = select(OCToken).where(OCToken.id == ttd.token_id)
+                    token_res = await oc_session.execute(token_stmt)
+                    oc_token = token_res.scalar_one_or_none()
+                    if not oc_token:
+                        skipped += 1
+                        skipped_no_token += 1
+                        current_last_id = ttd.id
+                        logger.warning(
+                            "migrate_token_devices_no_token",
+                            ttd_id=ttd.id,
+                            token_id=ttd.token_id,
+                        )
+                        continue
 
-                    # Map OpenCart device_type string to DeviceModel enum
-                    _oc_model_map = {
-                        "wifi obd2 advanced": DeviceModel.WIFI_OBD2_ADVANCED,
-                        "wifi obd2": DeviceModel.WIFI_OBD2,
-                    }
-                    _raw_type = (oc_dev.device_type or "").strip().lower()
-                    device_model = _oc_model_map.get(_raw_type, DeviceModel.WIFI_OBD2)
+                    # 2. Resolve customer → email
+                    cust_stmt = select(OCCustomer).where(
+                        OCCustomer.customer_id == oc_token.customer_id
+                    )
+                    cust_res = await oc_session.execute(cust_stmt)
+                    oc_cust = cust_res.scalar_one_or_none()
+                    if not oc_cust:
+                        skipped += 1
+                        skipped_no_customer += 1
+                        current_last_id = ttd.id
+                        logger.warning(
+                            "migrate_token_devices_no_customer",
+                            ttd_id=ttd.id,
+                            customer_id=oc_token.customer_id,
+                        )
+                        continue
 
-                    # BUG FIX: Use SAVEPOINT instead of full rollback
+                    # 3. Compute email_hash
+                    if not oc_cust.email or not oc_cust.email.strip():
+                        email_hash = hashlib.sha256(
+                            f"empty_{oc_cust.customer_id}".encode()
+                        ).hexdigest()
+                    else:
+                        email_hash = get_blind_index(oc_cust.email)
+
+                    # 4. Find User
+                    user_stmt = select(User).where(User.email_hash == email_hash)
+                    user_res = await self.session.execute(user_stmt)
+                    user = user_res.scalar_one_or_none()
+                    if not user:
+                        skipped += 1
+                        skipped_no_user += 1
+                        current_last_id = ttd.id
+                        logger.warning(
+                            "migrate_token_devices_no_user",
+                            ttd_id=ttd.id,
+                            customer_id=oc_token.customer_id,
+                            email_hash_prefix=email_hash[:8] if email_hash else "NONE",
+                        )
+                        continue
+
+                    serial = (ttd.serial or "").strip()
+                    if not serial:
+                        skipped += 1
+                        current_last_id = ttd.id
+                        logger.warning("migrate_token_devices_empty_serial", ttd_id=ttd.id)
+                        continue
+
+                    # 5. Map device_type
+                    raw_type = (ttd.device_type or "").strip().lower()
+                    device_model = _TTD_MODEL_MAP.get(raw_type, DeviceModel.WIFI_OBD2)
+
+                    # 6. Ensure registered_at is tz-aware
+                    if ttd.date_added:
+                        if ttd.date_added.tzinfo is None:
+                            registered_at = ttd.date_added.replace(tzinfo=timezone.utc)
+                        else:
+                            registered_at = ttd.date_added
+                    else:
+                        registered_at = datetime.now(timezone.utc)
+
+                    # 7. Check existing UserDevice by device_uid (serial)
+                    existing_stmt = select(UserDevice).where(UserDevice.device_uid == serial)
+                    existing_res = await self.session.execute(existing_stmt)
+                    existing_dev = existing_res.scalar_one_or_none()
+
                     async with self.session.begin_nested():
-                        new_device = UserDevice(
-                            user_id=user.id,
-                            device_uid=device_uid,
-                            name=oc_dev.device_name or None,
-                            model=device_model,
-                            registered_at=registered_at,
-                            comment=oc_dev.comment,
-                            oc_device_id=oc_dev.device_id,
-                            module_device_id=module_device_id,
-                            is_active=True,
-                        )
-                        self.session.add(new_device)
-                        await self.session.flush()
-                        # FIX: Update cursor ONLY after successful flush
-                        current_last_id = oc_dev.device_id
-                        migrated += 1
-                        logger.info(
-                            "migrate_devices_ok",
-                            oc_device_id=oc_dev.device_id,
-                            device_uid=device_uid,
-                            user_id=str(user.id),
-                        )
+                        if existing_dev:
+                            # Update: model, registered_at (min), comment
+                            existing_dev.model = device_model
+                            if existing_dev.registered_at and registered_at:
+                                if registered_at < existing_dev.registered_at:
+                                    existing_dev.registered_at = registered_at
+                            if not existing_dev.comment and ttd.comment:
+                                existing_dev.comment = ttd.comment
+                            await self.session.flush()
+                            current_last_id = ttd.id
+                            migrated += 1
+                            logger.info(
+                                "migrate_token_devices_updated",
+                                ttd_id=ttd.id,
+                                device_uid=serial,
+                                user_id=str(existing_dev.user_id),
+                            )
+                        else:
+                            # Lookup device name from oc_devices
+                            dev_name: Optional[str] = None
+                            dev_name_stmt = select(OCDevice.device_name).where(
+                                OCDevice.device_serial == serial
+                            )
+                            dev_name_res = await oc_session.execute(dev_name_stmt)
+                            dev_name_row = dev_name_res.scalar_one_or_none()
+                            if dev_name_row:
+                                dev_name = dev_name_row
+
+                            new_dev = UserDevice(
+                                user_id=user.id,
+                                device_uid=serial,
+                                name=dev_name,
+                                model=device_model,
+                                registered_at=registered_at,
+                                comment=ttd.comment,
+                                is_active=True,
+                            )
+                            self.session.add(new_dev)
+                            await self.session.flush()
+                            current_last_id = ttd.id
+                            migrated += 1
+                            logger.info(
+                                "migrate_token_devices_created",
+                                ttd_id=ttd.id,
+                                device_uid=serial,
+                                user_id=str(user.id),
+                            )
+
                 except Exception as exc:
-                    # Rollback only to SAVEPOINT, not entire batch
                     err_str = str(exc)
-                    await self._log_migration(job.id, "ERROR", f"Failed to migrate device: {err_str}", oc_id=oc_dev.device_id)
-                    # ON CONFLICT SKIP for duplicate device_uid
+                    current_last_id = ttd.id
+                    await self._log_migration(
+                        job.id, "ERROR",
+                        f"Failed to migrate token_device: {err_str}",
+                        oc_id=ttd.id,
+                    )
                     if "unique" in err_str.lower() or "duplicate" in err_str.lower():
                         skipped += 1
                         logger.warning(
-                            "migrate_devices_duplicate",
-                            oc_device_id=oc_dev.device_id,
-                            device_uid=device_uid,
+                            "migrate_token_devices_duplicate",
+                            ttd_id=ttd.id,
+                            serial=ttd.serial,
                             error=err_str,
                         )
                     else:
                         errors_count += 1
                         logger.warning(
-                            "migrate_devices_error",
-                            oc_device_id=oc_dev.device_id,
-                            device_uid=device_uid,
+                            "migrate_token_devices_error",
+                            ttd_id=ttd.id,
+                            serial=ttd.serial,
                             error=err_str,
                         )
 
+            # Persist counters and cursor
             metadata["devices_processed"] = metadata.get("devices_processed", 0) + migrated
             metadata["devices_skipped"] = metadata.get("devices_skipped", 0) + skipped
+            metadata["devices_no_token"] = metadata.get("devices_no_token", 0) + skipped_no_token
             metadata["devices_no_customer"] = metadata.get("devices_no_customer", 0) + skipped_no_customer
             metadata["devices_no_user"] = metadata.get("devices_no_user", 0) + skipped_no_user
-            metadata["devices_duplicate"] = metadata.get("devices_duplicate", 0) + skipped_duplicate
             metadata["devices_failed"] = metadata.get("devices_failed", 0) + errors_count
+            metadata["ttd_last_id"] = current_last_id
 
-            # Persist cursor into extra_data
-            metadata["devices_last_id"] = current_last_id
+            has_more = len(batch) == self.batch_size
+            if not has_more:
+                metadata["token_devices_done"] = True
+
             job.extra_data = metadata
             flag_modified(job, "extra_data")
-
             await self.session.commit()
+
             logger.info(
-                "migrate_devices_batch",
+                "migrate_token_devices_batch",
                 migrated=migrated,
                 skipped=skipped,
-                skipped_no_customer=skipped_no_customer,
-                skipped_no_user=skipped_no_user,
-                skipped_duplicate=skipped_duplicate,
                 errors=errors_count,
-                last_device_id=current_last_id,
-                will_retrigger=len(oc_devices) == self.batch_size,
+                last_ttd_id=current_last_id,
+                will_retrigger=has_more,
             )
 
-            # Retrigger if full batch fetched
-            return len(oc_devices) == self.batch_size
+            return has_more
+
+    # ------------------------------------------------------------------
+    # Sub-phase C: batched M2M oc_complectation_to_device → user_device_complectations
+    # ------------------------------------------------------------------
+    async def _migrate_device_complectations(
+        self, job: MigrationJob, metadata: Dict[str, Any]
+    ) -> bool:
+        """One-shot import of all M2M rows (typically <1000). Returns False (no retrigger)."""
+        from app.core.logging import logger  # noqa: PLC0415
+
+        complectation_map: Dict[str, str] = metadata.get("complectation_map", {})
+
+        async with OCAsyncSessionLocal() as oc_session:
+            # Fetch ALL rows — oc_complectation_to_device is small (<1000 rows)
+            # Cursor-based pagination is unsafe here: composite PK (complectation_id, serial)
+            # means one serial can have multiple complectation_ids.
+            stmt = select(OCComplectationToDevice).order_by(
+                OCComplectationToDevice.serial, OCComplectationToDevice.complectation_id
+            )
+            result = await oc_session.execute(stmt)
+            all_rows = result.scalars().all()
+
+            logger.info("migrate_device_complectations_fetched", total=len(all_rows))
+
+            if not all_rows:
+                metadata["device_complectations_done"] = True
+                job.extra_data = metadata
+                flag_modified(job, "extra_data")
+                await self.session.commit()
+                logger.info("migrate_device_complectations_complete", reason="no_rows")
+                return False
+
+            linked = 0
+            skipped = 0
+            errors_count = 0
+
+            for ctd in all_rows:
+                try:
+                    # 1. Find UserDevice
+                    dev_stmt = select(UserDevice).where(UserDevice.device_uid == ctd.serial)
+                    dev_res = await self.session.execute(dev_stmt)
+                    user_dev = dev_res.scalar_one_or_none()
+                    if not user_dev:
+                        skipped += 1
+                        logger.info(
+                            "migrate_device_complectations_no_device",
+                            serial=ctd.serial,
+                            complectation_id=ctd.complectation_id,
+                        )
+                        continue
+
+                    # 2. Lookup complectation UUID
+                    mc_uuid_str = complectation_map.get(str(ctd.complectation_id))
+                    if not mc_uuid_str:
+                        skipped += 1
+                        logger.warning(
+                            "migrate_device_complectations_no_mapping",
+                            serial=ctd.serial,
+                            oc_complectation_id=ctd.complectation_id,
+                        )
+                        continue
+
+                    mc_uuid = uuid.UUID(mc_uuid_str)
+
+                    # 3. Check existing M2M row
+                    m2m_check = select(user_device_complectations).where(
+                        user_device_complectations.c.user_device_id == user_dev.id,
+                        user_device_complectations.c.complectation_id == mc_uuid,
+                    )
+                    m2m_res = await self.session.execute(m2m_check)
+                    if m2m_res.first():
+                        skipped += 1
+                        continue
+
+                    # 4. Insert M2M row within SAVEPOINT
+                    async with self.session.begin_nested():
+                        ins = user_device_complectations.insert().values(
+                            user_device_id=user_dev.id,
+                            complectation_id=mc_uuid,
+                        )
+                        await self.session.execute(ins)
+                        await self.session.flush()
+                        linked += 1
+                        logger.info(
+                            "migrate_device_complectations_linked",
+                            serial=ctd.serial,
+                            device_id=str(user_dev.id),
+                            complectation_id=str(mc_uuid),
+                        )
+
+                except Exception as exc:
+                    err_str = str(exc)
+                    errors_count += 1
+                    await self._log_migration(
+                        job.id, "ERROR",
+                        f"Failed to link complectation: {err_str}",
+                        oc_id=ctd.complectation_id,
+                    )
+                    logger.warning(
+                        "migrate_device_complectations_error",
+                        serial=ctd.serial,
+                        oc_complectation_id=ctd.complectation_id,
+                        error=err_str,
+                    )
+
+            # Persist counters
+            metadata["device_complectations_done"] = True
+            metadata["complectations_linked"] = linked
+            metadata["complectations_skipped"] = skipped
+            metadata["complectations_errors"] = errors_count
+
+            job.extra_data = metadata
+            flag_modified(job, "extra_data")
+            await self.session.commit()
+
+            logger.info(
+                "migrate_device_complectations_done",
+                linked=linked,
+                skipped=skipped,
+                errors=errors_count,
+            )
+
+            return False
 
     async def migrate_catalog(self, job: MigrationJob) -> bool:
         from app.core.logging import logger  # noqa: PLC0415

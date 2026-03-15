@@ -1,16 +1,29 @@
-# Module: db/models/user_device.py | Agent: backend-agent | Task: admin_devices_crud
+# Module: db/models/user_device.py | Agent: backend-agent | Task: p36_backend_device_models
 import uuid
 import enum
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING, List
 
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, Integer, Text, Enum
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, Integer, Text, Enum, Table, Column, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.db.models.firmware import ModuleComplectation
 
 
 class DeviceModel(str, enum.Enum):
     WIFI_OBD2 = "wifi_obd2"
     WIFI_OBD2_ADVANCED = "wifi_obd2_advanced"
+
+
+# Association table: UserDevice <-> ModuleComplectation
+user_device_complectations = Table(
+    "user_device_complectations",
+    Base.metadata,
+    Column("user_device_id", Uuid, ForeignKey("user_devices.id", ondelete="CASCADE"), primary_key=True),
+    Column("complectation_id", Uuid, ForeignKey("module_complectations.id", ondelete="CASCADE"), primary_key=True),
+)
 
 
 class UserDevice(Base):
@@ -48,3 +61,6 @@ class UserDevice(Base):
     # Relationships
     user = relationship("User", back_populates="devices", lazy="selectin")
     module_device = relationship("ModuleDevice", foreign_keys=[module_device_id])
+    complectations: Mapped[List["ModuleComplectation"]] = relationship(
+        "ModuleComplectation", secondary=user_device_complectations, lazy="selectin"
+    )

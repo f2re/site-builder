@@ -1,0 +1,11 @@
+{
+  "id": "p36_backend_migrate_devices_v2",
+  "agent": "backend-agent",
+  "phase": 2,
+  "status": "PENDING",
+  "title": "Переписать migrate_devices() для импорта из oc_token_to_device",
+  "description": "Переписать migrate_devices() в migration_service.py: 3 подфазы (справочник комплектаций, девайсы из oc_token_to_device, M2M комплектаций). Мердж по MAC. SAVEPOINT per device. Не менять остальные миграции.",
+  "depends_on": ["p36_backend_device_models"],
+  "plan": ".claude/agents/plans/p36_device_migration_v2.md",
+  "created_at": "2026-03-15"
+}
