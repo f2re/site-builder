@@ -48,6 +48,7 @@ class PageService:
         page = StaticPage(**data.model_dump())
         created = await self.repo.create(page)
         await self.repo.session.commit()
+        await self.repo.session.refresh(created)
         return created
 
     async def update_page(self, page_id: UUID, data: PageUpdate) -> StaticPage:
@@ -74,6 +75,7 @@ class PageService:
             )
         
         await self.repo.session.commit()
+        await self.repo.session.refresh(page)
         return page
 
     async def delete_page(self, page_id: UUID) -> None:

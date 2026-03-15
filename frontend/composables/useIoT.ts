@@ -2,6 +2,14 @@ import { ref } from 'vue'
 import { useRuntimeConfig } from '#app'
 import { useAuth } from './useAuth'
 
+export interface ComplectationItem {
+  id: string
+  caption: string
+  label: string
+  code: string
+  simple: boolean
+}
+
 export interface IoTDevice {
   id: string
   device_uid: string
@@ -9,6 +17,7 @@ export interface IoTDevice {
   model: string | null
   is_active: boolean
   last_seen_at: string | null
+  complectations?: ComplectationItem[]
 }
 
 export interface DeviceRegisterRequest {
@@ -27,7 +36,7 @@ export interface TelemetryEvent {
 
 export const useIoT = () => {
   const config = useRuntimeConfig()
-  const { token } = useAuth()
+  const { accessToken } = useAuth()
   
   const devices = ref<IoTDevice[]>([])
   const pending = ref(false)
@@ -39,7 +48,7 @@ export const useIoT = () => {
     try {
       const response = await $fetch<IoTDevice[]>(`${config.public.apiBase}/users/me/devices`, {
         headers: {
-          Authorization: `Bearer ${token.value}`
+          Authorization: `Bearer ${accessToken.value}`
         }
       })
       devices.value = response
@@ -60,7 +69,7 @@ export const useIoT = () => {
         method: 'POST',
         body: data,
         headers: {
-          Authorization: `Bearer ${token.value}`
+          Authorization: `Bearer ${accessToken.value}`
         }
       })
       devices.value.push(response)
@@ -79,7 +88,7 @@ export const useIoT = () => {
     try {
       const response = await $fetch<IoTDevice>(`${config.public.apiBase}/users/me/devices/${id}`, {
         headers: {
-          Authorization: `Bearer ${token.value}`
+          Authorization: `Bearer ${accessToken.value}`
         }
       })
       return response
@@ -93,7 +102,7 @@ export const useIoT = () => {
 
   const connectDevice = (id: string, onMessage: (event: TelemetryEvent) => void) => {
     const wsUrl = config.public.apiBase.replace(/^http/, 'ws')
-    const socket = new WebSocket(`${wsUrl}/users/me/devices/${id}/connect?token=${token.value}`)
+    const socket = new WebSocket(`${wsUrl}/users/me/devices/${id}/connect?token=${accessToken.value}`)
     
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data) as TelemetryEvent
@@ -112,6 +121,19 @@ export const useIoT = () => {
     return models[model] || model
   }
 
+  const fetchAllComplectations = async (): Promise<ComplectationItem[]> => {
+    try {
+      const response = await $fetch<ComplectationItem[]>(`${config.public.apiBase}/users/complectations`, {
+        headers: {
+          Authorization: `Bearer ${accessToken.value}`
+        }
+      })
+      return response
+    } catch (err: unknown) {
+      return []
+    }
+  }
+
   return {
     devices,
     pending,
@@ -120,6 +142,7 @@ export const useIoT = () => {
     registerDevice,
     getDevice,
     connectDevice,
-    formatDeviceModel
+    formatDeviceModel,
+    fetchAllComplectations
   }
 }

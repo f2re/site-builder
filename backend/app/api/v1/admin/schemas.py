@@ -7,6 +7,7 @@ from app.db.models.migration import MigrationStatus, MigrationEntity
 from app.db.models.user_device import DeviceModel
 from app.api.v1.auth.schemas import UserResponse
 from app.api.v1.orders.schemas import OrderRead
+from app.api.v1.firmware.schemas import ComplectationRead
 
 
 class AdminDeviceRead(BaseModel):
@@ -22,6 +23,7 @@ class AdminDeviceRead(BaseModel):
     oc_device_id: Optional[int] = None
     user_email: Optional[str] = None
     user_name: Optional[str] = None
+    complectations: List[ComplectationRead] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -41,6 +43,7 @@ class AdminDeviceUpdate(BaseModel):
     model: Optional[DeviceModel] = None
     is_active: Optional[bool] = None
     comment: Optional[str] = None
+    complectation_ids: Optional[List[UUID]] = None
 
 class MigrationJobResponse(BaseModel):
     id: UUID
@@ -101,6 +104,7 @@ class AdminUserDeviceRead(BaseModel):
     model: DeviceModel
     last_seen_at: Optional[datetime] = None
     is_active: bool
+    complectations: List[ComplectationRead] = []
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -1,0 +1,60 @@
+{
+  "task_id": "p41_backend_device_complectations",
+  "agent": "backend-agent",
+  "priority": "high",
+  "title": "Backend: комплектации UserDevice — схемы, эндпоинты, загрузка связей",
+  "description": "Добавить поддержку комплектаций (ModuleComplectation) для UserDevice в admin API. UserDevice уже имеет M2M связь user_device_complectations → module_complectations через lazy='selectin'. Нужно: 1) добавить complectations в схему AdminDeviceRead, 2) добавить PUT /admin/devices/{device_id}/complectations, 3) добавить GET /admin/complectations (список всех), 4) добавить complectations в схему DeviceResponse (пользователя).",
+
+  "context": {
+    "user_device_model": "backend/app/db/models/user_device.py — UserDevice имеет: complectations: Mapped[List[ModuleComplectation]] = relationship('ModuleComplectation', secondary=user_device_complectations, lazy='selectin')",
+    "module_complectation_model": "backend/app/db/models/firmware.py — ModuleComplectation: id(UUID), caption(str), label(str), code(str), simple(bool)",
+    "admin_schemas": "backend/app/api/v1/admin/schemas.py — AdminDeviceRead и AdminDeviceUpdate НЕ содержат complectations",
+    "admin_router": "backend/app/api/v1/admin/router.py — endpoints GET/PUT /devices/{device_id}, нет complectation endpoints",
+    "firmware_router": "backend/app/api/v1/admin/router.py уже имеет POST/PUT/DELETE /firmware/complectations (для ModuleDevice), но НЕТ GET /firmware/complectations списком",
+    "user_api": "backend/app/api/v1/users/ — DeviceResponse без complectations",
+    "useFirmware_frontend": "frontend/composables/useFirmware.ts — fetchAllComplectations() вызывает GET /admin/firmware/complectations (список) — этот эндпоинт ОТСУТСТВУЕТ в роутере, нужно добавить"
+  },
+
+  "tasks": [
+    {
+      "step": 1,
+      "action": "Прочитать: backend/app/api/v1/admin/schemas.py, backend/app/api/v1/admin/router.py (секция devices, строки около 1100+), backend/app/db/models/firmware.py (ModuleComplectation), backend/app/db/models/user_device.py (UserDevice + M2M), backend/app/api/v1/users/schemas.py (DeviceResponse)."
+    },
+    {
+      "step": 2,
+      "action": "В backend/app/api/v1/admin/schemas.py добавить: class ComplectationRead(BaseModel): id: UUID; caption: str; label: str; code: str; simple: bool; model_config = ConfigDict(from_attributes=True). Добавить в AdminDeviceRead поле: complectations: List[ComplectationRead] = []. Добавить в AdminDeviceUpdate поле: complectation_ids: Optional[List[UUID]] = None. Добавить в AdminUserDeviceRead поле: complectations: List[ComplectationRead] = []."
+    },
+    {
+      "step": 3,
+      "action": "В backend/app/api/v1/admin/router.py найти секцию GET /devices/{device_id} и убедиться что при загрузке устройства используется selectinload(UserDevice.complectations). Если нет — добавить. Аналогично для GET /devices (список)."
+    },
+    {
+      "step": 4,
+      "action": "Добавить в admin router НОВЫЙ GET /admin/firmware/complectations эндпоинт — список всех ModuleComplectation. Поместить ПЕРЕД POST /firmware/complectations. Запрос к БД: SELECT * FROM module_complectations ORDER BY caption. Response: List[ComplectationRead]."
+    },
+    {
+      "step": 5,
+      "action": "Добавить в admin router PUT /admin/devices/{device_id}/complectations — устанавливает список комплектаций для UserDevice. Body: { complectation_ids: List[UUID] }. Логика: загрузить UserDevice, загрузить ModuleComplectation по ids, заменить device.complectations = [список объектов], commit, selectinload перезагрузить, вернуть AdminDeviceRead. Если device не найден — 404."
+    },
+    {
+      "step": 6,
+      "action": "В backend/app/api/v1/users/schemas.py найти DeviceResponse. Добавить complectations: List[ComplectationRead] = [] (ComplectationRead импортировать из admin.schemas или определить локально). Убедиться что GET /users/me/devices использует selectinload(UserDevice.complectations) при загрузке."
+    },
+    {
+      "step": 7,
+      "action": "Запустить: cd backend && ruff check app/ --fix && ruff check app/ && mypy app/ --ignore-missing-imports. Исправить ВСЕ ошибки."
+    },
+    {
+      "step": 8,
+      "action": "Написать отчёт в .claude/agents/reports/backend/p41_backend_device_complectations.md"
+    }
+  ],
+
+  "acceptance_criteria": [
+    "GET /admin/firmware/complectations возвращает List[ComplectationRead]",
+    "GET /admin/devices/{id} возвращает AdminDeviceRead с полем complectations: []",
+    "PUT /admin/devices/{id}/complectations принимает {complectation_ids: [uuid,...]} и обновляет M2M",
+    "GET /users/me/devices возвращает DeviceResponse с complectations: []",
+    "ruff: 0 ошибок, mypy: 0 ошибок"
+  ]
+}

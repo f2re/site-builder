@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, status, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, EmailStr
 from sqlalchemy import select, func, or_, update
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import require_admin, get_product_repo, get_db, get_cart_service
@@ -16,6 +17,7 @@ from app.db.models.order import Order, OrderStatus, OrderItem
 from app.db.models.product import ProductVariant, Product
 from app.db.models.user import User
 from app.db.models.user_device import UserDevice, DeviceModel
+from app.db.models.firmware import ModuleComplectation
 from app.api.v1.auth.schemas import UserResponse
 from app.api.v1.admin.schemas import (
     AdminDeviceRead,
@@ -1095,6 +1097,65 @@ async def delete_device(
     logger.info("admin_action", admin_id=str(_admin.id), action="delete_device", target_id=str(device_id))
 
 
+class DeviceComplectationsUpdate(BaseModel):
+    complectation_ids: List[UUID]
+
+
+@router.put("/devices/{device_id}/complectations", response_model=AdminDeviceRead)
+async def set_device_complectations(
+    device_id: UUID,
+    payload: DeviceComplectationsUpdate,
+    _admin: User = AdminDep,
+    session: AsyncSession = Depends(get_db),
+    user_repo: UserRepository = Depends(get_user_repo),
+) -> Any:
+    """Replace the full set of complectations for a UserDevice (M2M)."""
+    stmt = (
+        select(UserDevice)
+        .options(selectinload(UserDevice.complectations))
+        .where(UserDevice.id == device_id)
+    )
+    result = await session.execute(stmt)
+    dev = result.scalar_one_or_none()
+    if not dev:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    # Load requested complectations
+    comps_stmt = select(ModuleComplectation).where(
+        ModuleComplectation.id.in_(payload.complectation_ids)
+    )
+    comps_result = await session.execute(comps_stmt)
+    complectations = list(comps_result.scalars().all())
+
+    dev.complectations = complectations
+    await session.commit()
+
+    # Reload with selectinload to avoid detached-instance issues
+    reload_stmt = (
+        select(UserDevice)
+        .options(selectinload(UserDevice.complectations))
+        .where(UserDevice.id == device_id)
+    )
+    reload_result = await session.execute(reload_stmt)
+    dev = reload_result.scalar_one()
+
+    # Build response with user info
+    user = await user_repo.get_by_id(dev.user_id)
+    res = AdminDeviceRead.model_validate(dev)
+    if user:
+        decrypted = user_repo._decrypt_user(user)
+        res.user_email = decrypted.email
+        res.user_name = decrypted.full_name
+
+    logger.info(
+        "admin_action",
+        admin_id=str(_admin.id),
+        action="set_device_complectations",
+        target_id=str(device_id),
+    )
+    return res
+
+
 @router.get("/users/{user_id}/devices", response_model=List[AdminDeviceRead])
 async def get_user_devices(
     user_id: UUID,
@@ -1140,6 +1201,15 @@ async def admin_delete_device(
     await service.repo.session.commit()
     if not deleted:
         raise HTTPException(status_code=404, detail="Device not found")
+
+@router.get("/firmware/complectations", response_model=List[ComplectationRead])
+async def list_complectations(
+    _admin: User = AdminDep,
+    service: FirmwareService = Depends(get_firmware_service),
+) -> Any:
+    """Return all module complectations ordered by caption."""
+    return await service.repo.list_complectations()
+
 
 @router.post("/firmware/complectations", response_model=ComplectationRead, status_code=status.HTTP_201_CREATED)
 async def create_complectation(

@@ -1,0 +1,66 @@
+{
+  "task_id": "p41_frontend_user_device_complectations",
+  "agent": "frontend-agent",
+  "priority": "high",
+  "title": "Frontend User: отображение комплектаций на странице устройства пользователя",
+  "description": "На странице устройства пользователя (frontend/pages/profile/devices/[id].vue) добавить секцию 'Комплектации'. Показывать ВСЕ доступные комплектации из каталога, визуально разделяя: активные (назначенные пользователю) — ярко выделены, неактивные (не куплены) — затемнены с affordance 'Купить'.",
+
+  "context": {
+    "user_device_page": "frontend/pages/profile/devices/[id].vue — IoT дашборд с телеметрией. Sidebar содержит 'Состояние системы' и кнопки. NO секции комплектаций сейчас.",
+    "api_contracts": {
+      "device_detail": "GET /users/me/devices/{device_id} или GET /users/me/devices — DeviceResponse теперь включает complectations: [{id, caption, label, code, simple}]",
+      "all_complectations": "GET /admin/firmware/complectations — НЕ доступен пользователю (admin only). Нужно новый публичный эндпоинт или использовать данные из самого DeviceResponse + все доступные."
+    },
+    "note_on_all_complectations": "Публичного API для всех комплектаций нет. Решение: добавить GET /users/complectations (публичный, auth required) или использовать complectations из DeviceResponse как 'активные' и запросить все через отдельный публичный endpoint. Если нет публичного — показывать только активные (те что есть на устройстве). Упростить: показывать только complectations из DeviceResponse ярко, без 'затемнённых' если нет публичного API.",
+    "design_requirements": {
+      "active_complectation": "Ярко выделена: background var(--color-accent), color var(--color-on-accent) ИЛИ border: 2px solid var(--color-accent) + background: var(--color-accent-bg). Иконка галочки (ph:check-circle-bold) или лампочки. caption крупно, label мелко.",
+      "available_but_not_owned": "Если будет публичный API — затемнить: opacity 0.5, border: 1px dashed var(--color-border), color: var(--color-muted). Иконка замка (ph:lock-bold). Кнопка/ссылка 'Купить' → /shop?complectation={code}",
+      "layout": "Карточки в сетке 2-3 колонки. Mobile: 1-2 колонки. Заголовок секции 'Комплектации устройства'."
+    },
+    "race_style_ui": "Использовать только var(--color-*) токены. NO хардкоженные цвета. Анимация появления карточек."
+  },
+
+  "tasks": [
+    {
+      "step": 1,
+      "action": "Прочитать frontend/pages/profile/devices/[id].vue полностью. Понять структуру страницы: как загружается device, какой composable (useIoT? useUser?), какие уже есть секции в sidebar или main content."
+    },
+    {
+      "step": 2,
+      "action": "Проверить: возвращает ли текущий API DeviceResponse с полем complectations. Если frontend composable не запрашивает complectations — обновить запрос/тип. Найти тип IoTDevice или DeviceRead в composables/useIoT.ts или composables/useUser.ts — добавить поле complectations: Complectation[] если нет."
+    },
+    {
+      "step": 3,
+      "action": "Проверить есть ли GET /users/complectations публичный эндпоинт. Если нет — в backend/app/api/v1/users/router.py добавить: GET /users/complectations → List[ComplectationRead] (auth required, не admin). Логика: SELECT * FROM module_complectations ORDER BY caption. Если уже есть — использовать."
+    },
+    {
+      "step": 4,
+      "action": "В frontend/pages/profile/devices/[id].vue добавить секцию комплектаций. Разместить ПОСЛЕ телеметрии или в sidebar. Загрузить: 1) device.complectations (активные пользователя), 2) все доступные через GET /users/complectations или GET /admin/firmware/complectations (если доступно). Если публичный API добавлен — использовать его."
+    },
+    {
+      "step": 5,
+      "action": "Отобразить все комплектации в сетке. Для КАЖДОЙ: если id есть в device.complectations — показать как ACTIVE (яркая карточка, иконка ph:check-circle-bold accent цвет, подпись caption + label). Если нет — показать как AVAILABLE (затемнённая, ph:lock-bold, opacity 0.6, текст 'Недоступно' или кнопка 'Подключить'). Если публичный API недоступен — показывать только активные комплектации без раздела 'доступных'."
+    },
+    {
+      "step": 6,
+      "action": "Стилизация по Race-Style UI: карточка комплектации: border-radius var(--radius-md), padding 16px, transition. Active: background var(--color-accent-bg) + border 2px solid var(--color-accent). Unavailable: background var(--color-surface), border 1px dashed var(--color-border), color var(--color-muted). Заголовок секции с иконкой ph:puzzle-piece-bold. data-testid='device-complectation-{code}', 'device-complectation-active-{code}', 'device-complectations-section'."
+    },
+    {
+      "step": 7,
+      "action": "Запустить: cd frontend && npm run lint && npm run type-check. Исправить все ошибки."
+    },
+    {
+      "step": 8,
+      "action": "Написать отчёт в .claude/agents/reports/frontend/p41_frontend_user_device_complectations.md"
+    }
+  ],
+
+  "acceptance_criteria": [
+    "Страница /profile/devices/{id} содержит секцию 'Комплектации устройства'",
+    "Активные комплектации (назначенные) визуально выделены: accent цвет, иконка галочки",
+    "Неактивные/доступные (если API есть) — затемнены с иконкой замка",
+    "Race-Style UI: только var(--color-*) токены, нет хардкоженных цветов",
+    "data-testid на секции и каждой карточке",
+    "npm run lint && npm run type-check: 0 ошибок"
+  ]
+}

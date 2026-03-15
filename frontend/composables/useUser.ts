@@ -76,6 +76,14 @@ export interface AdminUserDeviceRead {
   is_active: boolean
 }
 
+export interface AdminDeviceComplectation {
+  id: string
+  caption: string
+  label: string
+  code: number
+  simple: boolean
+}
+
 export interface AdminDeviceRead {
   id: string
   user_id: string
@@ -90,6 +98,7 @@ export interface AdminDeviceRead {
   oc_device_id: number | null
   user_email?: string
   user_name?: string
+  complectations?: AdminDeviceComplectation[]
 }
 
 export interface AdminDeviceCreate {
@@ -286,6 +295,13 @@ export const useUser = () => {
     })
   }
 
+  const adminUpdateDeviceComplectations = async (deviceId: string, complectationIds: string[]) => {
+    return await apiFetch<AdminDeviceRead>(`/admin/devices/${deviceId}/complectations`, {
+      method: 'PUT',
+      body: { complectation_ids: complectationIds }
+    })
+  }
+
   const formatDeviceModel = (model: string) => {
     const models: Record<string, string> = {
       'wifi_obd2': 'Wifi OBD2',
@@ -316,6 +332,7 @@ export const useUser = () => {
     adminCreateDevice,
     adminPatchDevice,
     adminDeleteDevice,
+    adminUpdateDeviceComplectations,
     formatDeviceModel
   }
 }

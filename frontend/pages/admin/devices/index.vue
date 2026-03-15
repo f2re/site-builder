@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useUser, type AdminDeviceRead, type AdminDeviceCreate, type AdminDeviceUpdate } from '~/composables/useUser'
+import { useFirmware } from '~/composables/useFirmware'
+import type { Complectation } from '~/stores/firmwareStore'
 import { useToast } from '~/composables/useToast'
 import { useConfirm } from '~/composables/useConfirm'
 import UButton from '~/components/U/UButton.vue'
@@ -19,15 +21,22 @@ definePageMeta({
 
 const toast = useToast()
 const { confirm } = useConfirm()
-const { 
-  adminGetDevices, 
-  adminPatchDevice, 
-  adminDeleteDevice, 
-  adminCreateDevice, 
+const {
+  adminGetDevices,
+  adminPatchDevice,
+  adminDeleteDevice,
+  adminCreateDevice,
   adminGetDeviceModels,
   adminGetUsers,
+  adminUpdateDeviceComplectations,
   formatDeviceModel
 } = useUser()
+
+const { fetchAllComplectations } = useFirmware()
+
+// Complectations state
+const allComplectations = ref<Complectation[]>([])
+const selectedComplectationIds = ref<string[]>([])
 
 // State
 const searchQuery = ref('')
@@ -124,6 +133,11 @@ const searchUsers = async () => {
   }
 }
 
+onMounted(async () => {
+  const data = await fetchAllComplectations()
+  if (data) allComplectations.value = data
+})
+
 // Actions
 const openAddModal = () => {
   deviceForm.value = {
@@ -134,6 +148,7 @@ const openAddModal = () => {
     comment: '',
     is_active: true
   }
+  selectedComplectationIds.value = []
   userSearchQuery.value = ''
   usersList.value = []
   isAddModalOpen.value = true
@@ -148,6 +163,7 @@ const openEditModal = (device: AdminDeviceRead) => {
     comment: device.comment,
     is_active: device.is_active
   }
+  selectedComplectationIds.value = device.complectations?.map(c => c.id) ?? []
   userSearchQuery.value = device.user_email || ''
   usersList.value = [{ id: device.user_id, email: device.user_email, full_name: device.user_name }]
   isEditModalOpen.value = true
@@ -155,7 +171,10 @@ const openEditModal = (device: AdminDeviceRead) => {
 
 const handleCreate = async () => {
   try {
-    await adminCreateDevice(deviceForm.value)
+    const newDevice = await adminCreateDevice(deviceForm.value)
+    if (newDevice && selectedComplectationIds.value.length > 0) {
+      await adminUpdateDeviceComplectations(newDevice.id, selectedComplectationIds.value)
+    }
     toast.success('Устройство добавлено')
     isAddModalOpen.value = false
     refresh()
@@ -168,6 +187,7 @@ const handleUpdate = async () => {
   if (!currentDevice.value) return
   try {
     await adminPatchDevice(currentDevice.value.id, editForm.value)
+    await adminUpdateDeviceComplectations(currentDevice.value.id, selectedComplectationIds.value)
     toast.success('Устройство обновлено')
     isEditModalOpen.value = false
     refresh()
@@ -202,6 +222,15 @@ const handleToggleActive = async (device: AdminDeviceRead) => {
     refresh()
   } catch (err: any) {
     toast.error('Ошибка при изменении статуса')
+  }
+}
+
+const toggleComplectation = (id: string) => {
+  const idx = selectedComplectationIds.value.indexOf(id)
+  if (idx === -1) {
+    selectedComplectationIds.value = [...selectedComplectationIds.value, id]
+  } else {
+    selectedComplectationIds.value = selectedComplectationIds.value.filter(cid => cid !== id)
   }
 }
 
@@ -405,6 +434,24 @@ watch([searchQuery, isActiveFilter, modelFilter], () => {
           <label>Комментарий</label>
           <UInput v-model="deviceForm.comment" placeholder="Служебная заметка..." />
         </div>
+
+        <div v-if="allComplectations.length > 0" class="form-section">
+          <label>Комплектации</label>
+          <div class="complectation-grid">
+            <button
+              v-for="c in allComplectations"
+              :key="c.id"
+              type="button"
+              class="complectation-chip"
+              :class="{ 'complectation-chip--selected': selectedComplectationIds.includes(c.id) }"
+              :data-testid="`admin-device-complectation-${c.code}`"
+              @click="toggleComplectation(c.id)"
+            >
+              <span class="complectation-chip__caption">{{ c.caption }}</span>
+              <span class="complectation-chip__label">{{ c.label }}</span>
+            </button>
+          </div>
+        </div>
       </div>
       <template #footer>
         <UButton variant="ghost" @click="isAddModalOpen = false">Отмена</UButton>
@@ -456,6 +503,24 @@ watch([searchQuery, isActiveFilter, modelFilter], () => {
             <input type="checkbox" v-model="editForm.is_active" />
             Устройство активно
           </label>
+        </div>
+
+        <div v-if="allComplectations.length > 0" class="form-section">
+          <label>Комплектации</label>
+          <div class="complectation-grid">
+            <button
+              v-for="c in allComplectations"
+              :key="c.id"
+              type="button"
+              class="complectation-chip"
+              :class="{ 'complectation-chip--selected': selectedComplectationIds.includes(c.id) }"
+              :data-testid="`admin-device-complectation-${c.code}`"
+              @click="toggleComplectation(c.id)"
+            >
+              <span class="complectation-chip__caption">{{ c.caption }}</span>
+              <span class="complectation-chip__label">{{ c.label }}</span>
+            </button>
+          </div>
         </div>
       </div>
       <template #footer>
@@ -690,12 +755,62 @@ watch([searchQuery, isActiveFilter, modelFilter], () => {
   cursor: pointer;
 }
 
+.complectation-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.complectation-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.complectation-chip:hover {
+  border-color: var(--color-accent);
+}
+
+.complectation-chip--selected {
+  border-color: var(--color-accent);
+  background: var(--color-accent-glow);
+  box-shadow: var(--shadow-glow-accent);
+}
+
+.complectation-chip__caption {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.2;
+}
+
+.complectation-chip__label {
+  font-size: var(--text-xs);
+  color: var(--color-text-2);
+  line-height: 1.2;
+}
+
+.complectation-chip--selected .complectation-chip__caption {
+  color: var(--color-accent);
+}
+
 @media (max-width: 768px) {
   .devices-grid {
     grid-template-columns: 1fr;
   }
   .form-grid {
     grid-template-columns: 1fr;
+  }
+  .complectation-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 </style>

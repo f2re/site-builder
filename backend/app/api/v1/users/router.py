@@ -18,18 +18,22 @@ import json
 import asyncio
 from fastapi import APIRouter, Depends, status, WebSocket, WebSocketDisconnect, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Any, List
 from jose import jwt, JWTError
 
 from app.core.config import settings
-from app.core.dependencies import require_customer, get_user_repository, get_order_repository, get_iot_repository, get_redis
+from app.core.dependencies import require_customer, get_user_repository, get_order_repository, get_iot_repository, get_redis, get_db
 from app.db.models.user import User
+from app.db.models.firmware import ModuleComplectation
 from app.api.v1.users.repository import UserRepository, DeliveryAddressRepository
 from app.api.v1.users.service import DeliveryAddressService
 from app.api.v1.orders.repository import OrderRepository
 from app.api.v1.iot.repository import IoTRepository
 from app.api.v1.orders.schemas import OrderRead
 from app.api.v1.users.schemas import DeliveryAddressCreate, DeliveryAddressUpdate, DeliveryAddressResponse
+from app.api.v1.firmware.schemas import ComplectationRead
 from redis.asyncio import Redis
 
 router = APIRouter(prefix="/users", tags=["User Cabinet"])
@@ -59,6 +63,7 @@ class DeviceResponse(BaseModel):
     model: str | None = None
     is_active: bool
     last_seen_at: Any | None = None
+    complectations: List[ComplectationRead] = []
 
     class Config:
         from_attributes = True
@@ -164,6 +169,20 @@ async def register_device(
         model=body.model
     )
     return device
+
+
+# ─── Complectations (public authenticated) ───────────────────────────────────
+
+@router.get("/complectations", response_model=List[ComplectationRead])
+async def get_complectations(
+    _current_user: User = UserDep,
+    session: AsyncSession = Depends(get_db),
+) -> Any:
+    """Return all available complectations (firmware module options)."""
+    result = await session.execute(
+        select(ModuleComplectation).order_by(ModuleComplectation.caption)
+    )
+    return result.scalars().all()
 
 
 # ─── Real-time WebSocket connection to device ─────────────────────────────────

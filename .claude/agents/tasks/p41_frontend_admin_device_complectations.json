@@ -1,0 +1,62 @@
+{
+  "task_id": "p41_frontend_admin_device_complectations",
+  "agent": "frontend-agent",
+  "priority": "high",
+  "title": "Frontend Admin: выбор комплектаций при редактировании устройства",
+  "description": "В модальном окне редактирования/создания устройства (frontend/pages/admin/devices/index.vue) добавить секцию выбора комплектаций. Показывать все доступные ModuleComplectation, чекбоксами отмечать уже назначенные. При сохранении вызывать PUT /admin/devices/{id}/complectations.",
+
+  "context": {
+    "admin_devices_page": "frontend/pages/admin/devices/index.vue — модальное окно создания/редактирования: поля user, name, model, comment, is_active. NO complectations сейчас.",
+    "api_contracts": {
+      "get_complectations": "GET /admin/firmware/complectations → [{id, caption, label, code, simple}]",
+      "put_complectations": "PUT /admin/devices/{device_id}/complectations → body: {complectation_ids: [uuid,...]}",
+      "device_read": "AdminDeviceRead теперь включает complectations: [{id, caption, label, code, simple}]"
+    },
+    "existing_composables": "composables/useFirmware.ts — fetchAllComplectations() вызывает GET /admin/firmware/complectations. Проверить если уже есть useUser или composable для admin devices.",
+    "design_system": "Race-Style UI. Чекбоксы стилизовать через var(--color-*) токены. Активные комплектации — accent цвет. Список компактный, в 2-3 колонки на десктопе."
+  },
+
+  "tasks": [
+    {
+      "step": 1,
+      "action": "Прочитать frontend/pages/admin/devices/index.vue полностью. Найти модальное окно (UModal) для create/edit. Изучить существующие поля и как они сохраняются (какой composable/fetch используется)."
+    },
+    {
+      "step": 2,
+      "action": "Прочитать frontend/composables/useFirmware.ts — найти fetchAllComplectations() и тип Complectation. Проверить frontend/composables/useUser.ts или аналог — как загружаются admin devices."
+    },
+    {
+      "step": 3,
+      "action": "В frontend/pages/admin/devices/index.vue добавить: const { fetchAllComplectations } = useFirmware() и тип Complectation. При открытии модального окна (onMounted или при открытии) загрузить все комплектации через fetchAllComplectations(). В форме добавить selectedComplectationIds: [] as string[]."
+    },
+    {
+      "step": 4,
+      "action": "При openEditModal(device) — пре-заполнять selectedComplectationIds из device.complectations.map(c => c.id). При openCreateModal() — selectedComplectationIds = []."
+    },
+    {
+      "step": 5,
+      "action": "В шаблоне модального окна добавить секцию 'Комплектации' ПОСЛЕ поля comment. Отображать список всех доступных комплектаций как кликабельные чипы/чекбоксы. Каждый элемент: <label> с checkbox + caption. Стиль: фон var(--color-surface-2), border var(--color-border). При checked — border-color: var(--color-accent), background: var(--color-accent-bg). Сетка: 2-3 колонки через CSS grid. data-testid='admin-device-complectation-{code}'."
+    },
+    {
+      "step": 6,
+      "action": "После успешного сохранения устройства (POST или PUT) — если режим edit и selectedComplectationIds изменились — вызвать PUT /admin/devices/{device_id}/complectations с {complectation_ids: selectedComplectationIds}. При режиме create — после получения нового device.id тоже вызвать PUT если выбраны комплектации. Использовать $fetch или useApiFetch."
+    },
+    {
+      "step": 7,
+      "action": "Запустить: cd frontend && npm run lint && npm run type-check. Исправить все ошибки."
+    },
+    {
+      "step": 8,
+      "action": "Написать отчёт в .claude/agents/reports/frontend/p41_frontend_admin_device_complectations.md"
+    }
+  ],
+
+  "acceptance_criteria": [
+    "Модальное окно показывает секцию 'Комплектации' со всеми доступными комплектациями",
+    "При редактировании — уже назначенные комплектации отмечены",
+    "При сохранении — PUT /admin/devices/{id}/complectations вызывается",
+    "Чекбоксы стилизованы в Race-Style: checked = accent цвет",
+    "data-testid на всех элементах",
+    "npm run lint && npm run type-check: 0 ошибок"
+  ]
+}
