@@ -4,6 +4,7 @@ import { StarterKit } from '@tiptap/starter-kit'
 import { Image } from '@tiptap/extension-image'
 import { Link } from '@tiptap/extension-link'
 import { Youtube } from '@tiptap/extension-youtube'
+import { IframeExtension } from '~/extensions/IframeExtension'
 import { Table } from '@tiptap/extension-table'
 import { TableRow } from '@tiptap/extension-table-row'
 import { TableCell } from '@tiptap/extension-table-cell'
@@ -34,6 +35,7 @@ const editor = useEditor({
         class: 'aspect-video w-full rounded-lg my-8',
       },
     }),
+    IframeExtension,
     Table.configure({ resizable: false }),
     TableRow,
     TableHeader,
@@ -183,5 +185,21 @@ onBeforeUnmount(() => {
 .tiptap-viewer :deep(.tableWrapper) {
   overflow-x: auto;
   margin: 1.5rem 0;
+}
+
+.tiptap-viewer :deep(.iframe-wrapper) {
+  position: relative;
+  width: 100%;
+  margin: 1.5rem 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.tiptap-viewer :deep(.iframe-wrapper) iframe {
+  display: block;
+  width: 100%;
+  border: none;
 }
 </style>

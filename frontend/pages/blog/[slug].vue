@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useBlog } from '~/composables/useBlog'
 import { useArticleSeo } from '~/composables/useSeo'
+import ProductDocIframe from '~/components/shop/ProductDocIframe.vue'
 
 const route = useRoute()
 const { getPost, getPosts } = useBlog()
@@ -192,6 +193,13 @@ const formattedDate = computed(() => {
           class="post-content"
           v-html="post!.content_html"
           data-testid="blog-post-content"
+        />
+
+        <!-- Documentation iframe -->
+        <ProductDocIframe
+          v-if="post!.doc_iframe_url"
+          :url="post!.doc_iframe_url"
+          data-testid="blog-doc-iframe"
         />
 
         <!-- Tags -->

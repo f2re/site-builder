@@ -49,6 +49,7 @@ export interface BlogPost {
   meta_title?: string
   meta_description?: string
   created_at?: string
+  doc_iframe_url?: string | null
 }
 
 export interface BlogComment {

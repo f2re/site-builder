@@ -34,6 +34,7 @@ const { data: post, pending: loading } = await useApi<{
   meta_title?: string
   meta_description?: string
   category?: { id: string; name: string; slug: string }
+  doc_iframe_url?: string | null
 }>(`/blog/posts/${route.params.slug}`)
 
 // Tags autocomplete
@@ -64,6 +65,7 @@ const form = reactive({
   meta_title: '',
   meta_description: '',
   category_id: '' as string,
+  doc_iframe_url: '',
 })
 
 watchEffect(() => {
@@ -83,6 +85,7 @@ watchEffect(() => {
     form.meta_title = post.value.meta_title || ''
     form.meta_description = post.value.meta_description || ''
     form.category_id = post.value.category?.id || ''
+    form.doc_iframe_url = post.value.doc_iframe_url || ''
   }
 })
 
@@ -192,6 +195,7 @@ async function save() {
         meta_title: form.meta_title || undefined,
         meta_description: form.meta_description || undefined,
         category_id: form.category_id || undefined,
+        doc_iframe_url: form.doc_iframe_url || undefined,
       },
     })
     toast.success('Пост обновлен')
@@ -274,6 +278,13 @@ const previewUrl = computed(() =>
                   </template>
                 </ClientOnly>
               </div>
+
+              <UInput
+                v-model="form.doc_iframe_url"
+                label="URL документации (iframe)"
+                placeholder="https://example.com/docs/ru/index.html"
+                data-testid="blog-doc-iframe-url-input"
+              />
             </div>
           </UCard>
         </div>

@@ -134,6 +134,9 @@ class BlogPost(Base):
     # SEO / OG fields
     og_image_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
 
+    # External documentation iframe embed URL
+    doc_iframe_url: Mapped[Optional[str]] = mapped_column(String(2000), nullable=True)
+
     # Carousel images (list of URLs)
     carousel_images: Mapped[Any] = mapped_column(
         JSON().with_variant(JSONB, "postgresql"),

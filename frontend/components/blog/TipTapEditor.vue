@@ -4,6 +4,7 @@ import { StarterKit } from '@tiptap/starter-kit'
 import { Image } from '@tiptap/extension-image'
 import { Link } from '@tiptap/extension-link'
 import { Youtube } from '@tiptap/extension-youtube'
+import { IframeExtension } from '~/extensions/IframeExtension'
 import { Placeholder } from '@tiptap/extension-placeholder'
 import { CharacterCount } from '@tiptap/extension-character-count'
 import { common, createLowlight } from 'lowlight'
@@ -54,6 +55,7 @@ const editor = useEditor({
         class: 'aspect-video w-full rounded-lg my-8',
       },
     }),
+    IframeExtension,
     Placeholder.configure({
       placeholder: props.placeholder || 'Начните писать историю...',
     }),
@@ -147,6 +149,29 @@ const addYoutube = async () => {
   if (url) {
     editor.value?.chain().focus().setYoutubeVideo({ src: url }).run()
   }
+}
+
+// Iframe insert
+const showIframeDialog = ref(false)
+const iframeSrc = ref('')
+const iframeHeight = ref('400px')
+
+const openIframeDialog = () => {
+  iframeSrc.value = ''
+  iframeHeight.value = '400px'
+  showIframeDialog.value = true
+}
+
+const applyIframe = () => {
+  if (!editor.value || !iframeSrc.value.trim()) return
+  editor.value
+    .chain()
+    .focus()
+    .setIframe({ src: iframeSrc.value.trim(), height: iframeHeight.value || '400px' })
+    .run()
+  showIframeDialog.value = false
+  iframeSrc.value = ''
+  iframeHeight.value = '400px'
 }
 
 // HTML import
@@ -305,6 +330,15 @@ const copyMarkdown = async () => {
         </button>
         <button type="button" @click="addYoutube" title="YouTube">
           <Icon name="ph:youtube-logo-bold" />
+        </button>
+        <button
+          type="button"
+          @click="openIframeDialog"
+          title="Вставить iframe"
+          data-testid="editor-iframe-insert"
+          aria-label="Вставить iframe"
+        >
+          <Icon name="ph:frame-corners-bold" />
         </button>
       </div>
 
@@ -557,6 +591,68 @@ const copyMarkdown = async () => {
           >
             <Icon name="ph:copy-bold" size="14" />
             Копировать
+          </button>
+        </div>
+      </div>
+    </div>
+    <!-- Insert iframe modal -->
+    <div
+      v-if="showIframeDialog"
+      class="md-modal-overlay"
+      @mousedown.self="showIframeDialog = false"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Вставить iframe"
+    >
+      <div class="md-modal" data-testid="tiptap-iframe-modal">
+        <div class="md-modal-header">
+          <h3 class="md-modal-title">Вставить iframe</h3>
+          <button
+            type="button"
+            class="md-modal-close"
+            aria-label="Закрыть"
+            @click="showIframeDialog = false"
+          >
+            <Icon name="ph:x-bold" size="16" />
+          </button>
+        </div>
+        <div class="iframe-dialog-body">
+          <label class="iframe-field">
+            <span class="iframe-label">URL (src)</span>
+            <input
+              v-model="iframeSrc"
+              type="url"
+              class="iframe-input"
+              placeholder="https://example.com/embed/..."
+              autofocus
+              data-testid="tiptap-iframe-src-input"
+              @keydown.enter="applyIframe"
+            />
+          </label>
+          <label class="iframe-field">
+            <span class="iframe-label">Высота</span>
+            <input
+              v-model="iframeHeight"
+              type="text"
+              class="iframe-input"
+              placeholder="400px"
+              data-testid="tiptap-iframe-height-input"
+              @keydown.enter="applyIframe"
+            />
+          </label>
+        </div>
+        <div class="md-modal-footer">
+          <button type="button" class="md-action-btn" @click="showIframeDialog = false">
+            Отмена
+          </button>
+          <button
+            type="button"
+            class="md-action-btn md-action-btn--primary"
+            :disabled="!iframeSrc.trim()"
+            @click="applyIframe"
+            data-testid="tiptap-apply-iframe-btn"
+          >
+            Вставить
           </button>
         </div>
       </div>
@@ -888,5 +984,61 @@ const copyMarkdown = async () => {
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     max-height: 85vh;
   }
+}
+
+/* Iframe dialog body */
+.iframe-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: var(--color-surface-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.iframe-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.iframe-label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-2);
+}
+
+.iframe-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.iframe-input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-glow);
+}
+
+/* iframe wrapper inside ProseMirror */
+:deep(.ProseMirror) .iframe-wrapper {
+  position: relative;
+  width: 100%;
+  margin: 1.5rem 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+:deep(.ProseMirror) .iframe-wrapper iframe {
+  display: block;
+  width: 100%;
+  border: none;
 }
 </style>

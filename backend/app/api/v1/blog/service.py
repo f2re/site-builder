@@ -36,11 +36,18 @@ ALLOWED_TAGS = bleach.sanitizer.ALLOWED_TAGS | {
     'blockquote', 'code', 'pre',
     'img', 'figure', 'figcaption',
     'a', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    'iframe',
+    'div',
 }
 ALLOWED_ATTRS = {
     'a': ['href', 'title', 'rel', 'target'],
     'img': ['src', 'alt', 'width', 'height', 'loading', 'class'],
     '*': ['class'],
+    'iframe': [
+        'src', 'width', 'height', 'frameborder', 'allowfullscreen',
+        'allow', 'scrolling', 'style', 'title', 'id', 'class',
+    ],
+    'div': ['class', 'style'],
 }
 
 def tiptap_to_text(json_content: Any) -> str:

@@ -1,0 +1,20 @@
+{
+  "task_id": "p44_backend_iframe_sanitize",
+  "phase": 44,
+  "agent": "backend-agent",
+  "title": "Добавить iframe в allowlist bleach-санитизации blog/service.py",
+  "description": "В backend/app/api/v1/blog/service.py используется bleach для санитизации content_html. ALLOWED_TAGS не содержит 'iframe' и 'div', поэтому при сохранении блог-поста теги <iframe> вырезаются. Нужно добавить их в allowlist.\n\n**Файлы для чтения ПЕРЕД изменением:**\n- backend/app/api/v1/blog/service.py (строки 32–44 — ALLOWED_TAGS, ALLOWED_ATTRS)\n- backend/app/api/v1/blog/router.py — убедиться что content_html попадает в bleach.clean()\n- backend/requirements.txt — версия bleach\n\n**Что изменить:**\n\nВ ALLOWED_TAGS добавить:\n```python\nALLOWED_TAGS = bleach.sanitizer.ALLOWED_TAGS | {\n    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',\n    'p', 'br', 'ul', 'ol', 'li',\n    'strong', 'em', 'b', 'i', 'u',\n    'blockquote', 'code', 'pre',\n    'img', 'figure', 'figcaption',\n    'a', 'table', 'thead', 'tbody', 'tr', 'th', 'td',\n    'iframe',  # <-- добавить\n    'div',     # <-- добавить (для iframe-wrapper из TipTap)\n}\n```\n\nВ ALLOWED_ATTRS добавить:\n```python\nALLOWED_ATTRS = {\n    'a': ['href', 'title', 'rel', 'target'],\n    'img': ['src', 'alt', 'width', 'height', 'loading', 'class'],\n    '*': ['class'],\n    'iframe': ['src', 'width', 'height', 'frameborder', 'allowfullscreen',\n               'allow', 'scrolling', 'style', 'title', 'id', 'class'],  # <-- добавить\n    'div': ['class', 'style'],  # <-- добавить\n}\n```\n\n**ВАЖНО:** Атрибут 'allowfullscreen' является булевым атрибутом без значения. Bleach 6.x должен корректно его пропустить если он в списке. Проверить что bleach не выбрасывает исключение при clean() с этим атрибутом.\n\n**Проверить bleach.clean() вызовы** — в service.py есть 3 места (строки ~224, ~318, ~330): убедиться что все три используют обновлённый ALLOWED_TAGS/ALLOWED_ATTRS.\n\n**NB: Alembic НЕ нужен** — изменений в моделях нет.\n\n**Верификация:**\n```bash\ncd backend && ruff check app/ --fix && ruff check app/\ncd backend && mypy app/ --ignore-missing-imports\n```\n\nДополнительно вручную убедиться что следующий фрагмент не вызывает ошибок bleach:\n```python\nimport bleach\ntest_html = '<div class=\"iframe-wrapper\"><iframe src=\"https://www.youtube.com/embed/test\" width=\"100%\" height=\"400px\" frameborder=\"0\" allowfullscreen allow=\"autoplay\"></iframe></div>'\nresult = bleach.clean(test_html, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRS)\nprint(result)  # должен содержать <iframe>, а не пустую строку\n```",
+  "depends_on": [],
+  "priority": "high",
+  "contracts_required": [],
+  "acceptance_criteria": [
+    "'iframe' присутствует в ALLOWED_TAGS",
+    "'div' присутствует в ALLOWED_TAGS",
+    "ALLOWED_ATTRS содержит ключ 'iframe' со всеми нужными атрибутами (src, width, height, frameborder, allowfullscreen, allow, scrolling, style, title, id, class)",
+    "ALLOWED_ATTRS содержит ключ 'div' с ['class', 'style']",
+    "ruff check app/ проходит без ошибок",
+    "mypy app/ --ignore-missing-imports проходит без ошибок",
+    "Ручная проверка bleach.clean() с тестовым <iframe> возвращает тег без стрипинга",
+    "Отчёт записан в .claude/agents/reports/backend/p44_backend_iframe_sanitize.md"
+  ]
+}

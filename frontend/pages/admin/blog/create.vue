@@ -44,6 +44,7 @@ const form = reactive({
   meta_title: '',
   meta_description: '',
   category_id: '' as string,
+  doc_iframe_url: '',
 })
 
 // Auto-generate slug from title
@@ -142,6 +143,7 @@ async function save() {
         meta_title: form.meta_title || undefined,
         meta_description: form.meta_description || undefined,
         category_id: form.category_id || undefined,
+        doc_iframe_url: form.doc_iframe_url || undefined,
       },
     })
     toast.success('Пост создан')
@@ -207,6 +209,13 @@ async function save() {
                   </template>
                 </ClientOnly>
               </div>
+
+              <UInput
+                v-model="form.doc_iframe_url"
+                label="URL документации (iframe)"
+                placeholder="https://example.com/docs/ru/index.html"
+                data-testid="blog-doc-iframe-url-input"
+              />
             </div>
           </UCard>
         </div>

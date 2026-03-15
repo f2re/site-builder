@@ -4,6 +4,7 @@ import { StarterKit } from '@tiptap/starter-kit'
 import { Link } from '@tiptap/extension-link'
 import { Image } from '@tiptap/extension-image'
 import { Typography } from '@tiptap/extension-typography'
+import { IframeExtension } from '~/extensions/IframeExtension'
 import { Table } from '@tiptap/extension-table'
 import { TableRow } from '@tiptap/extension-table-row'
 import { TableCell } from '@tiptap/extension-table-cell'
@@ -32,6 +33,7 @@ const editor = useEditor({
       },
     }),
     Typography,
+    IframeExtension,
     Table.configure({ resizable: true }),
     TableRow,
     TableHeader,
@@ -651,6 +653,22 @@ function applyHtml() {
 .editor-content :deep(.tiptap) .tableWrapper {
   overflow-x: auto;
   margin: 1.5rem 0;
+}
+
+.editor-content :deep(.tiptap) .iframe-wrapper {
+  position: relative;
+  width: 100%;
+  margin: 1.5rem 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.editor-content :deep(.tiptap) .iframe-wrapper iframe {
+  display: block;
+  width: 100%;
+  border: none;
 }
 
 .md-btn {

@@ -79,6 +79,7 @@ class BlogPostBase(BaseModel):
     carousel_images: List[str] = Field(default_factory=list)
     meta_title: Optional[str] = None
     meta_description: Optional[str] = None
+    doc_iframe_url: Optional[str] = None
 
 class BlogPostUpdate(BaseModel):
     title: Optional[str] = None
@@ -94,6 +95,7 @@ class BlogPostUpdate(BaseModel):
     carousel_images: Optional[List[str]] = None
     meta_title: Optional[str] = None
     meta_description: Optional[str] = None
+    doc_iframe_url: Optional[str] = None
     tags: Optional[List[str]] = None
 
 class BlogPostCreate(BlogPostBase):
