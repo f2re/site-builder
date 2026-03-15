@@ -18,9 +18,9 @@ const settings = ref({ contact_page_text: null as string | null })
 onMounted(async () => {
   settings.value = await getContactSettings()
 
-  // Load Turnstile widget after mount (client-only)
-  if (config.public.turnstileSiteKey) {
-    initTurnstile()
+  // Load SmartCaptcha widget after mount (client-only)
+  if (config.public.smartCaptchaSiteKey) {
+    initSmartCaptcha()
   }
 })
 
@@ -33,7 +33,7 @@ const form = reactive({
   message: '',
 })
 
-const turnstileToken = ref('')
+const captchaToken = ref('')
 const pending = ref(false)
 
 // ── Errors ───────────────────────────────────────────────────
@@ -46,8 +46,8 @@ const errors = reactive({
 
 // ── Computed ─────────────────────────────────────────────────
 const canSubmit = computed(() => {
-  const hasToken = config.public.turnstileSiteKey
-    ? !!turnstileToken.value
+  const hasToken = config.public.smartCaptchaSiteKey
+    ? !!captchaToken.value
     : true
   return hasToken && !pending.value
 })
@@ -85,53 +85,49 @@ function validateForm(): boolean {
   return valid
 }
 
-// ── Turnstile ────────────────────────────────────────────────
-let turnstileWidgetId: string | undefined
+// ── SmartCaptcha ─────────────────────────────────────────────
+let smartCaptchaWidgetId: number | undefined
 
-function initTurnstile() {
-  const tryRender = () => {
-    const el = document.getElementById('turnstile-widget')
-    if (!el) return
-
-    if (typeof window !== 'undefined' && (window as Record<string, unknown>).turnstile) {
-      const tw = (window as Record<string, unknown>).turnstile as {
-        render: (el: HTMLElement, opts: Record<string, unknown>) => string
-        reset: (id: string) => void
-      }
-      turnstileWidgetId = tw.render(el, {
-        sitekey: config.public.turnstileSiteKey,
-        theme: 'auto',
-        callback: (token: string) => {
-          turnstileToken.value = token
-        },
-        'expired-callback': () => {
-          turnstileToken.value = ''
-        },
-        'error-callback': () => {
-          turnstileToken.value = ''
-        },
-      })
-    } else {
-      // Script may still be loading — retry
-      setTimeout(tryRender, 300)
-    }
-  }
-
-  tryRender()
+type SmartCaptchaInstance = {
+  render: (el: HTMLElement, opts: object) => number
+  reset: (id: number) => void
 }
 
-function resetTurnstile() {
-  if (
-    typeof window !== 'undefined' &&
-    (window as Record<string, unknown>).turnstile &&
-    turnstileWidgetId !== undefined
-  ) {
-    const tw = (window as Record<string, unknown>).turnstile as {
-      reset: (id: string) => void
-    }
-    tw.reset(turnstileWidgetId)
+function getSmartCaptcha(): SmartCaptchaInstance | undefined {
+  return (window as Record<string, unknown>).smartCaptcha as SmartCaptchaInstance | undefined
+}
+
+function initSmartCaptcha() {
+  const el = document.getElementById('smartcaptcha-widget')
+  if (!el) return
+
+  const sc = getSmartCaptcha()
+  if (!sc) {
+    // Script may still be loading — retry after 100ms
+    setTimeout(initSmartCaptcha, 100)
+    return
   }
-  turnstileToken.value = ''
+
+  smartCaptchaWidgetId = sc.render(el, {
+    sitekey: config.public.smartCaptchaSiteKey,
+    callback: (token: string) => {
+      captchaToken.value = token
+    },
+    'expired-callback': () => {
+      captchaToken.value = ''
+    },
+    'error-callback': () => {
+      captchaToken.value = ''
+    },
+  })
+}
+
+function resetSmartCaptcha() {
+  const sc = getSmartCaptcha()
+  if (sc && smartCaptchaWidgetId !== undefined) {
+    sc.reset(smartCaptchaWidgetId)
+  }
+  captchaToken.value = ''
 }
 
 // ── Submit ────────────────────────────────────────────────────
@@ -146,8 +142,8 @@ async function handleSubmit() {
     email: form.email.trim(),
     subject: form.subject.trim(),
     message: form.message.trim(),
-    turnstile_token: config.public.turnstileSiteKey
-      ? turnstileToken.value
+    captcha_token: config.public.smartCaptchaSiteKey
+      ? captchaToken.value
       : 'dev-bypass',
     ...(form.phone.trim() ? { phone: form.phone.trim() } : {}),
   }
@@ -163,15 +159,15 @@ async function handleSubmit() {
     form.phone = ''
     form.subject = ''
     form.message = ''
-    resetTurnstile()
+    resetSmartCaptcha()
   } catch (err: unknown) {
     const fetchErr = err as { status?: number }
     if (fetchErr?.status === 422) {
-      toast.error('Ошибка проверки антибот', 'Пожалуйста, пройдите проверку Turnstile снова.', {
+      toast.error('Ошибка проверки антибот', 'Пожалуйста, пройдите проверку SmartCaptcha снова.', {
         label: 'Обновить',
-        handler: resetTurnstile,
+        handler: resetSmartCaptcha,
       })
-      resetTurnstile()
+      resetSmartCaptcha()
     } else if (fetchErr?.status === 429) {
       toast.add({
         type: 'warning',
@@ -187,12 +183,12 @@ async function handleSubmit() {
   }
 }
 
-// Load Turnstile script in head (client-side only, when sitekey configured)
-if (config.public.turnstileSiteKey) {
+// Load SmartCaptcha script in head (client-side only, when sitekey configured)
+if (config.public.smartCaptchaSiteKey) {
   useHead({
     script: [
       {
-        src: 'https://challenges.cloudflare.com/turnstile/v0/api.js',
+        src: 'https://smartcaptcha.yandexcloud.net/captcha.js',
         defer: true,
         async: true,
       },
@@ -290,17 +286,15 @@ if (config.public.turnstileSiteKey) {
             data-testid="contact-message-input"
           />
 
-          <!-- Turnstile widget -->
-          <div class="turnstile-wrapper" data-testid="contact-turnstile">
+          <!-- SmartCaptcha widget -->
+          <div class="captcha-wrapper" data-testid="contact-captcha">
             <div
-              v-if="config.public.turnstileSiteKey"
-              id="turnstile-widget"
-              class="cf-turnstile"
-              :data-sitekey="config.public.turnstileSiteKey"
+              v-if="config.public.smartCaptchaSiteKey"
+              id="smartcaptcha-widget"
             />
-            <p v-else class="turnstile-dev-note">
+            <p v-else class="captcha-dev-note">
               <Icon name="ph:shield-check-bold" size="16" aria-hidden="true" />
-              Режим разработки — Turnstile отключён
+              Режим разработки — SmartCaptcha отключена
             </p>
           </div>
 
@@ -501,15 +495,15 @@ if (config.public.turnstileSiteKey) {
   }
 }
 
-/* ── Turnstile ── */
-.turnstile-wrapper {
+/* ── SmartCaptcha ── */
+.captcha-wrapper {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 65px;
 }
 
-.turnstile-dev-note {
+.captcha-dev-note {
   display: flex;
   align-items: center;
   gap: 0.5rem;

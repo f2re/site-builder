@@ -138,10 +138,11 @@ class Settings(BaseSettings):
         )
     )
 
-    # ── Cloudflare Turnstile ──────────────────────────────────────────────────
-    # Server-side secret key for verifying Turnstile tokens. Leave empty in dev
-    # to skip verification. Do NOT confuse with the public site key (frontend only).
-    TURNSTILE_SECRET_KEY: str = ""
+    # ── Yandex SmartCaptcha ───────────────────────────────────────────────────
+    # Server-side secret key for verifying SmartCaptcha tokens. Leave empty in dev
+    # to skip verification. Do NOT confuse with the public client key (frontend only).
+    # Obtain at: https://console.yandex.cloud → SmartCaptcha → Create captcha
+    SMARTCAPTCHA_SECRET_KEY: str = ""
 
     # ── Contact Form ──────────────────────────────────────────────────────────
     # Default recipient email for contact form notifications.

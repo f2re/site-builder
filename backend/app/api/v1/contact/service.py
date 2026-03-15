@@ -30,33 +30,32 @@ class ContactService:
         self.repo = repo
         self.settings_repo = settings_repo
 
-    # ── Turnstile ────────────────────────────────────────────────────────────
+    # ── SmartCaptcha ─────────────────────────────────────────────────────────
 
-    async def verify_turnstile(self, token: str, ip: str) -> bool:
-        """Verify a Cloudflare Turnstile token server-side.
+    async def verify_captcha(self, token: str, ip: str) -> bool:
+        """Verify a Yandex SmartCaptcha token server-side.
 
-        If TURNSTILE_SECRET_KEY is empty (dev environment) — skip verification
+        If SMARTCAPTCHA_SECRET_KEY is empty (dev environment) — skip verification
         and return True so developers can test without a real key.
         """
-        if not settings.TURNSTILE_SECRET_KEY:
-            logger.info("turnstile_skip_dev_mode", ip=ip)
+        if not settings.SMARTCAPTCHA_SECRET_KEY:
+            logger.info("smartcaptcha_skip_dev_mode", ip=ip)
             return True
 
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.post(
-                    "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+                    "https://smartcaptcha.yandexcloud.net/validate",
                     data={
-                        "secret": settings.TURNSTILE_SECRET_KEY,
-                        "response": token,
-                        "remoteip": ip,
+                        "secret": settings.SMARTCAPTCHA_SECRET_KEY,
+                        "token": token,
+                        "ip": ip,
                     },
                 )
-                resp.raise_for_status()
-                payload = resp.json()
-                return bool(payload.get("success", False))
+                result = resp.json()
+                return result.get("status") == "ok"
         except Exception as exc:
-            logger.warning("turnstile_verification_error", error=str(exc))
+            logger.warning("smartcaptcha_verification_error", error=str(exc))
             return False
 
     # ── Public ───────────────────────────────────────────────────────────────
@@ -65,11 +64,11 @@ class ContactService:
         self, data: ContactFormRequest, ip: str
     ) -> ContactMessage:
         """Validate, persist, and notify about a new contact form submission."""
-        valid = await self.verify_turnstile(data.turnstile_token, ip)
+        valid = await self.verify_captcha(data.captcha_token, ip)
         if not valid:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Turnstile verification failed. Please try again.",
+                detail="Captcha verification failed. Please try again.",
             )
 
         # Encrypt PII fields before storing

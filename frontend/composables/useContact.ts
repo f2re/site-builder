@@ -4,7 +4,7 @@ export interface ContactFormData {
   phone?: string
   subject: string
   message: string
-  turnstile_token: string
+  captcha_token: string
 }
 
 export interface ContactSettings {

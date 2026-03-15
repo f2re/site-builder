@@ -19,8 +19,8 @@ class ContactFormRequest(BaseModel):
     phone: str | None = Field(default=None, max_length=50)
     subject: str = Field(min_length=2, max_length=500)
     message: str = Field(min_length=10, max_length=5000)
-    # Cloudflare Turnstile widget token — submitted by the frontend
-    turnstile_token: str
+    # Yandex SmartCaptcha widget token — submitted by the frontend
+    captcha_token: str
 
 
 class ContactMessageRead(BaseModel):
