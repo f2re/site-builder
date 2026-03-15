@@ -129,8 +129,10 @@ const addToCart = async () => {
   if (product.value.option_groups) {
     product.value.option_groups.forEach(group => {
       const selected = selectedOptions.value[group.id]
-      if (selected) {
-        const val = group.values.find(v => v.id === selected)
+      if (!selected) return
+      const selectedIds = Array.isArray(selected) ? selected : [selected]
+      selectedIds.forEach(selId => {
+        const val = group.values.find(v => v.id === selId)
         if (val) {
           optionSnapshots.push({
             group_id: group.id,
@@ -140,7 +142,7 @@ const addToCart = async () => {
             price_modifier: Number(val.price_modifier)
           })
         }
-      }
+      })
     })
   }
 
@@ -605,11 +607,14 @@ const handleQuickBuySubmitted = () => {
       :product-image="product?.images[0]?.url ?? ''"
       :variant-name="selectedVariant?.name ?? ''"
       :price="currentPrice"
-      :selected-options="Object.entries(selectedOptions).map(([groupId, valId]) => {
+      :selected-options="Object.entries(selectedOptions).flatMap(([groupId, valId]) => {
         const group = product?.option_groups.find(g => g.id === groupId)
-        const val = group?.values.find(v => v.id === valId)
-        return { group_name: group?.name || '', value_name: val?.name || '' }
-      }).filter(o => o.group_name)"
+        const ids = Array.isArray(valId) ? valId : [valId]
+        return ids.map(id => {
+          const val = group?.values.find(v => v.id === id)
+          return { group_name: group?.name || '', value_name: val?.name || '' }
+        })
+      }).filter(o => o.group_name && o.value_name)"
       @close="isQuickBuyOpen = false"
       @submitted="handleQuickBuySubmitted"
     />

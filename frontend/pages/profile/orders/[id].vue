@@ -145,9 +145,18 @@ const handleRepeatOrder = async () => {
             <UCard class="items-card">
               <h2 class="section-title">Состав заказа</h2>
               <div class="items-list">
-                <div v-for="item in order.items" :key="item.product_id" class="order-item">
+                <div v-for="item in order.items" :key="item.product_id" class="order-item" data-testid="order-item">
                   <div class="item-details">
                     <div class="item-name">{{ item.name }}</div>
+                    <div v-if="item.selected_options && item.selected_options.length > 0" class="item-options">
+                      <div v-for="opt in item.selected_options" :key="opt.value_id" class="item-option" data-testid="order-item-option">
+                        <span class="item-option__group">{{ opt.group_name }}:</span>
+                        <span class="item-option__value">{{ opt.value_name }}</span>
+                        <span v-if="opt.price_modifier !== 0" class="item-option__price">
+                          ({{ opt.price_modifier > 0 ? '+' : '' }}{{ opt.price_modifier }} ₽)
+                        </span>
+                      </div>
+                    </div>
                     <div class="item-meta">Количество: {{ item.quantity }}</div>
                   </div>
                   <div class="item-price">{{ item.price_rub * item.quantity }} ₽</div>
@@ -268,6 +277,35 @@ const handleRepeatOrder = async () => {
 .item-name {
   font-weight: 600;
   margin-bottom: 4px;
+}
+
+.item-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0;
+}
+
+.item-option {
+  font-size: var(--text-xs);
+  color: var(--color-text-2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.item-option__group {
+  color: var(--color-muted);
+}
+
+.item-option__value {
+  font-weight: 600;
+}
+
+.item-option__price {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
 }
 
 .item-meta {

@@ -6,12 +6,21 @@ definePageMeta({
   middleware: 'auth',
 })
 
+interface OrderItemOption {
+  group_id: string
+  group_name: string
+  value_id: string
+  value_name: string
+  price_modifier: number
+}
+
 interface OrderItem {
   product_name: string
   sku: string
   image_url?: string
   quantity: number
   price: number
+  selected_options?: OrderItemOption[]
 }
 
 interface TrackingEvent {
@@ -253,7 +262,17 @@ const getStatusLabel = (status: string) => {
                           <div v-else class="w-12 h-12 rounded bg-surface-2 flex items-center justify-center border border-border">
                             <UIcon name="i-heroicons-photo" class="text-muted w-6 h-6" />
                           </div>
-                          <span class="font-medium">{{ item.product_name }}</span>
+                          <div>
+                            <span class="font-medium">{{ item.product_name }}</span>
+                            <div v-if="item.selected_options && item.selected_options.length > 0" class="admin-item-options" data-testid="admin-order-item-options">
+                              <span v-for="opt in item.selected_options" :key="opt.value_id" class="admin-item-option">
+                                {{ opt.group_name }}: {{ opt.value_name }}
+                                <span v-if="opt.price_modifier !== 0" class="admin-item-option__price">
+                                  ({{ opt.price_modifier > 0 ? '+' : '' }}{{ opt.price_modifier }} ₽)
+                                </span>
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       </td>
                       <td class="px-4 py-4 text-muted font-mono">{{ item.sku }}</td>
@@ -485,6 +504,24 @@ const getStatusLabel = (status: string) => {
 
 :deep(.u-card-header) {
   border-bottom-color: var(--color-border);
+}
+
+.admin-item-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.admin-item-option {
+  font-size: 11px;
+  color: var(--color-text-2);
+}
+
+.admin-item-option__price {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
 }
 
 .text-muted {

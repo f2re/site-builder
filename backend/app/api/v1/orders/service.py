@@ -111,6 +111,33 @@ class OrderService:
             # 9. Trigger Notification (Async via Celery)
             recipient_email = user.email if user else order_data.email
             if recipient_email:
+                # Build items list for email template
+                email_items = []
+                for oi in created_order.items:
+                    option_lines = []
+                    options_extra = Decimal("0")
+                    for opt in (oi.selected_options or []):
+                        modifier = Decimal(str(opt.get("price_modifier", 0)))
+                        options_extra += modifier
+                        modifier_str = ""
+                        if modifier > 0:
+                            modifier_str = f" (+{modifier} ₽)"
+                        elif modifier < 0:
+                            modifier_str = f" ({modifier} ₽)"
+                        option_lines.append(
+                            f"{opt.get('group_name', '')}: {opt.get('value_name', '')}{modifier_str}"
+                        )
+                    variant = oi.product_variant
+                    product_name = "Товар"
+                    if variant and hasattr(variant, "product") and variant.product:
+                        product_name = variant.product.name
+                    email_items.append({
+                        "name": product_name,
+                        "quantity": oi.quantity,
+                        "price": str(oi.price),
+                        "options": option_lines,
+                    })
+
                 send_email_task.delay(
                     recipient=recipient_email,
                     subject=f"Заказ №{created_order.id} принят",
@@ -120,7 +147,8 @@ class OrderService:
                         "order_id": str(created_order.id),
                         "total_amount": str(created_order.total_amount),
                         "shipping_address": created_order.shipping_address,
-                        "payment_url": created_order.payment_url
+                        "payment_url": created_order.payment_url,
+                        "items": email_items,
                     }
                 )
 

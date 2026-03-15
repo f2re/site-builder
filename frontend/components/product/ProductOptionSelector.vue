@@ -5,12 +5,12 @@ import { formatPrice } from '~/composables/useFormatters'
 
 const props = defineProps<{
   optionGroups: ProductOptionGroup[]
-  modelValue: Record<string, string>
+  modelValue: Record<string, string | string[]>
   showValidation?: boolean
 }>()
 
 const emit = defineEmits<{
-  'update:modelValue': [value: Record<string, string>]
+  'update:modelValue': [value: Record<string, string | string[]>]
 }>()
 
 const formatModifier = (modifier: number): string => {
@@ -22,8 +22,11 @@ const formatModifier = (modifier: number): string => {
 const isGroupInvalid = (group: ProductOptionGroup): boolean => {
   if (!props.showValidation) return false
   if (!group.is_required) return false
-  if (group.type === 'checkbox') return false
-  return !props.modelValue[group.id]
+  const val = props.modelValue[group.id]
+  if (group.type === 'checkbox') {
+    return !val || (Array.isArray(val) && val.length === 0)
+  }
+  return !val
 }
 
 const selectValue = (groupId: string, valueId: string): void => {
@@ -33,8 +36,27 @@ const selectValue = (groupId: string, valueId: string): void => {
   })
 }
 
+const toggleCheckboxValue = (groupId: string, valueId: string): void => {
+  const current = props.modelValue[groupId]
+  const arr = Array.isArray(current) ? [...current] : []
+  const idx = arr.indexOf(valueId)
+  if (idx >= 0) {
+    arr.splice(idx, 1)
+  } else {
+    arr.push(valueId)
+  }
+  emit('update:modelValue', {
+    ...props.modelValue,
+    [groupId]: arr,
+  })
+}
+
 const isSelected = (groupId: string, valueId: string): boolean => {
-  return props.modelValue[groupId] === valueId
+  const val = props.modelValue[groupId]
+  if (Array.isArray(val)) {
+    return val.includes(valueId)
+  }
+  return val === valueId
 }
 
 const hasOptions = computed(() => props.optionGroups.length > 0)
@@ -72,6 +94,41 @@ const hasOptions = computed(() => props.optionGroups.length > 0)
             :data-testid="`option-value-${val.id}`"
             @click="selectValue(group.id, val.id)"
           >
+            <span class="option-chip__name">{{ val.name }}</span>
+            <span
+              v-if="val.price_modifier !== 0"
+              class="option-chip__modifier"
+              :class="{
+                'is-positive': val.price_modifier > 0,
+                'is-negative': val.price_modifier < 0,
+              }"
+            >
+              {{ formatModifier(val.price_modifier) }}
+            </span>
+            <span v-else class="option-chip__modifier is-neutral">
+              Без доплаты
+            </span>
+          </button>
+        </template>
+
+        <!-- Multi-select (checkbox-style) groups -->
+        <template v-else>
+          <button
+            v-for="val in group.values"
+            :key="val.id"
+            type="button"
+            class="option-chip option-chip--checkbox"
+            :class="{ 'is-active': isSelected(group.id, val.id) }"
+            :aria-pressed="isSelected(group.id, val.id)"
+            :aria-label="`${val.name}${val.price_modifier !== 0 ? ', ' + formatModifier(val.price_modifier) : ''}`"
+            :data-testid="`option-value-${val.id}`"
+            @click="toggleCheckboxValue(group.id, val.id)"
+          >
+            <span class="option-chip__check" aria-hidden="true">
+              <svg v-if="isSelected(group.id, val.id)" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
             <span class="option-chip__name">{{ val.name }}</span>
             <span
               v-if="val.price_modifier !== 0"
@@ -219,6 +276,29 @@ const hasOptions = computed(() => props.optionGroups.length > 0)
 
 .option-chip.is-active .option-chip__modifier {
   color: var(--color-accent);
+}
+
+/* Checkbox chip variant */
+.option-chip--checkbox {
+  gap: 8px;
+}
+
+.option-chip__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+  color: var(--color-on-accent);
+}
+
+.option-chip.is-active .option-chip__check {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
 }
 
 .option-selector__error {

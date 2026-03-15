@@ -1,11 +1,20 @@
 import { useAuth } from './useAuth'
 
+export interface OrderItemOption {
+  group_id: string
+  group_name: string
+  value_id: string
+  value_name: string
+  price_modifier: number
+}
+
 export interface OrderItem {
   product_id: string
   slug: string
   name: string
   quantity: number
   price_rub: number
+  selected_options?: OrderItemOption[]
 }
 
 export interface DeliveryInfo {
