@@ -4,6 +4,10 @@ import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
 import Youtube from '@tiptap/extension-youtube'
+import Table from '@tiptap/extension-table'
+import TableRow from '@tiptap/extension-table-row'
+import TableCell from '@tiptap/extension-table-cell'
+import TableHeader from '@tiptap/extension-table-header'
 import { onBeforeUnmount, watch } from 'vue'
 
 const props = defineProps<{
@@ -30,6 +34,10 @@ const editor = useEditor({
         class: 'aspect-video w-full rounded-lg my-8',
       },
     }),
+    Table.configure({ resizable: false }),
+    TableRow,
+    TableHeader,
+    TableCell,
   ]
 })
 
@@ -140,5 +148,40 @@ onBeforeUnmount(() => {
   border: none;
   border-top: 1px solid var(--color-border);
   margin: 2em 0;
+}
+
+.tiptap-viewer :deep(table) {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.5rem 0;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+}
+
+.tiptap-viewer :deep(th),
+.tiptap-viewer :deep(td) {
+  border: 1px solid var(--color-border);
+  padding: 8px 14px;
+  vertical-align: top;
+}
+
+.tiptap-viewer :deep(th) {
+  background: var(--color-surface-2);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.tiptap-viewer :deep(td) {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.tiptap-viewer :deep(tr:nth-child(even) td) {
+  background: var(--color-surface-2);
+}
+
+.tiptap-viewer :deep(.tableWrapper) {
+  overflow-x: auto;
+  margin: 1.5rem 0;
 }
 </style>

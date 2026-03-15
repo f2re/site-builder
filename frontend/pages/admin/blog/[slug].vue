@@ -14,7 +14,7 @@ const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 const apiFetch = useApiFetch()
-const { getTags, adminGetCategories, uploadBlogCover } = useBlog()
+const { getTags, adminGetCategories, uploadBlogCover, deletePost: apiDeletePost } = useBlog()
 const { uploadImage } = useMediaUpload()
 
 const { data: post, pending: loading } = await useApi<{
@@ -153,7 +153,7 @@ async function confirmDelete() {
   if (!post.value?.id) return
   deleting.value = true
   try {
-    await apiFetch(`/admin/blog/posts/${post.value.id}`, { method: 'DELETE' })
+    await apiDeletePost(post.value.id)
     toast.success('Пост удален')
     router.push('/admin/blog')
   } catch (e: unknown) {

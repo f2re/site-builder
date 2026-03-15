@@ -30,6 +30,8 @@ const { data: postsData, pending, refresh } = await useApi<BlogListResponse>('/b
   watch: [currentCursor],
 })
 
+const { deletePost: apiDeletePost } = useBlog()
+
 const posts = computed(() => postsData.value?.items ?? [])
 const nextCursor = computed(() => postsData.value?.next_cursor ?? null)
 const total = computed(() => postsData.value?.total ?? 0)
@@ -58,12 +60,10 @@ function formatDate(dateStr?: string | null, fallback?: string | null): string {
   return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-async function deletePost(slug: string) {
+async function deletePost(id: string) {
   if (!await confirm({ title: 'Удалить статью?', message: 'Это действие нельзя отменить.', confirmLabel: 'Удалить', variant: 'danger' })) return
   try {
-    await apiFetch(`/blog/posts/${slug}`, {
-      method: 'DELETE',
-    })
+    await apiDeletePost(id)
     await refresh()
   } catch (e) {
     console.error(e)
@@ -131,7 +131,7 @@ async function deletePost(slug: string) {
                   <UButton variant="ghost" size="sm" :to="`/admin/blog/${post.slug}`" data-testid="admin-blog-edit-btn" aria-label="Редактировать">
                     <template #icon><Icon name="ph:pencil-simple-bold" size="20" /></template>
                   </UButton>
-                  <UButton variant="danger" size="sm" @click="deletePost(post.slug)" data-testid="admin-blog-delete-btn" aria-label="Удалить">
+                  <UButton variant="danger" size="sm" @click="deletePost(post.id)" data-testid="admin-blog-delete-btn" aria-label="Удалить">
                     <template #icon><Icon name="ph:trash-bold" size="20" /></template>
                   </UButton>
                 </div>

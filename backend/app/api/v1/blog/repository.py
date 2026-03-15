@@ -175,6 +175,11 @@ class BlogRepository:
         result = await self.session.execute(stmt)
         return getattr(result, "rowcount", 0) > 0
 
+    async def delete_by_slug(self, slug: str) -> bool:
+        stmt = delete(BlogPost).where(BlogPost.slug == slug)
+        result = await self.session.execute(stmt)
+        return getattr(result, "rowcount", 0) > 0
+
     async def get_categories(self) -> List[BlogCategory]:
         stmt = select(BlogCategory).order_by(BlogCategory.name)
         result = await self.session.execute(stmt)

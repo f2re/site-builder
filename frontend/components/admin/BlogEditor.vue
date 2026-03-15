@@ -4,6 +4,10 @@ import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
 import Typography from '@tiptap/extension-typography'
+import Table from '@tiptap/extension-table'
+import TableRow from '@tiptap/extension-table-row'
+import TableCell from '@tiptap/extension-table-cell'
+import TableHeader from '@tiptap/extension-table-header'
 import { useToast } from '~/composables/useToast'
 import { usePrompt } from '~/composables/usePrompt'
 
@@ -29,6 +33,10 @@ const editor = useEditor({
       },
     }),
     Typography,
+    Table.configure({ resizable: true }),
+    TableRow,
+    TableHeader,
+    TableCell,
   ],
   onUpdate: ({ editor }) => {
     emit('update:modelValue', editor.getHTML())
@@ -215,8 +223,18 @@ function setLink() {
       >
         <Icon name="ph:arrow-u-up-right-bold" />
       </button>
+      <div class="divider" />
+      <button
+        type="button"
+        @click="editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()"
+        title="Вставить таблицу"
+        data-testid="blogeditor-table-insert"
+        aria-label="Вставить таблицу"
+      >
+        <Icon name="ph:table-bold" />
+      </button>
     </div>
-    
+
     <EditorContent :editor="editor" class="editor-content" data-testid="admin-blog-editor" />
     
     <!-- Hidden file input for image upload -->
@@ -361,6 +379,50 @@ function setLink() {
 .editor-content :deep(.tiptap a) {
   color: var(--color-accent);
   text-decoration: underline;
+}
+
+.editor-content :deep(.tiptap) table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.5rem 0;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+}
+
+.editor-content :deep(.tiptap) th,
+.editor-content :deep(.tiptap) td {
+  border: 1px solid var(--color-border);
+  padding: 8px 14px;
+  vertical-align: top;
+}
+
+.editor-content :deep(.tiptap) th {
+  background: var(--color-surface-2);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.editor-content :deep(.tiptap) td {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.editor-content :deep(.tiptap) tr:nth-child(even) td {
+  background: var(--color-surface-2);
+}
+
+.editor-content :deep(.tiptap) .selectedCell:after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--color-accent-bg);
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.editor-content :deep(.tiptap) .tableWrapper {
+  overflow-x: auto;
+  margin: 1.5rem 0;
 }
 
 .spin {

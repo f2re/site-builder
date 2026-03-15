@@ -210,11 +210,11 @@ async def update_post(
 
 @router.delete("/posts/{post_id}")
 async def delete_post(
-    post_id: UUID,
+    post_id: str,
     current_user: User = Depends(require_admin),
     service: BlogService = Depends(get_blog_service),
 ):
-    """Delete blog post (admin only)."""
+    """Delete blog post (admin only). Supports UUID or slug."""
     success = await service.delete_post(post_id)
     if not success:
         raise HTTPException(status_code=404, detail="Post not found")

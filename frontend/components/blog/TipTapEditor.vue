@@ -8,6 +8,10 @@ import Placeholder from '@tiptap/extension-placeholder'
 import CharacterCount from '@tiptap/extension-character-count'
 import { common, createLowlight } from 'lowlight'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
+import Table from '@tiptap/extension-table'
+import TableRow from '@tiptap/extension-table-row'
+import TableCell from '@tiptap/extension-table-cell'
+import TableHeader from '@tiptap/extension-table-header'
 import { Markdown } from 'tiptap-markdown'
 import { useToast } from '~/composables/useToast'
 import { usePrompt } from '~/composables/usePrompt'
@@ -54,6 +58,10 @@ const editor = useEditor({
       placeholder: props.placeholder || 'Начните писать историю...',
     }),
     CharacterCount,
+    Table.configure({ resizable: true }),
+    TableRow,
+    TableHeader,
+    TableCell,
     Markdown,
   ],
   onUpdate: ({ editor }) => {
@@ -334,6 +342,68 @@ const copyMarkdown = async () => {
           MD↓
         </button>
       </div>
+
+      <div class="divider" />
+
+      <!-- Table controls -->
+      <div class="toolbar-group">
+        <button
+          type="button"
+          @click="editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()"
+          title="Вставить таблицу"
+          data-testid="editor-table-insert"
+          aria-label="Вставить таблицу"
+        >
+          <Icon name="ph:table-bold" />
+        </button>
+        <template v-if="editor.isActive('table')">
+          <button
+            type="button"
+            @click="editor.chain().focus().addRowAfter().run()"
+            title="Добавить строку"
+            data-testid="editor-table-add-row"
+            aria-label="Добавить строку"
+          >
+            <Icon name="ph:plus-bold" />
+          </button>
+          <button
+            type="button"
+            @click="editor.chain().focus().deleteRow().run()"
+            title="Удалить строку"
+            data-testid="editor-table-delete-row"
+            aria-label="Удалить строку"
+          >
+            <Icon name="ph:minus-bold" />
+          </button>
+          <button
+            type="button"
+            @click="editor.chain().focus().addColumnAfter().run()"
+            title="Добавить колонку"
+            data-testid="editor-table-add-col"
+            aria-label="Добавить колонку"
+          >
+            <Icon name="ph:columns-bold" />
+          </button>
+          <button
+            type="button"
+            @click="editor.chain().focus().deleteColumn().run()"
+            title="Удалить колонку"
+            data-testid="editor-table-delete-col"
+            aria-label="Удалить колонку"
+          >
+            <Icon name="ph:x-square-bold" />
+          </button>
+          <button
+            type="button"
+            @click="editor.chain().focus().deleteTable().run()"
+            title="Удалить таблицу"
+            data-testid="editor-table-delete"
+            aria-label="Удалить таблицу"
+          >
+            <Icon name="ph:trash-bold" />
+          </button>
+        </template>
+      </div>
     </div>
 
     <!-- Editor Surface -->
@@ -582,6 +652,61 @@ const copyMarkdown = async () => {
   padding: 1rem;
   border-radius: var(--radius-md);
   font-family: var(--font-mono);
+}
+
+:deep(.ProseMirror) table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.5rem 0;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+}
+
+:deep(.ProseMirror) th,
+:deep(.ProseMirror) td {
+  border: 1px solid var(--color-border);
+  padding: 8px 14px;
+  vertical-align: top;
+}
+
+:deep(.ProseMirror) th {
+  background: var(--color-surface-2);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+:deep(.ProseMirror) td {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+:deep(.ProseMirror) tr:nth-child(even) td {
+  background: var(--color-surface-2);
+}
+
+:deep(.ProseMirror) .selectedCell:after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--color-accent-bg);
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+:deep(.ProseMirror) .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--color-accent);
+  pointer-events: none;
+  cursor: col-resize;
+}
+
+:deep(.ProseMirror) .tableWrapper {
+  overflow-x: auto;
+  margin: 1.5rem 0;
 }
 
 .editor-footer {

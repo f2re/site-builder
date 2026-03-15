@@ -377,17 +377,31 @@ class BlogService:
         result = BlogPostRead.model_validate(loaded_post)
         return self._enrich_post_read(loaded_post, result)
 
-    async def delete_post(self, post_id: UUID) -> bool:
+    async def delete_post(self, post_id_or_slug: Union[UUID, str]) -> bool:
         """
         Delete blog post and remove from search index.
+        Supports both UUID and slug string.
         """
-        success = await self.repo.delete(post_id)
-        if success:
+        if isinstance(post_id_or_slug, UUID):
+            post = await self.repo.get_by_id(post_id_or_slug)
+            success = await self.repo.delete(post_id_or_slug)
+        else:
+            # Check if it's a UUID string
+            try:
+                actual_id = UUID(post_id_or_slug)
+                post = await self.repo.get_by_id(actual_id)
+                success = await self.repo.delete(actual_id)
+            except ValueError:
+                # It's a slug
+                post = await self.repo.get_by_slug(post_id_or_slug)
+                success = await self.repo.delete_by_slug(post_id_or_slug)
+
+        if success and post:
             await self.repo.session.commit()
             try:
-                remove_blog_post_from_index_task.delay(str(post_id))
+                remove_blog_post_from_index_task.delay(str(post.id))
             except Exception as exc:
-                logger.warning("search_index_removal_failed", post_id=str(post_id), error=str(exc))
+                logger.warning("search_index_removal_failed", post_id=str(post.id), error=str(exc))
         return success
 
     async def list_categories(self, section: Optional[str] = None) -> List[BlogCategoryRead]:

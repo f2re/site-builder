@@ -1,0 +1,75 @@
+{
+  "task_id": "p42_frontend_tiptap_tables",
+  "agent": "frontend-agent",
+  "priority": "high",
+  "title": "TipTap: поддержка таблиц во всех редакторах и viewer-ах",
+  "description": "Добавить полноценную поддержку таблиц в TipTap редакторы. Сейчас @tiptap/extension-table не установлен. Нужно: установить пакеты, подключить extension во все 3 редактора и 1 viewer, добавить toolbar кнопки, добавить CSS стили таблиц, проверить что HTML-импорт и Markdown-импорт корректно парсят <table>.",
+
+  "context": {
+    "tiptap_version": "^3.20.1 (tiptap v3)",
+    "editors": {
+      "TipTapEditor": "frontend/components/blog/TipTapEditor.vue — полнофункциональный. Extensions: StarterKit, CodeBlockLowlight, Image, Link, Youtube, Placeholder, CharacterCount, Markdown. Toolbar с кнопками. Используется на: /admin/blog/create, /admin/blog/[slug], /admin/products/create, /admin/products/[id].",
+      "URichEditor": "frontend/components/U/URichEditor.vue — альтернативный. Extensions: StarterKit, Link, Image, Typography, Markdown. Используется на: /admin/pages/[id].",
+      "BlogEditor": "frontend/components/admin/BlogEditor.vue — упрощённый. Extensions: StarterKit, Link, Image, Typography. Без Markdown.",
+      "TipTapViewer": "frontend/components/blog/TipTapViewer.vue — read-only. Extensions: StarterKit, Image, Link, Youtube. Используется для рендеринга контента."
+    },
+    "table_packages_needed": "@tiptap/extension-table @tiptap/extension-table-row @tiptap/extension-table-cell @tiptap/extension-table-header",
+    "markdown_table_support": "tiptap-markdown v0.9 поддерживает GFM (GitHub Flavored Markdown) таблицы — нужно убедиться что Table extension подключён ДО Markdown extension",
+    "html_import": "editor.commands.setContent(html, true) — если Table extension подключён, он автоматически парсит <table><tr><td> из HTML",
+    "content_rendering": "Публичный блог /pages/blog/[slug].vue использует v-html с content_html от бэкенда. Стили таблиц нужны в глобальном CSS или в компоненте viewer."
+  },
+
+  "tasks": [
+    {
+      "step": 1,
+      "action": "Установить: cd frontend && npm install --legacy-peer-deps @tiptap/extension-table @tiptap/extension-table-row @tiptap/extension-table-cell @tiptap/extension-table-header. Убедиться что пакеты появились в package.json."
+    },
+    {
+      "step": 2,
+      "action": "В frontend/components/blog/TipTapEditor.vue: импортировать Table, TableRow, TableCell, TableHeader из соответствующих пакетов. Добавить в массив extensions: Table.configure({ resizable: true }), TableRow, TableHeader, TableCell. Table extension должен быть ПЕРЕД Markdown extension в массиве."
+    },
+    {
+      "step": 3,
+      "action": "В TipTapEditor.vue добавить toolbar кнопки для таблиц. Группа кнопок 'Таблица': 1) 'Вставить таблицу' (иконка ph:table-bold) — editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(). 2) 'Добавить строку' (ph:plus) — insertRowAfter(). 3) 'Удалить строку' (ph:minus) — deleteRow(). 4) 'Добавить колонку' — insertColumnAfter(). 5) 'Удалить колонку' — deleteColumn(). 6) 'Удалить таблицу' — deleteTable(). Кнопки 2-6 показывать только если editor.isActive('table'). data-testid='editor-table-insert', 'editor-table-add-row' и т.д."
+    },
+    {
+      "step": 4,
+      "action": "В frontend/components/U/URichEditor.vue: добавить те же 4 импорта Table, TableRow, TableCell, TableHeader. Добавить в extensions массив. Добавить хотя бы кнопку 'Вставить таблицу' в toolbar."
+    },
+    {
+      "step": 5,
+      "action": "В frontend/components/admin/BlogEditor.vue: добавить те же 4 импорта и extension. Добавить кнопку 'Вставить таблицу' в toolbar."
+    },
+    {
+      "step": 6,
+      "action": "В frontend/components/blog/TipTapViewer.vue: добавить Table, TableRow, TableCell, TableHeader в extensions (без toolbar — только для рендеринга контента)."
+    },
+    {
+      "step": 7,
+      "action": "Добавить CSS стили таблиц. В каждый компонент редактора добавить в секцию <style scoped> стили для .ProseMirror table (или :deep(.ProseMirror) table): border-collapse: collapse, width: 100%, th/td: border 1px solid var(--color-border), padding 8px 12px, td: background var(--color-surface), th: background var(--color-surface-2) font-weight 600. Также добавить стили в frontend/assets/css/main.css или создать отдельный файл для глобального рендеринга таблиц в v-html контенте публичного блога (.post-content table, .rich-content table и т.п.)."
+    },
+    {
+      "step": 8,
+      "action": "Проверить HTML-импорт: убедиться что в TipTapEditor.vue при импорте HTML через editor.commands.setContent() таблицы корректно распознаются (это произойдёт автоматически если extension подключён). Проверить что Markdown с таблицами GFM (| col1 | col2 |) корректно парсится — tiptap-markdown поддерживает это если Table extension есть."
+    },
+    {
+      "step": 9,
+      "action": "Запустить: cd frontend && npm run lint && npm run type-check. Исправить все ошибки. Убедиться что нет ошибок типизации для Table extension."
+    },
+    {
+      "step": 10,
+      "action": "Написать отчёт в .claude/agents/reports/frontend/p42_frontend_tiptap_tables.md"
+    }
+  ],
+
+  "acceptance_criteria": [
+    "npm install @tiptap/extension-table* выполнен успешно",
+    "Все 3 редактора (TipTapEditor, URichEditor, BlogEditor) и TipTapViewer имеют Table extension",
+    "TipTapEditor имеет toolbar кнопки: вставить/удалить таблицу, добавить/удалить строку и колонку",
+    "HTML с <table> корректно импортируется через кнопку 'Импорт HTML'",
+    "Markdown с GFM-таблицами (pipe syntax) корректно импортируется",
+    "Таблицы стилизованы через var(--color-*) токены в редакторе и в viewer",
+    "Таблицы отображаются на публичных страницах блога (v-html контент)",
+    "npm run lint && npm run type-check: 0 ошибок"
+  ]
+}
