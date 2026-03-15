@@ -18,8 +18,9 @@ const isAuthenticated = computed(() => authStore.isAuthenticated)
 const isAdmin = computed(() => userStore.isAdmin)
 
 const navLinks = [
-  { to: '/products', label: 'Каталог', icon: 'ph:shopping-bag-bold' },
-  { to: '/blog',     label: 'Блог',    icon: 'ph:article-bold' },
+  { to: '/products', label: 'Каталог',  icon: 'ph:shopping-bag-bold' },
+  { to: '/blog',     label: 'Блог',     icon: 'ph:article-bold' },
+  { to: '/contact',  label: 'Контакты', icon: 'ph:envelope-bold' },
 ]
 
 const closeMenu = () => { 

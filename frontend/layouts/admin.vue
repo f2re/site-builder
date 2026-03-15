@@ -15,6 +15,8 @@ const navItems = [
   { label: 'Страницы', icon: 'ph:files-bold', to: '/admin/pages' },
   { label: 'Устройства', icon: 'ph:cpu-bold', to: '/admin/devices' },
   { label: 'Миграция', icon: 'ph:database-bold', to: '/admin/migration' },
+  { label: 'Обратная связь', icon: 'ph:chat-circle-dots-bold', to: '/admin/contact' },
+  { label: 'Настройки связи', icon: 'ph:gear-bold', to: '/admin/settings/contact' },
   { label: 'Назад на сайт', icon: 'ph:arrow-left-bold', to: '/' },
 ]
 

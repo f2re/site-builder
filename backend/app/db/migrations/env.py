@@ -20,6 +20,7 @@ try:
     from app.db.models.user_device import UserDevice  # noqa
     from app.db.models.delivery_address import DeliveryAddress  # noqa
     from app.db.models.migration import MigrationJob, MigrationLog  # noqa
+    from app.db.models import contact  # noqa: F401
     # Import other critical models if needed
 except ImportError as e:
     raise RuntimeError(f"[Alembic env.py] Error importing models: {e}") from e

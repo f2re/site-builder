@@ -15,6 +15,7 @@ from .pages.redirect_router import router as redirect_router
 from .firmware.router import router as firmware_router
 from .admin.router import router as admin_router
 from .webhooks.delivery import router as webhooks_router
+from .contact.router import router as contact_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -34,3 +35,4 @@ api_router.include_router(redirect_router)
 api_router.include_router(firmware_router)
 api_router.include_router(admin_router)
 api_router.include_router(webhooks_router, prefix="/webhooks/delivery", tags=["Webhooks"])
+api_router.include_router(contact_router, prefix="", tags=["Contact"])

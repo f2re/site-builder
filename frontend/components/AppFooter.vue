@@ -14,14 +14,18 @@ const footerLinks = [
       { to: '/blog',     label: 'Блог и новости'   },
       { to: '/about',    label: 'О компании'       },
       { to: '/contacts', label: 'Контакты'         },
+      { to: '/contact',  label: 'Обратная связь'   },
     ],
   },
   {
     title: 'Поддержка',
     links: [
-      { to: '/faq',      label: 'Вопросы и ответы' },
-      { to: '/returns',  label: 'Возврат товара'   },
-      { to: '/privacy',  label: 'Политика конфиденциальности' },
+      { to: '/faq',                         label: 'Вопросы и ответы'              },
+      { to: '/returns',                     label: 'Возврат товара'                },
+      { to: '/garantiynye-obyazatelstva',   label: 'Гарантийные обязательства'     },
+      { to: '/dostavka',                    label: 'Доставка'                      },
+      { to: '/politika-konfidentsialnosti', label: 'Политика конфиденциальности'   },
+      { to: '/usloviya-soglasheniya',       label: 'Условия соглашения'            },
     ],
   },
 ]

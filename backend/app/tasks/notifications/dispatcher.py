@@ -33,10 +33,12 @@ def send_email_task(recipient: str, subject: str, template_name: str, context: D
         template_body=context,
         subtype=MessageType.html
     )
-    
-    loop = asyncio.get_event_loop()
+
+    async def _send():
+        await fm.send_message(message, template_name=template_name)
+
     try:
-        loop.run_until_complete(fm.send_message(message, template_name=template_name))
+        asyncio.run(_send())
     except Exception as e:
         logger.error("email_send_failed", recipient=recipient, error=str(e))
         raise
@@ -44,16 +46,14 @@ def send_email_task(recipient: str, subject: str, template_name: str, context: D
 @celery_app.task(name="tasks.send_telegram")
 def send_telegram_task(chat_id: str, message: str):
     """Celery task to send telegram messages using aiogram."""
-    # Better to use settings.TELEGRAM_BOT_TOKEN
-    bot = Bot(token=settings.YOOMONEY_SHOP_ID)
-    
+    bot = Bot(token=settings.TELEGRAM_BOT_TOKEN)
+
     async def _send():
         async with bot:
             await bot.send_message(chat_id=chat_id, text=message, parse_mode="HTML")
-            
-    loop = asyncio.get_event_loop()
+
     try:
-        loop.run_until_complete(_send())
+        asyncio.run(_send())
     except Exception as e:
         logger.error("telegram_send_failed", chat_id=chat_id, error=str(e))
         raise
@@ -62,3 +62,42 @@ def send_telegram_task(chat_id: str, message: str):
 def send_sms_stub_task(phone: str, message: str):
     """SMS Stub - just log it."""
     logger.info("sms_sent_stub", phone=phone, message=message)
+
+
+@celery_app.task(name="tasks.send_contact_notification")
+def send_contact_notification_task(
+    recipient: str,
+    sender_name: str,
+    sender_email: str,
+    subject: str,
+    message: str,
+) -> None:
+    """Send an email notification to the site admin about a new contact form submission."""
+    fm = FastMail(mail_conf)
+    body = (
+        f"<p>Новая заявка обратной связи</p>"
+        f"<p><b>Имя:</b> {sender_name}</p>"
+        f"<p><b>Email:</b> {sender_email}</p>"
+        f"<p><b>Тема:</b> {subject}</p>"
+        f"<p><b>Сообщение:</b></p>"
+        f"<p>{message}</p>"
+    )
+    message_schema = MessageSchema(
+        subject=f"Новая заявка: {subject}",
+        recipients=[recipient],
+        body=body,
+        subtype=MessageType.html,
+    )
+
+    async def _send():
+        await fm.send_message(message_schema)
+
+    try:
+        asyncio.run(_send())
+    except Exception as exc:
+        logger.error(
+            "contact_notification_send_failed",
+            recipient=recipient,
+            error=str(exc),
+        )
+        raise

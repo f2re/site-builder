@@ -2,6 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 import os
 import structlog
 from pathlib import Path
@@ -10,6 +14,8 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 
 logger = structlog.get_logger()
+
+limiter = Limiter(key_func=get_remote_address)
 
 MEDIA_FALLBACK_ROOT = Path(os.getenv("MEDIA_FALLBACK_ROOT", "/tmp/site-builder-media"))
 
@@ -65,6 +71,10 @@ app = FastAPI(
     redoc_url="/api/redoc",
     redirect_slashes=False,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")  # type: ignore
 
