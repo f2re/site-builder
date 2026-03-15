@@ -1,0 +1,17 @@
+{
+  "task_id": "p7_frontend_urich_html",
+  "phase": 7,
+  "agent": "frontend-agent",
+  "title": "Integrate HTML import feature into URichEditor",
+  "description": "Add HTML import feature to frontend/components/U/URichEditor.vue following the pattern in TipTapEditor.vue. Ensure both editors have HTML import functionality. Add 'HTML↑' button, showImportHtml modal, and applyHtml logic.",
+  "depends_on": [],
+  "priority": "high",
+  "contracts_required": [],
+  "acceptance_criteria": [
+    "Static Page editor (URichEditor) has a button to import HTML.",
+    "Blog/Product editor (TipTapEditor) has a button to import HTML.",
+    "Both work correctly: pasting HTML replaces or sets the editor content.",
+    "No regressions in Markdown import/export.",
+    "Code is clean, following existing component patterns and using CSS variables."
+  ]
+}

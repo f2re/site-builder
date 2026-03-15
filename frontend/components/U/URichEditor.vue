@@ -153,6 +153,22 @@ async function copyMarkdown() {
     toast.error('Ошибка', 'Не удалось скопировать текст')
   }
 }
+
+// HTML import
+const showImportHtml = ref(false)
+const htmlInput = ref('')
+
+function openImportHtml() {
+  htmlInput.value = ''
+  showImportHtml.value = true
+}
+
+function applyHtml() {
+  if (!editor.value || !htmlInput.value.trim()) return
+  editor.value.commands.setContent(htmlInput.value.trim(), true)
+  showImportHtml.value = false
+  htmlInput.value = ''
+}
 </script>
 
 <template>
@@ -254,6 +270,16 @@ async function copyMarkdown() {
       <button
         type="button"
         class="md-btn"
+        @click="openImportHtml"
+        title="Вставить HTML"
+        data-testid="richeditor-import-html-btn"
+        aria-label="Вставить HTML"
+      >
+        HTML↑
+      </button>
+      <button
+        type="button"
+        class="md-btn"
         @click="openImportMd"
         title="Вставить Markdown"
         data-testid="richeditor-import-md-btn"
@@ -288,6 +314,52 @@ async function copyMarkdown() {
       style="display: none"
       @change="handleImageUpload"
     />
+
+    <!-- Import HTML modal -->
+    <div
+      v-if="showImportHtml"
+      class="md-modal-overlay"
+      @mousedown.self="showImportHtml = false"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Вставить HTML"
+    >
+      <div class="md-modal" data-testid="richeditor-import-html-modal">
+        <div class="md-modal-header">
+          <h3 class="md-modal-title">Вставить HTML</h3>
+          <button
+            type="button"
+            class="md-modal-close"
+            aria-label="Закрыть"
+            @click="showImportHtml = false"
+          >
+            <Icon name="ph:x-bold" size="16" />
+          </button>
+        </div>
+        <textarea
+          v-model="htmlInput"
+          class="md-textarea"
+          placeholder="<p>Вставьте HTML-контент...</p>"
+          rows="12"
+          autofocus
+          data-testid="richeditor-html-input"
+        />
+        <div class="md-modal-footer">
+          <button type="button" class="md-action-btn" @click="showImportHtml = false">
+            Отмена
+          </button>
+          <button
+            type="button"
+            class="md-action-btn md-action-btn--primary"
+            :disabled="!htmlInput.trim()"
+            @click="applyHtml"
+            data-testid="richeditor-apply-html-btn"
+          >
+            Применить
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Link dialog -->
     <div v-if="showLinkDialog" class="link-dialog-overlay" @click="showLinkDialog = false">
