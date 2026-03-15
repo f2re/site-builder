@@ -137,9 +137,7 @@ class ProductRepository:
         if category_id:
             stmt = stmt.where(Product.category_id == category_id)
         elif category_slug:
-            stmt = stmt.join(Category, Product.category_id == Category.id).where(
-                Category.slug == category_slug
-            )
+            stmt = stmt.where(Category.slug == category_slug)
         
         if is_featured is not None:
             stmt = stmt.where(Product.is_featured == is_featured)
