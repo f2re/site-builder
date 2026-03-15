@@ -38,7 +38,7 @@ const relatedPosts = computed(() => {
 
 // Breadcrumbs
 const breadcrumbs = [
-  { label: 'Главная', to: '/', icon: 'ph:house' },
+  { label: 'Главная', to: '/', icon: 'ph:house-bold' },
   { label: 'Блог', to: '/blog' },
   { label: post.value.title },
 ]

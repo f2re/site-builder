@@ -26,31 +26,55 @@ useBreadcrumbSchema(
 </script>
 
 <template>
-  <nav class="breadcrumbs" aria-label="Хлебные крошки" itemscope itemtype="https://schema.org/BreadcrumbList">
-    <ol class="breadcrumbs-list">
+  <nav
+    class="breadcrumbs"
+    aria-label="Навигация"
+    itemscope
+    itemtype="https://schema.org/BreadcrumbList"
+    data-testid="breadcrumbs-nav"
+  >
+    <ol class="breadcrumbs__list">
       <li
         v-for="(crumb, i) in crumbs"
         :key="i"
-        class="breadcrumbs-item"
+        class="breadcrumbs__item"
         itemprop="itemListElement"
         itemscope
         itemtype="https://schema.org/ListItem"
       >
+        <!-- Separator (все кроме первого) -->
+        <Icon
+          v-if="i > 0"
+          name="ph:caret-right-bold"
+          class="breadcrumbs__sep"
+          aria-hidden="true"
+        />
+
+        <!-- Ссылка (не последний элемент) -->
         <NuxtLink
           v-if="crumb.to"
           :to="crumb.to"
-          class="breadcrumbs-link"
+          class="breadcrumbs__link"
           itemprop="item"
+          :data-testid="`breadcrumb-link-${i}`"
         >
-          <Icon v-if="crumb.icon" :name="crumb.icon" class="breadcrumbs-icon" />
-          <span itemprop="name">{{ crumb.label }}</span>
+          <Icon v-if="crumb.icon" :name="crumb.icon" class="breadcrumbs__icon" aria-hidden="true" />
+          <span itemprop="name" class="breadcrumbs__text">{{ crumb.label }}</span>
         </NuxtLink>
-        <span v-else class="breadcrumbs-current" itemprop="name">
-          <Icon v-if="crumb.icon" :name="crumb.icon" class="breadcrumbs-icon" />
-          {{ crumb.label }}
+
+        <!-- Текущая страница (последний элемент без to) -->
+        <span
+          v-else
+          class="breadcrumbs__current"
+          itemprop="name"
+          data-testid="breadcrumb-current"
+          :title="crumb.label"
+        >
+          <Icon v-if="crumb.icon" :name="crumb.icon" class="breadcrumbs__icon" aria-hidden="true" />
+          <span class="breadcrumbs__text breadcrumbs__text--truncate">{{ crumb.label }}</span>
         </span>
+
         <meta itemprop="position" :content="String(i + 1)" />
-        <span v-if="i < crumbs.length - 1" class="breadcrumbs-separator" aria-hidden="true">/</span>
       </li>
     </ol>
   </nav>
@@ -58,55 +82,88 @@ useBreadcrumbSchema(
 
 <style scoped>
 .breadcrumbs {
-  margin-bottom: var(--space-4);
+  padding: 10px 0;
+  margin-bottom: 8px;
 }
 
-.breadcrumbs-list {
+.breadcrumbs__list {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: 2px;
   list-style: none;
   padding: 0;
   margin: 0;
   font-size: var(--text-sm);
 }
 
-.breadcrumbs-item {
+.breadcrumbs__item {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 2px;
+  min-width: 0; /* важно для truncate */
 }
 
-.breadcrumbs-link {
-  display: flex;
+.breadcrumbs__sep {
+  color: var(--color-border-strong);
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.breadcrumbs__link {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
   color: var(--color-text-2);
   text-decoration: none;
-  transition: color var(--transition-fast);
+  white-space: nowrap;
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
 
-.breadcrumbs-link:hover {
+.breadcrumbs__link:hover {
   color: var(--color-accent);
-  text-decoration: underline;
+  background: var(--color-surface-2);
 }
 
-.breadcrumbs-current {
-  display: flex;
+.breadcrumbs__link:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.breadcrumbs__current {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: 4px;
+  padding: 4px 8px;
   color: var(--color-text);
   font-weight: 500;
+  min-width: 0;
+  max-width: 260px;
 }
 
-.breadcrumbs-icon {
-  width: 16px;
-  height: 16px;
+.breadcrumbs__text {
+  line-height: 1.4;
 }
 
-.breadcrumbs-separator {
-  color: var(--color-text-3);
-  user-select: none;
+.breadcrumbs__text--truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.breadcrumbs__icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .breadcrumbs__current {
+    max-width: 160px;
+  }
 }
 </style>

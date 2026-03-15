@@ -22,12 +22,6 @@ useSeoMeta({
 })
 useHead({ meta: [{ name: 'robots', content: 'noindex' }] })
 
-const breadcrumbItems = [
-  { name: 'Каталог', path: '/products' },
-  { name: 'Корзина', path: '/cart' },
-  { name: 'Оформление', path: '/checkout' },
-]
-
 // --- City search ---
 const cityQuery = ref('')
 const cityResults = ref<CdekCity[]>([])
@@ -239,7 +233,12 @@ onMounted(() => {
 <template>
   <div class="checkout-page">
     <div class="container">
-      <AppBreadcrumbs :items="breadcrumbItems" />
+      <AppBreadcrumbs :crumbs="[
+        { label: 'Главная', to: '/', icon: 'ph:house-bold' },
+        { label: 'Каталог', to: '/products' },
+        { label: 'Корзина', to: '/cart' },
+        { label: 'Оформление заказа' },
+      ]" />
       <h1 class="checkout-page__title">Оформление заказа</h1>
 
       <div v-if="cartStore.items.length === 0" class="checkout-empty">

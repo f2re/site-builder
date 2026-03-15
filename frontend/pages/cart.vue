@@ -7,11 +7,6 @@ import { formatPrice } from '~/composables/useFormatters'
 const cartStore = useCartStore()
 const toast = useToast()
 
-const breadcrumbItems = [
-  { name: 'Каталог', path: '/products' },
-  { name: 'Корзина', path: '/cart' }
-]
-
 const updateQuantity = (id: string, delta: number) => {
   const item = cartStore.items.find(i => i.id === id)
   if (item) {
@@ -45,7 +40,11 @@ useHead({
 <template>
   <div class="cart-page">
     <div class="container">
-      <AppBreadcrumbs :items="breadcrumbItems" />
+      <AppBreadcrumbs :crumbs="[
+        { label: 'Главная', to: '/', icon: 'ph:house-bold' },
+        { label: 'Каталог', to: '/products' },
+        { label: 'Корзина' },
+      ]" />
 
       <h1 class="cart-page__title">Корзина</h1>
 

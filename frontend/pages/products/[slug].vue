@@ -205,7 +205,10 @@ watch(product, (val) => {
 }, { immediate: true })
 
 const breadcrumbCrumbs = computed(() => {
-  const crumbs = [{ label: 'Каталог', to: '/products' }]
+  const crumbs = [
+    { label: 'Главная', to: '/', icon: 'ph:house-bold' },
+    { label: 'Каталог', to: '/products' },
+  ]
   if (product.value?.category?.name) {
     crumbs.push({
       label: product.value.category.name,
