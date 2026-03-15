@@ -1,0 +1,46 @@
+{
+  "task_id": "p40_backend_migration_all_entities",
+  "agent": "backend-agent",
+  "priority": "critical",
+  "title": "Миграция: добавить ВСЕ 8 сущностей в get_migration_summary",
+  "description": "В migration_service.py метод get_migration_summary() содержит required_entities только с 4 сущностями (USERS, CATEGORIES, PRODUCTS, ORDERS). Из-за этого фронтенд не видит блоки devices, blog, images, addresses. Нужно добавить все 8 сущностей.",
+
+  "files_to_modify": [
+    "backend/app/api/v1/admin/migration_service.py"
+  ],
+
+  "tasks": [
+    {
+      "step": 1,
+      "action": "Прочитать backend/app/api/v1/admin/migration_service.py, найти метод get_migration_summary (строка ~584). Найти required_entities на строке ~596-601."
+    },
+    {
+      "step": 2,
+      "action": "Заменить required_entities на полный список всех 8 сущностей: MigrationEntity.USERS, MigrationEntity.CATEGORIES, MigrationEntity.PRODUCTS, MigrationEntity.IMAGES, MigrationEntity.ORDERS, MigrationEntity.BLOG, MigrationEntity.ADDRESSES, MigrationEntity.DEVICES"
+    },
+    {
+      "step": 3,
+      "action": "Проверить что для КАЖДОЙ сущности, не только USERS, при RUNNING корректно формируется entity_entry. Для сущности DEVICES: если job RUNNING, добавить sub-phase аннотации (аналогично тому как для USERS). Посмотреть extra_data для devices: complectations_done, token_devices_done, device_complectations_done. Если complectations_done false — phase 'Комплектации (каталог)', если token_devices_done false — phase 'Привязка устройств', если device_complectations_done false — phase 'Комплектации устройств'."
+    },
+    {
+      "step": 4,
+      "action": "Добавить аннотацию skipped к entity_entry — если job имеет skipped > 0, добавить 'skipped': job_opt.skipped. Фронтенд уже поддерживает отображение 'Пропущено: N'."
+    },
+    {
+      "step": 5,
+      "action": "Прогнать: cd backend && ruff check app/ --fix && ruff check app/ && mypy app/ --ignore-missing-imports. Исправить ВСЕ ошибки."
+    },
+    {
+      "step": 6,
+      "action": "Написать отчёт в .claude/agents/reports/backend/p40_backend_migration_all_entities.md"
+    }
+  ],
+
+  "acceptance_criteria": [
+    "GET /admin/migration/status возвращает entities с 8 ключами: users, categories, products, images, orders, blog, addresses, devices",
+    "Каждая сущность имеет total, processed, status, error, skipped",
+    "Для devices при RUNNING показывается текущая sub-phase (complectations/token_devices/device_complectations)",
+    "overall_progress учитывает все 8 сущностей",
+    "ruff: 0 ошибок, mypy: 0 ошибок"
+  ]
+}

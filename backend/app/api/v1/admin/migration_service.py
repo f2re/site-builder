@@ -597,7 +597,11 @@ class MigrationService:
             MigrationEntity.USERS,
             MigrationEntity.CATEGORIES,
             MigrationEntity.PRODUCTS,
+            MigrationEntity.IMAGES,
             MigrationEntity.ORDERS,
+            MigrationEntity.BLOG,
+            MigrationEntity.ADDRESSES,
+            MigrationEntity.DEVICES,
         ]
 
         any_running = False
@@ -617,6 +621,7 @@ class MigrationService:
                 entity_entry: Dict[str, Any] = {
                     "total": job_opt.total,
                     "processed": job_opt.processed,
+                    "skipped": job_opt.skipped,
                     "status": status_str,
                     "error": job_opt.errors[-1] if job_opt.errors else None,
                 }
@@ -634,6 +639,16 @@ class MigrationService:
                         entity_entry["phase"] = "Устройства"
                         entity_entry["phase_processed"] = int(extra.get("devices_processed") or 0)
 
+                # For DEVICES: annotate current sub-phase
+                if ent == MigrationEntity.DEVICES and job_opt.status == MigrationStatus.RUNNING:
+                    extra = job_opt.extra_data or {}
+                    if not extra.get("complectations_done"):
+                        entity_entry["phase"] = "Комплектации (каталог)"
+                    elif not extra.get("token_devices_done"):
+                        entity_entry["phase"] = "Привязка устройств"
+                    elif not extra.get("device_complectations_done"):
+                        entity_entry["phase"] = "Комплектации устройств"
+
                 entities_data[ent.value] = entity_entry
                 total_items += job_opt.total
                 processed_items += job_opt.processed
@@ -647,7 +662,7 @@ class MigrationService:
                 if job_opt.status != MigrationStatus.DONE:
                     all_completed = False
             else:
-                entities_data[ent.value] = {"total": 0, "processed": 0, "status": "PENDING", "error": None}
+                entities_data[ent.value] = {"total": 0, "processed": 0, "skipped": 0, "status": "PENDING", "error": None}
                 all_completed = False
 
         overall_status = "IDLE"
