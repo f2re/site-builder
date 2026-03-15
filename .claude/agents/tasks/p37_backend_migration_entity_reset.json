@@ -1,0 +1,56 @@
+{
+  "task_id": "p37_backend_migration_entity_reset",
+  "agent": "backend-agent",
+  "priority": "high",
+  "title": "Добавить эндпоинт сброса миграции для отдельной сущности",
+  "description": "Добавить API эндпоинт DELETE /admin/migration/reset/{entity} и соответствующий метод в MigrationService для сброса данных конкретной сущности миграции.",
+
+  "context": {
+    "files_to_modify": [
+      "backend/app/api/v1/admin/router.py",
+      "backend/app/api/v1/admin/migration_service.py"
+    ],
+    "existing_endpoint": "DELETE /admin/migration/reset — сбрасывает ВСЕ мигрированные данные (lines 1309-1315 в router.py)",
+    "existing_entities": ["users", "categories", "products", "images", "orders", "blog", "addresses", "devices"],
+    "migration_service_reset_method": "async reset_migration(self) — полный сброс всех данных (migration_service.py ~line 373)",
+    "MigrationEntity_enum": "backend/app/db/models/migration.py — enum MigrationEntity: users, categories, products, images, orders, blog, devices, addresses"
+  },
+
+  "tasks": [
+    {
+      "step": 1,
+      "action": "Прочитать migration_service.py метод reset_migration (~line 373-425) чтобы понять логику каскадного удаления по каждой сущности"
+    },
+    {
+      "step": 2,
+      "action": "Добавить метод async reset_entity(self, entity: MigrationEntity) в MigrationService. Логика: удалять только данные соответствующей сущности и MigrationJob строки только для этой сущности. Маппинг: users→User (customer role, non-superuser + их адреса), categories→Category (where oc_category_id IS NOT NULL), products→Product (where oc_product_id IS NOT NULL) + связанные OrderItem, orders→Order (where oc_order_id IS NOT NULL) + OrderItem, blog→BlogPost (where oc_product_id IS NOT NULL), images→удалить только записи ProductImage без физических файлов, addresses→Address (where oc_address_id IS NOT NULL), devices→UserDevice (where oc_device_id IS NOT NULL) + user_device_complectations + ModuleComplectation (where oc_complectation_id IS NOT NULL). После удаления данных — удалить MigrationJob строки WHERE entity = entity_value."
+    },
+    {
+      "step": 3,
+      "action": "Добавить эндпоинт в router.py: DELETE /admin/migration/reset/{entity} где entity: MigrationEntity — path parameter. Вызывает service.reset_entity(entity). Возвращает {'status': 'reset', 'entity': entity.value}. Разместить ПЕРЕД существующим DELETE /migration/reset чтобы избежать конфликта маршрутов."
+    },
+    {
+      "step": 4,
+      "action": "Прогнать ruff check app/ --fix, mypy app/ --ignore-missing-imports, alembic check. Исправить все ошибки."
+    },
+    {
+      "step": 5,
+      "action": "Написать отчёт в .claude/agents/reports/backend/p37_backend_migration_entity_reset.md"
+    }
+  ],
+
+  "acceptance_criteria": [
+    "DELETE /admin/migration/reset/{entity} возвращает 200 для каждого из 8 значений MigrationEntity",
+    "Удаляет только мигрированные записи (по oc_*_id IS NOT NULL или аналогичному критерию)",
+    "Не затрагивает нативные записи (без oc_*_id)",
+    "Удаляет MigrationJob строки для этой сущности",
+    "Возвращает 404 если сущность не существует (FastAPI валидирует enum автоматически)",
+    "ruff: 0 ошибок, mypy: 0 ошибок, alembic check: OK"
+  ],
+
+  "important_notes": [
+    "ВНИМАНИЕ: новый эндпоинт DELETE /migration/reset/{entity} должен быть определён ДО DELETE /migration/reset в router.py, иначе FastAPI не сможет различить их",
+    "Для users: НЕ удалять superuser/admin аккаунты — только customer role",
+    "Нет необходимости в Alembic миграции — только изменение кода"
+  ]
+}

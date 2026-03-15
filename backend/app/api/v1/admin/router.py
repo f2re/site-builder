@@ -62,6 +62,7 @@ from .pages_router import router as pages_admin_router
 # Migration
 from .migration_service import MigrationService
 from .migration_repository import MigrationRepository
+from app.db.models.migration import MigrationEntity
 
 from app.core.logging import logger
 
@@ -1305,6 +1306,20 @@ async def resume_specific_migration(
     if not job:
         raise HTTPException(status_code=404, detail="Migration job not found")
     return job
+
+@router.delete("/migration/reset/{entity}")
+async def reset_migration_entity(
+    entity: MigrationEntity,
+    _admin: User = AdminDep,
+    service: MigrationService = Depends(get_migration_service),
+) -> Any:
+    """Delete migrated data for a specific entity and its MigrationJob rows.
+
+    Only removes records that originated from OpenCart (oc_*_id IS NOT NULL).
+    Returns 422 automatically if entity value is not a valid MigrationEntity.
+    """
+    return await service.reset_entity(entity)
+
 
 @router.delete("/migration/reset")
 async def reset_migration(

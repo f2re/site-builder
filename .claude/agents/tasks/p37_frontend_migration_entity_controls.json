@@ -1,0 +1,80 @@
+{
+  "task_id": "p37_frontend_migration_entity_controls",
+  "agent": "frontend-agent",
+  "priority": "high",
+  "depends_on": "p37_backend_migration_entity_reset",
+  "title": "Добавить кнопки управления миграцией в карточки сущностей",
+  "description": "В окне мониторинга миграции (frontend/pages/admin/migration.vue) добавить кнопки 'Запустить' и 'Удалить' в каждый блок сущности (entity card). Кнопки должны управлять миграцией конкретной сущности.",
+
+  "context": {
+    "file_to_modify": "frontend/pages/admin/migration.vue",
+    "entity_card_template_location": "lines 326-379 в migration.vue — блок UCard v-for (entity, key) in status.entities",
+    "entity_card_footer_location": "lines 366-378 — .entity-card-footer с mini-progress и entity-error",
+    "existing_api_calls": {
+      "start_all": "POST /admin/migration/start (без body)",
+      "start_entity": "POST /admin/migration/start с body { entity: 'users' | 'categories' | ... }",
+      "reset_all": "DELETE /admin/migration/reset",
+      "reset_entity": "DELETE /admin/migration/reset/{entity} — НОВЫЙ эндпоинт от backend-agent"
+    },
+    "existing_actions": "startMigration, pauseMigration, resumeMigration, resetMigration — в <script setup>",
+    "confirm_composable": "const { confirm } = useConfirm() — уже используется для глобального сброса",
+    "addToast": "const { add: addToast } = useToast() — уже используется"
+  },
+
+  "tasks": [
+    {
+      "step": 1,
+      "action": "Добавить в <script setup> реактивный объект для отслеживания pending-состояния по сущностям: const entityPending = ref<Record<string, { starting: boolean; resetting: boolean }>>({}). Добавить хелпер getEntityPending(key) возвращающий { starting: false, resetting: false } по умолчанию."
+    },
+    {
+      "step": 2,
+      "action": "Добавить async функцию startEntityMigration(entityKey: MigrationEntityKey): вызывает POST /admin/migration/start с body { entity: entityKey }, показывает toast success/error, вызывает fetchStatus(). Управляет entityPending[entityKey].starting."
+    },
+    {
+      "step": 3,
+      "action": "Добавить async функцию resetEntityMigration(entityKey: MigrationEntityKey): сначала вызывает confirm({ title: `Сбросить ${getEntityLabel(entityKey)}?`, message: 'Удалит мигрированные записи для этой сущности. Действие необратимо.', confirmLabel: 'Сбросить', variant: 'danger' }), затем вызывает DELETE /admin/migration/reset/{entityKey}, показывает toast success/error, вызывает fetchStatus(). Управляет entityPending[entityKey].resetting."
+    },
+    {
+      "step": 4,
+      "action": "В шаблоне карточки сущности (внутри .entity-card-footer, ПОСЛЕ mini-progress и entity-error) добавить блок кнопок управления. Условие видимости: показывать только если статус сущности НЕ RUNNING (entity.status !== 'RUNNING'). Две кнопки: 1) UButton variant='ghost' color='primary' size='sm' — иконка ph:play-bold, текст 'Запустить', :loading='entityPending[key]?.starting', :disabled='status.overall_status === \"RUNNING\"', @click='startEntityMigration(key)', data-testid='entity-start-btn-{key}'. 2) UButton variant='ghost' color='error' size='sm' — иконка ph:trash-bold, текст 'Сбросить', :loading='entityPending[key]?.resetting', :disabled='status.overall_status === \"RUNNING\" || entity.status === \"PENDING\"', @click='resetEntityMigration(key)', data-testid='entity-reset-btn-{key}'. Кнопка Сбросить недоступна если entity.status === 'PENDING' (нечего сбрасывать)."
+    },
+    {
+      "step": 5,
+      "action": "Добавить CSS стили для .entity-card-actions: display flex, gap 0.5rem, margin-top 0.75rem. Кнопки компактные size='sm', font-size var(--text-xs)."
+    },
+    {
+      "step": 6,
+      "action": "Прогнать cd frontend && npm run lint && npm run type-check. Исправить все ошибки."
+    },
+    {
+      "step": 7,
+      "action": "Написать отчёт в .claude/agents/reports/frontend/p37_frontend_migration_entity_controls.md"
+    }
+  ],
+
+  "acceptance_criteria": [
+    "Каждая карточка сущности имеет кнопки 'Запустить' и 'Сбросить'",
+    "Кнопка 'Запустить' вызывает POST /admin/migration/start с { entity: key }",
+    "Кнопка 'Сбросить' показывает confirm-диалог перед вызовом DELETE /admin/migration/reset/{entity}",
+    "Обе кнопки заблокированы (disabled) когда global overall_status === 'RUNNING'",
+    "Кнопка 'Сбросить' недоступна когда entity.status === 'PENDING' или entity.status === 'RUNNING'",
+    "Кнопки не отображаются когда entity.status === 'RUNNING'",
+    "Loading spinner на кнопке во время запроса",
+    "data-testid='entity-start-btn-users', 'entity-reset-btn-users' и т.д. для каждой сущности",
+    "npm run lint: 0 ошибок, npm run type-check: 0 ошибок",
+    "Только var(--color-*) токены в стилях"
+  ],
+
+  "data_testid_required": [
+    "entity-start-btn-{entity_key} — для каждой из 8 сущностей",
+    "entity-reset-btn-{entity_key} — для каждой из 8 сущностей",
+    "entity-controls-{entity_key} — контейнер кнопок"
+  ],
+
+  "important_notes": [
+    "data-testid должен включать имя сущности: entity-start-btn-users, entity-reset-btn-categories и т.д.",
+    "НЕЛЬЗЯ использовать inline styles — только CSS классы с var(--color-*) токенами",
+    "Кнопки должны быть компактными (size sm) — карточки небольшого размера",
+    "После действия ОБЯЗАТЕЛЬНО вызывать fetchStatus() для обновления UI"
+  ]
+}

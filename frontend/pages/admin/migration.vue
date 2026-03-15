@@ -34,6 +34,11 @@ interface MigrationStatus {
 const isActionPending = ref(false)
 const isResetPending = ref(false)
 const refreshInterval = ref<NodeJS.Timeout | null>(null)
+const entityPending = ref<Record<string, { starting: boolean; resetting: boolean }>>({})
+
+const getEntityPending = (key: string): { starting: boolean; resetting: boolean } => {
+  return entityPending.value[key] ?? { starting: false, resetting: false }
+}
 
 // Stale detection
 const lastProgressValue = ref<number | null>(null)
@@ -151,6 +156,50 @@ const resetMigration = async () => {
     addToast({ type: 'error', title: 'Ошибка очистки', message: err.message })
   } finally {
     isResetPending.value = false
+  }
+}
+
+const startEntityMigration = async (entityKey: MigrationEntityKey) => {
+  if (!entityPending.value[entityKey]) {
+    entityPending.value[entityKey] = { starting: false, resetting: false }
+  }
+  entityPending.value[entityKey].starting = true
+  try {
+    await apiFetch('/admin/migration/start', {
+      method: 'POST',
+      body: { entity: entityKey },
+    })
+    addToast({ type: 'success', title: `Миграция ${getEntityLabel(entityKey)} запущена` })
+    await fetchStatus()
+  } catch (err: any) {
+    addToast({ type: 'error', title: 'Ошибка запуска', message: err.message })
+  } finally {
+    entityPending.value[entityKey].starting = false
+  }
+}
+
+const resetEntityMigration = async (entityKey: MigrationEntityKey) => {
+  if (!await confirm({
+    title: `Сбросить ${getEntityLabel(entityKey)}?`,
+    message: 'Удалит мигрированные записи для этой сущности. Действие необратимо.',
+    confirmLabel: 'Сбросить',
+    variant: 'danger',
+  })) {
+    return
+  }
+
+  if (!entityPending.value[entityKey]) {
+    entityPending.value[entityKey] = { starting: false, resetting: false }
+  }
+  entityPending.value[entityKey].resetting = true
+  try {
+    await apiFetch(`/admin/migration/reset/${entityKey}`, { method: 'DELETE' })
+    addToast({ type: 'success', title: `Данные ${getEntityLabel(entityKey)} очищены` })
+    await fetchStatus()
+  } catch (err: any) {
+    addToast({ type: 'error', title: 'Ошибка очистки', message: err.message })
+  } finally {
+    entityPending.value[entityKey].resetting = false
   }
 }
 
@@ -375,6 +424,35 @@ const getEntityLabel = (key: string) => {
                 <Icon name="ph:warning-circle-bold" />
                 {{ entity.error }}
               </p>
+              <div
+                v-if="entity.status !== 'RUNNING'"
+                class="entity-card-actions"
+                :data-testid="`entity-controls-${key}`"
+              >
+                <UButton
+                  variant="secondary"
+                  size="sm"
+                  :loading="getEntityPending(key as string).starting"
+                  :disabled="status?.overall_status === 'RUNNING'"
+                  :data-testid="`entity-start-btn-${key}`"
+                  @click="startEntityMigration(key as MigrationEntityKey)"
+                >
+                  <template #icon><Icon name="ph:play-bold" size="14" /></template>
+                  Запустить
+                </UButton>
+                <UButton
+                  variant="ghost"
+                  size="sm"
+                  class="btn-entity-reset"
+                  :loading="getEntityPending(key as string).resetting"
+                  :disabled="status?.overall_status === 'RUNNING' || entity.status === 'PENDING'"
+                  :data-testid="`entity-reset-btn-${key}`"
+                  @click="resetEntityMigration(key as MigrationEntityKey)"
+                >
+                  <template #icon><Icon name="ph:trash-bold" size="14" /></template>
+                  Сбросить
+                </UButton>
+              </div>
             </div>
           </UCard>
         </div>
@@ -566,6 +644,21 @@ const getEntityLabel = (key: string) => {
   font-size: var(--text-xs);
   color: var(--color-error);
   margin-top: 0.5rem;
+}
+
+.entity-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.btn-entity-reset {
+  color: var(--color-error);
+}
+
+.btn-entity-reset:hover:not(:disabled) {
+  background-color: var(--color-error-bg);
+  color: var(--color-error);
 }
 
 .entity-phase {

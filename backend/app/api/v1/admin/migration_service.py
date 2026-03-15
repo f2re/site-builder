@@ -424,6 +424,163 @@ class MigrationService:
         logger.info("migration_reset_complete")
         return {"status": "ok", "message": "Migration data cleared"}
 
+    async def reset_entity(self, entity: MigrationEntity) -> Dict[str, str]:
+        """Delete migrated data for a single entity and its MigrationJob rows.
+
+        Only removes records that originated from OpenCart (oc_*_id IS NOT NULL).
+        Native records (without oc_*_id) are never touched.
+        """
+        from app.core.logging import logger as _logger  # noqa: PLC0415
+
+        if entity == MigrationEntity.USERS:
+            # Find migrated customer user IDs (non-superuser, role=customer)
+            # Users themselves don't have oc_user_id but we track them via migrated addresses
+            # We delete customer users who are NOT superusers — same logic as full reset
+            # (Migration imports users as customers)
+            migrated_user_ids_stmt = (
+                select(User.id)
+                .where(User.role == "customer")
+                .where(User.is_superuser.is_(False))
+            )
+            migrated_user_ids = [
+                row[0]
+                for row in (await self.session.execute(migrated_user_ids_stmt)).all()
+            ]
+            if migrated_user_ids:
+                # Delete delivery addresses for these users first (FK constraint)
+                await self.session.execute(
+                    delete(DeliveryAddress).where(
+                        DeliveryAddress.user_id.in_(migrated_user_ids)
+                    )
+                )
+                # Delete user_device_complectations for their devices
+                migrated_device_ids_stmt = select(UserDevice.id).where(
+                    UserDevice.user_id.in_(migrated_user_ids)
+                )
+                migrated_device_ids = [
+                    row[0]
+                    for row in (await self.session.execute(migrated_device_ids_stmt)).all()
+                ]
+                if migrated_device_ids:
+                    await self.session.execute(
+                        delete(user_device_complectations).where(
+                            user_device_complectations.c.user_device_id.in_(migrated_device_ids)
+                        )
+                    )
+                    await self.session.execute(
+                        delete(UserDevice).where(UserDevice.id.in_(migrated_device_ids))
+                    )
+                await self.session.execute(
+                    delete(User)
+                    .where(User.role == "customer")
+                    .where(User.is_superuser.is_(False))
+                )
+            _logger.info("migration_entity_reset", entity=entity.value, user_count=len(migrated_user_ids))
+
+        elif entity == MigrationEntity.CATEGORIES:
+            migrated_cat_ids_stmt = select(Category.id).where(
+                Category.oc_category_id.is_not(None)
+            )
+            migrated_cat_ids = [
+                row[0]
+                for row in (await self.session.execute(migrated_cat_ids_stmt)).all()
+            ]
+            if migrated_cat_ids:
+                # Nullify parent_id on children that point to migrated categories
+                await self.session.execute(
+                    update(Category)
+                    .where(Category.parent_id.in_(migrated_cat_ids))
+                    .values(parent_id=None)
+                )
+                await self.session.execute(
+                    delete(Category).where(Category.id.in_(migrated_cat_ids))
+                )
+            _logger.info("migration_entity_reset", entity=entity.value, count=len(migrated_cat_ids))
+
+        elif entity == MigrationEntity.PRODUCTS:
+            # Delete products migrated from OpenCart (cascade removes variants + images via DB)
+            await self.session.execute(
+                delete(Product).where(Product.oc_product_id.is_not(None))
+            )
+            _logger.info("migration_entity_reset", entity=entity.value)
+
+        elif entity == MigrationEntity.IMAGES:
+            # Delete ProductImage records for migrated products only (no physical file removal)
+            migrated_product_ids_stmt = select(Product.id).where(
+                Product.oc_product_id.is_not(None)
+            )
+            migrated_product_ids = [
+                row[0]
+                for row in (await self.session.execute(migrated_product_ids_stmt)).all()
+            ]
+            if migrated_product_ids:
+                await self.session.execute(
+                    delete(ProductImage).where(
+                        ProductImage.product_id.in_(migrated_product_ids)
+                    )
+                )
+            _logger.info("migration_entity_reset", entity=entity.value, count=len(migrated_product_ids))
+
+        elif entity == MigrationEntity.ORDERS:
+            migrated_order_ids_stmt = select(Order.id).where(
+                Order.oc_order_id.is_not(None)
+            )
+            migrated_order_ids = [
+                row[0]
+                for row in (await self.session.execute(migrated_order_ids_stmt)).all()
+            ]
+            if migrated_order_ids:
+                await self.session.execute(
+                    delete(OrderItem).where(
+                        OrderItem.order_id.in_(migrated_order_ids)
+                    )
+                )
+                await self.session.execute(
+                    delete(Order).where(Order.oc_order_id.is_not(None))
+                )
+            _logger.info("migration_entity_reset", entity=entity.value, count=len(migrated_order_ids))
+
+        elif entity == MigrationEntity.BLOG:
+            await self.session.execute(
+                delete(BlogPost).where(BlogPost.oc_product_id.is_not(None))
+            )
+            _logger.info("migration_entity_reset", entity=entity.value)
+
+        elif entity == MigrationEntity.ADDRESSES:
+            await self.session.execute(
+                delete(DeliveryAddress).where(
+                    DeliveryAddress.oc_address_id.is_not(None)
+                )
+            )
+            _logger.info("migration_entity_reset", entity=entity.value)
+
+        elif entity == MigrationEntity.DEVICES:
+            migrated_device_ids_stmt = select(UserDevice.id).where(
+                UserDevice.oc_device_id.is_not(None)
+            )
+            migrated_device_ids = [
+                row[0]
+                for row in (await self.session.execute(migrated_device_ids_stmt)).all()
+            ]
+            if migrated_device_ids:
+                # Remove M2M association rows first
+                await self.session.execute(
+                    delete(user_device_complectations).where(
+                        user_device_complectations.c.user_device_id.in_(migrated_device_ids)
+                    )
+                )
+                await self.session.execute(
+                    delete(UserDevice).where(UserDevice.oc_device_id.is_not(None))
+                )
+            _logger.info("migration_entity_reset", entity=entity.value, count=len(migrated_device_ids))
+
+        # Always delete MigrationJob rows for this entity
+        await self.session.execute(
+            delete(MigrationJob).where(MigrationJob.entity == entity)
+        )
+        await self.session.commit()
+        return {"status": "reset", "entity": entity.value}
+
     async def get_migration_summary(self) -> Dict[str, Any]:
         """Get summary compatible with frontend MigrationStatus interface."""
         jobs = await self.get_all_jobs()
