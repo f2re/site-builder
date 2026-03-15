@@ -29,6 +29,7 @@ async def list_posts(
     status: Optional[str] = Query(None, description="Filter by status: DRAFT|PUBLISHED|ARCHIVED|all. Default is PUBLISHED for guests, all for admins."),
     category: Optional[str] = Query(None, description="Filter by category slug"),
     tag: Optional[str] = Query(None, description="Filter by tag slug"),
+    section: Optional[str] = Query(None, description="Filter by category section: news|instructions"),
     after: Optional[str] = Query(None, description="Cursor for pagination (base64-encoded composite cursor)"),
     limit: Optional[int] = Query(None, ge=1, le=100),
     per_page: Optional[int] = Query(12, ge=1, le=100),
@@ -56,6 +57,7 @@ async def list_posts(
         status=effective_status,
         category_slug=category,
         tag_slug=tag,
+        section=section,
         cursor=after,
         per_page=actual_limit,
     )
@@ -73,9 +75,12 @@ async def get_post(
 
 
 @router.get("/categories", response_model=List[BlogCategoryRead])
-async def list_categories(service: BlogService = Depends(get_blog_service)):
+async def list_categories(
+    section: Optional[str] = Query(None, description="Filter by section: news|instructions"),
+    service: BlogService = Depends(get_blog_service),
+):
     """List all blog categories with post counts."""
-    return await service.list_categories()
+    return await service.list_categories(section=section)
 
 
 @router.get("/tags", response_model=List[TagRead])
@@ -151,11 +156,12 @@ async def list_posts_admin(
 # Admin Blog Category CRUD
 @router.get("/admin/categories", response_model=List[BlogCategoryRead])
 async def admin_list_categories(
+    section: Optional[str] = Query(None, description="Filter by section: news|instructions"),
     current_user: User = Depends(require_admin),
     service: BlogService = Depends(get_blog_service),
 ):
     """List all blog categories (admin)."""
-    return await service.list_categories()
+    return await service.list_categories(section=section)
 
 
 @router.post("/admin/categories", response_model=BlogCategoryRead, status_code=status.HTTP_201_CREATED)

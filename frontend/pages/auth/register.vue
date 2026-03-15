@@ -123,7 +123,10 @@ onUnmounted(() => {
             <span>Google</span>
           </button>
           <button @click="loginWithProvider('yandex')" class="oauth-btn oauth-btn--yandex" aria-label="Зарегистрироваться через Яндекс">
-            <Icon name="simple-icons:yandex" size="20" style="color: #fc3f1d" />
+            <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="12" fill="#fc3f1d"/>
+              <path d="M13.32 7.2H12.5c-1.37 0-2.09.65-2.09 1.72 0 1.2.54 1.8 1.68 2.56l.93.62-2.67 4.1H8.5l2.48-3.8c-1.4-.98-2.18-1.94-2.18-3.43C8.8 6.96 9.97 6 12.45 6H14.7v10.2h-1.38V7.2z" fill="#fff"/>
+            </svg>
             <span>Яндекс</span>
           </button>
         </div>

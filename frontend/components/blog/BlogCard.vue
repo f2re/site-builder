@@ -58,15 +58,12 @@ const readingTime = computed(() =>
         aspect-ratio="16/9"
         class="blog-card__carousel"
       />
-      <NuxtImg
+      <img
         v-else
         :src="coverImage"
         :alt="post.title"
         class="blog-card__image"
         loading="lazy"
-        width="400"
-        height="225"
-        fit="cover"
       />
       <!-- Hover read overlay -->
       <div class="blog-card__hover-overlay" aria-hidden="true">

@@ -1,0 +1,84 @@
+{
+  "task_id": "p39_frontend_blog_overhaul",
+  "agent": "frontend-agent",
+  "priority": "high",
+  "depends_on": "p39_backend_blog_sections",
+  "title": "Blog: фикс пагинации, изображений и навигация по секциям",
+  "description": "Комплексный рефакторинг блога: исправить пагинацию и изображения, добавить навигацию Новости/Инструкции, обновить форму создания/редактирования статьи.",
+
+  "files_to_read_first": [
+    "frontend/composables/useBlog.ts",
+    "frontend/pages/blog/index.vue",
+    "frontend/components/blog/BlogCard.vue",
+    "frontend/pages/admin/blog/create.vue",
+    "frontend/pages/admin/blog/[slug].vue",
+    "frontend/pages/admin/blog/categories.vue",
+    "nuxt.config.ts"
+  ],
+
+  "bugs_to_fix": [
+    {
+      "bug": "Пагинация работает бесконечно — показывает '60/40'",
+      "root_cause": "useBlog.ts getPosts отправляет параметр page_cursor, а backend GET /blog/posts ожидает параметр after. Из-за несоответствия имён параметров cursor всегда игнорируется, каждый запрос возвращает первую страницу. Посты дублируются, счётчик растёт за total.",
+      "fix": "В useBlog.ts изменить имя параметра: page_cursor → after при формировании params для запроса. Убедиться что кнопка 'Загрузить ещё' скрывается когда next_cursor === null."
+    },
+    {
+      "bug": "Изображения и превью не отображаются — пустые серые блоки",
+      "root_cause": "NuxtImg пытается обработать URL через IPX (image proxy). Если изображения хранятся в MinIO с внутренним URL или как относительные пути, IPX не может их достать со стороны клиента.",
+      "fix": "В BlogCard.vue заменить <NuxtImg> на обычный <img> тег для обложек блога. Убрать атрибуты fit, width, height из NuxtImg-специфичных. Оставить lazy loading через loading='lazy'. Проверить nuxt.config.ts — если image.domains не включает домен MinIO/бэкенда, NuxtImg не будет работать. Простейшее решение: использовать <img> вместо <NuxtImg> для blog covers."
+    }
+  ],
+
+  "new_features": [
+    {
+      "feature": "Навигация по секциям Новости/Инструкции на странице блога",
+      "details": "В frontend/pages/blog/index.vue добавить табы/кнопки-переключатели под заголовком 'Блог'. Три варианта: 'Все', 'Новости', 'Инструкции'. При выборе секции добавлять query-параметр section=news или section=instructions. Передавать section в getPosts(). UX: таб-бар с активным состоянием, плавная анимация при переключении. Дизайн: Race-Style — accent border-bottom на активном табе, transition."
+    },
+    {
+      "feature": "Обновить BlogCategory интерфейс в useBlog.ts",
+      "details": "Добавить поле section?: 'news' | 'instructions' | null в интерфейс BlogCategory. Обновить adminCreateCategory и adminUpdateCategory — добавить section в параметры. Добавить функцию getCategoriesBySection(section: 'news' | 'instructions') → вызывает GET /blog/categories?section=..."
+    },
+    {
+      "feature": "Секция на странице /blog - фильтрация постов и отображение секций",
+      "details": "В blog/index.vue: 1) Добавить computed activeSection из route.query.section. 2) При изменении section — сбрасывать cursor и перезапрашивать посты. 3) В watch([tag, category, section]) добавить section. 4) Хлебные крошки: добавить метку секции ('Новости' / 'Инструкции'). 5) При активной секции — показывать категории ТОЛЬКО этой секции в фильтре категорий (если будет добавлен категорийный фильтр)."
+    },
+    {
+      "feature": "Выбор раздела (секции) и категории в форме создания/редактирования статьи",
+      "details": "В frontend/pages/admin/blog/create.vue и frontend/pages/admin/blog/[slug].vue: 1) Добавить в форму поле category_id (dropdown SELECT). 2) Загружать список категорий через adminGetCategories(). 3) Группировать категории по секции в dropdown: группа 'Новости' и группа 'Инструкции'. 4) При сохранении передавать category_id в тело запроса. 5) data-testid: 'blog-category-select', 'blog-section-select'. 6) UX: нативный select или кастомный USelect компонент из UI-кита."
+    },
+    {
+      "feature": "Управление секциями в admin/blog/categories.vue",
+      "details": "В странице управления категориями блога добавить поле выбора секции (news/instructions) в форму создания/редактирования категории. Отображать секцию в таблице категорий как бейдж 'Новости' / 'Инструкции'. Labels: section=news → 'Новости' (цвет info/blue), section=instructions → 'Инструкции' (цвет success/green)."
+    }
+  ],
+
+  "ui_ux_requirements": [
+    "Табы секций: минимум 44px touch target, transition var(--transition-fast)",
+    "Активный таб: border-bottom 2px solid var(--color-accent), font-weight 700",
+    "Неактивный: color var(--color-text-2), hover: color var(--color-text)",
+    "Плавный переход при смене секции: skeleton для списка постов",
+    "Бейджи секций в категориях: Новости — var(--color-info), Инструкции — var(--color-success)",
+    "Dropdown категорий в форме: groupBy секции, визуальный разделитель между группами",
+    "Все интерактивные элементы — data-testid атрибуты"
+  ],
+
+  "data_testid_required": [
+    "blog-section-tabs",
+    "blog-section-tab-all",
+    "blog-section-tab-news",
+    "blog-section-tab-instructions",
+    "blog-category-select",
+    "admin-blog-category-section-select"
+  ],
+
+  "acceptance_criteria": [
+    "Кнопка 'Загрузить ещё' исчезает когда все посты загружены (next_cursor === null)",
+    "Счётчик показывает корректные данные (loaded ≤ total)",
+    "Изображения обложек отображаются в карточках",
+    "Табы Все/Новости/Инструкции работают и фильтруют посты",
+    "В форме создания статьи есть выбор категории, сгруппированный по секции",
+    "В управлении категориями есть поле секции с визуальными бейджами",
+    "npm run lint: 0 ошибок",
+    "npm run type-check: 0 ошибок"
+  ]
+}

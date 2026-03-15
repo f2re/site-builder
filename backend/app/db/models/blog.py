@@ -28,6 +28,12 @@ class CommentStatus(str, enum.Enum):
     SPAM = "spam"
 
 
+class BlogSection(str, enum.Enum):
+    """Blog category section."""
+    NEWS = "news"
+    INSTRUCTIONS = "instructions"
+
+
 # Association table for BlogPost <-> Tag
 blog_post_tags = Table(
     "blog_post_tags",
@@ -62,6 +68,7 @@ class BlogCategory(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    section: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default=None)
 
     # Relationships
     posts: Mapped[List["BlogPost"]] = relationship("BlogPost", back_populates="category")

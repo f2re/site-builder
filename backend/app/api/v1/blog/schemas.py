@@ -1,4 +1,4 @@
-# Module: api/v1/blog/schemas.py | Agent: backend-agent | Task: p28_backend_blog_categories
+# Module: api/v1/blog/schemas.py | Agent: backend-agent | Task: p39_backend_blog_sections
 from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field, EmailStr
 from uuid import UUID
@@ -6,21 +6,30 @@ from datetime import datetime
 from typing import List, Optional, Any
 from enum import Enum
 
+
 class BlogStatus(str, Enum):
     draft = "draft"
     published = "published"
     archived = "archived"
+
 
 class CommentStatusSchema(str, Enum):
     pending = "pending"
     approved = "approved"
     spam = "spam"
 
+
+class BlogSection(str, Enum):
+    news = "news"
+    instructions = "instructions"
+
+
 class BlogCategoryRead(BaseModel):
     id: UUID
     name: str
     slug: str
     description: Optional[str] = None
+    section: Optional[str] = None
     posts_count: int = 0
     model_config = ConfigDict(from_attributes=True)
 
@@ -29,12 +38,14 @@ class BlogCategoryCreate(BaseModel):
     name: str
     slug: str
     description: Optional[str] = None
+    section: Optional[str] = None
 
 
 class BlogCategoryUpdate(BaseModel):
     name: Optional[str] = None
     slug: Optional[str] = None
     description: Optional[str] = None
+    section: Optional[str] = None
 
 class TagRead(BaseModel):
     id: UUID
@@ -120,6 +131,7 @@ class BlogPostShortRead(BaseModel):
     cover_url: Optional[str] = None
     excerpt: Optional[str] = None
     carousel_images: List[str] = []
+    category: Optional[BlogCategoryRead] = None
     author: AuthorRead
     tags: List[TagRead] = []
     published_at: Optional[datetime] = None

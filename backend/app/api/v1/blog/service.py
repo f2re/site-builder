@@ -148,6 +148,7 @@ class BlogService:
         is_featured: Optional[bool] = None,
         cursor: Optional[str] = None,
         per_page: int = 20,
+        section: Optional[str] = None,
     ) -> BlogPagination:
         items, next_cursor, total = await self.repo.list_posts(
             category_slug=category_slug,
@@ -155,7 +156,8 @@ class BlogService:
             status=status,
             is_featured=is_featured,
             cursor=cursor,
-            per_page=per_page
+            per_page=per_page,
+            section=section,
         )
         short_items = []
         for post in items:
@@ -388,8 +390,8 @@ class BlogService:
                 logger.warning("search_index_removal_failed", post_id=str(post_id), error=str(exc))
         return success
 
-    async def list_categories(self) -> List[BlogCategoryRead]:
-        rows = await self.repo.get_categories_with_count()
+    async def list_categories(self, section: Optional[str] = None) -> List[BlogCategoryRead]:
+        rows = await self.repo.get_categories_with_count(section=section)
         result = []
         for category, posts_count in rows:
             cat_read = BlogCategoryRead.model_validate(category)
@@ -404,6 +406,7 @@ class BlogService:
             name=data.name,
             slug=slug,
             description=data.description,
+            section=data.section,
         )
         created = await self.repo.create_category(category)
         await self.repo.session.commit()

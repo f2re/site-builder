@@ -74,6 +74,7 @@ class BlogRepository:
         is_featured: Optional[bool] = None,
         cursor: Optional[str] = None,
         per_page: int = 20,
+        section: Optional[str] = None,
     ) -> Tuple[List[BlogPost], Optional[str], int]:
         """
         List blog posts with composite cursor pagination by (published_at DESC, id DESC).
@@ -103,6 +104,15 @@ class BlogRepository:
         if category_slug:
             stmt = stmt.join(BlogCategory).where(BlogCategory.slug == category_slug)
             count_stmt = count_stmt.join(BlogCategory).where(BlogCategory.slug == category_slug)
+        elif section:
+            # Filter by category section — requires join even when no category_slug given
+            stmt = stmt.join(BlogCategory).where(BlogCategory.section == section)
+            count_stmt = count_stmt.join(BlogCategory).where(BlogCategory.section == section)
+
+        if section and category_slug:
+            # Both filters active — category already joined, add section condition
+            stmt = stmt.where(BlogCategory.section == section)
+            count_stmt = count_stmt.where(BlogCategory.section == section)
 
         if tag_slug:
             stmt = stmt.join(BlogPost.tags).where(Tag.slug == tag_slug)
@@ -170,14 +180,16 @@ class BlogRepository:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_categories_with_count(self) -> List[Tuple[BlogCategory, int]]:
-        """Return categories with count of published posts in each."""
+    async def get_categories_with_count(self, section: Optional[str] = None) -> List[Tuple[BlogCategory, int]]:
+        """Return categories with count of published posts in each, optionally filtered by section."""
         stmt = (
             select(BlogCategory, func.count(BlogPost.id).label("posts_count"))
             .outerjoin(BlogPost, (BlogPost.category_id == BlogCategory.id) & (BlogPost.status == BlogPostStatus.PUBLISHED))
             .group_by(BlogCategory.id)
             .order_by(BlogCategory.name)
         )
+        if section is not None:
+            stmt = stmt.where(BlogCategory.section == section)
         result = await self.session.execute(stmt)
         return [(row[0], row[1]) for row in result.all()]
 

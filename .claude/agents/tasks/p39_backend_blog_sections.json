@@ -1,0 +1,55 @@
+{
+  "task_id": "p39_backend_blog_sections",
+  "agent": "backend-agent",
+  "priority": "high",
+  "title": "Blog: секции Новости/Инструкции + фикс схем",
+  "description": "Добавить поле section к BlogCategory, создать Alembic-миграцию, обновить схемы, добавить фильтрацию по секции. Исправить BlogPostShortRead — добавить поле category.",
+
+  "files_to_read_first": [
+    "backend/app/db/models/blog.py",
+    "backend/app/api/v1/blog/schemas.py",
+    "backend/app/api/v1/blog/router.py",
+    "backend/app/api/v1/blog/service.py",
+    "backend/app/api/v1/blog/repository.py"
+  ],
+
+  "tasks": [
+    {
+      "step": 1,
+      "action": "В backend/app/db/models/blog.py добавить enum BlogSection(str, Enum) со значениями: news='news', instructions='instructions'. Добавить в модель BlogCategory поле: section: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default=None) — тип str (не enum), чтобы не усложнять миграцию."
+    },
+    {
+      "step": 2,
+      "action": "Создать Alembic-миграцию: alembic revision --autogenerate -m 'blog: add section to blog_categories'. Проверить что миграция корректна (ALTER TABLE blog_categories ADD COLUMN section VARCHAR(20) NULL)."
+    },
+    {
+      "step": 3,
+      "action": "В backend/app/api/v1/blog/schemas.py: 1) Добавить BlogSection enum (news, instructions). 2) Добавить поле section: Optional[str] = None в BlogCategoryRead, BlogCategoryCreate, BlogCategoryUpdate. 3) ГЛАВНЫЙ ФИКСˈ добавить поле category: Optional[BlogCategoryRead] = None в класс BlogPostShortRead (сейчас его нет, из-за чего категория не отображается на карточках блога)."
+    },
+    {
+      "step": 4,
+      "action": "В backend/app/api/v1/blog/router.py в эндпоинте GET /blog/categories добавить параметр section: Optional[str] = Query(None). Передавать в service.list_categories(section=section). В GET /blog/posts добавить параметр section: Optional[str] = Query(None) и передавать в service.list_posts(section=section)."
+    },
+    {
+      "step": 5,
+      "action": "В backend/app/api/v1/blog/service.py в методе list_categories добавить фильтр по section если передан. В методе list_posts — при наличии section, фильтровать через JOIN на blog_categories WHERE section = ?. В методе list_posts при сборке BlogPostShortRead убедиться что поле category заполняется (selectinload или joinedload на BlogPost.category уже должен быть — проверить)."
+    },
+    {
+      "step": 6,
+      "action": "Применить миграцию: alembic upgrade head. Прогнать: ruff check app/ --fix && ruff check app/, mypy app/ --ignore-missing-imports, alembic check. Исправить ВСЕ ошибки."
+    },
+    {
+      "step": 7,
+      "action": "Написать отчёт в .claude/agents/reports/backend/p39_backend_blog_sections.md со списком всех изменений и статусом миграции."
+    }
+  ],
+
+  "acceptance_criteria": [
+    "BlogCategory модель содержит поле section (nullable)",
+    "Алembic-миграция создана и применена",
+    "GET /blog/categories?section=news возвращает только категории секции news",
+    "GET /blog/posts?section=instructions фильтрует посты по категориям секции instructions",
+    "BlogPostShortRead содержит поле category: Optional[BlogCategoryRead]",
+    "ruff: 0 ошибок, mypy: 0 ошибок, alembic check: OK"
+  ]
+}

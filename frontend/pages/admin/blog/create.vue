@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import TipTapEditor from '~/components/blog/TipTapEditor.vue'
 import BlogCarouselManager from '~/components/blog/BlogCarouselManager.vue'
-import { useBlog } from '~/composables/useBlog'
+import { useBlog, type BlogCategory } from '~/composables/useBlog'
 import { useMediaUpload } from '~/composables/useMediaUpload'
 
 definePageMeta({
@@ -13,12 +13,23 @@ definePageMeta({
 const router = useRouter()
 const toast = useToast()
 const apiFetch = useApiFetch()
-const { getTags } = useBlog()
+const { getTags, adminGetCategories } = useBlog()
 const { uploadImage } = useMediaUpload()
 
 // Tags autocomplete
 const { data: allTagsData } = await getTags()
 const allTags = computed(() => allTagsData.value ?? [])
+
+// Categories for select
+const { data: categoriesData } = await adminGetCategories()
+const allCategories = computed<BlogCategory[]>(() => categoriesData.value ?? [])
+
+const categoriesBySection = computed(() => {
+  const news = allCategories.value.filter(c => c.section === 'news')
+  const instructions = allCategories.value.filter(c => c.section === 'instructions')
+  const none = allCategories.value.filter(c => !c.section)
+  return { news, instructions, none }
+})
 
 const form = reactive({
   title: '',
@@ -32,6 +43,7 @@ const form = reactive({
   is_featured: false,
   meta_title: '',
   meta_description: '',
+  category_id: '' as string,
 })
 
 // Auto-generate slug from title
@@ -129,6 +141,7 @@ async function save() {
         is_featured: form.is_featured,
         meta_title: form.meta_title || undefined,
         meta_description: form.meta_description || undefined,
+        category_id: form.category_id || undefined,
       },
     })
     toast.success('Пост создан')
@@ -240,6 +253,40 @@ async function save() {
               <div class="form-group">
                 <label class="label">Карусель изображений</label>
                 <BlogCarouselManager v-model="form.carousel_images" />
+              </div>
+
+              <!-- Category -->
+              <div class="form-group">
+                <label class="label" for="blog-create-category">Категория</label>
+                <select
+                  id="blog-create-category"
+                  v-model="form.category_id"
+                  class="category-select"
+                  data-testid="blog-category-select"
+                >
+                  <option value="">— Без категории —</option>
+                  <template v-if="categoriesBySection.news.length">
+                    <optgroup label="Новости">
+                      <option v-for="cat in categoriesBySection.news" :key="cat.id" :value="cat.id">
+                        {{ cat.name }}
+                      </option>
+                    </optgroup>
+                  </template>
+                  <template v-if="categoriesBySection.instructions.length">
+                    <optgroup label="Инструкции">
+                      <option v-for="cat in categoriesBySection.instructions" :key="cat.id" :value="cat.id">
+                        {{ cat.name }}
+                      </option>
+                    </optgroup>
+                  </template>
+                  <template v-if="categoriesBySection.none.length">
+                    <optgroup label="Без секции">
+                      <option v-for="cat in categoriesBySection.none" :key="cat.id" :value="cat.id">
+                        {{ cat.name }}
+                      </option>
+                    </optgroup>
+                  </template>
+                </select>
               </div>
 
               <!-- Tags -->
@@ -469,6 +516,28 @@ async function save() {
 
 .hidden-input {
   display: none;
+}
+
+/* Category select */
+.category-select {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-family: var(--font-sans);
+  transition: border-color var(--transition-fast);
+  box-sizing: border-box;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.category-select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-glow-accent);
 }
 
 /* Tags */

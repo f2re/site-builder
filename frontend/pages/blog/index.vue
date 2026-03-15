@@ -9,6 +9,21 @@ const blog = useBlog()
 // Query filters
 const tag = computed(() => route.query.tag as string | undefined)
 const category = computed(() => route.query.category as string | undefined)
+const activeSection = computed(() => route.query.section as string | undefined)
+
+const SECTION_TABS = [
+  { key: 'all', label: 'Все', value: undefined as string | undefined, testid: 'blog-section-tab-all' },
+  { key: 'news', label: 'Новости', value: 'news', testid: 'blog-section-tab-news' },
+  { key: 'instructions', label: 'Инструкции', value: 'instructions', testid: 'blog-section-tab-instructions' },
+]
+
+function navigateToSection(sectionValue: string | undefined) {
+  const query: Record<string, string> = {}
+  if (sectionValue) query.section = sectionValue
+  if (tag.value) query.tag = tag.value
+  if (category.value) query.category = category.value
+  router.push({ path: '/blog', query })
+}
 
 // Posts fetching state
 const cursor = ref<string | null>(null)
@@ -19,6 +34,7 @@ const total = ref(0)
 const { data: initialData, pending } = await blog.getPosts({
   tag: tag.value,
   category_slug: category.value,
+  section: activeSection.value,
   per_page: 12
 })
 
@@ -34,11 +50,12 @@ const { data: tagsData } = await blog.getTags()
 const allTags = computed(() => tagsData.value ?? [])
 
 // Watch for filter changes and reset
-watch([tag, category], async () => {
+watch([tag, category, activeSection], async () => {
   cursor.value = null
   const { data: newData } = await blog.getPosts({
     tag: tag.value,
     category_slug: category.value,
+    section: activeSection.value,
     per_page: 12
   })
 
@@ -59,8 +76,9 @@ const loadMore = async () => {
   const { data: nextData } = await blog.getPosts({
     tag: tag.value,
     category_slug: category.value,
+    section: activeSection.value,
     per_page: 12,
-    page_cursor: cursor.value
+    after: cursor.value
   })
 
   if (nextData.value) {
@@ -102,6 +120,8 @@ const breadcrumbs = computed(() => {
     { label: 'Главная', to: '/', icon: 'ph:house' },
     { label: 'Блог' },
   ]
+  if (activeSection.value === 'news') crumbs.push({ label: 'Новости' })
+  if (activeSection.value === 'instructions') crumbs.push({ label: 'Инструкции' })
   if (tag.value) crumbs.push({ label: `Тег: ${tag.value}` })
   if (category.value) crumbs.push({ label: `Категория: ${category.value}` })
   return crumbs
@@ -119,6 +139,22 @@ const breadcrumbs = computed(() => {
           Статьи об OBD2 диагностике автомобилей, обзоры сканеров и руководства по использованию
         </p>
       </header>
+
+      <!-- Section Tabs -->
+      <div class="section-tabs" data-testid="blog-section-tabs" role="tablist" aria-label="Фильтр по секции">
+        <button
+          v-for="tab in SECTION_TABS"
+          :key="tab.key"
+          type="button"
+          role="tab"
+          :aria-selected="activeSection === tab.value || (!activeSection && tab.key === 'all')"
+          :class="['section-tab', { 'section-tab--active': activeSection === tab.value || (!activeSection && tab.key === 'all') }]"
+          :data-testid="tab.testid"
+          @click="navigateToSection(tab.value)"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
 
       <!-- Active filters display -->
       <div v-if="tag || category" class="active-filters">
@@ -250,6 +286,50 @@ const breadcrumbs = computed(() => {
   color: var(--color-text-2);
   max-width: 600px;
   margin: 0 auto;
+}
+
+/* Section Tabs */
+.section-tabs {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid var(--color-border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.section-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.section-tab {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.625rem 1.25rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+  white-space: nowrap;
+  margin-bottom: -1px;
+}
+
+.section-tab:hover {
+  color: var(--color-text);
+}
+
+.section-tab--active {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-text);
+  font-weight: 700;
 }
 
 /* Active filters */

@@ -30,12 +30,13 @@ const form = ref({
   name: '',
   slug: '',
   description: '',
+  section: '' as 'news' | 'instructions' | '',
 })
 
 const openCreateModal = () => {
   modalMode.value = 'create'
   editingId.value = null
-  form.value = { name: '', slug: '', description: '' }
+  form.value = { name: '', slug: '', description: '', section: '' }
   isModalOpen.value = true
 }
 
@@ -46,6 +47,7 @@ const openEditModal = (category: BlogCategory) => {
     name: category.name,
     slug: category.slug,
     description: category.description ?? '',
+    section: (category.section as 'news' | 'instructions' | '') ?? '',
   }
   isModalOpen.value = true
 }
@@ -78,6 +80,7 @@ const handleSubmit = async () => {
       name: form.value.name,
       slug: form.value.slug,
       description: form.value.description || undefined,
+      section: (form.value.section as 'news' | 'instructions') || null,
     }
     if (modalMode.value === 'create') {
       await blog.adminCreateCategory(payload)
@@ -145,6 +148,7 @@ const handleDelete = async (category: BlogCategory) => {
               <tr>
                 <th>Название</th>
                 <th class="desktop-only">Slug</th>
+                <th class="desktop-only">Секция</th>
                 <th>Постов</th>
                 <th class="actions-col">Действия</th>
               </tr>
@@ -157,6 +161,17 @@ const handleDelete = async (category: BlogCategory) => {
               >
                 <td class="name-cell">{{ category.name }}</td>
                 <td class="slug-cell desktop-only">{{ category.slug }}</td>
+                <td class="desktop-only">
+                  <span
+                    v-if="category.section === 'news'"
+                    class="section-badge section-badge--news"
+                  >Новости</span>
+                  <span
+                    v-else-if="category.section === 'instructions'"
+                    class="section-badge section-badge--instructions"
+                  >Инструкции</span>
+                  <span v-else class="section-badge section-badge--none">—</span>
+                </td>
                 <td>{{ category.posts_count }}</td>
                 <td class="actions-cell">
                   <div class="actions">
@@ -212,6 +227,20 @@ const handleDelete = async (category: BlogCategory) => {
             placeholder="Обзоры OBD2 адаптеров"
             data-testid="admin-blog-cat-desc-input"
           />
+
+          <div class="form-group">
+            <label class="form-label" for="cat-section-select">Секция</label>
+            <select
+              id="cat-section-select"
+              v-model="form.section"
+              class="cat-section-select"
+              data-testid="admin-blog-category-section-select"
+            >
+              <option value="">— Без секции —</option>
+              <option value="news">Новости</option>
+              <option value="instructions">Инструкции</option>
+            </select>
+          </div>
 
           <div class="form-actions">
             <UButton variant="ghost" @click="closeModal">Отмена</UButton>
@@ -300,6 +329,63 @@ const handleDelete = async (category: BlogCategory) => {
   padding: 48px;
   text-align: center;
   color: var(--color-text-2);
+}
+
+/* Section badges */
+.section-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.section-badge--news {
+  color: var(--color-info);
+  background: var(--color-info-bg);
+}
+
+.section-badge--instructions {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
+
+.section-badge--none {
+  color: var(--color-muted);
+}
+
+/* Category section select in modal */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-2);
+}
+
+.cat-section-select {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-family: var(--font-sans);
+  transition: border-color var(--transition-fast);
+  box-sizing: border-box;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.cat-section-select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-glow-accent);
 }
 
 .form-body {

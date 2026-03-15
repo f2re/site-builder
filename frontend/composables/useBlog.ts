@@ -17,6 +17,7 @@ export interface BlogCategory {
   slug: string
   description?: string | null
   posts_count: number
+  section?: 'news' | 'instructions' | null
 }
 
 export interface BlogCategoryListResponse {
@@ -73,9 +74,10 @@ export const useBlog = () => {
     tag?: string
     category_slug?: string
     author_id?: string
-    page_cursor?: string
+    after?: string
     per_page?: number
     status?: string
+    section?: string
   }) => {
     // We use useApi here because if the user is an admin,
     // we want to send the token to see drafts.
@@ -128,14 +130,14 @@ export const useBlog = () => {
     })
   }
 
-  const adminCreateCategory = async (data: { name: string; slug: string; description?: string }) => {
+  const adminCreateCategory = async (data: { name: string; slug: string; description?: string; section?: 'news' | 'instructions' | null }) => {
     return await apiFetch<BlogCategory>('/blog/admin/categories', {
       method: 'POST',
       body: data
     })
   }
 
-  const adminUpdateCategory = async (categoryId: string, data: { name?: string; slug?: string; description?: string }) => {
+  const adminUpdateCategory = async (categoryId: string, data: { name?: string; slug?: string; description?: string; section?: 'news' | 'instructions' | null }) => {
     return await apiFetch<BlogCategory>(`/blog/admin/categories/${categoryId}`, {
       method: 'PUT',
       body: data
