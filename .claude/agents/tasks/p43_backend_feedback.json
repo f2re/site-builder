@@ -1,0 +1,71 @@
+{
+  "task_id": "p43_backend_feedback",
+  "phase": 43,
+  "agent": "backend-agent",
+  "priority": "high",
+  "title": "Форма обратной связи: backend (модели, API, Celery, Turnstile)",
+  "description": "Реализовать полный backend для формы обратной связи: модели ContactMessage и SiteSettings, Alembic миграцию, REST API (публичный + admin), Celery-задачу отправки email, валидацию через Cloudflare Turnstile, rate limiting через slowapi.",
+  "depends_on": [],
+  "contracts_required": [".claude/agents/contracts/api_contracts.md"],
+  "tasks": [
+    {
+      "step": 1,
+      "action": "PLAN: прочитать backend/app/core/config.py, backend/app/tasks/notifications/dispatcher.py, backend/app/api/v1/admin/router.py, backend/app/api/v1/router.py, backend/app/db/models/ (все файлы), backend/migrations/env.py. Понять структуру существующего кода перед написанием."
+    },
+    {
+      "step": 2,
+      "action": "Создать backend/app/db/models/contact.py с двумя моделями:\n\n1) ContactMessage:\n- id: UUID (pk, default=uuid4)\n- name: str (max 255, encrypted via Fernet — PII)\n- email: str (max 255, encrypted via Fernet — PII)\n- phone: str | None (max 50, encrypted, nullable)\n- subject: str (max 500)\n- message: Text\n- status: Enum ContactStatus (NEW, READ, REPLIED), default=NEW\n- ip_address: str (max 45, хранить как есть — не PII согласно 152-ФЗ)\n- created_at: DateTime(timezone=True), default=now\n- read_at: DateTime(timezone=True), nullable\n\n2) SiteSettings:\n- id: int (pk, autoincrement)\n- key: str (max 255, unique=True, index=True)\n- value: Text (nullable)\n- updated_at: DateTime(timezone=True), onupdate=now\n\nИмпортировать оба класса в backend/app/db/models/__init__.py если он существует."
+    },
+    {
+      "step": 3,
+      "action": "Добавить в backend/app/core/config.py новые поля в класс Settings:\n- TURNSTILE_SECRET_KEY: str = '' — секретный ключ Cloudflare Turnstile (получить на https://dash.cloudflare.com/ → Turnstile)\n- CONTACT_EMAIL_RECIPIENT: str = '' — email по умолчанию для уведомлений (может быть переопределён через SiteSettings)\n\nКомментарий: TURNSTILE_SECRET_KEY — это серверный ключ для верификации токена от виджета. НЕ путать с site key (он только на фронтенде)."
+    },
+    {
+      "step": 4,
+      "action": "Создать Alembic миграцию:\n```\nalembic revision --autogenerate -m 'contact: add contact_message and site_settings tables'\n```\nПроверить сгенерированный файл в migrations/versions/. Убедиться что:\n- создаётся ENUM contactstatus с значениями NEW, READ, REPLIED\n- таблицы contact_message и site_settings создаются корректно\n- env.py импортирует новые модели (добавить импорт если отсутствует)\n\nТакже добавить в migrations/env.py:\nfrom app.db.models import contact  # noqa: F401"
+    },
+    {
+      "step": 5,
+      "action": "Создать backend/app/api/v1/contact/ директорию с файлами:\n\n**schemas.py** — Pydantic схемы:\n- ContactStatus: StrEnum (NEW, READ, REPLIED)\n- ContactFormRequest: name(str,min=2,max=255), email(EmailStr), phone(str|None,max=50), subject(str,min=2,max=500), message(str,min=10,max=5000), turnstile_token(str) — токен от Cloudflare Turnstile виджета\n- ContactMessageRead: id(UUID), name(str), email(str), phone(str|None), subject(str), message(str), status(ContactStatus), ip_address(str), created_at(datetime), read_at(datetime|None). model_config = ConfigDict(from_attributes=True)\n- ContactListResponse: items(list[ContactMessageRead]), total(int), next_cursor(UUID|None)\n- ContactReplyRequest: status(ContactStatus) — только REPLIED\n- SiteSettingRead: key(str), value(str|None)\n- SiteSettingsUpdate: contact_email(EmailStr|None), contact_page_text(str|None)\n- SiteSettingsResponse: contact_email(str|None), contact_page_text(str|None)"
+    },
+    {
+      "step": 6,
+      "action": "Создать backend/app/api/v1/contact/repository.py:\n\nclass ContactRepository:\n- __init__(self, session: AsyncSession)\n- async create(self, data: dict) -> ContactMessage — создать запись, вернуть с flush\n- async get_by_id(self, id: UUID) -> ContactMessage | None\n- async list_messages(self, status: ContactStatus|None, cursor: UUID|None, limit: int) -> tuple[list[ContactMessage], int] — cursor-pagination, сортировка по created_at DESC\n- async mark_read(self, id: UUID) -> ContactMessage | None — установить status=READ, read_at=now() если status==NEW\n- async update_status(self, id: UUID, status: ContactStatus) -> ContactMessage | None\n- async delete(self, id: UUID) -> bool\n\nclass SiteSettingsRepository:\n- __init__(self, session: AsyncSession)\n- async get(self, key: str) -> str | None — получить значение по ключу\n- async set(self, key: str, value: str | None) -> None — upsert (INSERT ... ON CONFLICT DO UPDATE)\n- async get_contact_settings(self) -> dict — вернуть {'contact_email': ..., 'contact_page_text': ...}"
+    },
+    {
+      "step": 7,
+      "action": "Создать backend/app/api/v1/contact/service.py:\n\nclass ContactService:\n- __init__(self, repo: ContactRepository, settings_repo: SiteSettingsRepository)\n- async verify_turnstile(self, token: str, ip: str) -> bool:\n  POST https://challenges.cloudflare.com/turnstile/v0/siteverify\n  body: {'secret': settings.TURNSTILE_SECRET_KEY, 'response': token, 'remoteip': ip}\n  Если TURNSTILE_SECRET_KEY пустой (dev) — возвращать True (не блокировать dev).\n  Если ответ success=True — вернуть True, иначе False.\n  Использовать httpx.AsyncClient с таймаутом 5 сек.\n- async submit_contact(self, data: ContactFormRequest, ip: str) -> ContactMessage:\n  1. verify_turnstile (raise HTTPException 422 если False)\n  2. Расшифровать/зашифровать PII поля через Fernet (смотри существующий код)\n  3. repo.create()\n  4. Получить email получателя из SiteSettingsRepository (ключ 'contact_email') или settings.CONTACT_EMAIL_RECIPIENT\n  5. Если email получателя не пустой — вызвать Celery task send_contact_notification_task.delay()\n  6. Вернуть созданный объект\n- async get_message(self, id: UUID) -> ContactMessage:\n  repo.mark_read() → raise 404 если None\n- async list_messages(...) → ContactListResponse\n- async update_message_status(self, id: UUID, status: ContactStatus) -> ContactMessage\n- async delete_message(self, id: UUID) -> None\n- async get_contact_settings(self) -> SiteSettingsResponse\n- async update_contact_settings(self, data: SiteSettingsUpdate) -> SiteSettingsResponse"
+    },
+    {
+      "step": 8,
+      "action": "Создать Celery-задачу в backend/app/tasks/notifications/dispatcher.py (ДОБАВИТЬ в конец файла, не перезаписывать):\n\n@celery_app.task(name='tasks.send_contact_notification')\ndef send_contact_notification_task(recipient: str, sender_name: str, sender_email: str, subject: str, message: str):\n    '''Отправить уведомление на email администратора о новой заявке.'''\n    fm = FastMail(mail_conf)\n    body = f'<p>Новая заявка обратной связи</p><p><b>Имя:</b> {sender_name}</p><p><b>Email:</b> {sender_email}</p><p><b>Тема:</b> {subject}</p><p><b>Сообщение:</b></p><p>{message}</p>'\n    message_schema = MessageSchema(\n        subject=f'Новая заявка: {subject}',\n        recipients=[recipient],\n        body=body,\n        subtype=MessageType.html\n    )\n    async def _send():\n        await fm.send_message(message_schema)\n    asyncio.run(_send())  # ПРАВИЛЬНО: asyncio.run(), НЕ get_event_loop()\n\nВАЖНО: Также исправить существующие задачи send_email_task и send_telegram_task в том же файле — заменить loop.run_until_complete() на asyncio.run() — это нарушение контракта Celery."
+    },
+    {
+      "step": 9,
+      "action": "Создать backend/app/api/v1/contact/router.py:\n\nDI-функции:\n- get_contact_repo(session=Depends(get_db)) -> ContactRepository\n- get_settings_repo(session=Depends(get_db)) -> SiteSettingsRepository\n- get_contact_service(repo=Depends(get_contact_repo), settings_repo=Depends(get_settings_repo)) -> ContactService\n\nPublic endpoints (NO auth):\n- POST /contact — создать заявку\n  - slowapi rate limit: 5/minute per IP\n  - Принять ContactFormRequest\n  - ip = Request.client.host\n  - Вернуть ContactMessageRead, status=201\n\nAdmin endpoints (require_admin):\n- GET /admin/contact — список заявок, params: status(optional), cursor(UUID, optional), limit(int, default=20, max=100)\n- GET /admin/contact/{id} — деталь + отметить как READ, вернуть ContactMessageRead\n- PUT /admin/contact/{id}/reply — обновить статус на REPLIED, body: ContactReplyRequest\n- DELETE /admin/contact/{id} — удалить, вернуть 204\n- GET /admin/settings/contact — получить настройки\n- PUT /admin/settings/contact — обновить настройки (contact_email, contact_page_text)"
+    },
+    {
+      "step": 10,
+      "action": "Зарегистрировать роутер в backend/app/api/v1/router.py:\n- from app.api.v1.contact.router import router as contact_router\n- api_router.include_router(contact_router, prefix='', tags=['Contact'])\n\nТакже убедиться что slowapi лимитер подключён к app в backend/app/main.py (если ещё не подключён — добавить Limiter и add_middleware)."
+    },
+    {
+      "step": 11,
+      "action": "Запустить проверки и исправить все ошибки:\n```bash\ncd backend\nruff check app/ --fix && ruff check app/\nmypy app/ --ignore-missing-imports\nalembic check && alembic heads\n```\nПосле успеха написать отчёт в .claude/agents/reports/backend/p43_backend_feedback.md"
+    }
+  ],
+  "acceptance_criteria": [
+    "Модели ContactMessage и SiteSettings созданы в backend/app/db/models/contact.py",
+    "Alembic миграция создана и применима (alembic check проходит)",
+    "TURNSTILE_SECRET_KEY и CONTACT_EMAIL_RECIPIENT добавлены в config.py",
+    "POST /contact верифицирует Turnstile токен и сохраняет заявку в БД",
+    "POST /contact имеет rate limiting 5/minute per IP через slowapi",
+    "GET/PUT/DELETE /admin/contact/* защищены require_admin",
+    "GET/PUT /admin/settings/contact работают с SiteSettings через репозиторий",
+    "Celery task send_contact_notification_task использует asyncio.run() (не get_event_loop())",
+    "Fernet-шифрование на PII полях (name, email, phone)",
+    "ruff check проходит без ошибок",
+    "mypy проходит без ошибок",
+    "alembic check проходит",
+    "Отчёт написан в .claude/agents/reports/backend/p43_backend_feedback.md"
+  ]
+}

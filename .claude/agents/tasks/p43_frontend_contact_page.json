@@ -1,0 +1,49 @@
+{
+  "task_id": "p43_frontend_contact_page",
+  "phase": 43,
+  "agent": "frontend-agent",
+  "priority": "high",
+  "title": "Страница /contact: форма обратной связи с Cloudflare Turnstile",
+  "description": "Создать публичную страницу /contact с формой обратной связи. Форма включает поля имя/email/телефон/тема/сообщение, антибот-защиту Cloudflare Turnstile, приветственный текст из настроек, Race-Style UI, data-testid на всех элементах.",
+  "depends_on": ["p43_backend_feedback"],
+  "contracts_required": [".claude/agents/contracts/api_contracts.md"],
+  "tasks": [
+    {
+      "step": 1,
+      "action": "PLAN: прочитать frontend/assets/css/tokens.css, frontend/nuxt.config.ts, frontend/composables/ (список файлов), frontend/components/U/ (список файлов), frontend/pages/index.vue (для понимания стиля страниц). Понять структуру до написания кода."
+    },
+    {
+      "step": 2,
+      "action": "Добавить в frontend/nuxt.config.ts в раздел runtimeConfig.public:\n  turnstileSiteKey: process.env.NUXT_PUBLIC_TURNSTILE_SITE_KEY || ''\n\nДобавить в раздел app.head.script (или в head.script массив):\n  { src: 'https://challenges.cloudflare.com/turnstile/v0/api.js', defer: true, async: true }\n\nКомментарий: NUXT_PUBLIC_TURNSTILE_SITE_KEY — публичный ключ сайта Cloudflare Turnstile (не секретный). Получить на https://dash.cloudflare.com/ → Turnstile → Add site. Для dev можно использовать тестовый ключ: '1x00000000000000000000AA' (всегда проходит)."
+    },
+    {
+      "step": 3,
+      "action": "Создать frontend/composables/useContact.ts:\n\ninterface ContactForm {\n  name: string\n  email: string\n  phone: string\n  subject: string\n  message: string\n  turnstile_token: string\n}\n\ninterface ContactPageSettings {\n  contact_page_text: string | null\n  contact_email: string | null\n}\n\nexport const useContact = () => {\n  const config = useRuntimeConfig()\n\n  const submitContact = async (form: ContactForm) => {\n    return useFetch('/api/v1/contact', {\n      method: 'POST',\n      body: form,\n      baseURL: config.public.apiBase\n    })\n  }\n\n  const fetchContactSettings = async () => {\n    // GET /api/v1/admin/settings/contact — для отображения приветственного текста\n    // ВАЖНО: этот endpoint публично возвращает только contact_page_text (не email)\n    // Используем отдельный публичный endpoint если он будет создан backend-агентом,\n    // или запрашиваем через admin (если страница доступна только авторизованным).\n    // Для публичной страницы: backend-агент должен добавить GET /api/v1/contact/settings (без auth)\n    // Если endpoint не реализован — использовать заглушку пустого текста\n    return useFetch<ContactPageSettings>('/api/v1/contact/settings', {\n      baseURL: config.public.apiBase\n    })\n  }\n\n  return { submitContact, fetchContactSettings }\n}"
+    },
+    {
+      "step": 4,
+      "action": "Создать frontend/pages/contact.vue:\n\nСтруктура страницы:\n1. Hero-заголовок: 'Обратная связь' с подзаголовком\n2. Блок приветственного текста (v-html из fetchContactSettings contact_page_text) — если не пустой\n3. Карточка (UCard или аналогичная) с формой\n\nФорма (data-testid обязателен):\n- [data-testid='contact-name-input'] — имя (required, min 2)\n- [data-testid='contact-email-input'] — email (required, email validation)\n- [data-testid='contact-phone-input'] — телефон (optional)\n- [data-testid='contact-subject-input'] — тема (required, min 2)\n- [data-testid='contact-message-textarea'] — сообщение (required, min 10, textarea)\n- Cloudflare Turnstile виджет: <div class='cf-turnstile' :data-sitekey='config.public.turnstileSiteKey' data-callback='onTurnstileSuccess' data-theme='dark'></div>\n- [data-testid='contact-submit-btn'] — кнопка 'Отправить заявку' (UButton variant=primary, loading state)\n\nТurnstile интеграция:\n- В onMounted() ожидать загрузку скрипта Turnstile (window.turnstile exists)\n- Токен получать через callback функцию: window.onTurnstileSuccess = (token) => { form.turnstile_token = token }\n- Альтернативный вариант (предпочтительнее): использовать ref на div и window.turnstile.render(el, { sitekey, callback })\n- Сбрасывать виджет после успешной отправки через window.turnstile.reset()\n\nValidation через vee-validate + zod:\n- Все поля валидируются перед отправкой\n- Ошибки отображаются под полями\n- Кнопка недоступна если turnstile_token пустой\n\nPending/success/error states:\n- Loading: спиннер на кнопке\n- Success: toast 'Ваша заявка отправлена! Мы свяжемся с вами в ближайшее время.' (3s) + очистить форму\n- Error 422 (Turnstile failed): toast 'Ошибка проверки антибот. Попробуйте снова.' + сбросить turnstile виджет\n- Error 429 (rate limit): toast 'Слишком много запросов. Пожалуйста, подождите.' (6s)\n- Error 500: toast 'Ошибка сервера. Попробуйте позже.' (6s)\n\nRace-Style UI:\n- Фон страницы: var(--color-bg), карточка: var(--color-surface) с border var(--color-border)\n- Заголовок: крупный, акцентный цвет на части текста var(--color-accent)\n- Поля: компонент UInput (уже существует)\n- Кнопка: UButton primary с иконкой ph:paper-plane-right-bold\n- Hover на карточке: border-color var(--color-accent) + shadow var(--shadow-glow-accent)\n- Turnstile виджет: центрирован, margin-bottom 16px\n\nОбязательно: <script setup lang='ts'>, только var(--color-*), data-testid на всех элементах"
+    },
+    {
+      "step": 5,
+      "action": "Backend-агент создаёт GET /admin/settings/contact (с auth). Для публичной страницы нужен GET /api/v1/contact/settings без auth (только contact_page_text).\n\nЕсли этот endpoint не создан backend-агентом (проверить API contracts) — в composable useContact.fetchContactSettings использовать try/catch и fallback на пустую строку. НЕ показывать ошибку пользователю если настройки недоступны — просто не показывать блок приветственного текста.\n\nДобавить в API контракты (файл .claude/agents/contracts/api_contracts.md) в конец:\n## Contact API\n### POST /api/v1/contact\nRequest: ContactFormRequest (name, email, phone?, subject, message, turnstile_token)\nResponse 201: ContactMessageRead\nErrors: 422 (turnstile failed), 429 (rate limit)\n\n### GET /api/v1/contact/settings (PUBLIC)\nResponse: { contact_page_text: string | null }\n\n### GET /api/v1/admin/settings/contact (ADMIN)\nResponse: { contact_email: string | null, contact_page_text: string | null }\n\n### PUT /api/v1/admin/settings/contact (ADMIN)\nBody: { contact_email?: string, contact_page_text?: string }\nResponse: { contact_email: string | null, contact_page_text: string | null }"
+    },
+    {
+      "step": 6,
+      "action": "Запустить проверки:\n```bash\ncd frontend\nnpm run lint\nnpm run type-check\n```\nИсправить все ошибки. Написать отчёт в .claude/agents/reports/frontend/p43_frontend_contact_page.md"
+    }
+  ],
+  "acceptance_criteria": [
+    "Страница /contact существует и доступна без авторизации",
+    "Форма содержит поля: имя, email, телефон (optional), тема, сообщение",
+    "Cloudflare Turnstile виджет рендерится через window.turnstile.render()",
+    "turnstile_token отправляется в POST /contact",
+    "Кнопка отправки недоступна пока turnstile_token пустой",
+    "Toast при успехе (3s) и ошибке (6s) с правильными текстами",
+    "Приветственный текст загружается из API и рендерится (или скрыт если пустой)",
+    "data-testid на всех полях и кнопке",
+    "Только var(--color-*) CSS токены, никаких hardcoded цветов",
+    "npm run lint и npm run type-check проходят",
+    "Отчёт написан в .claude/agents/reports/frontend/p43_frontend_contact_page.md"
+  ]
+}

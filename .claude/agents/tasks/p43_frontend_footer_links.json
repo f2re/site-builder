@@ -1,0 +1,38 @@
+{
+  "task_id": "p43_frontend_footer_links",
+  "phase": 43,
+  "agent": "frontend-agent",
+  "priority": "medium",
+  "title": "Ссылки в подвале + страницы-заглушки для юридических документов",
+  "description": "Обновить компонент AppFooter.vue: добавить ссылки на юридические страницы и страницу обратной связи. Создать страницы-заглушки для /garantiynye-obyazatelstva, /dostavka, /politika-konfidentsialnosti, /usloviya-soglasheniya если они не существуют.",
+  "depends_on": [],
+  "contracts_required": [],
+  "tasks": [
+    {
+      "step": 1,
+      "action": "PLAN: прочитать frontend/components/AppFooter.vue (ПОЛНОСТЬЮ — уже прочитан оркестратором, но агент обязан прочитать сам), frontend/assets/css/tokens.css, frontend/pages/ (проверить существование доставка/политика страниц).\n\nПроверить существование страниц:\n- frontend/pages/dostavka.vue\n- frontend/pages/garantiynye-obyazatelstva.vue  \n- frontend/pages/politika-konfidentsialnosti.vue\n- frontend/pages/usloviya-soglasheniya.vue\n\nЕсли страницы существуют — не трогать их. Если нет — создать заглушки."
+    },
+    {
+      "step": 2,
+      "action": "Обновить frontend/components/AppFooter.vue:\n\nТекущая структура footerLinks имеет 3 секции: 'Магазин', 'Информация', 'Поддержка'.\n\nПРИМЕНИТЬ СЛЕДУЮЩИЕ ИЗМЕНЕНИЯ:\n\n1) В секцию 'Информация' добавить ссылку 'Обратная связь':\n   { to: '/contact', label: 'Обратная связь' }\n\n2) В секцию 'Поддержка' заменить/обновить существующие ссылки:\n   - Оставить существующие ссылки (faq, returns)\n   - Заменить ссылку на /privacy (если есть) или добавить:\n     { to: '/politika-konfidentsialnosti', label: 'Политика конфиденциальности' }\n\n3) Добавить НОВУЮ секцию 'Документы' (четвёртая колонка) ИЛИ добавить ссылки в 'Информация':\n   РЕШЕНИЕ: добавить в секцию 'Поддержка' следующие ссылки:\n   - { to: '/garantiynye-obyazatelstva', label: 'Гарантийные обязательства' }\n   - { to: '/dostavka', label: 'Доставка' }\n   - { to: '/usloviya-soglasheniya', label: 'Условия соглашения' }\n\nПри добавлении в секцию 'Поддержка' — убрать дублирование /privacy если уже добавили /politika-konfidentsialnosti.\n\nИтоговый состав секций:\n- 'Магазин': Каталог товаров, Корзина, Доставка и оплата\n- 'Информация': Блог и новости, О компании, Контакты, Обратная связь\n- 'Поддержка': Вопросы и ответы, Возврат товара, Гарантийные обязательства, Доставка, Политика конфиденциальности, Условия соглашения\n\nВажно: НЕ менять стили, НЕ ломать существующую вёрстку. Только изменять массив footerLinks."
+    },
+    {
+      "step": 3,
+      "action": "Создать страницы-заглушки (ТОЛЬКО если файлы не существуют):\n\nШаблон для каждой страницы — минимальная, красивая страница с заголовком и placeholder-текстом:\n\nfrontend/pages/dostavka.vue:\n- Заголовок: 'Доставка'\n- Краткий placeholder текст об условиях доставки (несколько абзацев Lorem/заглушка)\n\nfrontend/pages/garantiynye-obyazatelstva.vue:\n- Заголовок: 'Гарантийные обязательства'\n- Placeholder текст о гарантии\n\nfrontend/pages/politika-konfidentsialnosti.vue:\n- Заголовок: 'Политика конфиденциальности'\n- Placeholder текст о политике\n\nfrontend/pages/usloviya-soglasheniya.vue:\n- Заголовок: 'Условия соглашения'\n- Placeholder текст\n\nСтруктура каждой страницы-заглушки:\n```vue\n<script setup lang='ts'>\nuseSeoMeta({ title: '<Заголовок> — WifiOBD' })\n</script>\n\n<template>\n  <main class='info-page'>\n    <div class='container'>\n      <div class='info-page__header'>\n        <h1 class='info-page__title'><Заголовок></h1>\n        <p class='info-page__subtitle'>Последнее обновление: 2026 год</p>\n      </div>\n      <div class='info-page__content'>\n        <p>Раздел находится в разработке. Здесь будет размещена актуальная информация.</p>\n      </div>\n    </div>\n  </main>\n</template>\n\n<style scoped>\n.info-page { padding: 64px 0; min-height: 60vh; }\n.info-page__header { margin-bottom: 48px; }\n.info-page__title { font-size: clamp(1.75rem, 4vw, 3rem); font-weight: 900; color: var(--color-text); }\n.info-page__subtitle { color: var(--color-text-2); margin-top: 8px; }\n.info-page__content { color: var(--color-text-2); line-height: 1.8; max-width: 800px; }\n</style>\n```"
+    },
+    {
+      "step": 4,
+      "action": "Запустить проверки:\n```bash\ncd frontend\nnpm run lint\nnpm run type-check\n```\nИсправить ошибки. Написать отчёт в .claude/agents/reports/frontend/p43_frontend_footer_links.md"
+    }
+  ],
+  "acceptance_criteria": [
+    "AppFooter.vue содержит ссылку 'Обратная связь' → /contact",
+    "AppFooter.vue содержит ссылки: Гарантийные обязательства, Доставка, Политика конфиденциальности, Условия соглашения",
+    "Все ссылки в футере оформлены как NuxtLink",
+    "Страницы /dostavka, /garantiynye-obyazatelstva, /politika-konfidentsialnosti, /usloviya-soglasheniya существуют (созданы или уже были)",
+    "Стили футера не нарушены (только изменён массив footerLinks)",
+    "Страницы-заглушки используют только var(--color-*) токены",
+    "npm run lint и npm run type-check проходят",
+    "Отчёт написан в .claude/agents/reports/frontend/p43_frontend_footer_links.md"
+  ]
+}

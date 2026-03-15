@@ -138,6 +138,16 @@ class Settings(BaseSettings):
         )
     )
 
+    # ── Cloudflare Turnstile ──────────────────────────────────────────────────
+    # Server-side secret key for verifying Turnstile tokens. Leave empty in dev
+    # to skip verification. Do NOT confuse with the public site key (frontend only).
+    TURNSTILE_SECRET_KEY: str = ""
+
+    # ── Contact Form ──────────────────────────────────────────────────────────
+    # Default recipient email for contact form notifications.
+    # Can be overridden via SiteSettings (key='contact_email').
+    CONTACT_EMAIL_RECIPIENT: str = ""
+
     # ── Dashfirm Compiler ────────────────────────────────────────────────────
     COMPILER_PATH: str = "./compiler/compiler"
     FIRMWARE_COMPILER_PATH: str = Field(

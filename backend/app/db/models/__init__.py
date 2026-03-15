@@ -14,3 +14,4 @@ from app.db.models.page import StaticPage  # noqa: F401
 from app.db.models.cart import Cart, CartItem  # noqa: F401
 from app.db.models.migration import MigrationJob  # noqa: F401
 from app.db.models.firmware import ModuleToken, ModuleDevice, ModuleComplectation, device_complectations # noqa: F401
+from app.db.models.contact import ContactMessage, SiteSettings  # noqa: F401

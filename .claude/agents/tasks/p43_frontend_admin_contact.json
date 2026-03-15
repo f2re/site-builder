@@ -1,0 +1,53 @@
+{
+  "task_id": "p43_frontend_admin_contact",
+  "phase": 43,
+  "agent": "frontend-agent",
+  "priority": "high",
+  "title": "Админка: раздел обратной связи + настройки + TipTap редактор",
+  "description": "Создать в административной панели: 1) страницу списка заявок /admin/contact с фильтрацией по статусу, 2) страницу деталей /admin/contact/[id] с просмотром и изменением статуса, 3) страницу настроек /admin/settings/contact с полем email и TipTap редактором для приветственного текста формы. Добавить пункт 'Обратная связь' в навигацию admin layout.",
+  "depends_on": ["p43_backend_feedback"],
+  "contracts_required": [".claude/agents/contracts/api_contracts.md"],
+  "tasks": [
+    {
+      "step": 1,
+      "action": "PLAN: прочитать frontend/layouts/admin.vue (полностью), frontend/pages/admin/orders/index.vue (для понимания паттерна списка), frontend/pages/admin/orders/[id].vue (паттерн деталей), frontend/components/blog/TipTapEditor.vue или frontend/components/U/URichEditor.vue (для редактора), frontend/assets/css/tokens.css. Понять структуру до написания кода."
+    },
+    {
+      "step": 2,
+      "action": "Добавить в frontend/layouts/admin.vue в массив navItems новый пункт (перед 'Назад на сайт'):\n  { label: 'Обратная связь', icon: 'ph:chat-circle-text-bold', to: '/admin/contact' }\n\nТакже добавить:\n  { label: 'Настройки', icon: 'ph:gear-bold', to: '/admin/settings/contact' }\n\ndata-testid='admin-nav-item' уже присутствует в шаблоне — ничего менять не нужно."
+    },
+    {
+      "step": 3,
+      "action": "Создать frontend/composables/useAdminContact.ts:\n\ninterface ContactMessage {\n  id: string\n  name: string\n  email: string\n  phone: string | null\n  subject: string\n  message: string\n  status: 'NEW' | 'READ' | 'REPLIED'\n  ip_address: string\n  created_at: string\n  read_at: string | null\n}\n\ninterface ContactListResponse {\n  items: ContactMessage[]\n  total: number\n  next_cursor: string | null\n}\n\ninterface ContactSettings {\n  contact_email: string | null\n  contact_page_text: string | null\n}\n\nexport const useAdminContact = () => {\n  const config = useRuntimeConfig()\n  const baseURL = config.public.apiBase\n\n  const fetchMessages = (params: { status?: string, cursor?: string, limit?: number }) =>\n    useFetch<ContactListResponse>('/api/v1/admin/contact', { baseURL, params })\n\n  const fetchMessage = (id: string) =>\n    useFetch<ContactMessage>(`/api/v1/admin/contact/${id}`, { baseURL })\n\n  const updateStatus = (id: string, status: string) =>\n    useFetch(`/api/v1/admin/contact/${id}/reply`, { method: 'PUT', body: { status }, baseURL })\n\n  const deleteMessage = (id: string) =>\n    useFetch(`/api/v1/admin/contact/${id}`, { method: 'DELETE', baseURL })\n\n  const fetchSettings = () =>\n    useFetch<ContactSettings>('/api/v1/admin/settings/contact', { baseURL })\n\n  const updateSettings = (data: Partial<ContactSettings>) =>\n    useFetch<ContactSettings>('/api/v1/admin/settings/contact', { method: 'PUT', body: data, baseURL })\n\n  return { fetchMessages, fetchMessage, updateStatus, deleteMessage, fetchSettings, updateSettings }\n}"
+    },
+    {
+      "step": 4,
+      "action": "Создать frontend/pages/admin/contact/index.vue — список заявок:\n\nФункциональность:\n- Заголовок 'Обратная связь' + счётчик total\n- Фильтр по статусу: табы или select 'Все / Новые / Прочитанные / Отвечено'\n- Таблица (или список карточек на мобиле):\n  * Имя (data-testid='contact-name')\n  * Email\n  * Тема (truncated до 50 символов)\n  * Статус badge: NEW=accent/red, READ=muted, REPLIED=neon/green (data-testid='contact-status')\n  * Дата created_at (отформатированная)\n  * Кнопка 'Открыть' (data-testid='contact-open-btn')\n- Пагинация: кнопка 'Загрузить ещё' (cursor-based)\n- Skeleton loader пока pending\n- Пустое состояние если items.length === 0\n\nRace-Style:\n- Таблица: var(--color-surface), border var(--color-border)\n- Строки с hover: background var(--color-surface-2)\n- NEW badge: background с opacity var(--color-accent), text var(--color-accent)\n- REPLIED badge: background var(--color-neon) + opacity, text dark\n\ndata-testid обязателен: contact-list, contact-filter-select, contact-table, contact-load-more-btn"
+    },
+    {
+      "step": 5,
+      "action": "Создать frontend/pages/admin/contact/[id].vue — детали заявки:\n\nФункциональность:\n- При загрузке: GET /admin/contact/:id (автоматически отмечает READ)\n- Карточка с полями: имя, email, телефон, тема, сообщение (полный текст)\n- Метаданные: IP адрес, дата создания, дата прочтения, текущий статус\n- Кнопка 'Отметить как Отвечено' (PUT /admin/contact/:id/reply с status=REPLIED)\n  data-testid='contact-mark-replied-btn'\n  Видна только если status != REPLIED\n- Кнопка 'Удалить' (DELETE /admin/contact/:id + redirect на список)\n  data-testid='contact-delete-btn'\n  Подтверждение через confirm dialog или UModal\n- Кнопка 'Назад' → /admin/contact\n  data-testid='contact-back-btn'\n\nRace-Style:\n- Карточка var(--color-surface) с border\n- Заголовок с иконкой ph:chat-circle-text-bold\n- Статус badge крупно\n- Кнопка удаления: variant='danger' (red)\n\ndata-testid: contact-detail-card, contact-sender-info, contact-message-body, contact-status-badge"
+    },
+    {
+      "step": 6,
+      "action": "Создать frontend/pages/admin/settings/contact.vue — настройки:\n\nФункциональность:\n- Заголовок 'Настройки страницы обратной связи'\n- При монтировании: fetchSettings()\n\nФорма (два поля):\n1. Поле 'Email для уведомлений':\n   - UInput type='email', label='Email для уведомлений о новых заявках'\n   - Placeholder: 'admin@example.com'\n   - Подсказка: 'На этот адрес будут приходить уведомления о новых заявках'\n   - data-testid='settings-contact-email-input'\n\n2. TipTap редактор 'Текст на странице обратной связи':\n   - Использовать URichEditor.vue из frontend/components/U/URichEditor.vue\n   - Если URichEditor не существует — использовать blog/TipTapEditor.vue\n   - Прочитать существующий компонент перед использованием — понять его props/events\n   - v-model привязка к contact_page_text\n   - Подсказка: 'Этот текст отображается над формой обратной связи на сайте'\n   - data-testid='settings-contact-page-text-editor'\n\n3. Кнопка 'Сохранить настройки':\n   - UButton primary, loading state\n   - data-testid='settings-contact-save-btn'\n   - При успехе: toast 'Настройки сохранены' (3s)\n   - При ошибке: toast с описанием ошибки (6s)\n\nRace-Style: аналогично другим admin страницам настроек\n\ndata-testid: settings-contact-form, settings-contact-email-input, settings-contact-save-btn"
+    },
+    {
+      "step": 7,
+      "action": "Запустить проверки:\n```bash\ncd frontend\nnpm run lint\nnpm run type-check\n```\nИсправить все ошибки. Написать отчёт в .claude/agents/reports/frontend/p43_frontend_admin_contact.md"
+    }
+  ],
+  "acceptance_criteria": [
+    "Пункт 'Обратная связь' добавлен в навигацию admin layout с иконкой",
+    "Страница /admin/contact отображает список заявок с фильтрацией по статусу",
+    "Страница /admin/contact/[id] показывает детали и позволяет изменить статус/удалить",
+    "Страница /admin/settings/contact содержит поле email и TipTap редактор",
+    "Сохранение настроек через PUT /admin/settings/contact работает",
+    "Статус заявки отображается badge-ами с правильными цветами",
+    "data-testid на всех интерактивных элементах",
+    "Skeleton loader при загрузке данных",
+    "Только var(--color-*) CSS токены",
+    "npm run lint и npm run type-check проходят",
+    "Отчёт написан в .claude/agents/reports/frontend/p43_frontend_admin_contact.md"
+  ]
+}

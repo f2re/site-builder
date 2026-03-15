@@ -72,3 +72,4 @@ types-passlib==1.7.7.20260211
 types-bleach==6.3.0.20251115
 types-cryptography==3.3.23.2
 nest-asyncio>=1.6.0
+slowapi==0.1.9
