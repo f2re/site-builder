@@ -16,7 +16,7 @@ async def test_create_static_page(client, admin_token):
         headers={"Authorization": f"Bearer {admin_token}"}
     )
     
-    assert response.status_code == 200
+    assert response.status_code == 201
     data = response.json()
     assert data["title"] == payload["title"]
     assert data["slug"] == payload["slug"]
@@ -36,7 +36,7 @@ async def test_update_static_page(client, admin_token):
         json=create_payload,
         headers={"Authorization": f"Bearer {admin_token}"}
     )
-    assert create_resp.status_code == 200
+    assert create_resp.status_code == 201
     page_id = create_resp.json()["id"]
     
     # Update it
