@@ -12,6 +12,7 @@ const navItems = [
   { label: 'Категории', icon: 'ph:folders-bold', to: '/admin/products/categories' },
   { label: 'Заказы', icon: 'ph:shopping-cart-bold', to: '/admin/orders' },
   { label: 'Блог', icon: 'ph:article-bold', to: '/admin/blog' },
+  { label: 'Профиль автора', icon: 'ph:user-circle-bold', to: '/admin/author-profile' },
   { label: 'Страницы', icon: 'ph:files-bold', to: '/admin/pages' },
   { label: 'Устройства', icon: 'ph:cpu-bold', to: '/admin/devices' },
   { label: 'Миграция', icon: 'ph:database-bold', to: '/admin/migration' },

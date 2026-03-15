@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import TipTapEditor from '~/components/blog/TipTapEditor.vue'
 import BlogCarouselManager from '~/components/blog/BlogCarouselManager.vue'
-import { useBlog, type BlogCategory } from '~/composables/useBlog'
+import { useBlog, type BlogCategory, type BlogAuthor } from '~/composables/useBlog'
 import { useMediaUpload } from '~/composables/useMediaUpload'
 
 definePageMeta({
@@ -14,7 +14,7 @@ const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 const apiFetch = useApiFetch()
-const { getTags, adminGetCategories, uploadBlogCover, deletePost: apiDeletePost } = useBlog()
+const { getTags, adminGetCategories, adminGetAuthors, uploadBlogCover, deletePost: apiDeletePost } = useBlog()
 const { uploadImage } = useMediaUpload()
 
 const { data: post, pending: loading } = await useApi<{
@@ -45,6 +45,10 @@ const allTags = computed(() => allTagsData.value ?? [])
 const { data: categoriesData } = await adminGetCategories()
 const allCategories = computed<BlogCategory[]>(() => categoriesData.value ?? [])
 
+// Authors for select
+const { data: authorsData } = await adminGetAuthors()
+const authors = computed<BlogAuthor[]>(() => authorsData.value ?? [])
+
 const categoriesBySection = computed(() => {
   const news = allCategories.value.filter(c => c.section === 'news')
   const instructions = allCategories.value.filter(c => c.section === 'instructions')
@@ -66,6 +70,7 @@ const form = reactive({
   meta_description: '',
   category_id: '' as string,
   doc_iframe_url: '',
+  author_id: '' as string,
 })
 
 watchEffect(() => {
@@ -86,6 +91,7 @@ watchEffect(() => {
     form.meta_description = post.value.meta_description || ''
     form.category_id = post.value.category?.id || ''
     form.doc_iframe_url = post.value.doc_iframe_url || ''
+    form.author_id = (post.value as { author?: { id?: string } }).author?.id || ''
   }
 })
 
@@ -196,6 +202,7 @@ async function save() {
         meta_description: form.meta_description || undefined,
         category_id: form.category_id || undefined,
         doc_iframe_url: form.doc_iframe_url || undefined,
+        author_id: form.author_id || undefined,
       },
     })
     toast.success('Пост обновлен')
@@ -369,6 +376,22 @@ const previewUrl = computed(() =>
                       </option>
                     </optgroup>
                   </template>
+                </select>
+              </div>
+
+              <!-- Author -->
+              <div class="form-group">
+                <label class="label" for="blog-edit-author">Автор</label>
+                <select
+                  id="blog-edit-author"
+                  v-model="form.author_id"
+                  class="author-select"
+                  data-testid="blog-author-select"
+                >
+                  <option value="">— Текущий пользователь —</option>
+                  <option v-for="a in authors" :key="a.id" :value="a.id">
+                    {{ a.display_name }}
+                  </option>
                 </select>
               </div>
 
@@ -656,8 +679,9 @@ const previewUrl = computed(() =>
   display: none;
 }
 
-/* Category select */
-.category-select {
+/* Category / Author select */
+.category-select,
+.author-select {
   width: 100%;
   padding: 10px 14px;
   background: var(--color-surface);
@@ -672,7 +696,8 @@ const previewUrl = computed(() =>
   min-height: 44px;
 }
 
-.category-select:focus {
+.category-select:focus,
+.author-select:focus {
   outline: none;
   border-color: var(--color-accent);
   box-shadow: var(--shadow-glow-accent);

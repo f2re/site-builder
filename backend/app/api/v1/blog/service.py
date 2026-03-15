@@ -1,4 +1,4 @@
-# Module: api/v1/blog/service.py | Agent: backend-agent | Task: p28_backend_blog_categories
+# Module: api/v1/blog/service.py | Agent: backend-agent | Task: p45_blog_authors
 import bleach
 from typing import List, Optional, Any, Union
 from uuid import UUID
@@ -8,6 +8,7 @@ import structlog
 
 from app.api.v1.blog.repository import BlogRepository, get_blog_repo
 from app.api.v1.blog.schemas import (
+    AuthorUpdate,
     BlogCategoryCreate,
     BlogCategoryRead,
     BlogCategoryUpdate,
@@ -22,6 +23,7 @@ from app.api.v1.blog.schemas import (
     BlogPostShortRead,
 )
 from app.db.models.blog import BlogCategory, BlogPost, BlogPostStatus, Comment, CommentStatus, Author, Tag
+from app.db.models.user import User
 from app.tasks.search import index_blog_post_task, remove_blog_post_from_index_task
 from app.core.security import encrypt_data, decrypt_data
 from app.core.utils import generate_slug
@@ -216,14 +218,51 @@ class BlogService:
             author = await self.repo.create_author(author)
         return author
 
+    async def list_authors(self) -> List[Author]:
+        """Return all Authors linked to admin/manager users."""
+        return await self.repo.get_all_authors()
+
+    async def update_author_profile(self, user_id: UUID, data: AuthorUpdate) -> Author:
+        """Update display_name / bio / avatar_url for the author linked to user_id."""
+        author = await self.repo.get_author_by_user_id(user_id)
+        if not author:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Author profile not found",
+            )
+        if data.display_name is not None:
+            author.display_name = data.display_name
+        if data.bio is not None:
+            author.bio = data.bio
+        if data.avatar_url is not None:
+            author.avatar_url = data.avatar_url
+        await self.repo.session.commit()
+        await self.repo.session.refresh(author)
+        return author
+
     async def create_post(self, data: BlogPostCreate, user_id: UUID) -> BlogPostRead:
         """
         Create a new blog post, generate HTML from JSON, calculate reading time, and index in search.
+        If data.author_id is provided, use that existing Author (must exist, otherwise 404).
+        Otherwise auto-create/get Author for the current user.
         """
         slug = generate_slug(data.title, data.slug)
-        
-        # Ensure author exists for this user
-        author = await self.get_or_create_author(user_id, display_name=data.title)
+
+        # Resolve author
+        if data.author_id is not None:
+            author = await self.repo.get_author_by_id(data.author_id)
+            if not author:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Author not found",
+                )
+        else:
+            user = await self.repo.session.get(User, user_id)
+            if user:
+                display_name = user.full_name or user.email.split("@")[0]
+            else:
+                display_name = "Автор"
+            author = await self.get_or_create_author(user_id, display_name=display_name)
         
         # Generate HTML from JSON
         content_html = tiptap_to_html(data.content_json)

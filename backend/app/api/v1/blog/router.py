@@ -1,12 +1,14 @@
-# Module: api/v1/blog/router.py | Agent: backend-agent | Task: p28_backend_blog_categories
+# Module: api/v1/blog/router.py | Agent: backend-agent | Task: p45_blog_authors
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing import List, Optional, Union
 from uuid import UUID
 
-from app.core.dependencies import get_optional_current_user, require_admin
+from app.core.dependencies import get_optional_current_user, require_admin, require_admin_or_manager
 from app.db.models.user import User
 from app.db.models.blog import BlogPostStatus
 from .schemas import (
+    AuthorRead,
+    AuthorUpdate,
     BlogCategoryCreate,
     BlogCategoryRead,
     BlogCategoryUpdate,
@@ -114,10 +116,10 @@ async def list_comments(
 @router.post("/posts", response_model=BlogPostRead, status_code=status.HTTP_201_CREATED)
 async def create_post(
     data: BlogPostCreate,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_admin_or_manager),
     service: BlogService = Depends(get_blog_service),
 ):
-    """Create new blog post (admin only)."""
+    """Create new blog post (admin or manager)."""
     return await service.create_post(data, user_id=current_user.id)
 
 
@@ -151,6 +153,37 @@ async def list_posts_admin(
         cursor=after,
         per_page=actual_limit,
     )
+
+
+# Admin Author endpoints
+@router.get("/admin/authors", response_model=List[AuthorRead])
+async def list_blog_authors(
+    current_user: User = Depends(require_admin_or_manager),
+    service: BlogService = Depends(get_blog_service),
+):
+    """List all BlogAuthors linked to admin/manager users (admin or manager only)."""
+    return await service.list_authors()
+
+
+@router.get("/admin/authors/me", response_model=AuthorRead)
+async def get_my_author_profile(
+    current_user: User = Depends(require_admin_or_manager),
+    service: BlogService = Depends(get_blog_service),
+):
+    """Get (or auto-create) Author profile for the current user."""
+    display_name = current_user.full_name or current_user.email.split("@")[0]
+    author = await service.get_or_create_author(current_user.id, display_name=display_name)
+    return author
+
+
+@router.put("/admin/authors/me", response_model=AuthorRead)
+async def update_my_author_profile(
+    data: AuthorUpdate,
+    current_user: User = Depends(require_admin_or_manager),
+    service: BlogService = Depends(get_blog_service),
+):
+    """Update display_name / bio / avatar_url for the current user's Author profile."""
+    return await service.update_author_profile(current_user.id, data)
 
 
 # Admin Blog Category CRUD

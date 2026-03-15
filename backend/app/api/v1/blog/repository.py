@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
 from app.db.models.blog import BlogPost, BlogCategory, Tag, BlogPostStatus, Author, Comment, CommentStatus
+from app.db.models.user import User
 from app.db.session import get_db
 
 
@@ -249,6 +250,22 @@ class BlogRepository:
         stmt = select(Author).where(Author.user_id == user_id)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def get_author_by_id(self, author_id: UUID) -> Optional[Author]:
+        stmt = select(Author).where(Author.id == author_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_all_authors(self) -> List[Author]:
+        """Return all Authors whose linked User has role admin or manager."""
+        stmt = (
+            select(Author)
+            .join(User, Author.user_id == User.id)
+            .where(User.role.in_(["admin", "manager"]))
+            .order_by(Author.display_name)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
     async def create_author(self, author: Author) -> Author:
         self.session.add(author)

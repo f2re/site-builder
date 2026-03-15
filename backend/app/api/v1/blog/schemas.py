@@ -55,6 +55,7 @@ class TagRead(BaseModel):
 
 class AuthorRead(BaseModel):
     id: UUID
+    user_id: UUID
     display_name: str
     name: str = Field(validation_alias="display_name")
     bio: Optional[str] = None
@@ -66,6 +67,11 @@ class AuthorCreate(BaseModel):
     bio: Optional[str] = None
     avatar_url: Optional[str] = None
 
+class AuthorUpdate(BaseModel):
+    display_name: Optional[str] = None
+    bio: Optional[str] = None
+    avatar_url: Optional[str] = None
+
 class BlogPostBase(BaseModel):
     title: str
     slug: Optional[str] = None
@@ -74,6 +80,7 @@ class BlogPostBase(BaseModel):
     status: BlogStatus = BlogStatus.draft
     is_featured: bool = False
     category_id: Optional[UUID] = None
+    author_id: Optional[UUID] = None  # if set and user is admin — use this author
     cover_image: Optional[str] = None
     og_image_url: Optional[str] = None
     carousel_images: List[str] = Field(default_factory=list)

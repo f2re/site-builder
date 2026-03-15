@@ -5,6 +5,14 @@ export interface Author {
   bio?: string
 }
 
+export interface BlogAuthor {
+  id: string
+  user_id: string
+  display_name: string
+  bio?: string | null
+  avatar_url?: string | null
+}
+
 export interface Tag {
   id: string
   name: string
@@ -177,6 +185,14 @@ export const useBlog = () => {
     })
   }
 
+  // Admin authors
+  const adminGetAuthors = () => useApi<BlogAuthor[]>('/blog/admin/authors', { key: 'blog-authors' })
+
+  const adminGetMyAuthorProfile = () => useApi<BlogAuthor>('/blog/admin/authors/me', { key: 'my-author-profile' })
+
+  const adminUpdateMyAuthorProfile = (data: { display_name?: string; bio?: string; avatar_url?: string }) =>
+    apiFetch<BlogAuthor>('/blog/admin/authors/me', { method: 'PUT', body: data })
+
   return {
     getPosts,
     getPost,
@@ -191,5 +207,8 @@ export const useBlog = () => {
     savePost,
     deletePost,
     uploadBlogCover,
+    adminGetAuthors,
+    adminGetMyAuthorProfile,
+    adminUpdateMyAuthorProfile,
   }
 }

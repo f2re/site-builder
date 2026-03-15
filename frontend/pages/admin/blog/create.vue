@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import TipTapEditor from '~/components/blog/TipTapEditor.vue'
 import BlogCarouselManager from '~/components/blog/BlogCarouselManager.vue'
-import { useBlog, type BlogCategory } from '~/composables/useBlog'
+import { useBlog, type BlogCategory, type BlogAuthor } from '~/composables/useBlog'
 import { useMediaUpload } from '~/composables/useMediaUpload'
 
 definePageMeta({
@@ -13,7 +13,7 @@ definePageMeta({
 const router = useRouter()
 const toast = useToast()
 const apiFetch = useApiFetch()
-const { getTags, adminGetCategories } = useBlog()
+const { getTags, adminGetCategories, adminGetAuthors } = useBlog()
 const { uploadImage } = useMediaUpload()
 
 // Tags autocomplete
@@ -23,6 +23,10 @@ const allTags = computed(() => allTagsData.value ?? [])
 // Categories for select
 const { data: categoriesData } = await adminGetCategories()
 const allCategories = computed<BlogCategory[]>(() => categoriesData.value ?? [])
+
+// Authors for select
+const { data: authorsData } = await adminGetAuthors()
+const authors = computed<BlogAuthor[]>(() => authorsData.value ?? [])
 
 const categoriesBySection = computed(() => {
   const news = allCategories.value.filter(c => c.section === 'news')
@@ -45,6 +49,7 @@ const form = reactive({
   meta_description: '',
   category_id: '' as string,
   doc_iframe_url: '',
+  author_id: '' as string,
 })
 
 // Auto-generate slug from title
@@ -144,6 +149,7 @@ async function save() {
         meta_description: form.meta_description || undefined,
         category_id: form.category_id || undefined,
         doc_iframe_url: form.doc_iframe_url || undefined,
+        author_id: form.author_id || undefined,
       },
     })
     toast.success('Пост создан')
@@ -295,6 +301,22 @@ async function save() {
                       </option>
                     </optgroup>
                   </template>
+                </select>
+              </div>
+
+              <!-- Author -->
+              <div class="form-group">
+                <label class="label" for="blog-create-author">Автор</label>
+                <select
+                  id="blog-create-author"
+                  v-model="form.author_id"
+                  class="author-select"
+                  data-testid="blog-author-select"
+                >
+                  <option value="">— Текущий пользователь —</option>
+                  <option v-for="a in authors" :key="a.id" :value="a.id">
+                    {{ a.display_name }}
+                  </option>
                 </select>
               </div>
 
@@ -527,8 +549,9 @@ async function save() {
   display: none;
 }
 
-/* Category select */
-.category-select {
+/* Category / Author select */
+.category-select,
+.author-select {
   width: 100%;
   padding: 10px 14px;
   background: var(--color-surface);
@@ -543,7 +566,8 @@ async function save() {
   min-height: 44px;
 }
 
-.category-select:focus {
+.category-select:focus,
+.author-select:focus {
   outline: none;
   border-color: var(--color-accent);
   box-shadow: var(--shadow-glow-accent);
